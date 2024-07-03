@@ -91,7 +91,7 @@ const Scenes = sceneKeys.map((name, index) => {
 const StackScreens = () => {
   return (
     <Stack.Navigator
-      initialRouteName={'root'}
+      initialRouteName={'gameSettings'}
       screenOptions={{
         ...screenOptions,
         headerStyle: {

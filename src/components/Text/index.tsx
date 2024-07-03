@@ -21,6 +21,13 @@ interface TextProps {
     | 'bold'
     | 'normal';
   fontStyle?: 'normal' | 'italic';
+  textDecorationStyle?: 'solid' | 'dotted' | 'dashed' | 'double' | undefined;
+  textDecorationLine?:
+    | 'none'
+    | 'underline'
+    | 'line-through'
+    | 'underline line-through'
+    | undefined;
   fontSize?: number;
   lineHeight?: number;
   numberOfLines?: number;
@@ -37,6 +44,8 @@ const Text = (props: TextProps) => {
     style,
     fontWeight = 'normal',
     fontStyle = 'normal',
+    textDecorationStyle,
+    textDecorationLine,
     fontSize = 14,
     lineHeight,
     numberOfLines,
@@ -68,6 +77,14 @@ const Text = (props: TextProps) => {
       result.push({fontFamily: getSelectedFont('Nunito-Regular', 'bold')});
     }
 
+    if (textDecorationStyle) {
+      result.push({textDecorationStyle});
+    }
+
+    if (textDecorationLine) {
+      result.push({textDecorationLine});
+    }
+
     if (letterSpacing) {
       result.push({letterSpacing});
     }
@@ -77,6 +94,8 @@ const Text = (props: TextProps) => {
     style,
     fontWeight,
     fontStyle,
+    textDecorationStyle,
+    textDecorationLine,
     fontSize,
     lineHeight,
     textAlign,

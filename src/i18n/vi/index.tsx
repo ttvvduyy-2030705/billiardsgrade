@@ -1,9 +1,11 @@
 import header from './header';
 import error from './error';
+import game from './game';
 
 const vi = {
   ...header,
   ...error,
+  ...game,
   msgNotEmpty: 'Trường này không được trống',
   msgFieldNotEmpty: '{{name}} không được trống',
   msgActionSuccess: '{{action}} {{name}} thành công',
@@ -63,6 +65,7 @@ const vi = {
   txtCopied: 'Đã sao chép {{message}}',
   txtRetry: 'Thử lại',
   txtOr: 'Hoặc',
+  txtStart: 'Bắt đầu',
   txtStartNewGame: 'Bắt đầu trận mới',
   txtHistory: 'Lịch sử',
   msgAppName: 'Digital Score Board',

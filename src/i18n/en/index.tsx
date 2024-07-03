@@ -1,9 +1,11 @@
 import header from './header';
 import error from './error';
+import game from './game';
 
 const en = {
   ...header,
   ...error,
+  ...game,
   msgNotEmpty: 'This field cannot be empty',
   msgFieldNotEmpty: '{{name}} cannot be empty',
   msgActionSuccess: '{{action}} {{name}} successfully',
@@ -60,6 +62,7 @@ const en = {
   txtReset: 'Reset',
   txtRetry: 'Retry',
   txtOr: 'Or',
+  txtStart: 'Start',
   txtStartNewGame: 'Start new game',
   txtHistory: 'History',
   msgAppName: 'Digital Score Board',
