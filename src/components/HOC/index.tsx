@@ -13,9 +13,9 @@ import {LanguageContext} from 'context/language';
 
 import configColors from 'configuration/colors';
 
-const heavyScreens = ['login', 'userProfile'];
+const heavyScreens: string[] = [];
 
-const noNetworkScreens = ['home', 'login'];
+const noNetworkScreens = ['home'];
 
 const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
   const defaultIsReady = heavyScreens.includes(SceneName) ? false : true;
@@ -44,7 +44,7 @@ const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
     );
 
     const navigate = useCallback(
-      ({name, params}: {name: string; params: Object}) => {
+      (name: string, params: Object) => {
         navigation.navigate(name, params);
       },
       [navigation],

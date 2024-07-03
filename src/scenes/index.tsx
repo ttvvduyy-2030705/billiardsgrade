@@ -5,9 +5,15 @@ import {
 } from '@react-navigation/native-stack';
 import Text from 'components/Text';
 import {withWrapper} from 'components/HOC';
-import colors, {COLORS} from 'configuration/colors';
+import colors from 'configuration/colors';
 import {sceneKeys, scenes} from './screens';
 import i18n from 'i18n';
+import Button from 'components/Button';
+import Image from 'components/Image';
+import images from 'assets';
+import {goBack} from 'utils/navigation';
+import {Platform, StyleSheet} from 'react-native';
+import {getHeaderHeight, getStatusBarHeight} from 'configuration';
 
 const Stack = createNativeStackNavigator();
 
@@ -24,15 +30,45 @@ const noHeader: NativeStackNavigationOptions = {
   headerShown: false,
 };
 
+const styles = StyleSheet.create({
+  backButton: {
+    marginLeft: -15,
+    padding: 10,
+    height:
+      Platform.OS === 'android'
+        ? '100%'
+        : getHeaderHeight() - getStatusBarHeight() - 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
+    width: 24,
+    height: 24,
+  },
+});
+
+const _renderBackButton = () => {
+  return (
+    <Button onPress={goBack} style={styles.backButton}>
+      <Image
+        source={images.back}
+        style={styles.backIcon}
+        resizeMode={'contain'}
+      />
+    </Button>
+  );
+};
+
 //Create array of screens
 const Scenes = sceneKeys.map((name, index) => {
   const Scene = withWrapper(name, scenes[name]);
   let _options: NativeStackNavigationOptions = {
     headerTitle: () => (
-      <Text color={colors.white} fontWeight={'bold'}>
+      <Text fontWeight={'bold'} letterSpacing={1.2}>
         {i18n.t(name)}
       </Text>
     ),
+    headerLeft: _renderBackButton,
   };
 
   switch (name) {
@@ -59,10 +95,7 @@ const StackScreens = () => {
       screenOptions={{
         ...screenOptions,
         headerStyle: {
-          backgroundColor:
-            COLORS[0] && COLORS[0].colors
-              ? COLORS[0].colors.primary
-              : colors.primary,
+          backgroundColor: colors.primary,
         },
       }}>
       {Scenes}

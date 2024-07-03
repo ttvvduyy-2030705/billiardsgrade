@@ -4,6 +4,8 @@ export type Screens = {
   gameSettings: string;
   gamePlay: string;
 
+  history: string;
+
   //Helper
   overlay: string;
 };

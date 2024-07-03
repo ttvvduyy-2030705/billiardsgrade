@@ -1,13 +1,20 @@
 import i18n from 'i18n';
 import {useCallback, useMemo} from 'react';
+import {screens} from 'scenes/screens';
 import {Navigation} from 'types/navigation';
 
 export interface Props extends Navigation {}
 
-const HomeViewModel = (_props: Props) => {
-  const onStartNewGame = useCallback(() => {}, []);
+const HomeViewModel = (props: Props) => {
+  const onStartNewGame = useCallback(() => {
+    console.log(screens.gameSettings);
+    props.navigate(screens.gameSettings);
+  }, [props]);
 
-  const onPressHistory = useCallback(() => {}, []);
+  const onPressHistory = useCallback(() => {
+    console.log(screens.history);
+    props.navigate(screens.history);
+  }, [props]);
 
   const helloText = useMemo(() => {
     const now = new Date();
