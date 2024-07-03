@@ -9,6 +9,7 @@ import React, {useCallback, useState} from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {LanguageContext} from 'context/language';
 import {StackScreens} from 'scenes';
+import {navigationRef} from 'utils/navigation';
 
 const App = (): React.JSX.Element => {
   const [currentLanguage, setCurrentLanguage] = useState('vi');
@@ -18,7 +19,7 @@ const App = (): React.JSX.Element => {
   }, []);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <LanguageContext.Provider
         value={{language: currentLanguage, onChangeCurrentLanguage}}>
         <StackScreens />
