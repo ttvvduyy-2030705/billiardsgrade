@@ -1,0 +1,68 @@
+import header from './header';
+import error from './error';
+
+const en = {
+  ...header,
+  ...error,
+  msgNotEmpty: 'This field cannot be empty',
+  msgFieldNotEmpty: '{{name}} cannot be empty',
+  msgActionSuccess: '{{action}} {{name}} successfully',
+  msgActionError: 'Error happened when {{action}} {{name}}',
+  msgConfirmAction: 'Are you sure want to {{action}} {{name}} ?',
+  msgNetworkError: 'You are in offline mode.',
+  msgUndeterminedError:
+    'Unexpected error occured, please try again.\n\nWe are sorry for this inconvenience and will fix this as soon as possible.',
+
+  // eslint-disable-next-line quotes
+  msgRateApp: "How was your experience, let's rate for the app.",
+
+  txtError: 'Error',
+  msgError: 'Error occured, please try again',
+  txtSuccess: 'Success',
+  txtHour: 'Hour',
+  txtMinute: 'Minute',
+  txtCancel: 'Cancel',
+  txtConfirm: 'Confirm',
+  txtChooseDate: 'Choose time',
+  txtOk: 'Agree',
+  txtFind: 'Find',
+  txtClose: 'Close',
+  txtBack: 'Back',
+  txtLater: 'Later',
+  txtLoad: 'Download',
+  txtCreate: 'Create',
+  txtEdit: 'Edit',
+  txtRemove: 'Delete',
+  txtSettings: 'Settings',
+  txtLanguage: 'Language',
+  txtOthers: 'Others',
+  txtSearch: 'Search',
+  txtAlert: 'Notification',
+  txtGoodMorning: 'Good morning',
+  txtGoodAfternoon: 'Good afternoon',
+  txtGoodEvening: 'Good evening',
+  txtNext: 'Next',
+  txtNo: 'No',
+  txtYes: 'Yes',
+  txtSaving: 'Saving',
+  txtVersion: 'Version',
+  txtUpdate: 'Update',
+  txtExpireTime: 'Expire',
+  txtDownload: 'Download',
+  txtDownloaded: 'Downloaded',
+  txtSorry: 'Sorry',
+  txtAccount: 'Account',
+  txtReport: 'Report',
+  txtEnterValue: 'Enter value',
+  txtSection: 'Section',
+  txtvi: 'Tiếng việt',
+  txten: 'English',
+  txtReset: 'Reset',
+  txtRetry: 'Retry',
+  txtOr: 'Or',
+
+  month: 'month',
+  year: 'year',
+};
+
+export default en;

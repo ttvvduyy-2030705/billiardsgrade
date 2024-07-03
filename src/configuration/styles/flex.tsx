@@ -1,0 +1,30 @@
+import {StyleSheet} from 'react-native';
+
+type KeySignature = {
+  [key: string]: {
+    [subKey: string]: number;
+  };
+};
+
+const flex: KeySignature = StyleSheet.create({
+  flex1: {
+    flex: 1,
+  },
+  flex2: {
+    flex: 2,
+  },
+  flex4: {
+    flex: 4,
+  },
+  flex6: {
+    flex: 6,
+  },
+  flex8: {
+    flex: 8,
+  },
+  flex10: {
+    flex: 10,
+  },
+});
+
+export default flex;
