@@ -6,10 +6,13 @@
  */
 
 import React, {useCallback, useState} from 'react';
+import {Provider} from 'react-redux';
+import {PersistGate} from 'redux-persist/integration/react';
 import {NavigationContainer} from '@react-navigation/native';
 import {LanguageContext} from 'context/language';
 import {StackScreens} from 'scenes';
 import {navigationRef} from 'utils/navigation';
+import storage, {persistor} from 'data/redux';
 
 const App = (): React.JSX.Element => {
   const [currentLanguage, setCurrentLanguage] = useState('vi');
@@ -19,12 +22,16 @@ const App = (): React.JSX.Element => {
   }, []);
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <LanguageContext.Provider
-        value={{language: currentLanguage, onChangeCurrentLanguage}}>
-        <StackScreens />
-      </LanguageContext.Provider>
-    </NavigationContainer>
+    <Provider store={storage}>
+      <PersistGate loading={null} persistor={persistor}>
+        <NavigationContainer ref={navigationRef}>
+          <LanguageContext.Provider
+            value={{language: currentLanguage, onChangeCurrentLanguage}}>
+            <StackScreens />
+          </LanguageContext.Provider>
+        </NavigationContainer>
+      </PersistGate>
+    </Provider>
   );
 };
 

@@ -1,6 +1,7 @@
+import {gameActions} from 'data/redux/actions/game';
 import i18n from 'i18n';
 import {useCallback, useMemo, useState} from 'react';
-import {Alert} from 'react-native';
+import {useDispatch} from 'react-redux';
 import {screens} from 'scenes/screens';
 import {BilliardCategory} from 'types/category';
 import {Navigation} from 'types/navigation';
@@ -16,9 +17,12 @@ import {
 export interface Props extends Navigation {}
 
 const GameSettingsViewModel = (props: Props) => {
+  const dispatch = useDispatch();
+
   const [category, setCategory] = useState<BilliardCategory>('one-cushion');
-  const [gameMode, setGameMode] = useState<GameMode>('fast');
-  const [gameSettingsMode, setGameSettingsMode] = useState<GameSettingsMode>();
+  const [gameSettingsMode, setGameSettingsMode] = useState<GameSettingsMode>({
+    mode: 'fast',
+  });
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>({
     playerNumber: 2,
     playingPlayers: [
@@ -42,16 +46,48 @@ const GameSettingsViewModel = (props: Props) => {
   }, [props]);
 
   const onStart = useCallback(() => {
+    dispatch(
+      gameActions.updateGameSettings({
+        category,
+        gameSettingsMode,
+        playerSettings,
+      }),
+    );
     props.navigate(screens.gamePlay);
-  }, [props]);
+  }, [dispatch, props, category, gameSettingsMode, playerSettings]);
 
   const onSelectCategory = useCallback((selectedCategory: BilliardCategory) => {
     setCategory(selectedCategory);
   }, []);
 
-  const onSelectGameMode = useCallback((selectedGameMode: GameMode) => {
-    setGameMode(selectedGameMode);
-  }, []);
+  const onSelectGameMode = useCallback(
+    (selectedGameMode: GameMode) => {
+      switch (selectedGameMode) {
+        case 'fast':
+          setGameSettingsMode({mode: selectedGameMode});
+          break;
+        case 'time':
+          setGameSettingsMode({
+            mode: selectedGameMode,
+            extraTimeTurns: gameSettingsMode.extraTimeTurns,
+            countdownTime: gameSettingsMode.countdownTime,
+          });
+          break;
+        case 'eliminate':
+          setGameSettingsMode({
+            mode: selectedGameMode,
+            countdownTime: gameSettingsMode.countdownTime,
+          });
+          break;
+        case 'pro':
+          setGameSettingsMode({...gameSettingsMode, mode: selectedGameMode});
+          break;
+        default:
+          break;
+      }
+    },
+    [gameSettingsMode],
+  );
 
   const onSelectExtraTimeTurns = useCallback(
     (extraTimeTurns: GameExtraTimeTurns) => {
@@ -159,6 +195,7 @@ const GameSettingsViewModel = (props: Props) => {
   );
 
   return useMemo(() => {
+    const gameMode = gameSettingsMode.mode;
     return {
       category,
       gameMode,
@@ -181,7 +218,6 @@ const GameSettingsViewModel = (props: Props) => {
     };
   }, [
     category,
-    gameMode,
     gameSettingsMode,
     playerSettings,
     onSelectCategory,
