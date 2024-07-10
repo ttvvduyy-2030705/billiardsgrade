@@ -57,6 +57,33 @@ const GamePlayer = (props: Props) => {
     );
   }, [PAIR_PLAY, props, viewModel.onPressPointStep]);
 
+  const EXTRA_TIME_TURNS = useMemo(() => {
+    if (
+      !props.gameSettings.mode.extraTimeTurns ||
+      props.gameSettings.mode.extraTimeTurns === 'infinity'
+    ) {
+      return null;
+    }
+
+    return (
+      <View>
+        {Array.from(
+          {length: props.gameSettings.mode.extraTimeTurns},
+          (_, i) => {
+            return (
+              <Button
+                key={`extra-time-turns-${i}`}
+                style={styles.extraTimeTurnsWrapper}
+                onPress={viewModel.onPressExtraTimeTurns}>
+                <View style={styles.extraTimeTurns} />
+              </Button>
+            );
+          },
+        )}
+      </View>
+    );
+  }, [props, viewModel.onPressExtraTimeTurns]);
+
   return (
     <View
       flex={'1'}
@@ -104,6 +131,20 @@ const GamePlayer = (props: Props) => {
         direction={'row'}
         alignItems={'center'}
         justify={'center'}>
+        <View marginLeft={'15'}>
+          <View>
+            <Text fontWeight={'bold'}>{'HR'}</Text>
+            <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
+              {0}
+            </Text>
+          </View>
+          <View>
+            <Text fontWeight={'bold'}>{'AVG'}</Text>
+            <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
+              {0}
+            </Text>
+          </View>
+        </View>
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Text
             style={{
@@ -116,9 +157,22 @@ const GamePlayer = (props: Props) => {
             {props.player.totalPoint}
           </Text>
         </View>
+        <View marginRight={'15'}>{EXTRA_TIME_TURNS}</View>
       </View>
 
-      {POINT_STEPS}
+      {props.gameSettings.mode.mode === 'fast' ? (
+        POINT_STEPS
+      ) : (
+        <View direction={'row'}>
+          <View flex={'1'} justify={'end'} alignItems={'end'}>
+            <View style={styles.totalPointInTurn} paddingVertical={'20'}>
+              <Text fontSize={40} fontWeight={'bold'}>
+                {0}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

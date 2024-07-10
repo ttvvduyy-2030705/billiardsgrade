@@ -44,6 +44,8 @@ const PlayerViewModel = (props: Props) => {
     [props],
   );
 
+  const onPressExtraTimeTurns = useCallback(() => {}, []);
+
   return useMemo(() => {
     return {
       nameEditable,
@@ -52,6 +54,7 @@ const PlayerViewModel = (props: Props) => {
       onIncreasePoint,
       onDecreasePoint,
       onPressPointStep,
+      onPressExtraTimeTurns,
     };
   }, [
     nameEditable,
@@ -60,6 +63,7 @@ const PlayerViewModel = (props: Props) => {
     onIncreasePoint,
     onDecreasePoint,
     onPressPointStep,
+    onPressExtraTimeTurns,
   ]);
 };
 

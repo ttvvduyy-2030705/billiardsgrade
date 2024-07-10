@@ -34,9 +34,9 @@ const GAME_MODE: {[key in GAME_MODE_TYPE]: GameMode} = {
 const GAME_EXTRA_TIME_TURN: {
   [key in GAME_EXTRA_TIME_TURN_TYPE]: GameExtraTimeTurns;
 } = {
-  t0: 0,
   t1: 1,
   t2: 2,
+  t3: 3,
   infinity: 'infinity',
 };
 

@@ -39,6 +39,21 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 32,
   },
+  extraTimeTurnsWrapper: {
+    marginTop: 10,
+  },
+  extraTimeTurns: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+  },
+  totalPointInTurn: {
+    backgroundColor: colors.grayBlue,
+    borderTopLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingHorizontal: 30,
+  },
 });
 
 export default styles;
