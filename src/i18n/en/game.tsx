@@ -51,6 +51,9 @@ const game = {
   switchPlayer: 'Switch players',
   pause: 'Pause',
   stop: 'End',
+  turn: 'On turn',
+  totalTurns: 'Total turns',
+  giveMoreTime: 'Give more time',
 };
 
 export default game;

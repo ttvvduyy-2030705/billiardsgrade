@@ -38,6 +38,14 @@ const styles = StyleSheet.create({
   marginVertical: {
     marginVertical: 20,
   },
+  buttonGiveMoreTime: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.grayBlue,
+    borderRadius: 20,
+  },
 });
 
 export default styles;

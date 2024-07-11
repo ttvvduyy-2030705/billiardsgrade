@@ -46,11 +46,15 @@ const GameSettingsViewModel = (props: Props) => {
   }, [props]);
 
   const onStart = useCallback(() => {
+    const _playingPlayers = playerSettings.playingPlayers.map(player => {
+      return {...player, proMode: gameSettingsMode};
+    });
+
     dispatch(
       gameActions.updateGameSettings({
         category,
         mode: gameSettingsMode,
-        players: playerSettings,
+        players: {...playerSettings, playingPlayers: _playingPlayers},
       }),
     );
     props.navigate(screens.gamePlay);

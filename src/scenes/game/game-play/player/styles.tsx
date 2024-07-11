@@ -54,6 +54,12 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
     paddingHorizontal: 30,
   },
+  buttonEndTurn: {
+    backgroundColor: colors.notification,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    paddingHorizontal: 30,
+  },
 });
 
 export default styles;

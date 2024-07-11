@@ -14,6 +14,44 @@ import Webcam from './webcam';
 const GameConsole = (props: Props) => {
   const viewModel = ConsoleViewModel(props);
 
+  const GAME_INFO = useMemo(() => {
+    if (props.totalPlayers === 5 && props.currentMode.mode === 'fast') {
+      return <View />;
+    }
+
+    if (props.currentMode.mode === 'fast') {
+      return <View flex={'1'} />;
+    }
+
+    return (
+      <View marginTop={'15'}>
+        <View direction={'row'} alignItems={'center'}>
+          <View flex={'1'} alignItems={'center'} justify={'center'}>
+            <Text>{i18n.t('totalTurns')}</Text>
+            <Text fontSize={96} color={colors.grayBlue} fontWeight={'bold'}>
+              {props.totalTurns}
+            </Text>
+          </View>
+          <View flex={'1'} alignItems={'center'} justify={'center'}>
+            <Text>{i18n.t('goal')}</Text>
+            <Text fontSize={96} color={colors.grayBlue} fontWeight={'bold'}>
+              {props.goal}
+            </Text>
+          </View>
+        </View>
+        <View direction={'row'} marginHorizontal={'20'} marginVertical={'20'}>
+          <Button
+            onPress={viewModel.onPressGiveMoreTime}
+            style={styles.buttonGiveMoreTime}>
+            <Text color={colors.white} fontSize={16}>
+              {i18n.t('giveMoreTime')}
+            </Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }, [props, viewModel.onPressGiveMoreTime]);
+
   const STYLE = useMemo(() => {
     if (props.totalPlayers === 5) {
       return styles.marginTop;
@@ -102,13 +140,23 @@ const GameConsole = (props: Props) => {
             </View>
           </View>
 
-          <Webcam />
+          {props.totalPlayers < 5 || props.currentMode.mode === 'fast' ? (
+            <Webcam />
+          ) : (
+            <View />
+          )}
 
-          <View flex={'1'} direction={'row'}>
-            {props.renderLastPlayer()}
-          </View>
+          {GAME_INFO}
 
-          {props.totalPlayers === 2 ? (
+          {props.totalPlayers === 5 ? (
+            <View flex={'1'} direction={'row'}>
+              {props.renderLastPlayer()}
+            </View>
+          ) : (
+            <View />
+          )}
+
+          {props.totalPlayers === 2 && props.currentMode.mode === 'fast' ? (
             <View
               direction={'row'}
               alignItems={'center'}

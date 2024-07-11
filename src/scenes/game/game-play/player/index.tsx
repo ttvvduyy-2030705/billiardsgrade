@@ -12,6 +12,7 @@ import {
 import colors from 'configuration/colors';
 import PlayerViewModel, {Props} from './PlayerViewModel';
 import styles from './styles';
+import i18n from 'i18n';
 
 const GamePlayer = (props: Props) => {
   const viewModel = PlayerViewModel(props);
@@ -68,21 +69,20 @@ const GamePlayer = (props: Props) => {
     return (
       <View>
         {Array.from(
-          {length: props.gameSettings.mode.extraTimeTurns},
+          {length: (props.player.proMode?.extraTimeTurns as number) || 0},
           (_, i) => {
             return (
-              <Button
+              <View
                 key={`extra-time-turns-${i}`}
-                style={styles.extraTimeTurnsWrapper}
-                onPress={viewModel.onPressExtraTimeTurns}>
+                style={styles.extraTimeTurnsWrapper}>
                 <View style={styles.extraTimeTurns} />
-              </Button>
+              </View>
             );
           },
         )}
       </View>
     );
-  }, [props, viewModel.onPressExtraTimeTurns]);
+  }, [props]);
 
   return (
     <View
@@ -131,43 +131,72 @@ const GamePlayer = (props: Props) => {
         direction={'row'}
         alignItems={'center'}
         justify={'center'}>
-        <View marginLeft={'15'}>
-          <View>
-            <Text fontWeight={'bold'}>{'HR'}</Text>
-            <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
-              {0}
-            </Text>
+        {props.gameSettings.mode.mode !== 'fast' ? (
+          <View marginLeft={'15'}>
+            <View>
+              <Text fontWeight={'bold'}>{'HR'}</Text>
+              <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
+                {viewModel.highestRate}
+              </Text>
+            </View>
+            <View>
+              <Text fontWeight={'bold'}>{'AVG'}</Text>
+              <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
+                {viewModel.averagePoint}
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text fontWeight={'bold'}>{'AVG'}</Text>
-            <Text fontSize={48} fontWeight={'bold'} lineHeight={60}>
-              {0}
-            </Text>
-          </View>
-        </View>
+        ) : (
+          <View />
+        )}
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Text
             style={{
               lineHeight: PAIR_PLAY ? 592 : 310,
             }}
             fontSize={
-              props.player.totalPoint >= 100 ? 304 : PAIR_PLAY ? 512 : 304
+              props.player.totalPoint >= 100
+                ? 304
+                : PAIR_PLAY
+                ? props.player.totalPoint >= 10
+                  ? 304
+                  : 512
+                : 304
             }
             color={colors.statusBar}>
             {props.player.totalPoint}
           </Text>
         </View>
-        <View marginRight={'15'}>{EXTRA_TIME_TURNS}</View>
+        {props.gameSettings.mode.mode !== 'fast' ? (
+          <View marginRight={'15'}>{EXTRA_TIME_TURNS}</View>
+        ) : (
+          <View />
+        )}
       </View>
 
       {props.gameSettings.mode.mode === 'fast' ? (
         POINT_STEPS
       ) : (
         <View direction={'row'}>
-          <View flex={'1'} justify={'end'} alignItems={'end'}>
+          <View
+            flex={'1'}
+            direction={'row'}
+            justify={'between'}
+            alignItems={'end'}>
+            {props.isOnTurn ? (
+              <Button
+                style={styles.buttonEndTurn}
+                onPress={viewModel.onEndTurn}>
+                <Text fontSize={40} fontWeight={'bold'}>
+                  {i18n.t('turn')}
+                </Text>
+              </Button>
+            ) : (
+              <View />
+            )}
             <View style={styles.totalPointInTurn} paddingVertical={'20'}>
               <Text fontSize={40} fontWeight={'bold'}>
-                {0}
+                {viewModel.totalPointInTurn}
               </Text>
             </View>
           </View>

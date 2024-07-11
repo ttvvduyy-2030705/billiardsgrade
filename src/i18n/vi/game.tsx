@@ -51,6 +51,9 @@ const game = {
   switchPlayer: 'Đổi người',
   pause: 'Tạm dừng',
   stop: 'Kết thúc',
+  turn: 'Tới lượt',
+  totalTurns: 'Số lượt',
+  giveMoreTime: 'Xin thời gian',
 };
 
 export default game;

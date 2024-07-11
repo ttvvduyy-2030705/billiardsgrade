@@ -6,7 +6,7 @@ export interface Props {
 }
 
 const SwitchViewModel = (props: Props) => {
-  const [value, setValue] = useState(false);
+  const [value, setValue] = useState(props.defaultValue);
 
   const onToggle = useCallback(
     (newValue: boolean) => {

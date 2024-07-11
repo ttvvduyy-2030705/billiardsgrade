@@ -15,19 +15,23 @@ const GamePlay = () => {
           <GamePlayer
             index={topIndex}
             isOnTurn={viewModel.currentPlayerIndex === topIndex}
+            totalTurns={viewModel.totalTurns}
             gameSettings={viewModel.gameSettings!}
             player={viewModel.playerSettings!.playingPlayers[topIndex]}
             onEditPlayerName={viewModel.onEditPlayerName}
             onChangePlayerPoint={viewModel.onChangePlayerPoint}
+            onEndTurn={viewModel.onEndTurn}
           />
           {bottomIndex ? (
             <GamePlayer
               index={bottomIndex}
               isOnTurn={viewModel.currentPlayerIndex === bottomIndex}
+              totalTurns={viewModel.totalTurns}
               gameSettings={viewModel.gameSettings!}
               player={viewModel.playerSettings!.playingPlayers[bottomIndex]}
               onEditPlayerName={viewModel.onEditPlayerName}
               onChangePlayerPoint={viewModel.onChangePlayerPoint}
+              onEndTurn={viewModel.onEndTurn}
             />
           ) : (
             <View />
@@ -37,10 +41,12 @@ const GamePlay = () => {
     },
     [
       viewModel.currentPlayerIndex,
+      viewModel.totalTurns,
       viewModel.gameSettings,
       viewModel.onChangePlayerPoint,
       viewModel.onEditPlayerName,
       viewModel.playerSettings,
+      viewModel.onEndTurn,
     ],
   );
 
@@ -53,18 +59,22 @@ const GamePlay = () => {
       <GamePlayer
         index={4}
         isOnTurn={viewModel.currentPlayerIndex === 4}
+        totalTurns={viewModel.totalTurns}
         gameSettings={viewModel.gameSettings!}
         player={viewModel.playerSettings!.playingPlayers[4]}
         onEditPlayerName={viewModel.onEditPlayerName}
         onChangePlayerPoint={viewModel.onChangePlayerPoint}
+        onEndTurn={viewModel.onEndTurn}
       />
     );
   }, [
     viewModel.currentPlayerIndex,
+    viewModel.totalTurns,
     viewModel.gameSettings,
     viewModel.playerSettings,
     viewModel.onChangePlayerPoint,
     viewModel.onEditPlayerName,
+    viewModel.onEndTurn,
   ]);
 
   if (
@@ -87,9 +97,13 @@ const GamePlay = () => {
           viewModel.playerSettings.playingPlayers[2] ? 2 : undefined,
         )}
         <GameConsole
+          gameSettings={viewModel.gameSettings}
           currentMode={viewModel.gameSettings.mode}
           totalPlayers={viewModel.playerSettings.playingPlayers.length}
           countdownTime={'00:35:45'}
+          totalTurns={viewModel.totalTurns}
+          goal={viewModel.gameSettings.players.goal.goal}
+          onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
           onSwitchTurn={viewModel.onSwitchTurn}
           onSwapPlayers={viewModel.onSwapPlayers}
           renderLastPlayer={renderLastPlayer}
