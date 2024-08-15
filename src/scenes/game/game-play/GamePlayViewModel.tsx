@@ -3,16 +3,9 @@ import {useSelector, useDispatch} from 'react-redux';
 import {RootState} from 'data/redux/reducers';
 import {Player, PlayerSettings} from 'types/player';
 import {goBack} from 'utils/navigation';
-import {
-  cancelAnimation,
-  Easing,
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import {COUNTDOWN_WIDTH} from './styles';
 import {gameActions} from 'data/redux/actions/game';
+import {COUNTDOWN_WIDTH} from './styles';
+import colors from 'configuration/colors';
 
 let countdownInterval: NodeJS.Timeout;
 
@@ -28,28 +21,18 @@ const GamePlayViewModel = () => {
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
 
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  const countdownOffsetX = useSharedValue(-COUNTDOWN_WIDTH);
 
   useEffect(() => {
     setPlayerSettings(gameSettings?.players);
 
     if (gameSettings?.mode.countdownTime) {
       setCountdownTime(gameSettings.mode.countdownTime);
-
-      countdownOffsetX.value = withTiming(0, {
-        duration: gameSettings.mode.countdownTime * 1000,
-        easing: Easing.linear,
-        reduceMotion: ReduceMotion.Never,
-      });
     }
 
     if (gameSettings?.mode.mode === 'fast') {
-      countdownOffsetX.value = -COUNTDOWN_WIDTH;
       setCountdownTime(gameSettings?.mode.countdownTime || 0);
       setIsPaused(false);
     }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSettings]);
 
   useEffect(() => {
@@ -65,15 +48,38 @@ const GamePlayViewModel = () => {
     }, 1000);
   }, [isPaused]);
 
-  const COUNTDOWN_TIME_STYLE = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          translateX: countdownOffsetX.value,
-        },
-      ],
-    };
-  }, []);
+  const getCountdownWidthItem = useCallback(() => {
+    if (!gameSettings?.mode.countdownTime) {
+      return;
+    }
+
+    return COUNTDOWN_WIDTH / gameSettings!.mode.countdownTime! - 10;
+  }, [gameSettings]);
+
+  const getCountdownColor = useCallback(
+    (index: number) => {
+      if (!gameSettings?.mode.countdownTime) {
+        return;
+      }
+
+      const _time = gameSettings!.mode.countdownTime!;
+      const section = _time / 4;
+
+      switch (true) {
+        case index > section * 3:
+          return colors.green;
+        case index > section * 2:
+          return colors.primary;
+        case index > section * 1:
+          return colors.yellow;
+        case index >= 0:
+          return colors.red;
+        default:
+          return colors.primary;
+      }
+    },
+    [gameSettings],
+  );
 
   const _resetCountdown = useCallback(
     (isResume?: boolean) => {
@@ -82,18 +88,10 @@ const GamePlayViewModel = () => {
       }
 
       if (!isResume) {
-        countdownOffsetX.value = -COUNTDOWN_WIDTH;
         setCountdownTime(gameSettings?.mode.countdownTime || 0);
       }
-
-      countdownOffsetX.value = withTiming(0, {
-        duration:
-          (isResume ? countdownTime : gameSettings.mode.countdownTime) * 1000,
-        easing: Easing.linear,
-        reduceMotion: ReduceMotion.System,
-      });
     },
-    [countdownOffsetX, countdownTime, gameSettings],
+    [gameSettings],
   );
 
   const onEditPlayerName = useCallback((index: number, newName: string) => {
@@ -203,11 +201,10 @@ const GamePlayViewModel = () => {
       _resetCountdown(true);
     } else {
       clearInterval(countdownInterval);
-      cancelAnimation(countdownOffsetX);
     }
 
     setIsPaused(prev => !prev);
-  }, [isPaused, countdownOffsetX, _resetCountdown]);
+  }, [isPaused, _resetCountdown]);
 
   const onStop = useCallback(() => {
     dispatch(gameActions.updateGameSettings(undefined));
@@ -216,7 +213,6 @@ const GamePlayViewModel = () => {
 
   return useMemo(() => {
     return {
-      COUNTDOWN_TIME_STYLE,
       currentPlayerIndex,
       totalTime,
       totalTurns,
@@ -225,6 +221,8 @@ const GamePlayViewModel = () => {
       countdownTime,
       updateGameSettings,
       isPaused,
+      getCountdownWidthItem,
+      getCountdownColor,
       onEditPlayerName,
       onChangePlayerPoint,
       onPressGiveMoreTime,
@@ -235,7 +233,6 @@ const GamePlayViewModel = () => {
       onStop,
     };
   }, [
-    COUNTDOWN_TIME_STYLE,
     currentPlayerIndex,
     totalTime,
     totalTurns,
@@ -244,6 +241,8 @@ const GamePlayViewModel = () => {
     countdownTime,
     updateGameSettings,
     isPaused,
+    getCountdownWidthItem,
+    getCountdownColor,
     onEditPlayerName,
     onChangePlayerPoint,
     onPressGiveMoreTime,

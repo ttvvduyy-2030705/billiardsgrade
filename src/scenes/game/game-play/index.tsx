@@ -1,13 +1,9 @@
 import React, {memo, useCallback} from 'react';
-import LinearGradient from 'react-native-linear-gradient';
-import Animated from 'react-native-reanimated';
 import Container from 'components/Container';
 import View from 'components/View';
-import colors from 'configuration/colors';
 import GamePlayViewModel from './GamePlayViewModel';
 import GamePlayer from './player';
 import GameConsole from './console';
-import {END, START} from './constants';
 import styles from './styles';
 import Text from 'components/Text';
 
@@ -91,6 +87,52 @@ const GamePlay = () => {
     viewModel.onEndTurn,
   ]);
 
+  const renderCountDownTime = useCallback(() => {
+    if (!viewModel.gameSettings?.mode.countdownTime) {
+      return <View />;
+    }
+
+    return (
+      <View flex={'1'} direction={'row'} style={styles.countdown}>
+        {Array.from(
+          {length: viewModel.gameSettings.mode.countdownTime},
+          (_, index) => {
+            if (viewModel.countdownTime <= index) {
+              return (
+                <View
+                  key={`countdown-item-hide-${index}`}
+                  style={[
+                    styles.countdownItem,
+                    {width: viewModel.getCountdownWidthItem()},
+                  ]}
+                />
+              );
+            }
+
+            return (
+              <View
+                key={`countdown-item-${index}`}
+                style={[
+                  styles.countdownItem,
+                  {
+                    width: viewModel.getCountdownWidthItem(),
+                    backgroundColor: viewModel.getCountdownColor(index),
+                  },
+                ]}
+              />
+            );
+          },
+        ).reverse()}
+      </View>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viewModel.gameSettings,
+    viewModel.countdownTime,
+    viewModel.getCountdownColor,
+    viewModel.getCountdownWidthItem,
+  ]);
+
   if (
     !viewModel.gameSettings ||
     viewModel.updateGameSettings.isLoading ||
@@ -136,17 +178,7 @@ const GamePlay = () => {
           <View flex={'1'} paddingHorizontal={'20'}>
             <Text fontSize={48}>{viewModel.countdownTime}</Text>
           </View>
-          <View style={styles.countdownWrapper}>
-            <LinearGradient
-              style={styles.countdownLinear}
-              colors={[colors.green, colors.yellow, colors.red]}
-              start={START}
-              end={END}
-            />
-            <Animated.View
-              style={[styles.countdown, viewModel.COUNTDOWN_TIME_STYLE]}
-            />
-          </View>
+          <View style={styles.countdownWrapper}>{renderCountDownTime()}</View>
         </View>
       ) : (
         <View />
