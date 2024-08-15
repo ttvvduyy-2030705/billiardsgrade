@@ -2,7 +2,8 @@ import {BilliardCategory} from './category';
 import {PlayerSettings} from './player';
 
 export type GameMode = 'fast' | 'time' | 'eliminate' | 'pro';
-export type GameExtraTimeTurns = 1 | 2 | 3 | 'infinity';
+export type GameModePool = 'fast' | 'time';
+export type GameExtraTimeTurns = 1 | 2 | 3 | 4 | 'infinity';
 export type GameCountDownTime = 30 | 35 | 40 | 45 | 50 | 55 | 60;
 export type GameWarmUpTime = 60 | 120 | 180 | 300 | 600 | 900 | undefined;
 

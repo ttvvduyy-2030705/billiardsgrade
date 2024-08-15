@@ -1,16 +1,24 @@
 import React, {memo, useCallback} from 'react';
+import {ScrollView} from 'react-native';
 import Text from 'components/Text';
 import View from 'components/View';
 import i18n from 'i18n';
 import Button from 'components/Button';
-import {Player, PlayerNumber, PlayerSettings} from 'types/player';
-import {PLAYER_NUMBER, PLAYER_POINT_STEPS} from 'constants/player';
-import styles from './styles';
 import TextInput from 'components/TextInput';
-import {ScrollView} from 'react-native';
+import {Player, PlayerNumber, PlayerSettings} from 'types/player';
+import {
+  PLAYER_NUMBER,
+  PLAYER_NUMBER_POOL,
+  PLAYER_NUMBER_POOL_15,
+  PLAYER_POINT_STEPS,
+} from 'constants/player';
 import {responsiveDimension, responsiveFontSize} from 'utils/helper';
+import {BilliardCategory} from 'types/category';
+import styles from './styles';
+import {isPool15Game, isPoolGame} from 'utils/game';
 
 interface Props {
+  category: BilliardCategory;
   playerSettings: PlayerSettings;
   onSelectPlayerNumber: (playerNumber: PlayerNumber) => void;
   onSelectPlayerGoal: (addedPoint: number, index: number) => void;
@@ -30,7 +38,13 @@ const PlayerSettingsComponent = (props: Props) => {
           <Text letterSpacing={1.2}>{i18n.t('playerNumber')}</Text>
         </View>
         <View direction={'row'} alignItems={'center'}>
-          {Object.keys(PLAYER_NUMBER).map(key => {
+          {Object.keys(
+            isPool15Game(props.category)
+              ? PLAYER_NUMBER_POOL_15
+              : isPoolGame(props.category)
+              ? PLAYER_NUMBER_POOL
+              : PLAYER_NUMBER,
+          ).map(key => {
             const item = (PLAYER_NUMBER as any)[key];
 
             return (

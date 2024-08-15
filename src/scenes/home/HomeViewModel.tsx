@@ -7,12 +7,10 @@ export interface Props extends Navigation {}
 
 const HomeViewModel = (props: Props) => {
   const onStartNewGame = useCallback(() => {
-    console.log(screens.gameSettings);
     props.navigate(screens.gameSettings);
   }, [props]);
 
   const onPressHistory = useCallback(() => {
-    console.log(screens.history);
     props.navigate(screens.history);
   }, [props]);
 

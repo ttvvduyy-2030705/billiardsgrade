@@ -13,6 +13,7 @@ import {
   GameSettingsMode,
   GameWarmUpTime,
 } from 'types/settings';
+import {isPoolGame} from 'utils/game';
 
 export interface Props extends Navigation {}
 
@@ -60,9 +61,19 @@ const GameSettingsViewModel = (props: Props) => {
     props.navigate(screens.gamePlay);
   }, [dispatch, props, category, gameSettingsMode, playerSettings]);
 
-  const onSelectCategory = useCallback((selectedCategory: BilliardCategory) => {
-    setCategory(selectedCategory);
-  }, []);
+  const onSelectCategory = useCallback(
+    (selectedCategory: BilliardCategory) => {
+      setCategory(selectedCategory);
+      setPlayerSettings({
+        ...playerSettings,
+        goal: {
+          ...playerSettings.goal,
+          goal: isPoolGame(selectedCategory) ? 10 : 40,
+        },
+      });
+    },
+    [playerSettings],
+  );
 
   const onSelectGameMode = useCallback((selectedGameMode: GameMode) => {
     switch (selectedGameMode) {

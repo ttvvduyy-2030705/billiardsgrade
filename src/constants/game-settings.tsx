@@ -2,11 +2,13 @@ import {
   GameCountDownTime,
   GameExtraTimeTurns,
   GameMode,
+  GameModePool,
   GameWarmUpTime,
 } from 'types/settings';
 
 type GAME_MODE_TYPE = 'FAST' | 'TIME' | 'ELIMINATE' | 'PRO';
-type GAME_EXTRA_TIME_TURN_TYPE = 't0' | 't1' | 't2' | 'infinity';
+type GAME_MODE_POOL_TYPE = 'FAST' | 'TIME';
+type GAME_EXTRA_TIME_TURN_TYPE = 't1' | 't2' | 't3' | 't4' | 'infinity';
 type GAME_COUNT_DOWN_TIME_TYPE =
   | 's30'
   | 's35'
@@ -31,12 +33,18 @@ const GAME_MODE: {[key in GAME_MODE_TYPE]: GameMode} = {
   PRO: 'pro',
 };
 
+const GAME_MODE_POOL: {[key in GAME_MODE_POOL_TYPE]: GameModePool} = {
+  FAST: 'fast',
+  TIME: 'time',
+};
+
 const GAME_EXTRA_TIME_TURN: {
   [key in GAME_EXTRA_TIME_TURN_TYPE]: GameExtraTimeTurns;
 } = {
   t1: 1,
   t2: 2,
   t3: 3,
+  t4: 4,
   infinity: 'infinity',
 };
 
@@ -64,6 +72,7 @@ const GAME_WARM_UP_TIME: {[key in GAME_WARM_UP_TIME_TYPE]: GameWarmUpTime} = {
 
 export {
   GAME_MODE,
+  GAME_MODE_POOL,
   GAME_EXTRA_TIME_TURN,
   GAME_COUNT_DOWN_TIME,
   GAME_WARM_UP_TIME,
