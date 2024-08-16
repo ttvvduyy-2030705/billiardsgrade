@@ -1,3 +1,4 @@
+import {PLAYER_COLOR} from 'constants/player';
 import {gameActions} from 'data/redux/actions/game';
 import i18n from 'i18n';
 import {useCallback, useMemo, useState} from 'react';
@@ -29,10 +30,12 @@ const GameSettingsViewModel = (props: Props) => {
     playingPlayers: [
       {
         name: i18n.t('player1'),
+        color: PLAYER_COLOR[0],
         totalPoint: 0,
       },
       {
         name: i18n.t('player2'),
+        color: PLAYER_COLOR[1],
         totalPoint: 0,
       },
     ],
@@ -144,6 +147,7 @@ const GameSettingsViewModel = (props: Props) => {
         playingPlayers: Array.from(Array(playerNumber).keys()).map(number => {
           return {
             name: i18n.t(`player${number + 1}`),
+            color: (PLAYER_COLOR as any)[number],
             totalPoint: 0,
           };
         }),

@@ -46,7 +46,11 @@ const GameConsole = (props: Props) => {
             </Text>
           </View>
         </View>
-        <View direction={'row'} marginHorizontal={'20'} marginTop={'20'}>
+        <View
+          direction={'row'}
+          marginHorizontal={'20'}
+          marginTop={'20'}
+          marginBottom={'15'}>
           <Button
             onPress={viewModel.onPressGiveMoreTime}
             style={styles.buttonGiveMoreTime}>
@@ -125,13 +129,32 @@ const GameConsole = (props: Props) => {
               direction={'row'}
               justify={'center'}
               alignItems={'center'}>
-              <Button
-                style={[styles.button, styles.pauseButton]}
-                onPress={viewModel.onPause}>
-                <Text fontWeight={'bold'} letterSpacing={1.2}>
-                  {i18n.t(props.isPaused ? 'resume' : 'pause')}
-                </Text>
-              </Button>
+              {typeof props.warmUpCount === 'number' &&
+              props.warmUpCount > 0 ? (
+                <Button
+                  style={[styles.button, styles.pauseButton]}
+                  onPress={viewModel.onWarmUp}>
+                  <Text fontWeight={'bold'} letterSpacing={1.2}>
+                    {i18n.t('warmUp')} {`(${props.warmUpCount})`}
+                  </Text>
+                </Button>
+              ) : !props.isStarted ? (
+                <Button
+                  style={[styles.button, styles.pauseButton]}
+                  onPress={viewModel.onStart}>
+                  <Text fontWeight={'bold'} letterSpacing={1.2}>
+                    {i18n.t('start')}
+                  </Text>
+                </Button>
+              ) : (
+                <Button
+                  style={[styles.button, styles.pauseButton]}
+                  onPress={viewModel.onPause}>
+                  <Text fontWeight={'bold'} letterSpacing={1.2}>
+                    {i18n.t(props.isPaused ? 'resume' : 'pause')}
+                  </Text>
+                </Button>
+              )}
             </View>
             <View marginHorizontal={'10'} />
             <View
@@ -165,7 +188,8 @@ const GameConsole = (props: Props) => {
             <View />
           )}
 
-          {props.totalPlayers === 2 && props.currentMode.mode === 'fast' ? (
+          {props.totalPlayers === 2 &&
+          (props.currentMode.mode === 'fast' || !props.isStarted) ? (
             <View
               direction={'row'}
               alignItems={'center'}

@@ -8,7 +8,7 @@ import {gameActions} from 'data/redux/actions/game';
 import {COUNTDOWN_WIDTH} from './styles';
 import colors from 'configuration/colors';
 
-let countdownInterval: NodeJS.Timeout;
+let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 
 const GamePlayViewModel = () => {
   const dispatch = useDispatch();
@@ -19,13 +19,22 @@ const GamePlayViewModel = () => {
   const [totalTurns, setTotalTurns] = useState(1);
   const [totalTime, setTotalTime] = useState(0);
   const [countdownTime, setCountdownTime] = useState<number>(0);
+  const [warmUpCount, setWarmUpCount] = useState<number>();
+  const [warmUpCountdownTime, setWarmUpCountdownTime] = useState<number>();
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  const [isStarted, setIsStarted] = useState(
+    gameSettings?.mode.mode === 'fast' ? true : false,
+  );
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
   useEffect(() => {
     setPlayerSettings(gameSettings?.players);
+
+    if (gameSettings?.mode.warmUpTime) {
+      setWarmUpCount(2);
+    }
 
     if (gameSettings?.mode.countdownTime) {
       setCountdownTime(gameSettings.mode.countdownTime);
@@ -38,7 +47,7 @@ const GamePlayViewModel = () => {
   }, [gameSettings]);
 
   useEffect(() => {
-    if (isPaused) {
+    if (!isStarted || isPaused) {
       return;
     }
 
@@ -48,10 +57,28 @@ const GamePlayViewModel = () => {
         typeof prev === 'number' && prev > 0 ? prev - 1 : 0,
       );
     }, 1000);
-  }, [isPaused]);
+
+    return () => {
+      clearInterval(countdownInterval);
+    };
+  }, [isStarted, isPaused]);
 
   useEffect(() => {
-    if (!soundEnabled) {
+    if (!warmUpCountdownTime) {
+      return;
+    }
+
+    warmUpCountdownInterval = setInterval(() => {
+      setWarmUpCountdownTime(prev => (prev ? prev - 1 : 0));
+    }, 1000);
+
+    return () => {
+      clearInterval(warmUpCountdownInterval);
+    };
+  }, [warmUpCountdownTime]);
+
+  useEffect(() => {
+    if (!isStarted || !soundEnabled) {
       return;
     }
 
@@ -67,7 +94,7 @@ const GamePlayViewModel = () => {
     } catch (e) {
       console.log('Cannot play the sound file', e);
     }
-  }, [soundEnabled, countdownTime]);
+  }, [isStarted, soundEnabled, countdownTime]);
 
   const getCountdownWidthItem = useCallback(() => {
     if (!gameSettings?.mode.countdownTime) {
@@ -133,7 +160,7 @@ const GamePlayViewModel = () => {
 
   const onChangePlayerPoint = useCallback(
     (addedPoint: number, index: number, stepIndex: number) => {
-      if (stepIndex === 4) {
+      if (!isStarted || stepIndex === 4) {
         return;
       }
 
@@ -150,12 +177,14 @@ const GamePlayViewModel = () => {
             }),
           } as PlayerSettings),
       );
+
+      _resetCountdown();
     },
-    [],
+    [isStarted, _resetCountdown],
   );
 
   const onPressGiveMoreTime = useCallback(() => {
-    if (!playerSettings) {
+    if (!playerSettings || !isStarted) {
       return;
     }
 
@@ -184,19 +213,59 @@ const GamePlayViewModel = () => {
 
     _resetCountdown();
     setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
-  }, [playerSettings, currentPlayerIndex, _resetCountdown]);
+  }, [isStarted, playerSettings, currentPlayerIndex, _resetCountdown]);
 
   const onSwitchTurn = useCallback(() => {
     _resetCountdown();
-    setCurrentPlayerIndex(prev => (prev === 0 ? 1 : 0));
-  }, [_resetCountdown]);
+
+    const player0: Player = {
+      ...playerSettings?.playingPlayers[0],
+      color: playerSettings?.playingPlayers[1].color,
+    } as Player;
+    const player1: Player = {
+      ...playerSettings?.playingPlayers[1],
+      color: playerSettings?.playingPlayers[0].color,
+    } as Player;
+
+    setPlayerSettings({
+      ...playerSettings,
+      playingPlayers: [player0, player1],
+    } as PlayerSettings);
+  }, [_resetCountdown, playerSettings]);
 
   const onToggleSound = useCallback(() => {
     setSoundEnabled(prev => !prev);
   }, []);
 
+  const getWarmUpTimeString = useCallback(() => {
+    if (!warmUpCountdownTime) {
+      return '';
+    }
+
+    const minutes = Math.floor(warmUpCountdownTime / 60);
+    const seconds = Math.floor(warmUpCountdownTime % 60);
+
+    return `${minutes < 10 ? '0' : ''}${minutes}:${
+      seconds < 10 ? '0' : ''
+    }${seconds}`;
+  }, [warmUpCountdownTime]);
+
+  const onWarmUp = useCallback(() => {
+    if (!gameSettings?.mode.warmUpTime) {
+      return;
+    }
+
+    setWarmUpCount(prev => (prev ? prev - 1 : 0));
+    setWarmUpCountdownTime(gameSettings?.mode.warmUpTime);
+  }, [gameSettings]);
+
+  const onEndWarmUp = useCallback(() => {
+    setWarmUpCountdownTime(undefined);
+    clearInterval(warmUpCountdownInterval);
+  }, []);
+
   const onEndTurn = useCallback(() => {
-    if (!gameSettings) {
+    if (!gameSettings || !isStarted) {
       return;
     }
 
@@ -208,7 +277,13 @@ const GamePlayViewModel = () => {
     }
 
     setCurrentPlayerIndex(currentPlayerIndex + 1);
-  }, [currentPlayerIndex, totalTurns, gameSettings, _resetCountdown]);
+  }, [
+    isStarted,
+    currentPlayerIndex,
+    totalTurns,
+    gameSettings,
+    _resetCountdown,
+  ]);
 
   const onSwapPlayers = useCallback(() => {
     const player1: Player = {...playerSettings?.playingPlayers[0]} as Player;
@@ -219,6 +294,14 @@ const GamePlayViewModel = () => {
       playingPlayers: [player0, player1],
     } as PlayerSettings);
   }, [playerSettings]);
+
+  const onStart = useCallback(() => {
+    if (isStarted) {
+      return;
+    }
+
+    setIsStarted(true);
+  }, [isStarted]);
 
   const onPause = useCallback(() => {
     if (isPaused) {
@@ -244,7 +327,10 @@ const GamePlayViewModel = () => {
       playerSettings,
       gameSettings,
       countdownTime,
+      warmUpCount,
+      warmUpCountdownTime,
       updateGameSettings,
+      isStarted,
       isPaused,
       soundEnabled,
       getCountdownWidthItem,
@@ -252,9 +338,13 @@ const GamePlayViewModel = () => {
       onEditPlayerName,
       onChangePlayerPoint,
       onPressGiveMoreTime,
+      getWarmUpTimeString,
+      onWarmUp,
+      onEndWarmUp,
       onSwitchTurn,
       onSwapPlayers,
       onToggleSound,
+      onStart,
       onEndTurn,
       onPause,
       onStop,
@@ -266,7 +356,10 @@ const GamePlayViewModel = () => {
     playerSettings,
     gameSettings,
     countdownTime,
+    warmUpCount,
+    warmUpCountdownTime,
     updateGameSettings,
+    isStarted,
     isPaused,
     soundEnabled,
     getCountdownWidthItem,
@@ -274,9 +367,13 @@ const GamePlayViewModel = () => {
     onEditPlayerName,
     onChangePlayerPoint,
     onPressGiveMoreTime,
+    getWarmUpTimeString,
+    onWarmUp,
+    onEndWarmUp,
     onSwitchTurn,
     onSwapPlayers,
     onToggleSound,
+    onStart,
     onEndTurn,
     onPause,
     onStop,

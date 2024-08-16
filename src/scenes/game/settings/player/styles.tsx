@@ -18,6 +18,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderWidth: 0,
   },
+  activePlayerPoint: {
+    backgroundColor: colors.lightGray2,
+    borderWidth: 0,
+  },
   playerItem: {
     shadowOffset: {
       width: 0,
@@ -37,22 +41,24 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.lightPrimary1,
+    backgroundColor: colors.lightGray2,
   },
   input: {
-    borderWidth: 0.5,
-    borderColor: colors.gray,
-    borderRadius: 20,
     height: responsiveDimension(55),
     paddingBottom: 1,
   },
   inputStyle: {
     fontSize: responsiveFontSize(24),
+    marginHorizontal: 0,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: colors.gray,
   },
   stepWrapper: {
     borderWidth: 0.5,
     borderRadius: 20,
     borderColor: colors.gray,
+    backgroundColor: colors.white,
   },
   stepItem: {
     width: '11%',

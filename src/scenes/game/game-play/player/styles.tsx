@@ -23,6 +23,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gray,
     borderRadius: 20,
     paddingBottom: responsiveDimension(10),
+    backgroundColor: colors.white,
   },
   stepsWrapper: {
     flexWrap: 'wrap',
@@ -31,7 +32,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,
-    borderColor: colors.gray,
+    borderColor: colors.deepGray,
     borderRadius: 20,
     paddingHorizontal: responsiveDimension(40),
     paddingVertical: responsiveDimension(15),
@@ -39,6 +40,10 @@ const styles = StyleSheet.create({
   },
   input: {
     fontSize: responsiveFontSize(24),
+    fontWeight: 'bold',
+    backgroundColor: colors.transparent,
+    borderBottomColor: colors.black,
+    borderBottomWidth: 0.5,
   },
   extraTimeTurnsWrapper: {
     marginTop: responsiveDimension(10),
@@ -48,6 +53,11 @@ const styles = StyleSheet.create({
     height: dims.screenWidth * 0.01,
     borderRadius: 16,
     backgroundColor: colors.primary,
+    elevation: 5,
+  },
+  extraTimeTurnsEmpty: {
+    width: dims.screenWidth * 0.01,
+    height: dims.screenWidth * 0.01,
   },
   totalPointInTurn: {
     backgroundColor: colors.grayBlue,
@@ -59,6 +69,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.notification,
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 20,
+    paddingHorizontal: responsiveDimension(30),
+  },
+  buttonEndTurnEmpty: {
     paddingHorizontal: responsiveDimension(30),
   },
 });

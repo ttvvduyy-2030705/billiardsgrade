@@ -40,12 +40,15 @@ let colors: Colors = {
   yellow: '#E8AE00',
   lightYellow2: '#FCB23A',
   lightYellow: '#FFD694',
+  yellow2: '#dbca0d',
 
   green: '#00C95E',
   greenOverlay: 'rgba(0, 201, 94, 0.5)',
 
   pink: '#FF4180',
   lightPink: '#fa7fa8',
+
+  orange: '#d1801d',
 
   red: '#DE5346',
   lightRed: '#f7766a',

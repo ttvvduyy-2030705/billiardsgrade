@@ -10,17 +10,21 @@ import {formatTotalTime} from 'utils/date';
 export interface Props {
   gameSettings: GameSettings;
   currentMode: GameSettingsMode;
+  warmUpCount?: number;
   totalPlayers: number;
   totalTurns: number;
   totalTime: number;
   goal: number;
+  isStarted: boolean;
   isPaused: boolean;
   soundEnabled: boolean;
   onPressGiveMoreTime: () => void;
+  onWarmUp: () => void;
   onSwitchTurn: () => void;
   onSwapPlayers: () => void;
   onToggleSound: () => void;
   renderLastPlayer: () => ReactNode;
+  onStart: () => void;
   onPause: () => void;
   onStop: () => void;
 }
@@ -93,6 +97,14 @@ const ConsoleViewModel = (props: Props) => {
     props.onSwapPlayers();
   }, [props]);
 
+  const onWarmUp = useCallback(() => {
+    props.onWarmUp();
+  }, [props]);
+
+  const onStart = useCallback(() => {
+    props.onStart();
+  }, [props]);
+
   const onPause = useCallback(() => {
     props.onPause();
   }, [props]);
@@ -113,6 +125,8 @@ const ConsoleViewModel = (props: Props) => {
       onPressGiveMoreTime,
       onSwitchTurn,
       onSwapPlayers,
+      onWarmUp,
+      onStart,
       onPause,
       onStop,
     };
@@ -127,6 +141,8 @@ const ConsoleViewModel = (props: Props) => {
     onPressGiveMoreTime,
     onSwitchTurn,
     onSwapPlayers,
+    onWarmUp,
+    onStart,
     onPause,
     onStop,
   ]);

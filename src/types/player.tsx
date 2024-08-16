@@ -18,6 +18,7 @@ export type PlayerProMode = {
 
 export type Player = {
   name: string;
+  color: string;
   totalPoint: number;
   proMode?: PlayerProMode;
 };

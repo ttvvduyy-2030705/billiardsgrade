@@ -109,6 +109,7 @@ const PlayerSettingsComponent = (props: Props) => {
             index % 2 === 0
               ? {marginLeft: responsiveDimension(20)}
               : {marginRight: responsiveFontSize(20)},
+            {backgroundColor: player.color},
           ]}
           padding={'15'}>
           <View direction={'row'} alignItems={'center'}>
@@ -145,7 +146,7 @@ const PlayerSettingsComponent = (props: Props) => {
                     )}
                     style={
                       stepIndex === 4
-                        ? [styles.stepItem, styles.active]
+                        ? [styles.stepItem, styles.activePlayerPoint]
                         : styles.stepItem
                     }>
                     <Text fontSize={18}>

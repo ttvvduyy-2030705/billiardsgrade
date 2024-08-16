@@ -41,12 +41,15 @@ export type Colors = {
   yellow: string;
   lightYellow2: string;
   lightYellow: string;
+  yellow2: string;
 
   green: string;
   greenOverlay: string;
 
   pink: string;
   lightPink: string;
+
+  orange: string;
 
   red: string;
   lightRed: string;

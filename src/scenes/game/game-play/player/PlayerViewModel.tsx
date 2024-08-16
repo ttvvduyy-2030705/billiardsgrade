@@ -7,6 +7,7 @@ export interface Props {
   gameSettings: GameSettings;
   player: Player;
   isOnTurn: boolean;
+  isStarted: boolean;
   isPaused: boolean;
   totalTurns: number;
   onEditPlayerName: (index: number, newName: string) => void;
@@ -38,6 +39,7 @@ const PlayerViewModel = (props: Props) => {
   const onIncreasePoint = useCallback(() => {
     if (
       (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+      !props.isStarted ||
       props.isPaused
     ) {
       return;
@@ -50,6 +52,7 @@ const PlayerViewModel = (props: Props) => {
   const onDecreasePoint = useCallback(() => {
     if (
       (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+      !props.isStarted ||
       props.isPaused
     ) {
       return;
@@ -63,6 +66,7 @@ const PlayerViewModel = (props: Props) => {
     (addedPoint: number) => {
       if (
         (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+        !props.isStarted ||
         props.isPaused
       ) {
         return;

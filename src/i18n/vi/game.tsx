@@ -52,6 +52,7 @@ const game = {
   reWatch: 'Xem lại',
   switchTurn: 'Đổi bi',
   switchPlayer: 'Đổi người',
+  start: 'Bắt đầu',
   pause: 'Tạm dừng',
   resume: 'Tiếp tục',
   stop: 'Kết thúc',

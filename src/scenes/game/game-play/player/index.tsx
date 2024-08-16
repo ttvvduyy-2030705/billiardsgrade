@@ -9,7 +9,6 @@ import {
   GAME_PLAY_POINTS_STEPS,
   GAME_PLAY_POINTS_STEPS_SHORT,
 } from 'constants/game-play';
-import colors from 'configuration/colors';
 import PlayerViewModel, {Props} from './PlayerViewModel';
 import styles from './styles';
 import i18n from 'i18n';
@@ -72,6 +71,10 @@ const GamePlayer = (props: Props) => {
       return null;
     }
 
+    if ((props.player.proMode?.extraTimeTurns as number) === 0) {
+      return <View marginRight={'15'} style={styles.extraTimeTurnsEmpty} />;
+    }
+
     return (
       <View>
         {Array.from(
@@ -91,7 +94,10 @@ const GamePlayer = (props: Props) => {
   }, [props]);
 
   return (
-    <View flex={'1'} style={styles.container} marginHorizontal={'20'}>
+    <View
+      flex={'1'}
+      style={[styles.container, {backgroundColor: props.player.color}]}
+      marginHorizontal={'20'}>
       <View
         direction={'row'}
         alignItems={'center'}
@@ -139,12 +145,14 @@ const GamePlayer = (props: Props) => {
               <Text fontWeight={'bold'} fontSize={dims.screenWidth * 0.01}>
                 {'HR'}
               </Text>
-              <Text
-                fontSize={dims.screenWidth * 0.03}
-                lineHeight={dims.screenWidth * 0.0325}
-                fontWeight={'bold'}>
-                {viewModel.highestRate}
-              </Text>
+              <View flex={'1'}>
+                <Text
+                  fontSize={dims.screenWidth * 0.03}
+                  lineHeight={dims.screenWidth * 0.0325}
+                  fontWeight={'bold'}>
+                  {viewModel.highestRate}
+                </Text>
+              </View>
             </View>
             <View flex={'1'}>
               <Text fontWeight={'bold'} fontSize={dims.screenWidth * 0.01}>
@@ -162,10 +170,7 @@ const GamePlayer = (props: Props) => {
           <View />
         )}
         <View flex={'1'} alignItems={'center'} justify={'center'}>
-          <Text
-            fontSize={512}
-            adjustsFontSizeToFit={true}
-            color={colors.statusBar}>
+          <Text fontSize={512} adjustsFontSizeToFit={true}>
             {props.player.totalPoint}
           </Text>
         </View>
@@ -192,7 +197,7 @@ const GamePlayer = (props: Props) => {
                 <Text fontSize={dims.screenWidth * 0.02}>{i18n.t('turn')}</Text>
               </Button>
             ) : (
-              <View />
+              <View style={styles.buttonEndTurnEmpty} />
             )}
             <View style={styles.totalPointInTurn} paddingVertical={'10'}>
               <Text fontSize={dims.screenWidth * 0.02} fontWeight={'bold'}>

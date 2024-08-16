@@ -1,4 +1,4 @@
-import React, {memo, useCallback} from 'react';
+import React, {memo, useCallback, useMemo} from 'react';
 import Container from 'components/Container';
 import View from 'components/View';
 import GamePlayViewModel from './GamePlayViewModel';
@@ -6,6 +6,9 @@ import GamePlayer from './player';
 import GameConsole from './console';
 import styles from './styles';
 import Text from 'components/Text';
+import i18n from 'i18n';
+import Button from 'components/Button';
+import colors from 'configuration/colors';
 
 const GamePlay = () => {
   const viewModel = GamePlayViewModel();
@@ -17,6 +20,7 @@ const GamePlay = () => {
           <GamePlayer
             index={topIndex}
             isOnTurn={viewModel.currentPlayerIndex === topIndex}
+            isStarted={viewModel.isStarted}
             isPaused={viewModel.isPaused}
             totalTurns={viewModel.totalTurns}
             gameSettings={viewModel.gameSettings!}
@@ -31,6 +35,7 @@ const GamePlay = () => {
               <GamePlayer
                 index={bottomIndex}
                 isOnTurn={viewModel.currentPlayerIndex === bottomIndex}
+                isStarted={viewModel.isStarted}
                 isPaused={viewModel.isPaused}
                 totalTurns={viewModel.totalTurns}
                 gameSettings={viewModel.gameSettings!}
@@ -48,6 +53,7 @@ const GamePlay = () => {
     },
     [
       viewModel.currentPlayerIndex,
+      viewModel.isStarted,
       viewModel.isPaused,
       viewModel.totalTurns,
       viewModel.gameSettings,
@@ -67,6 +73,7 @@ const GamePlay = () => {
       <GamePlayer
         index={4}
         isOnTurn={viewModel.currentPlayerIndex === 4}
+        isStarted={viewModel.isStarted}
         isPaused={viewModel.isPaused}
         totalTurns={viewModel.totalTurns}
         gameSettings={viewModel.gameSettings!}
@@ -78,6 +85,7 @@ const GamePlay = () => {
     );
   }, [
     viewModel.currentPlayerIndex,
+    viewModel.isStarted,
     viewModel.isPaused,
     viewModel.totalTurns,
     viewModel.gameSettings,
@@ -133,6 +141,35 @@ const GamePlay = () => {
     viewModel.getCountdownWidthItem,
   ]);
 
+  const WARM_UP_VIEW = useMemo(() => {
+    if (!viewModel.warmUpCountdownTime) {
+      return <View />;
+    }
+
+    return (
+      <View style={styles.warmUpContainer}>
+        <Text color={colors.white} fontSize={64}>
+          {i18n.t('warmUp')}
+        </Text>
+        <View marginVertical={'15'}>
+          <Text color={colors.white} fontSize={128}>
+            {viewModel.getWarmUpTimeString()}
+          </Text>
+        </View>
+        <Button style={styles.buttonEndWarmUp} onPress={viewModel.onEndWarmUp}>
+          <Text color={colors.white} fontSize={32}>
+            {i18n.t('stop')}
+          </Text>
+        </Button>
+      </View>
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viewModel.warmUpCountdownTime,
+    viewModel.getWarmUpTimeString,
+    viewModel.onEndWarmUp,
+  ]);
+
   if (
     !viewModel.gameSettings ||
     viewModel.updateGameSettings.isLoading ||
@@ -155,17 +192,21 @@ const GamePlay = () => {
         <GameConsole
           gameSettings={viewModel.gameSettings}
           currentMode={viewModel.gameSettings.mode}
+          warmUpCount={viewModel.warmUpCount}
           totalPlayers={viewModel.playerSettings.playingPlayers.length}
           totalTime={viewModel.totalTime}
           totalTurns={viewModel.totalTurns}
           goal={viewModel.gameSettings.players.goal.goal}
+          isStarted={viewModel.isStarted}
           isPaused={viewModel.isPaused}
           soundEnabled={viewModel.soundEnabled}
           onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+          onWarmUp={viewModel.onWarmUp}
           onSwitchTurn={viewModel.onSwitchTurn}
           onSwapPlayers={viewModel.onSwapPlayers}
           onToggleSound={viewModel.onToggleSound}
           renderLastPlayer={renderLastPlayer}
+          onStart={viewModel.onStart}
           onPause={viewModel.onPause}
           onStop={viewModel.onStop}
         />
@@ -185,6 +226,8 @@ const GamePlay = () => {
       ) : (
         <View />
       )}
+
+      {WARM_UP_VIEW}
     </Container>
   );
 };
