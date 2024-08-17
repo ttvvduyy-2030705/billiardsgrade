@@ -53,12 +53,14 @@ const game = {
   switchTurn: 'Đổi bi',
   switchPlayer: 'Đổi người',
   start: 'Bắt đầu',
+  restart: 'Chơi lại',
   pause: 'Tạm dừng',
   resume: 'Tiếp tục',
   stop: 'Kết thúc',
   turn: 'Tới lượt',
   totalTurns: 'Số lượt',
   giveMoreTime: 'Xin thời gian',
+  msgPool15OnlyWinner: 'Chúc mừng {{name}} đã chiến thắng',
 };
 
 export default game;

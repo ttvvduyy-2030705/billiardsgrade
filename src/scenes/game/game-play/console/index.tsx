@@ -12,8 +12,9 @@ import colors from 'configuration/colors';
 import Webcam from './webcam';
 import {dims} from 'configuration';
 import Ball from 'components/Ball';
-import {isPoolGame} from 'utils/game';
+import {isPool15OnlyGame, isPoolGame} from 'utils/game';
 import {ScrollView} from 'react-native';
+import {BALLS_15} from 'constants/balls';
 
 const GameConsole = (props: Props) => {
   const viewModel = ConsoleViewModel(props);
@@ -67,6 +68,123 @@ const GameConsole = (props: Props) => {
   }, [props, viewModel.onPressGiveMoreTime]);
 
   const BALLS_VIEW = useMemo(() => {
+    if (props.winner) {
+      return (
+        <View
+          flex={'1'}
+          marginBottom={'15'}
+          style={styles.ballPool15OnlyWrapper}>
+          <View flex={'1'} />
+          <View direction={'row'}>
+            <View flex={'1'} alignItems={'center'} justify={'center'}>
+              <Text fontSize={24}>
+                {i18n.t('msgPool15OnlyWinner', {
+                  name: props.winner.name,
+                })}
+              </Text>
+            </View>
+          </View>
+          <View
+            flex={'1'}
+            direction={'row'}
+            justify={'center'}
+            alignItems={'end'}
+            marginBottom={'15'}>
+            <View flex={'1'} alignItems={'center'}>
+              <Button
+                style={styles.buttonRestart}
+                onPress={viewModel.onRestart}>
+                <Text>{i18n.t('restart')}</Text>
+              </Button>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (isPool15OnlyGame(props.gameSettings.category)) {
+      return (
+        <View
+          flex={'1'}
+          marginBottom={'15'}
+          style={styles.ballPool15OnlyWrapper}>
+          <View flex={'1'} />
+
+          <View flex={'1'} direction={'row'} alignItems={'center'}>
+            <View flex={'1'}>
+              <View
+                paddingRight={'10'}
+                paddingVertical={'10'}
+                style={[
+                  styles.ballsLeft,
+                  {
+                    backgroundColor: viewModel.colorLeft,
+                    paddingLeft: `${viewModel.pool15OnlyPointLeft * 2.8}%`,
+                  },
+                ]}>
+                <View direction={'row'} alignItems={'center'}>
+                  <View marginRight={'10'}>
+                    <Text fontSize={56}>{viewModel.pool15OnlyPointLeft}</Text>
+                  </View>
+                  <Ball
+                    data={viewModel.ballLeft}
+                    onPress={viewModel.onSelectBall}
+                  />
+                  <View direction={'row'} alignItems={'center'}>
+                    <Image
+                      source={images.doubleArrow}
+                      style={[
+                        styles.doubleArrowLeft,
+                        {tintColor: viewModel.arrowColorLeft},
+                      ]}
+                      resizeMode={'contain'}
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View>
+              <Ball data={BALLS_15[7]} onPress={viewModel.onSelectBall} />
+            </View>
+            <View flex={'1'} alignItems={'end'}>
+              <View
+                paddingVertical={'10'}
+                paddingLeft={'10'}
+                style={[
+                  styles.ballsRight,
+                  {
+                    backgroundColor: viewModel.colorRight,
+                    paddingRight: `${viewModel.pool15OnlyPointRight * 2.8}%`,
+                  },
+                ]}>
+                <View direction={'row'} alignItems={'center'}>
+                  <View direction={'row'} alignItems={'center'}>
+                    <Image
+                      source={images.doubleArrow}
+                      style={[
+                        styles.doubleArrowRight,
+                        {tintColor: viewModel.arrowColorRight},
+                      ]}
+                      resizeMode={'contain'}
+                    />
+                  </View>
+                  <Ball
+                    data={viewModel.ballRight}
+                    onPress={viewModel.onSelectBall}
+                  />
+                  <View marginLeft={'10'}>
+                    <Text fontSize={56}>{viewModel.pool15OnlyPointRight}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View flex={'1'} />
+        </View>
+      );
+    }
+
     return (
       <ScrollView
         showsHorizontalScrollIndicator={false}
@@ -86,7 +204,21 @@ const GameConsole = (props: Props) => {
         </View>
       </ScrollView>
     );
-  }, [viewModel.balls, viewModel.onSelectBall]);
+  }, [
+    props.winner,
+    props.gameSettings.category,
+    viewModel.balls,
+    viewModel.pool15OnlyPointLeft,
+    viewModel.ballLeft,
+    viewModel.onSelectBall,
+    viewModel.pool15OnlyPointRight,
+    viewModel.ballRight,
+    viewModel.colorLeft,
+    viewModel.colorRight,
+    viewModel.arrowColorLeft,
+    viewModel.arrowColorRight,
+    viewModel.onRestart,
+  ]);
 
   return (
     <View flex={'1'} style={styles.marginTop}>
@@ -230,15 +362,21 @@ const GameConsole = (props: Props) => {
                 </Button>
               </View>
               <View marginHorizontal={'10'} />
-              <View
-                flex={'1'}
-                direction={'row'}
-                justify={'center'}
-                alignItems={'center'}>
-                <Button style={styles.button} onPress={viewModel.onSwapPlayers}>
-                  <Text>{i18n.t('switchPlayer')}</Text>
-                </Button>
-              </View>
+              {!isPoolGame(props.gameSettings.category) ? (
+                <View
+                  flex={'1'}
+                  direction={'row'}
+                  justify={'center'}
+                  alignItems={'center'}>
+                  <Button
+                    style={styles.button}
+                    onPress={viewModel.onSwapPlayers}>
+                    <Text>{i18n.t('switchPlayer')}</Text>
+                  </Button>
+                </View>
+              ) : (
+                <View />
+              )}
             </View>
           ) : (
             <View />

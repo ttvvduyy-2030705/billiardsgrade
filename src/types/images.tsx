@@ -1,5 +1,6 @@
 export type Images = {
   back: number;
+  doubleArrow: number;
   close: number;
   default: number;
   offline: number;

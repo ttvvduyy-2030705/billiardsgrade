@@ -21,6 +21,22 @@ const isPool15Game = (category?: BilliardCategory) => {
   return false;
 };
 
+const isPool15OnlyGame = (category?: BilliardCategory) => {
+  if (category === '15-ball') {
+    return true;
+  }
+
+  return false;
+};
+
+const isPool9Game = (category?: BilliardCategory) => {
+  if (category === '9-ball') {
+    return true;
+  }
+
+  return false;
+};
+
 const isPool10Game = (category?: BilliardCategory) => {
   if (category === '10-ball') {
     return true;
@@ -29,4 +45,4 @@ const isPool10Game = (category?: BilliardCategory) => {
   return false;
 };
 
-export {isPoolGame, isPool10Game, isPool15Game};
+export {isPoolGame, isPool9Game, isPool10Game, isPool15Game, isPool15OnlyGame};

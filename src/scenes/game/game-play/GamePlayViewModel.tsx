@@ -7,8 +7,8 @@ import {goBack} from 'utils/navigation';
 import {gameActions} from 'data/redux/actions/game';
 import {COUNTDOWN_WIDTH} from './styles';
 import colors from 'configuration/colors';
-import {isPoolGame} from 'utils/game';
-import {PoolBallType} from 'types/ball';
+import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
+import {BallType, PoolBallType} from 'types/ball';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 
@@ -25,6 +25,7 @@ const GamePlayViewModel = () => {
   const [warmUpCountdownTime, setWarmUpCountdownTime] = useState<number>();
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [winner, setWinner] = useState<Player>();
 
   const [isStarted, setIsStarted] = useState(
     gameSettings?.mode.mode === 'fast' ? true : false,
@@ -246,6 +247,42 @@ const GamePlayViewModel = () => {
     [isStarted, currentPlayerIndex, gameSettings, playerSettings],
   );
 
+  const onSelectWinner = useCallback(() => {
+    setWinner(playerSettings?.playingPlayers[currentPlayerIndex]);
+
+    if (
+      isPool9Game(gameSettings?.category) ||
+      isPool10Game(gameSettings?.category)
+    ) {
+      setPlayerSettings(
+        prev =>
+          ({
+            ...prev,
+            playingPlayers: prev?.playingPlayers.map((player, playerIndex) => {
+              if (currentPlayerIndex === playerIndex) {
+                return {...player, totalPoint: player.totalPoint + 1};
+              }
+
+              return player;
+            }),
+          } as PlayerSettings),
+      );
+    }
+  }, [currentPlayerIndex, playerSettings, gameSettings]);
+
+  const onClearWinner = useCallback(() => {
+    if (!playerSettings) {
+      return;
+    }
+
+    const newPlayingPlayers = playerSettings?.playingPlayers.map(player => {
+      return {...player, scoredBalls: undefined} as Player;
+    });
+
+    setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+    setWinner(undefined);
+  }, [playerSettings]);
+
   const onPoolScore = useCallback(
     (ball: PoolBallType) => {
       if (
@@ -270,8 +307,29 @@ const GamePlayViewModel = () => {
       );
 
       setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+
+      switch (true) {
+        case isPool9Game(gameSettings?.category):
+          if (ball.number === BallType.B9) {
+            onSelectWinner();
+          }
+          break;
+        case isPool10Game(gameSettings?.category):
+          if (ball.number === BallType.B10) {
+            onSelectWinner();
+          }
+          break;
+        default:
+          break;
+      }
     },
-    [currentPlayerIndex, gameSettings?.category, isStarted, playerSettings],
+    [
+      currentPlayerIndex,
+      gameSettings?.category,
+      isStarted,
+      playerSettings,
+      onSelectWinner,
+    ],
   );
 
   const onSwitchTurn = useCallback(() => {
@@ -380,6 +438,7 @@ const GamePlayViewModel = () => {
 
   return useMemo(() => {
     return {
+      winner,
       currentPlayerIndex,
       totalTime,
       totalTurns,
@@ -405,12 +464,15 @@ const GamePlayViewModel = () => {
       onSwapPlayers,
       onToggleSound,
       onPoolScore,
+      onSelectWinner,
+      onClearWinner,
       onStart,
       onEndTurn,
       onPause,
       onStop,
     };
   }, [
+    winner,
     currentPlayerIndex,
     totalTime,
     totalTurns,
@@ -436,6 +498,8 @@ const GamePlayViewModel = () => {
     onSwapPlayers,
     onToggleSound,
     onPoolScore,
+    onSelectWinner,
+    onClearWinner,
     onStart,
     onEndTurn,
     onPause,

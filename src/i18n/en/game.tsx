@@ -53,12 +53,14 @@ const game = {
   switchTurn: 'Switch ball',
   switchPlayer: 'Switch players',
   start: 'Start',
+  restart: 'Restart',
   pause: 'Pause',
   resume: 'Resume',
   stop: 'End',
   turn: 'On turn',
   totalTurns: 'Total turns',
   giveMoreTime: 'Give more time',
+  msgPool15OnlyWinner: 'Congratulations! Player {{name}} has won',
 };
 
 export default game;

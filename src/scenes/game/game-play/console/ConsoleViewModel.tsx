@@ -1,3 +1,4 @@
+import colors from 'configuration/colors';
 import {BALLS_10, BALLS_15, BALLS_9} from 'constants/balls';
 import {gameActions} from 'data/redux/actions/game';
 import {RootState} from 'data/redux/reducers';
@@ -5,14 +6,16 @@ import i18n from 'i18n';
 import {ReactNode, useCallback, useMemo, useState} from 'react';
 import {useDispatch} from 'react-redux';
 import {useSelector} from 'react-redux';
-import {PoolBallType} from 'types/ball';
+import {BallType, PoolBallType} from 'types/ball';
+import {Player} from 'types/player';
 import {GameSettings, GameSettingsMode} from 'types/settings';
 import {formatTotalTime} from 'utils/date';
-import {isPool10Game, isPool15Game} from 'utils/game';
+import {isPool10Game, isPool15Game, isPool15OnlyGame} from 'utils/game';
 
 export interface Props {
   gameSettings: GameSettings;
   currentMode: GameSettingsMode;
+  winner?: Player;
   warmUpCount?: number;
   totalPlayers: number;
   totalTurns: number;
@@ -27,6 +30,8 @@ export interface Props {
   onSwapPlayers: () => void;
   onToggleSound: () => void;
   onPoolScore: (ball: PoolBallType) => void;
+  onSelectWinner: () => void;
+  onClearWinner: () => void;
   renderLastPlayer: () => ReactNode;
   onStart: () => void;
   onPause: () => void;
@@ -38,6 +43,8 @@ const ConsoleViewModel = (props: Props) => {
   const {gameSettings} = useSelector((state: RootState) => state.game);
 
   const [remoteEnabled, setRemoteEnabled] = useState(false);
+
+  //Pool 15-only
   const [balls, setBalls] = useState(
     isPool15Game(gameSettings?.category)
       ? BALLS_15
@@ -45,6 +52,15 @@ const ConsoleViewModel = (props: Props) => {
       ? BALLS_10
       : BALLS_9,
   );
+  const [ballLeft, setBallLeft] = useState(BALLS_15[0]);
+  const [ballRight, setBallRight] = useState(BALLS_15[9]);
+  const [pool15OnlyPointLeft, setPool15OnlyPointLeft] = useState(0);
+  const [pool15OnlyPointRight, setPool15OnlyPointRight] = useState(0);
+  const [colorLeft, setColorLeft] = useState(colors.white);
+  const [colorRight, setColorRight] = useState(colors.yellow2);
+  const [arrowColorLeft, setArrowColorLeft] = useState(colors.gray2);
+  const [arrowColorRight, setArrowColorRight] = useState(colors.white);
+
   const [proModeEnabled, setProModeEnabled] = useState(
     props.currentMode.mode !== 'fast',
   );
@@ -97,8 +113,29 @@ const ConsoleViewModel = (props: Props) => {
       return;
     }
 
+    if (isPool15OnlyGame(props.gameSettings.category)) {
+      setBallLeft(ballRight);
+      setBallRight(ballLeft);
+      setPool15OnlyPointLeft(pool15OnlyPointRight);
+      setPool15OnlyPointRight(pool15OnlyPointLeft);
+      setColorLeft(colorRight);
+      setColorRight(colorLeft);
+      setArrowColorLeft(arrowColorRight);
+      setArrowColorRight(arrowColorLeft);
+    }
+
     props.onSwitchTurn();
-  }, [props]);
+  }, [
+    props,
+    ballLeft,
+    ballRight,
+    pool15OnlyPointLeft,
+    pool15OnlyPointRight,
+    colorLeft,
+    colorRight,
+    arrowColorLeft,
+    arrowColorRight,
+  ]);
 
   const onSwapPlayers = useCallback(() => {
     if (props.totalPlayers > 2) {
@@ -108,8 +145,37 @@ const ConsoleViewModel = (props: Props) => {
     props.onSwapPlayers();
   }, [props]);
 
+  const selectPool15OnlyWinner = useCallback(() => {
+    props.onSelectWinner();
+  }, [props]);
+
   const onSelectBall = useCallback(
     (selectedBall: PoolBallType) => {
+      if (isPool15OnlyGame(props.gameSettings.category)) {
+        switch (selectedBall.number) {
+          case ballLeft.number:
+            if (pool15OnlyPointLeft + 1 === 8) {
+              selectPool15OnlyWinner();
+            }
+
+            setPool15OnlyPointLeft(prev => (prev < 8 ? prev + 1 : prev));
+            break;
+          case ballRight.number:
+            if (pool15OnlyPointRight + 1 === 8) {
+              selectPool15OnlyWinner();
+            }
+
+            setPool15OnlyPointRight(prev => (prev < 8 ? prev + 1 : prev));
+            break;
+          case BallType.B8:
+            selectPool15OnlyWinner();
+            break;
+          default:
+            break;
+        }
+        return;
+      }
+
       const newBalls = balls.filter(
         ball => ball.number !== selectedBall.number,
       );
@@ -117,12 +183,33 @@ const ConsoleViewModel = (props: Props) => {
       setBalls(newBalls);
       props.onPoolScore(selectedBall);
     },
-    [props, balls],
+    [
+      props,
+      balls,
+      ballLeft,
+      ballRight,
+      pool15OnlyPointLeft,
+      pool15OnlyPointRight,
+      selectPool15OnlyWinner,
+    ],
   );
 
   const onWarmUp = useCallback(() => {
     props.onWarmUp();
   }, [props]);
+
+  const onRestart = useCallback(() => {
+    setPool15OnlyPointLeft(0);
+    setPool15OnlyPointRight(0);
+    setBalls(
+      isPool15Game(gameSettings?.category)
+        ? BALLS_15
+        : isPool10Game(gameSettings?.category)
+        ? BALLS_10
+        : BALLS_9,
+    );
+    props.onClearWinner();
+  }, [props, gameSettings]);
 
   const onStart = useCallback(() => {
     props.onStart();
@@ -139,6 +226,14 @@ const ConsoleViewModel = (props: Props) => {
   return useMemo(() => {
     return {
       balls,
+      ballLeft,
+      ballRight,
+      pool15OnlyPointLeft,
+      pool15OnlyPointRight,
+      colorLeft,
+      colorRight,
+      arrowColorLeft,
+      arrowColorRight,
       remoteEnabled,
       proModeEnabled,
       gameSettings,
@@ -151,12 +246,21 @@ const ConsoleViewModel = (props: Props) => {
       onSwapPlayers,
       onSelectBall,
       onWarmUp,
+      onRestart,
       onStart,
       onPause,
       onStop,
     };
   }, [
     balls,
+    ballLeft,
+    ballRight,
+    pool15OnlyPointLeft,
+    pool15OnlyPointRight,
+    colorLeft,
+    colorRight,
+    arrowColorLeft,
+    arrowColorRight,
     remoteEnabled,
     proModeEnabled,
     gameSettings,
@@ -169,6 +273,7 @@ const ConsoleViewModel = (props: Props) => {
     onSwapPlayers,
     onSelectBall,
     onWarmUp,
+    onRestart,
     onStart,
     onPause,
     onStop,

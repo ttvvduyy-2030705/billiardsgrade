@@ -195,6 +195,7 @@ const GamePlay = () => {
           viewModel.playerSettings.playingPlayers[2] ? 2 : undefined,
         )}
         <GameConsole
+          winner={viewModel.winner}
           gameSettings={viewModel.gameSettings}
           currentMode={viewModel.gameSettings.mode}
           warmUpCount={viewModel.warmUpCount}
@@ -212,6 +213,8 @@ const GamePlay = () => {
           onToggleSound={viewModel.onToggleSound}
           onPoolScore={viewModel.onPoolScore}
           renderLastPlayer={renderLastPlayer}
+          onSelectWinner={viewModel.onSelectWinner}
+          onClearWinner={viewModel.onClearWinner}
           onStart={viewModel.onStart}
           onPause={viewModel.onPause}
           onStop={viewModel.onStop}
