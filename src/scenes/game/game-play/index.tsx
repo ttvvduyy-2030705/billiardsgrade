@@ -22,6 +22,7 @@ const GamePlay = () => {
             isOnTurn={viewModel.currentPlayerIndex === topIndex}
             isStarted={viewModel.isStarted}
             isPaused={viewModel.isPaused}
+            soundEnabled={viewModel.soundEnabled}
             totalTurns={viewModel.totalTurns}
             gameSettings={viewModel.gameSettings!}
             player={viewModel.playerSettings!.playingPlayers[topIndex]}
@@ -38,6 +39,7 @@ const GamePlay = () => {
                 isOnTurn={viewModel.currentPlayerIndex === bottomIndex}
                 isStarted={viewModel.isStarted}
                 isPaused={viewModel.isPaused}
+                soundEnabled={viewModel.soundEnabled}
                 totalTurns={viewModel.totalTurns}
                 gameSettings={viewModel.gameSettings!}
                 player={viewModel.playerSettings!.playingPlayers[bottomIndex]}
@@ -57,6 +59,7 @@ const GamePlay = () => {
       viewModel.currentPlayerIndex,
       viewModel.isStarted,
       viewModel.isPaused,
+      viewModel.soundEnabled,
       viewModel.totalTurns,
       viewModel.gameSettings,
       viewModel.onChangePlayerPoint,
@@ -78,6 +81,7 @@ const GamePlay = () => {
         isOnTurn={viewModel.currentPlayerIndex === 4}
         isStarted={viewModel.isStarted}
         isPaused={viewModel.isPaused}
+        soundEnabled={viewModel.soundEnabled}
         totalTurns={viewModel.totalTurns}
         gameSettings={viewModel.gameSettings!}
         player={viewModel.playerSettings!.playingPlayers[4]}
@@ -91,6 +95,7 @@ const GamePlay = () => {
     viewModel.currentPlayerIndex,
     viewModel.isStarted,
     viewModel.isPaused,
+    viewModel.soundEnabled,
     viewModel.totalTurns,
     viewModel.gameSettings,
     viewModel.playerSettings,

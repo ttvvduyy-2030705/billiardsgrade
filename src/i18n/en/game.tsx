@@ -61,6 +61,25 @@ const game = {
   totalTurns: 'Total turns',
   giveMoreTime: 'Give more time',
   msgPool15OnlyWinner: 'Congratulations! Player {{name}} has won',
+
+  //Pool
+  ball1: 'one',
+  ball2: 'two',
+  ball3: 'three',
+  ball4: 'four',
+  ball5: 'five',
+  ball6: 'six',
+  ball7: 'seven',
+  ball8: 'eight',
+  ball9: 'nine',
+  ball10: 'ten',
+  ball11: 'eleven',
+  ball12: 'twelve',
+  ball13: 'thirteen',
+  ball14: 'fourteen',
+  ball15: 'fifteen',
+  msgYouScored: '{{player}} scored {{points}} points in this round',
+  msgWinner: 'Congratulations! {{player}} has won',
 };
 
 export default game;

@@ -61,6 +61,25 @@ const game = {
   totalTurns: 'Số lượt',
   giveMoreTime: 'Xin thời gian',
   msgPool15OnlyWinner: 'Chúc mừng {{name}} đã chiến thắng',
+
+  //Pool
+  ball1: 'một',
+  ball2: 'hai',
+  ball3: 'ba',
+  ball4: 'bốn',
+  ball5: 'năm',
+  ball6: 'sáu',
+  ball7: 'bảy',
+  ball8: 'tám',
+  ball9: 'chín',
+  ball10: 'mười',
+  ball11: 'mười một',
+  ball12: 'mười hai',
+  ball13: 'mười ba',
+  ball14: 'mười bốn',
+  ball15: 'mười lăm',
+  msgYouScored: '{{player}} đã ghi {{points}} điểm trong vòng này',
+  msgWinner: 'Chúc mừng {{player}} đã chiến thắng',
 };
 
 export default game;

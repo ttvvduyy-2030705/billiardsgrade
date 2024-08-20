@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useSelector, useDispatch} from 'react-redux';
-import SoundPlayer from 'react-native-sound-player';
 import {RootState} from 'data/redux/reducers';
 import {Player, PlayerSettings} from 'types/player';
 import {goBack} from 'utils/navigation';
@@ -9,6 +8,8 @@ import {COUNTDOWN_WIDTH} from './styles';
 import colors from 'configuration/colors';
 import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
 import {BallType, PoolBallType} from 'types/ball';
+import Sound from 'utils/sound';
+import i18n from 'i18n';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 
@@ -81,23 +82,19 @@ const GamePlayViewModel = () => {
   }, [warmUpCountdownTime]);
 
   useEffect(() => {
-    if (!isStarted || !soundEnabled) {
+    if (!isStarted || !soundEnabled || !gameSettings?.mode.countdownTime) {
       return;
     }
 
-    try {
-      if (countdownTime === 0) {
-        SoundPlayer.playSoundFile('timeout', 'm4a');
-        return;
-      }
-
-      if (countdownTime > 0) {
-        SoundPlayer.playSoundFile('beep', 'wav');
-      }
-    } catch (e) {
-      console.log('Cannot play the sound file', e);
+    if (countdownTime === 0) {
+      Sound.timeout();
+      return;
     }
-  }, [isStarted, soundEnabled, countdownTime]);
+
+    if (countdownTime > 0) {
+      Sound.beep();
+    }
+  }, [isStarted, soundEnabled, countdownTime, gameSettings]);
 
   const getCountdownWidthItem = useCallback(() => {
     if (!gameSettings?.mode.countdownTime) {
@@ -268,7 +265,15 @@ const GamePlayViewModel = () => {
           } as PlayerSettings),
       );
     }
-  }, [currentPlayerIndex, playerSettings, gameSettings]);
+
+    if (soundEnabled) {
+      Sound.speak(
+        i18n.t('msgWinner', {
+          player: playerSettings?.playingPlayers[currentPlayerIndex].name,
+        }),
+      );
+    }
+  }, [currentPlayerIndex, playerSettings, gameSettings, soundEnabled]);
 
   const onClearWinner = useCallback(() => {
     if (!playerSettings) {
@@ -306,6 +311,10 @@ const GamePlayViewModel = () => {
         },
       );
 
+      if (soundEnabled) {
+        Sound.speak(i18n.t(`ball${ball.number}`));
+      }
+
       setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
 
       switch (true) {
@@ -327,6 +336,7 @@ const GamePlayViewModel = () => {
       currentPlayerIndex,
       gameSettings?.category,
       isStarted,
+      soundEnabled,
       playerSettings,
       onSelectWinner,
     ],

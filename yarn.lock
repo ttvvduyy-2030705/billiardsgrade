@@ -3705,6 +3705,7 @@ __metadata:
     react-native-safe-area-context: ^4.10.7
     react-native-screens: ^3.32.0
     react-native-sound-player: ^0.14.3
+    react-native-tts: ^4.1.1
     react-native-uuid: ^2.0.2
     react-redux: ^9.1.2
     react-test-renderer: 18.2.0
@@ -8427,6 +8428,13 @@ __metadata:
   version: 0.14.3
   resolution: "react-native-sound-player@npm:0.14.3"
   checksum: ab71b1d57d120645571cd188505bc37056da839aaf643db0b873eecddff9b52887dd56f0f361ec1402d62b6169d96d3d83f4242af47b04b3e8e3217da68cff10
+  languageName: node
+  linkType: hard
+
+"react-native-tts@npm:^4.1.1":
+  version: 4.1.1
+  resolution: "react-native-tts@npm:4.1.1"
+  checksum: 16508a701ce446341aa2e6d0107d214d53f80ee09f0ac967f79757e5e44bfa3e797caf5847de23265524b983a58bafb6a0f98c6cf970cbb40f1f6f88783b092e
   languageName: node
   linkType: hard
 

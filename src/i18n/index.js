@@ -6,6 +6,7 @@ import 'numeral/locales';
 
 import vi from './vi';
 import en from './en';
+import Tts from 'react-native-tts';
 
 const i18n = new I18n({vi, en});
 
@@ -22,8 +23,9 @@ export const loadLanguage = async () => {
     : 'vi';
 
   Numeral.locale(language);
+  Tts.setDefaultLanguage(language);
   i18n.locale = language;
-  i18n.defaultLocale = systemLocale.languageCode;
+  i18n.defaultLocale = 'vi';
   i18n.translations = {vi, en};
 
   return language;
@@ -34,6 +36,7 @@ export const setLanguage = language => {
   i18n.locale = language;
   Numeral.locale(language);
   AsyncStorage.setItem('language', language);
+  Tts.setDefaultLanguage(language);
 };
 
 export default i18n;

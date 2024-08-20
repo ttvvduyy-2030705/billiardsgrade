@@ -1,6 +1,8 @@
+import i18n from 'i18n';
 import {useCallback, useMemo, useState} from 'react';
 import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
+import Sound from 'utils/sound';
 
 export interface Props {
   index: number;
@@ -9,6 +11,7 @@ export interface Props {
   isOnTurn: boolean;
   isStarted: boolean;
   isPaused: boolean;
+  soundEnabled: boolean;
   totalTurns: number;
   onEditPlayerName: (index: number, newName: string) => void;
   onChangePlayerPoint: (
@@ -89,6 +92,15 @@ const PlayerViewModel = (props: Props) => {
 
     setAveragePoint(Math.floor(props.player.totalPoint / props.totalTurns));
     setTotalPointInTurn(0);
+
+    if (props.soundEnabled) {
+      Sound.speak(
+        i18n.t('msgYouScored', {
+          player: props.player.name,
+          points: totalPointInTurn,
+        }),
+      );
+    }
 
     props.onEndTurn();
   }, [props, highestRate, totalPointInTurn]);
