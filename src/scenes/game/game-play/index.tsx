@@ -232,7 +232,7 @@ const GamePlay = () => {
       {viewModel.gameSettings.mode.mode !== 'fast' &&
       viewModel.gameSettings.mode.countdownTime ? (
         <View direction={'row'} alignItems={'center'} marginRight={'20'}>
-          <View flex={'1'} paddingHorizontal={'20'}>
+          <View flex={'1'} marginLeft={'20'}>
             <Text fontSize={48}>{viewModel.countdownTime}</Text>
           </View>
           <View style={styles.countdownWrapper}>{renderCountDownTime()}</View>

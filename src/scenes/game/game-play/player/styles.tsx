@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: responsiveDimension(30),
   },
   buttonViolate: {
-    width: 48,
-    height: 48,
+    width: responsiveDimension(48),
+    height: responsiveDimension(48),
     borderRadius: 100,
     backgroundColor: colors.red,
     justifyContent: 'center',
