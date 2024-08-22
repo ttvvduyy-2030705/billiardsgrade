@@ -1,6 +1,7 @@
 import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
+import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
   container: {
@@ -11,8 +12,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
   },
   icon: {
-    width: 24,
-    height: 24,
+    width: responsiveDimension(24),
+    height: responsiveDimension(24),
   },
 });
 
