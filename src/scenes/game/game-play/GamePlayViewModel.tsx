@@ -91,7 +91,7 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    if (countdownTime > 0) {
+    if (countdownTime > 0 && countdownTime <= 10) {
       Sound.beep();
     }
   }, [isStarted, soundEnabled, countdownTime, gameSettings]);
