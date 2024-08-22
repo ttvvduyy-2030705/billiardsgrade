@@ -18,6 +18,19 @@ import {isPoolGame} from 'utils/game';
 
 export interface Props extends Navigation {}
 
+const DEFAULT_PLAYERS = [
+  {
+    name: i18n.t('player1'),
+    color: PLAYER_COLOR[0],
+    totalPoint: 0,
+  },
+  {
+    name: i18n.t('player2'),
+    color: PLAYER_COLOR[1],
+    totalPoint: 0,
+  },
+];
+
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
 
@@ -27,18 +40,7 @@ const GameSettingsViewModel = (props: Props) => {
   });
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>({
     playerNumber: 2,
-    playingPlayers: [
-      {
-        name: i18n.t('player1'),
-        color: PLAYER_COLOR[0],
-        totalPoint: 0,
-      },
-      {
-        name: i18n.t('player2'),
-        color: PLAYER_COLOR[1],
-        totalPoint: 0,
-      },
-    ],
+    playingPlayers: DEFAULT_PLAYERS,
     goal: {
       goal: 40,
       pointSteps: [-5, -1, 1, 5],
@@ -68,12 +70,14 @@ const GameSettingsViewModel = (props: Props) => {
     (selectedCategory: BilliardCategory) => {
       setCategory(selectedCategory);
       setPlayerSettings({
-        ...playerSettings,
+        playerNumber: 2,
+        playingPlayers: DEFAULT_PLAYERS,
         goal: {
           ...playerSettings.goal,
           goal: isPoolGame(selectedCategory) ? 10 : 40,
         },
       });
+      setGameSettingsMode({mode: 'fast'});
     },
     [playerSettings],
   );

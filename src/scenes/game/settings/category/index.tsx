@@ -20,7 +20,7 @@ import {
   GAME_MODE_POOL,
   GAME_WARM_UP_TIME,
 } from 'constants/game-settings';
-import {isPoolGame} from 'utils/game';
+import {isPool15Game} from 'utils/game';
 
 interface Props {
   category?: BilliardCategory;
@@ -106,7 +106,7 @@ const CategorySettings = (props: Props) => {
       {renderCategoryLine(i18n.t('pool'), POOL, onSelectCategory, category)}
       {renderCategoryLine(
         i18n.t('mode'),
-        isPoolGame(category) ? GAME_MODE_POOL : GAME_MODE,
+        isPool15Game(category) ? GAME_MODE_POOL : GAME_MODE,
         onSelectGameMode,
         gameMode,
       )}
