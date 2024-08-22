@@ -34,7 +34,13 @@ const GamePlayViewModel = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
   useEffect(() => {
-    setPlayerSettings(gameSettings?.players);
+    clearInterval(countdownInterval);
+    clearInterval(warmUpCountdownInterval);
+    setIsStarted(false);
+
+    if (!playerSettings) {
+      setPlayerSettings(gameSettings?.players);
+    }
 
     if (gameSettings?.mode.warmUpTime) {
       setWarmUpCount(gameSettings.players.playingPlayers.length);
