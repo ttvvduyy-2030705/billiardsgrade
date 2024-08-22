@@ -37,7 +37,7 @@ const GamePlayViewModel = () => {
     setPlayerSettings(gameSettings?.players);
 
     if (gameSettings?.mode.warmUpTime) {
-      setWarmUpCount(2);
+      setWarmUpCount(gameSettings.players.playingPlayers.length);
     }
 
     if (gameSettings?.mode.countdownTime) {
