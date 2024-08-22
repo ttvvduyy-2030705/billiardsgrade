@@ -54,6 +54,7 @@ const GamePlayViewModel = () => {
       setCountdownTime(gameSettings?.mode.countdownTime || 0);
       setIsPaused(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSettings]);
 
   useEffect(() => {
