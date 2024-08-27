@@ -30,7 +30,7 @@ const GamePlayViewModel = () => {
   const [winner, setWinner] = useState<Player>();
 
   const [isStarted, setIsStarted] = useState(
-    gameSettings?.mode.mode === 'fast' ? true : false,
+    gameSettings?.mode?.mode === 'fast' ? true : false,
   );
   const [isPaused, setIsPaused] = useState<boolean>(false);
 
@@ -452,6 +452,10 @@ const GamePlayViewModel = () => {
   }, [isPaused, _resetCountdown]);
 
   const onStop = useCallback(() => {
+    if (!isStarted) {
+      return;
+    }
+
     Alert.alert(i18n.t('stop'), i18n.t('msgStopGame'), [
       {
         text: i18n.t('txtCancel'),
@@ -460,12 +464,12 @@ const GamePlayViewModel = () => {
       {
         text: i18n.t('stop'),
         onPress: () => {
-          dispatch(gameActions.updateGameSettings(undefined));
           goBack();
+          dispatch(gameActions.updateGameSettings(undefined));
         },
       },
     ]);
-  }, [dispatch]);
+  }, [dispatch, isStarted]);
 
   return useMemo(() => {
     return {

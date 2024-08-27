@@ -20,7 +20,7 @@ import Ball from 'components/Ball';
 
 const GamePlayer = (props: Props) => {
   const viewModel = PlayerViewModel(props);
-  const PAIR_PLAY = props.gameSettings.players.playingPlayers.length === 2;
+  const PAIR_PLAY = props.gameSettings?.players?.playingPlayers?.length === 2;
 
   const POINT_STEPS = useMemo(() => {
     let STEPS =

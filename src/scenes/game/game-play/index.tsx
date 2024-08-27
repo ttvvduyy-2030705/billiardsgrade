@@ -204,10 +204,10 @@ const GamePlay = () => {
           gameSettings={viewModel.gameSettings}
           currentMode={viewModel.gameSettings.mode}
           warmUpCount={viewModel.warmUpCount}
-          totalPlayers={viewModel.playerSettings.playingPlayers.length}
+          totalPlayers={viewModel.playerSettings?.playingPlayers?.length}
           totalTime={viewModel.totalTime}
           totalTurns={viewModel.totalTurns}
-          goal={viewModel.gameSettings.players.goal.goal}
+          goal={viewModel.gameSettings?.players?.goal?.goal}
           isStarted={viewModel.isStarted}
           isPaused={viewModel.isPaused}
           soundEnabled={viewModel.soundEnabled}
@@ -229,13 +229,13 @@ const GamePlay = () => {
           viewModel.playerSettings.playingPlayers[3] ? 3 : undefined,
         )}
       </View>
-      {viewModel.gameSettings.mode.mode !== 'fast' &&
-      viewModel.gameSettings.mode.countdownTime ? (
+      {viewModel.gameSettings?.mode?.mode !== 'fast' &&
+      viewModel.gameSettings?.mode?.countdownTime ? (
         <View direction={'row'} alignItems={'center'} marginRight={'20'}>
           <View flex={'1'} marginLeft={'20'}>
             <Text fontSize={48}>{viewModel.countdownTime}</Text>
             {viewModel.countdownTime >
-            viewModel.gameSettings.mode.countdownTime ? (
+            viewModel.gameSettings?.mode?.countdownTime ? (
               <View style={styles.extraWrapper} paddingHorizontal={'10'}>
                 <Text fontSize={12}>{'Extra'}</Text>
               </View>
