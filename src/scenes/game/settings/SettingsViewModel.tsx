@@ -90,7 +90,7 @@ const GameSettingsViewModel = (props: Props) => {
       case 'time':
         setGameSettingsMode({
           mode: selectedGameMode,
-          extraTimeTurns: 3,
+          extraTimeTurns: 2,
           countdownTime: 40,
         });
         break;
@@ -103,7 +103,7 @@ const GameSettingsViewModel = (props: Props) => {
       case 'pro':
         setGameSettingsMode({
           mode: selectedGameMode,
-          extraTimeTurns: 3,
+          extraTimeTurns: 2,
           countdownTime: 40,
           warmUpTime: 120,
         });
