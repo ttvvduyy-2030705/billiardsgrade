@@ -61,6 +61,7 @@ const game = {
   totalTurns: 'Số lượt',
   giveMoreTime: 'Xin thời gian',
   msgPool15OnlyWinner: 'Chúc mừng {{name}} đã chiến thắng',
+  msgStopGame: 'Bạn chắc chắn muốn kết thúc trận đấu chứ ?',
 
   //Pool
   ball1: 'một',

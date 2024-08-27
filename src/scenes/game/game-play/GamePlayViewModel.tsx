@@ -1,15 +1,16 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
+import {Alert} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState} from 'data/redux/reducers';
 import {Player, PlayerSettings} from 'types/player';
 import {goBack} from 'utils/navigation';
 import {gameActions} from 'data/redux/actions/game';
-import {COUNTDOWN_WIDTH} from './styles';
 import colors from 'configuration/colors';
 import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
 import {BallType, PoolBallType} from 'types/ball';
 import Sound from 'utils/sound';
 import i18n from 'i18n';
+import {COUNTDOWN_WIDTH} from './styles';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 
@@ -451,8 +452,19 @@ const GamePlayViewModel = () => {
   }, [isPaused, _resetCountdown]);
 
   const onStop = useCallback(() => {
-    dispatch(gameActions.updateGameSettings(undefined));
-    goBack();
+    Alert.alert(i18n.t('stop'), i18n.t('msgStopGame'), [
+      {
+        text: i18n.t('txtCancel'),
+        style: 'cancel',
+      },
+      {
+        text: i18n.t('stop'),
+        onPress: () => {
+          dispatch(gameActions.updateGameSettings(undefined));
+          goBack();
+        },
+      },
+    ]);
   }, [dispatch]);
 
   return useMemo(() => {
