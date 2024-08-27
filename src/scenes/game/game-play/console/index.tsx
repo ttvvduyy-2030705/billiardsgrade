@@ -185,29 +185,46 @@ const GameConsole = (props: Props) => {
       );
     }
 
+    // return (
+    //   <ScrollView
+    //     showsHorizontalScrollIndicator={false}
+    //     showsVerticalScrollIndicator={false}>
+    //     <View
+    //       style={styles.ballsWrapper}
+    //       direction={'row'}
+    //       alignItems={'center'}
+    //       marginRight={'15'}>
+    //       {viewModel.balls.map((ball, index) => {
+    //         return (
+    //           <View key={`ball-${index}`} marginTop={'15'}>
+    //             <Ball data={ball} onPress={viewModel.onSelectBall} />
+    //           </View>
+    //         );
+    //       })}
+    //     </View>
+    //   </ScrollView>
+    // );
     return (
-      <ScrollView
-        showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}>
+      <View flex={'1'} justify={'center'}>
         <View
-          style={styles.ballsWrapper}
           direction={'row'}
-          alignItems={'center'}
-          marginRight={'15'}>
-          {viewModel.balls.map((ball, index) => {
-            return (
-              <View key={`ball-${index}`} marginTop={'15'}>
-                <Ball data={ball} onPress={viewModel.onSelectBall} />
-              </View>
-            );
-          })}
+          marginHorizontal={'20'}
+          marginTop={'20'}
+          marginBottom={'15'}>
+          <Button
+            onPress={viewModel.onPressGiveMoreTime}
+            style={styles.buttonGiveMoreTime}>
+            <Text color={colors.white} fontSize={16}>
+              {i18n.t('giveMoreTime')}
+            </Text>
+          </Button>
         </View>
-      </ScrollView>
+      </View>
     );
   }, [
     props.winner,
     props.gameSettings.category,
-    viewModel.balls,
+    // viewModel.balls,
     viewModel.pool15OnlyPointLeft,
     viewModel.ballLeft,
     viewModel.onSelectBall,
@@ -218,6 +235,7 @@ const GameConsole = (props: Props) => {
     viewModel.arrowColorLeft,
     viewModel.arrowColorRight,
     viewModel.onRestart,
+    viewModel.onPressGiveMoreTime,
   ]);
 
   return (

@@ -34,6 +34,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 30,
   },
+  extraWrapper: {
+    position: 'absolute',
+    top: 5,
+    right: -20,
+    backgroundColor: colors.red,
+    borderRadius: 10,
+    zIndex: 1,
+  },
+  extraText: {},
 });
 
 export {COUNTDOWN_WIDTH};

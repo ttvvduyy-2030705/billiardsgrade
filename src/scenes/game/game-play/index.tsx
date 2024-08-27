@@ -234,6 +234,14 @@ const GamePlay = () => {
         <View direction={'row'} alignItems={'center'} marginRight={'20'}>
           <View flex={'1'} marginLeft={'20'}>
             <Text fontSize={48}>{viewModel.countdownTime}</Text>
+            {viewModel.countdownTime >
+            viewModel.gameSettings.mode.countdownTime ? (
+              <View style={styles.extraWrapper} paddingHorizontal={'10'}>
+                <Text fontSize={12}>{'Extra'}</Text>
+              </View>
+            ) : (
+              <View />
+            )}
           </View>
           <View style={styles.countdownWrapper}>{renderCountDownTime()}</View>
         </View>

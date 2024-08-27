@@ -137,16 +137,18 @@ const GamePlayViewModel = () => {
   );
 
   const _resetCountdown = useCallback(
-    (isResume?: boolean) => {
+    (isResume?: boolean, cumulativeTime?: boolean) => {
       if (!gameSettings || !gameSettings.mode.countdownTime) {
         return;
       }
 
-      if (!isResume) {
-        setCountdownTime(gameSettings?.mode.countdownTime || 0);
+      if (cumulativeTime) {
+        setCountdownTime(countdownTime + gameSettings!.mode.countdownTime);
+      } else if (!isResume) {
+        setCountdownTime(gameSettings!.mode.countdownTime);
       }
     },
-    [gameSettings],
+    [gameSettings, countdownTime],
   );
 
   const onEditPlayerName = useCallback((index: number, newName: string) => {
@@ -218,7 +220,7 @@ const GamePlayViewModel = () => {
       },
     );
 
-    _resetCountdown();
+    _resetCountdown(undefined, true);
     setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
   }, [isStarted, playerSettings, currentPlayerIndex, _resetCountdown]);
 
