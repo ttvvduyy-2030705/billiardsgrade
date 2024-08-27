@@ -67,7 +67,7 @@ const en = {
   txtHistory: 'History',
   msgAppName: 'Digital Score Board',
   msgIntroTitle: 'Entertainment',
-  msgIntroDescription: 'Professional - Accuracy - Multi media',
+  msgIntroDescription: 'Billiards - Devices - Evolutions',
 
   month: 'month',
   year: 'year',

@@ -27,18 +27,11 @@ const Home = (props: Props) => {
         colors={[colors.lightPrimary2, colors.lightPrimary1]}
         start={START}
         end={END}>
-        <View direction={'row'} alignItems={'center'} justify={'between'}>
+        <View direction={'row'} justify={'between'}>
           <View>
-            <Image
-              source={images.logo}
-              style={styles.logo}
-              resizeMode={'contain'}
-            />
-            <View marginTop={'15'}>
-              <Text fontSize={32} letterSpacing={2}>
-                {i18n.t('msgAppName')}
-              </Text>
-            </View>
+            <Text fontSize={32} letterSpacing={2}>
+              {i18n.t('msgAppName')}
+            </Text>
           </View>
           <View alignItems={'end'}>
             <View>
@@ -80,7 +73,11 @@ const Home = (props: Props) => {
         </View>
 
         <View alignItems={'center'} justify={'between'}>
-          <Text fontSize={32}>{i18n.t('msgIntroTitle')}</Text>
+          <Image
+            source={images.logo}
+            style={styles.logo}
+            resizeMode={'contain'}
+          />
           <View marginTop={'15'}>
             <Text fontSize={24} fontStyle={'italic'}>
               {i18n.t('msgIntroDescription')}

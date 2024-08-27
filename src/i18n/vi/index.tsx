@@ -70,7 +70,7 @@ const vi = {
   txtHistory: 'Lịch sử',
   msgAppName: 'Digital Score Board',
   msgIntroTitle: 'Nâng tầm giải trí',
-  msgIntroDescription: 'Chuyện nghiệp - Chính xác - Đa tiện ích',
+  msgIntroDescription: 'Billiards - Devices - Evolutions',
 
   month: 'tháng',
   year: 'năm',
