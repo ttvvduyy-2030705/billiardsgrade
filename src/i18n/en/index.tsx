@@ -65,6 +65,7 @@ const en = {
   txtStart: 'Start',
   txtStartNewGame: 'Start new game',
   txtHistory: 'History',
+  txtWin: 'You Win',
   msgAppName: 'Digital Score Board',
   msgIntroTitle: 'Entertainment',
   msgIntroDescription: 'Billiards - Devices - Evolutions',

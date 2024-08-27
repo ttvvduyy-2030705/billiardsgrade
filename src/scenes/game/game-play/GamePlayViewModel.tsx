@@ -170,7 +170,7 @@ const GamePlayViewModel = () => {
 
   const onChangePlayerPoint = useCallback(
     (addedPoint: number, index: number, stepIndex: number) => {
-      if (!isStarted || stepIndex === 4) {
+      if (!isStarted || stepIndex === 4 || !playerSettings || !gameSettings) {
         return;
       }
 
@@ -188,9 +188,19 @@ const GamePlayViewModel = () => {
           } as PlayerSettings),
       );
 
+      const player = playerSettings!.playingPlayers[index];
+      if (player.totalPoint + addedPoint >= gameSettings!.players.goal.goal) {
+        Alert.alert(
+          i18n.t('txtWin'),
+          i18n.t('msgWinner', {player: player.name}),
+          [{text: i18n.t('txtClose')}],
+        );
+        setIsPaused(true);
+      }
+
       _resetCountdown();
     },
-    [isStarted, _resetCountdown],
+    [isStarted, gameSettings, playerSettings, _resetCountdown],
   );
 
   const onPressGiveMoreTime = useCallback(() => {
