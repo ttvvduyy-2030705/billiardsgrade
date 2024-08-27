@@ -226,25 +226,30 @@ const GameConsole = (props: Props) => {
       );
     }
 
-    return (
-      <View flex={'1'} justify={'center'}>
-        <View
-          direction={'row'}
-          marginHorizontal={'20'}
-          marginTop={'20'}
-          marginBottom={'15'}>
-          <Button
-            onPress={viewModel.onPressGiveMoreTime}
-            style={styles.buttonGiveMoreTime}>
-            <Text color={colors.white} fontSize={16}>
-              {i18n.t('giveMoreTime')}
-            </Text>
-          </Button>
+    if (props.gameSettings.mode.mode === 'pro') {
+      return (
+        <View flex={'1'} justify={'center'}>
+          <View
+            direction={'row'}
+            marginHorizontal={'20'}
+            marginTop={'20'}
+            marginBottom={'15'}>
+            <Button
+              onPress={viewModel.onPressGiveMoreTime}
+              style={styles.buttonGiveMoreTime}>
+              <Text color={colors.white} fontSize={16}>
+                {i18n.t('giveMoreTime')}
+              </Text>
+            </Button>
+          </View>
         </View>
-      </View>
-    );
+      );
+    }
+
+    return <View />;
   }, [
     props.winner,
+    props.gameSettings.mode,
     props.gameSettings.category,
     viewModel.balls,
     viewModel.pool15OnlyPointLeft,
