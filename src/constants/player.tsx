@@ -51,9 +51,9 @@ const PLAYER_POINT_STEPS: {[key in PLAYER_POINT_STEPS_TYPE]: PlayerPointStep} =
 const PLAYER_COLOR: {[key in PLAYER_COLOR_TYPE]: string} = {
   '0': colors.white,
   '1': colors.yellow2,
-  '2': colors.green,
-  '3': colors.orange,
-  '4': colors.blue,
+  '2': colors.red,
+  '3': colors.blue,
+  '4': colors.green,
 };
 
 export {
