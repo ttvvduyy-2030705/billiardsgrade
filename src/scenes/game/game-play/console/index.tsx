@@ -62,15 +62,19 @@ const GameConsole = (props: Props) => {
                   onChange={viewModel.onToggleRemote}
                 />
               </View>
-              <View direction={'row'} alignItems={'center'} marginTop={'10'}>
-                <View marginRight={'10'}>
-                  <Text>{i18n.t('proMode')}</Text>
+              {!isPoolGame(props.gameSettings.category) ? (
+                <View direction={'row'} alignItems={'center'} marginTop={'10'}>
+                  <View marginRight={'10'}>
+                    <Text>{i18n.t('proMode')}</Text>
+                  </View>
+                  <Switch
+                    defaultValue={viewModel.proModeEnabled}
+                    onChange={viewModel.onToggleProMode}
+                  />
                 </View>
-                <Switch
-                  defaultValue={viewModel.proModeEnabled}
-                  onChange={viewModel.onToggleProMode}
-                />
-              </View>
+              ) : (
+                <View />
+              )}
             </View>
           </View>
 
