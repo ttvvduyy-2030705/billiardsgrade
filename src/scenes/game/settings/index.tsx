@@ -39,6 +39,7 @@ const GameSettings = (props: Props) => {
           <View flex={'1'} direction={'row'}>
             <ScrollView>
               <PlayerSettings
+                gameMode={viewModel.gameMode}
                 category={viewModel.category}
                 playerSettings={viewModel.playerSettings}
                 onSelectPlayerNumber={viewModel.onSelectPlayerNumber}

@@ -462,10 +462,6 @@ const GamePlayViewModel = () => {
   }, [isPaused, _resetCountdown]);
 
   const onStop = useCallback(() => {
-    if (!isStarted) {
-      return;
-    }
-
     Alert.alert(i18n.t('stop'), i18n.t('msgStopGame'), [
       {
         text: i18n.t('txtCancel'),
@@ -479,7 +475,7 @@ const GamePlayViewModel = () => {
         },
       },
     ]);
-  }, [dispatch, isStarted]);
+  }, [dispatch]);
 
   return useMemo(() => {
     return {

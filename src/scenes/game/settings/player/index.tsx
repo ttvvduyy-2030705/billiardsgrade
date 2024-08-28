@@ -14,10 +14,12 @@ import {
 } from 'constants/player';
 import {responsiveDimension, responsiveFontSize} from 'utils/helper';
 import {BilliardCategory} from 'types/category';
-import styles from './styles';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
+import {GameMode} from 'types/settings';
+import styles from './styles';
 
 interface Props {
+  gameMode?: GameMode;
   category: BilliardCategory;
   playerSettings: PlayerSettings;
   onSelectPlayerNumber: (playerNumber: PlayerNumber) => void;
@@ -39,7 +41,8 @@ const PlayerSettingsComponent = (props: Props) => {
         </View>
         <View direction={'row'} alignItems={'center'}>
           {Object.keys(
-            isPool15OnlyGame(props.category)
+            isPool15OnlyGame(props.category) ||
+              (isPoolGame(props.category) && props.gameMode === 'pro')
               ? PLAYER_NUMBER_POOL_15
               : isPoolGame(props.category)
               ? PLAYER_NUMBER_POOL
