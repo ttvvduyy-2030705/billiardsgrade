@@ -4,7 +4,7 @@ import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
   button: {
-    borderWidth: 0.5,
+    borderWidth: 0.7,
     borderColor: colors.gray,
     borderRadius: 20,
     paddingHorizontal: responsiveDimension(20),
