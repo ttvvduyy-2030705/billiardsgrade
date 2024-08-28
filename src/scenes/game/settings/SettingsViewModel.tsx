@@ -71,7 +71,9 @@ const GameSettingsViewModel = (props: Props) => {
       setCategory(selectedCategory);
       setPlayerSettings({
         playerNumber: 2,
-        playingPlayers: DEFAULT_PLAYERS,
+        playingPlayers: isPoolGame(selectedCategory)
+          ? DEFAULT_PLAYERS.map(item => ({...item, color: PLAYER_COLOR[1]}))
+          : DEFAULT_PLAYERS,
         goal: {
           ...playerSettings.goal,
           goal: isPoolGame(selectedCategory) ? 10 : 40,
@@ -151,13 +153,15 @@ const GameSettingsViewModel = (props: Props) => {
         playingPlayers: Array.from(Array(playerNumber).keys()).map(number => {
           return {
             name: i18n.t(`player${number + 1}`),
-            color: (PLAYER_COLOR as any)[number],
+            color: isPoolGame(category)
+              ? PLAYER_COLOR[1]
+              : (PLAYER_COLOR as any)[number],
             totalPoint: 0,
           };
         }),
       } as PlayerSettings);
     },
-    [playerSettings],
+    [playerSettings, category],
   );
 
   const onChangePlayerPoint = useCallback(
