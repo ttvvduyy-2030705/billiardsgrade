@@ -98,6 +98,7 @@ const GameConsole = (props: Props) => {
 
           {isPoolGame(props.gameSettings.category) ? (
             <BallsView
+              isStarted={props.isStarted}
               winner={props.winner}
               gameSettings={props.gameSettings}
               balls={viewModel.balls}
@@ -138,15 +139,21 @@ const GameConsole = (props: Props) => {
               alignItems={'center'}
               marginHorizontal={'15'}
               marginBottom={'15'}>
-              <View
-                flex={'1'}
-                direction={'row'}
-                justify={'center'}
-                alignItems={'center'}>
-                <Button style={styles.button} onPress={viewModel.onSwitchTurn}>
-                  <Text>{i18n.t('switchTurn')}</Text>
-                </Button>
-              </View>
+              {!isPoolGame(props.gameSettings.category) ? (
+                <View
+                  flex={'1'}
+                  direction={'row'}
+                  justify={'center'}
+                  alignItems={'center'}>
+                  <Button
+                    style={styles.button}
+                    onPress={viewModel.onSwitchTurn}>
+                    <Text>{i18n.t('switchTurn')}</Text>
+                  </Button>
+                </View>
+              ) : (
+                <View />
+              )}
               <View marginHorizontal={'10'} />
               {!isPoolGame(props.gameSettings.category) ? (
                 <View

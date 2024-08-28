@@ -16,6 +16,7 @@ import {ScrollView} from 'react-native';
 import Image from 'components/Image';
 
 interface Props {
+  isStarted: boolean;
   winner?: Player;
   gameSettings: GameSettings;
   balls: PoolBallType[];
