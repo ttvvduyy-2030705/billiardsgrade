@@ -212,7 +212,14 @@ const GamePlayViewModel = () => {
   );
 
   const onPressGiveMoreTime = useCallback(() => {
-    if (!playerSettings || !isStarted) {
+    if (
+      !playerSettings ||
+      !isStarted ||
+      (typeof playerSettings.playingPlayers[currentPlayerIndex].proMode
+        ?.extraTimeTurns === 'number' &&
+        playerSettings.playingPlayers[currentPlayerIndex].proMode
+          ?.extraTimeTurns <= 0)
+    ) {
       return;
     }
 

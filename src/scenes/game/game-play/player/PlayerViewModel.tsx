@@ -2,6 +2,7 @@ import i18n from 'i18n';
 import {useCallback, useMemo, useState} from 'react';
 import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
+import {isPoolGame} from 'utils/game';
 import Sound from 'utils/sound';
 
 export interface Props {
@@ -42,7 +43,9 @@ const PlayerViewModel = (props: Props) => {
 
   const onIncreasePoint = useCallback(() => {
     if (
-      (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+      (!isPoolGame(props.gameSettings.category) &&
+        !props.isOnTurn &&
+        props.gameSettings.mode.mode !== 'fast') ||
       !props.isStarted ||
       props.isPaused
     ) {
@@ -55,7 +58,9 @@ const PlayerViewModel = (props: Props) => {
 
   const onDecreasePoint = useCallback(() => {
     if (
-      (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+      (!isPoolGame(props.gameSettings.category) &&
+        !props.isOnTurn &&
+        props.gameSettings.mode.mode !== 'fast') ||
       !props.isStarted ||
       props.isPaused
     ) {

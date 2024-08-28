@@ -2,7 +2,7 @@ import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
 
-const COUNTDOWN_WIDTH = dims.screenWidth * 0.93;
+const COUNTDOWN_WIDTH = dims.screenWidth * 0.91;
 
 const styles = StyleSheet.create({
   countdownWrapper: {
