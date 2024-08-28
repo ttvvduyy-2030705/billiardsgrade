@@ -38,6 +38,7 @@ export interface Props {
   onStart: () => void;
   onPause: () => void;
   onStop: () => void;
+  onReset: () => void;
 }
 
 const ConsoleViewModel = (props: Props) => {
@@ -211,6 +212,7 @@ const ConsoleViewModel = (props: Props) => {
         : BALLS_9,
     );
     props.onClearWinner();
+    props.onReset();
   }, [props, gameSettings]);
 
   const onStart = useCallback(() => {

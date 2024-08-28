@@ -28,8 +28,10 @@ interface Props {
   arrowColorRight: string;
   pool15OnlyPointLeft: number;
   pool15OnlyPointRight: number;
+  poolBreakEnabled: boolean;
   onSelectBall: (selectedBall: PoolBallType) => void;
   onPressGiveMoreTime: () => void;
+  onPoolBreak: () => void;
   onRestart: () => void;
 }
 
@@ -176,9 +178,21 @@ const BallsView = (props: Props) => {
     );
   }
 
+  if (props.poolBreakEnabled && props.isStarted) {
+    return (
+      <View flex={'1'} justify={'center'} alignItems={'center'}>
+        <View direction={'row'} marginHorizontal={'15'}>
+          <Button style={styles.button} onPress={props.onPoolBreak}>
+            <Text fontSize={16}>{i18n.t('break')}</Text>
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
   if (props.gameSettings.mode.mode === 'pro') {
     return (
-      <View flex={'1'} justify={'center'}>
+      <View flex={'1'} justify={'between'} alignItems={'center'}>
         <View
           direction={'row'}
           marginHorizontal={'20'}
@@ -192,6 +206,19 @@ const BallsView = (props: Props) => {
             </Text>
           </Button>
         </View>
+        {props.isStarted ? (
+          <View
+            direction={'row'}
+            marginHorizontal={'20'}
+            marginTop={'20'}
+            marginBottom={'15'}>
+            <Button style={styles.buttonRestart} onPress={props.onRestart}>
+              <Text fontSize={16}>{i18n.t('restart')}</Text>
+            </Button>
+          </View>
+        ) : (
+          <View />
+        )}
       </View>
     );
   }

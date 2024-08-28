@@ -1,6 +1,7 @@
 import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
+import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
   ballsWrapper: {
@@ -30,6 +31,15 @@ const styles = StyleSheet.create({
     height: dims.screenWidth * 0.02,
     marginRight: 10,
     transform: [{rotate: '180deg'}],
+  },
+  button: {
+    flex: 1,
+    borderWidth: 0.5,
+    borderRadius: 10,
+    paddingVertical: responsiveDimension(10),
+    borderColor: colors.gray,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonRestart: {
     paddingHorizontal: '10%',

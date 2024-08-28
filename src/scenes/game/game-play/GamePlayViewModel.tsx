@@ -67,7 +67,7 @@ const GamePlayViewModel = () => {
   }, [gameSettings]);
 
   useEffect(() => {
-    if (!isStarted || isPaused) {
+    if (!isStarted || isPaused || poolBreakEnabled) {
       return;
     }
 
@@ -81,7 +81,7 @@ const GamePlayViewModel = () => {
     return () => {
       clearInterval(countdownInterval);
     };
-  }, [isStarted, isPaused]);
+  }, [isStarted, isPaused, poolBreakEnabled]);
 
   useEffect(() => {
     if (!warmUpCountdownTime) {
@@ -206,7 +206,9 @@ const GamePlayViewModel = () => {
         setIsPaused(true);
       }
 
-      _resetCountdown();
+      if (!isPoolGame(gameSettings.category)) {
+        _resetCountdown();
+      }
     },
     [isStarted, gameSettings, playerSettings, _resetCountdown],
   );
@@ -255,7 +257,6 @@ const GamePlayViewModel = () => {
       if (
         !isStarted ||
         !playerSettings ||
-        playerIndex !== currentPlayerIndex ||
         !isPoolGame(gameSettings?.category)
       ) {
         return;
@@ -276,7 +277,7 @@ const GamePlayViewModel = () => {
 
       setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
     },
-    [isStarted, currentPlayerIndex, gameSettings, playerSettings],
+    [isStarted, gameSettings, playerSettings],
   );
 
   const onSelectWinner = useCallback(() => {
@@ -400,14 +401,19 @@ const GamePlayViewModel = () => {
   }, []);
 
   const onPoolBreak = useCallback(() => {
-    if (!gameSettings || !gameSettings.mode.countdownTime) {
+    if (
+      !isStarted ||
+      isPaused ||
+      !gameSettings ||
+      !gameSettings.mode.countdownTime
+    ) {
       return;
     }
 
     setCountdownTime(gameSettings.mode.countdownTime! * 2);
     setPoolBreakEnabled(false);
     setIsStarted(true);
-  }, [gameSettings]);
+  }, [gameSettings, isStarted, isPaused]);
 
   const getWarmUpTimeString = useCallback(() => {
     if (!warmUpCountdownTime) {
@@ -502,6 +508,32 @@ const GamePlayViewModel = () => {
     ]);
   }, [dispatch]);
 
+  const onReset = useCallback(() => {
+    const newPlayerSettings = {
+      ...playerSettings,
+      playingPlayers: playerSettings?.playingPlayers.map(player => ({
+        ...player,
+        violate: 0,
+        scoredBalls: [],
+        proMode: {
+          ...player.proMode,
+          highestRate: 0,
+          average: 0,
+          extraTimeTurns: gameSettings?.mode.extraTimeTurns,
+        },
+      })),
+    } as PlayerSettings;
+
+    setPlayerSettings(newPlayerSettings);
+
+    if (
+      isPoolGame(gameSettings?.category) &&
+      gameSettings?.mode.countdownTime
+    ) {
+      setPoolBreakEnabled(true);
+    }
+  }, [gameSettings, playerSettings]);
+
   return useMemo(() => {
     return {
       winner,
@@ -538,6 +570,7 @@ const GamePlayViewModel = () => {
       onEndTurn,
       onPause,
       onStop,
+      onReset,
     };
   }, [
     winner,
@@ -574,6 +607,7 @@ const GamePlayViewModel = () => {
     onEndTurn,
     onPause,
     onStop,
+    onReset,
   ]);
 };
 

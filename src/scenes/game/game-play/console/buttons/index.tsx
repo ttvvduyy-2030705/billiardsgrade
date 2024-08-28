@@ -31,18 +31,6 @@ const ButtonsConsole = (props: Props) => {
       );
     }
 
-    if (props.poolBreakEnabled) {
-      return (
-        <Button
-          style={[styles.button, styles.pauseButton]}
-          onPress={props.onPoolBreak}>
-          <Text fontWeight={'bold'} letterSpacing={1.2}>
-            {i18n.t('break')}
-          </Text>
-        </Button>
-      );
-    }
-
     if (!props.isStarted) {
       return (
         <Button

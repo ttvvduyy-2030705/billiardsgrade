@@ -110,6 +110,8 @@ const GameConsole = (props: Props) => {
               arrowColorRight={viewModel.arrowColorRight}
               pool15OnlyPointLeft={viewModel.pool15OnlyPointLeft}
               pool15OnlyPointRight={viewModel.pool15OnlyPointRight}
+              poolBreakEnabled={props.poolBreakEnabled}
+              onPoolBreak={props.onPoolBreak}
               onSelectBall={viewModel.onSelectBall}
               onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
               onRestart={viewModel.onRestart}
