@@ -64,7 +64,10 @@ const GamePlayViewModel = () => {
       RemoteControlKeys.VOL_DOWN,
       onReset,
     );
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.DEL, onWarmUp);
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.DEL,
+      warmUpCountdownTime ? onEndWarmUp : onWarmUp,
+    );
     RemoteControl.instance.registerKeyEvents(
       RemoteControlKeys.MUTE,
       onToggleSound,
@@ -94,6 +97,7 @@ const GamePlayViewModel = () => {
     totalTurns,
     gameSettings,
     playerSettings,
+    warmUpCountdownTime,
   ]);
 
   useEffect(() => {
