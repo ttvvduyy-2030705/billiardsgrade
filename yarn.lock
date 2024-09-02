@@ -2810,6 +2810,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/convert-string@npm:^0.1.3":
+  version: 0.1.3
+  resolution: "@types/convert-string@npm:0.1.3"
+  checksum: 107386d21890917bf91411022fbe6e3aaff8e27240e51b407a597e3846aa5a0a10c384e525fa6e2ce0b0a14a48f7894f82ef81755270c4466ec40e2edc752df8
+  languageName: node
+  linkType: hard
+
 "@types/graceful-fs@npm:^4.1.3":
   version: 4.1.9
   resolution: "@types/graceful-fs@npm:4.1.9"
@@ -3684,12 +3691,14 @@ __metadata:
     "@react-navigation/native": ^6.1.17
     "@react-navigation/native-stack": ^6.10.0
     "@react-navigation/routers": ^6.1.9
+    "@types/convert-string": ^0.1.3
     "@types/numeral": ^2.0.5
     "@types/react": ^18.2.6
     "@types/react-redux": ^7.1.33
     "@types/react-test-renderer": ^18.0.0
     babel-jest: ^29.6.3
     babel-plugin-module-resolver: ^5.0.2
+    convert-string: ^0.1.0
     dayjs: ^1.11.11
     eslint: ^8.19.0
     i18n-js: ^4.4.3
@@ -4149,6 +4158,13 @@ __metadata:
   version: 2.0.0
   resolution: "convert-source-map@npm:2.0.0"
   checksum: 63ae9933be5a2b8d4509daca5124e20c14d023c820258e484e32dc324d34c2754e71297c94a05784064ad27615037ef677e3f0c00469fb55f409d2bb21261035
+  languageName: node
+  linkType: hard
+
+"convert-string@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "convert-string@npm:0.1.0"
+  checksum: a1775cb186d2fbf175486f02e3f7cc68c75e7a0c7609bf434d2a933e801b3a0499ab57de4230919ec824351dc344055bf639a1db5e44a976787145817106d9aa
   languageName: node
   linkType: hard
 

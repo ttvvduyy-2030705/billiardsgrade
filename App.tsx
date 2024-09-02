@@ -14,12 +14,31 @@ import {StackScreens} from 'scenes';
 import {navigationRef} from 'utils/navigation';
 import storage, {persistor} from 'data/redux';
 import {loadLanguage} from 'i18n';
+// import {BLEService} from 'utils/bluetooth';
 
 const App = (): React.JSX.Element => {
   const [currentLanguage, setCurrentLanguage] = useState('vi');
 
   useEffect(() => {
     _init();
+
+    // BLEService.requestBluetoothPermissions();
+    // const [
+    //   discoverUnsubscribe,
+    //   connectUnsubscribe,
+    //   didUpdateUnsubscribe,
+    //   stopScanUnsubscribe,
+    //   disconnectUnsubscribe,
+    // ] = BLEService.registerListeners();
+
+    // return () => {
+    //   discoverUnsubscribe.remove();
+    //   connectUnsubscribe.remove();
+    //   didUpdateUnsubscribe.remove();
+    //   stopScanUnsubscribe.remove();
+    //   disconnectUnsubscribe.remove();
+    // };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

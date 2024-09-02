@@ -21,7 +21,7 @@ export interface Props {
     stepIndex: number,
   ) => void;
   onViolate: (playerIndex: number) => void;
-  onEndTurn: () => void;
+  onEndTurn: (isPrevious?: boolean) => void;
 }
 
 const PlayerViewModel = (props: Props) => {
@@ -90,25 +90,28 @@ const PlayerViewModel = (props: Props) => {
     props.onViolate(props.index);
   }, [props]);
 
-  const onEndTurn = useCallback(() => {
-    if (totalPointInTurn > highestRate) {
-      setHighestRate(totalPointInTurn);
-    }
+  const onEndTurn = useCallback(
+    (isPrevious?: boolean) => {
+      if (totalPointInTurn > highestRate) {
+        setHighestRate(totalPointInTurn);
+      }
 
-    setAveragePoint(Math.floor(props.player.totalPoint / props.totalTurns));
-    setTotalPointInTurn(0);
+      setAveragePoint(Math.floor(props.player.totalPoint / props.totalTurns));
+      setTotalPointInTurn(0);
 
-    if (props.soundEnabled) {
-      Sound.speak(
-        i18n.t('msgYouScored', {
-          player: props.player.name,
-          points: totalPointInTurn,
-        }),
-      );
-    }
+      if (props.soundEnabled) {
+        Sound.speak(
+          i18n.t('msgYouScored', {
+            player: props.player.name,
+            points: totalPointInTurn,
+          }),
+        );
+      }
 
-    props.onEndTurn();
-  }, [props, highestRate, totalPointInTurn]);
+      props.onEndTurn(isPrevious);
+    },
+    [props, highestRate, totalPointInTurn],
+  );
 
   return useMemo(() => {
     return {

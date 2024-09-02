@@ -105,7 +105,9 @@ const GamePlayer = (props: Props) => {
           justify={'between'}
           alignItems={'end'}>
           {props.isOnTurn ? (
-            <Button style={styles.buttonEndTurn} onPress={viewModel.onEndTurn}>
+            <Button
+              style={styles.buttonEndTurn}
+              onPress={viewModel.onEndTurn.bind(GamePlayer, undefined)}>
               <Text fontSize={dims.screenWidth * 0.02}>{i18n.t('turn')}</Text>
             </Button>
           ) : (
@@ -178,7 +180,9 @@ const GamePlayer = (props: Props) => {
           justify={'between'}
           alignItems={'end'}>
           {props.isOnTurn ? (
-            <Button style={styles.buttonEndTurn} onPress={viewModel.onEndTurn}>
+            <Button
+              style={styles.buttonEndTurn}
+              onPress={viewModel.onEndTurn.bind(GamePlayer, undefined)}>
               <Text fontSize={dims.screenWidth * 0.02}>{i18n.t('turn')}</Text>
             </Button>
           ) : (

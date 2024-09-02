@@ -2,13 +2,17 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Alert} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import {RootState} from 'data/redux/reducers';
-import {Player, PlayerSettings} from 'types/player';
-import {goBack} from 'utils/navigation';
 import {gameActions} from 'data/redux/actions/game';
 import colors from 'configuration/colors';
+
+import {goBack} from 'utils/navigation';
 import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
-import {BallType, PoolBallType} from 'types/ball';
 import Sound from 'utils/sound';
+import RemoteControl from 'utils/remote';
+
+import {Player, PlayerSettings} from 'types/player';
+import {RemoteControlKeys} from 'types/bluetooth';
+import {BallType, PoolBallType} from 'types/ball';
 import i18n from 'i18n';
 import {COUNTDOWN_WIDTH} from './styles';
 
@@ -34,6 +38,69 @@ const GamePlayViewModel = () => {
     gameSettings?.mode?.mode === 'fast' ? true : false,
   );
   const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  useEffect(() => {
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.PLAY_OR_PAUSE,
+      isStarted ? onPause : onStart,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.LIGHT,
+      onSwitchTurn,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.PAGE_UP,
+      onPoolBreak,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.PAGE_DOWN,
+      onPressGiveMoreTime,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.VOL_UP,
+      onEndTurn,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.VOL_DOWN,
+      onReset,
+    );
+    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.DEL, onWarmUp);
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.MUTE,
+      onToggleSound,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.UP,
+      onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.DOWN,
+      onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.LEFT,
+      onEndTurn.bind(GamePlayViewModel, true),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.RIGHT,
+      onEndTurn,
+    );
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isStarted,
+    isPaused,
+    currentPlayerIndex,
+    totalTurns,
+    gameSettings,
+    playerSettings,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      RemoteControl.instance.removeAllListeners();
+    };
+  }, []);
 
   useEffect(() => {
     clearInterval(countdownInterval);
@@ -442,26 +509,35 @@ const GamePlayViewModel = () => {
     clearInterval(warmUpCountdownInterval);
   }, []);
 
-  const onEndTurn = useCallback(() => {
-    if (!gameSettings || !isStarted) {
-      return;
-    }
+  const onEndTurn = useCallback(
+    (isPrevious?: boolean) => {
+      if (!gameSettings || !isStarted) {
+        return;
+      }
 
-    _resetCountdown();
-    if (currentPlayerIndex + 1 > gameSettings.players.playerNumber - 1) {
-      setCurrentPlayerIndex(0);
-      setTotalTurns(totalTurns + 1);
-      return;
-    }
+      _resetCountdown();
 
-    setCurrentPlayerIndex(currentPlayerIndex + 1);
-  }, [
-    isStarted,
-    currentPlayerIndex,
-    totalTurns,
-    gameSettings,
-    _resetCountdown,
-  ]);
+      if (isPrevious) {
+        if (currentPlayerIndex - 1 < 0) {
+          setCurrentPlayerIndex(gameSettings.players.playerNumber - 1);
+          setTotalTurns(totalTurns + 1);
+          return;
+        }
+
+        setCurrentPlayerIndex(currentPlayerIndex - 1);
+        return;
+      }
+
+      if (currentPlayerIndex + 1 > gameSettings.players.playerNumber - 1) {
+        setCurrentPlayerIndex(0);
+        setTotalTurns(totalTurns + 1);
+        return;
+      }
+
+      setCurrentPlayerIndex(currentPlayerIndex + 1);
+    },
+    [isStarted, currentPlayerIndex, totalTurns, gameSettings, _resetCountdown],
+  );
 
   const onSwapPlayers = useCallback(() => {
     const player1: Player = {...playerSettings?.playingPlayers[0]} as Player;
