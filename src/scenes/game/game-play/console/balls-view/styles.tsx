@@ -34,26 +34,31 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    borderWidth: 0.5,
-    borderRadius: 10,
-    paddingVertical: responsiveDimension(10),
-    borderColor: colors.gray,
+    borderRadius: 0,
+    paddingVertical: responsiveDimension(20),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonRestart: {
-    paddingHorizontal: '10%',
-    paddingVertical: 15,
-    borderRadius: 20,
+  buttonBreakPool: {
     backgroundColor: colors.green,
   },
+  buttonWrapper: {
+    overflow: 'hidden',
+    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  buttonRestart: {
+    backgroundColor: colors.brown,
+  },
   buttonGiveMoreTime: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.grayBlue,
-    borderRadius: 20,
+    backgroundColor: colors.yellow,
+  },
+  buttonResetTurn: {
+    backgroundColor: colors.green,
+  },
+  logo: {
+    height: dims.screenHeight * 0.1,
+    width: dims.screenWidth * 0.2,
   },
 });
 

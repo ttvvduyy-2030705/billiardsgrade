@@ -33,6 +33,7 @@ interface Props {
   onPressGiveMoreTime: () => void;
   onPoolBreak: () => void;
   onRestart: () => void;
+  onResetTurn: () => void;
 }
 
 const BallsView = (props: Props) => {
@@ -180,10 +181,21 @@ const BallsView = (props: Props) => {
 
   if (props.poolBreakEnabled && props.isStarted) {
     return (
-      <View flex={'1'} justify={'center'} alignItems={'center'}>
-        <View direction={'row'} marginHorizontal={'15'}>
-          <Button style={styles.button} onPress={props.onPoolBreak}>
-            <Text fontSize={16}>{i18n.t('break')}</Text>
+      <View flex={'1'} justify={'end'} alignItems={'center'}>
+        <View flex={'1'} justify={'center'}>
+          <Image
+            source={images.logo}
+            style={styles.logo}
+            resizeMode={'contain'}
+          />
+        </View>
+        <View style={styles.buttonWrapper} direction={'row'}>
+          <Button
+            style={[styles.button, styles.buttonBreakPool]}
+            onPress={props.onPoolBreak}>
+            <Text fontSize={16} color={colors.white} fontWeight={'bold'}>
+              {i18n.t('break')}
+            </Text>
           </Button>
         </View>
       </View>
@@ -193,32 +205,40 @@ const BallsView = (props: Props) => {
   if (props.gameSettings.mode.mode === 'pro') {
     return (
       <View flex={'1'} justify={'between'} alignItems={'center'}>
-        <View
-          direction={'row'}
-          marginHorizontal={'20'}
-          marginTop={'20'}
-          marginBottom={'15'}>
+        <View flex={'1'} justify={'center'}>
+          <Image
+            source={images.logo}
+            style={styles.logo}
+            resizeMode={'contain'}
+          />
+        </View>
+        <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
+          <Button
+            onPress={props.onResetTurn}
+            style={[styles.button, styles.buttonResetTurn]}>
+            <Text color={colors.white} fontSize={16}>
+              {i18n.t('resetTurn')}
+            </Text>
+          </Button>
           <Button
             onPress={props.onPressGiveMoreTime}
-            style={styles.buttonGiveMoreTime}>
+            style={[styles.button, styles.buttonGiveMoreTime]}>
             <Text color={colors.white} fontSize={16}>
               {i18n.t('giveMoreTime')}
             </Text>
           </Button>
-        </View>
-        {props.isStarted ? (
-          <View
-            direction={'row'}
-            marginHorizontal={'20'}
-            marginTop={'20'}
-            marginBottom={'15'}>
-            <Button style={styles.buttonRestart} onPress={props.onRestart}>
-              <Text fontSize={16}>{i18n.t('restart')}</Text>
+          {props.isStarted ? (
+            <Button
+              style={[styles.button, styles.buttonRestart]}
+              onPress={props.onRestart}>
+              <Text fontSize={16} color={colors.white}>
+                {i18n.t('restart')}
+              </Text>
             </Button>
-          </View>
-        ) : (
-          <View />
-        )}
+          ) : (
+            <View />
+          )}
+        </View>
       </View>
     );
   }

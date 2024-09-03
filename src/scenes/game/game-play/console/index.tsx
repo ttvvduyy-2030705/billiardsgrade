@@ -96,51 +96,14 @@ const GameConsole = (props: Props) => {
             <View />
           )}
 
-          {isPoolGame(props.gameSettings.category) ? (
-            <BallsView
-              isStarted={props.isStarted}
-              winner={props.winner}
-              gameSettings={props.gameSettings}
-              balls={viewModel.balls}
-              ballLeft={viewModel.ballLeft}
-              ballRight={viewModel.ballRight}
-              colorLeft={viewModel.colorLeft}
-              colorRight={viewModel.colorRight}
-              arrowColorLeft={viewModel.arrowColorLeft}
-              arrowColorRight={viewModel.arrowColorRight}
-              pool15OnlyPointLeft={viewModel.pool15OnlyPointLeft}
-              pool15OnlyPointRight={viewModel.pool15OnlyPointRight}
-              poolBreakEnabled={props.poolBreakEnabled}
-              onPoolBreak={props.onPoolBreak}
-              onSelectBall={viewModel.onSelectBall}
-              onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
-              onRestart={viewModel.onRestart}
-            />
-          ) : (
-            <GameInfo
-              goal={props.goal}
-              totalTurns={props.totalTurns}
-              totalPlayers={props.totalPlayers}
-              currentMode={props.currentMode}
-              onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
-            />
-          )}
-
-          {props.totalPlayers === 5 ? (
-            <View flex={'1'} direction={'row'}>
-              {props.renderLastPlayer()}
-            </View>
-          ) : (
-            <View />
-          )}
-
           {props.totalPlayers === 2 &&
           (props.currentMode.mode === 'fast' || !props.isStarted) ? (
             <View
               direction={'row'}
+              justify={'end'}
               alignItems={'center'}
               marginHorizontal={'15'}
-              marginBottom={'15'}>
+              marginTop={'15'}>
               {!isPoolGame(props.gameSettings.category) ? (
                 <View
                   flex={'1'}
@@ -172,6 +135,46 @@ const GameConsole = (props: Props) => {
               ) : (
                 <View />
               )}
+            </View>
+          ) : (
+            <View />
+          )}
+
+          {isPoolGame(props.gameSettings.category) ? (
+            <BallsView
+              isStarted={props.isStarted}
+              winner={props.winner}
+              gameSettings={props.gameSettings}
+              balls={viewModel.balls}
+              ballLeft={viewModel.ballLeft}
+              ballRight={viewModel.ballRight}
+              colorLeft={viewModel.colorLeft}
+              colorRight={viewModel.colorRight}
+              arrowColorLeft={viewModel.arrowColorLeft}
+              arrowColorRight={viewModel.arrowColorRight}
+              pool15OnlyPointLeft={viewModel.pool15OnlyPointLeft}
+              pool15OnlyPointRight={viewModel.pool15OnlyPointRight}
+              poolBreakEnabled={props.poolBreakEnabled}
+              onPoolBreak={props.onPoolBreak}
+              onSelectBall={viewModel.onSelectBall}
+              onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+              onRestart={viewModel.onRestart}
+              onResetTurn={props.onResetTurn}
+            />
+          ) : (
+            <GameInfo
+              goal={props.goal}
+              totalTurns={props.totalTurns}
+              totalPlayers={props.totalPlayers}
+              currentMode={props.currentMode}
+              onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+              onResetTurn={props.onResetTurn}
+            />
+          )}
+
+          {props.totalPlayers === 5 ? (
+            <View flex={'1'} direction={'row'}>
+              {props.renderLastPlayer()}
             </View>
           ) : (
             <View />

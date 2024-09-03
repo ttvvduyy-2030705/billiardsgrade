@@ -226,6 +226,7 @@ const GamePlay = () => {
           onPause={viewModel.onPause}
           onStop={viewModel.onStop}
           onReset={viewModel.onReset}
+          onResetTurn={viewModel.onResetTurn}
         />
         {renderPlayers(
           1,

@@ -58,7 +58,7 @@ const GamePlayViewModel = () => {
     );
     RemoteControl.instance.registerKeyEvents(
       RemoteControlKeys.VOL_UP,
-      onEndTurn,
+      onResetTurn,
     );
     RemoteControl.instance.registerKeyEvents(
       RemoteControlKeys.VOL_DOWN,
@@ -543,6 +543,16 @@ const GamePlayViewModel = () => {
     [isStarted, currentPlayerIndex, totalTurns, gameSettings, _resetCountdown],
   );
 
+  const onResetTurn = useCallback(() => {
+    if (!gameSettings || !isStarted) {
+      return;
+    }
+
+    _resetCountdown();
+
+    setTotalTurns(totalTurns + 1);
+  }, [isStarted, gameSettings, totalTurns, _resetCountdown]);
+
   const onSwapPlayers = useCallback(() => {
     const player1: Player = {...playerSettings?.playingPlayers[0]} as Player;
     const player0: Player = {...playerSettings?.playingPlayers[1]} as Player;
@@ -651,6 +661,7 @@ const GamePlayViewModel = () => {
       onPause,
       onStop,
       onReset,
+      onResetTurn,
     };
   }, [
     winner,
@@ -688,6 +699,7 @@ const GamePlayViewModel = () => {
     onPause,
     onStop,
     onReset,
+    onResetTurn,
   ]);
 };
 

@@ -14,6 +14,7 @@ interface Props {
   totalPlayers: number;
   currentMode: GameSettingsMode;
   onPressGiveMoreTime: () => void;
+  onResetTurn: () => void;
 }
 
 const GameInfo = (props: Props) => {
@@ -47,14 +48,17 @@ const GameInfo = (props: Props) => {
           </Text>
         </View>
       </View>
-      <View
-        direction={'row'}
-        marginHorizontal={'20'}
-        marginTop={'20'}
-        marginBottom={'15'}>
+      <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
+        <Button
+          onPress={props.onResetTurn}
+          style={[styles.button, styles.buttonResetTurn]}>
+          <Text color={colors.white} fontSize={16}>
+            {i18n.t('resetTurn')}
+          </Text>
+        </Button>
         <Button
           onPress={props.onPressGiveMoreTime}
-          style={styles.buttonGiveMoreTime}>
+          style={[styles.button, styles.buttonGiveMoreTime]}>
           <Text color={colors.white} fontSize={16}>
             {i18n.t('giveMoreTime')}
           </Text>

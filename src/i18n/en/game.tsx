@@ -60,6 +60,7 @@ const game = {
   turn: 'On turn',
   totalTurns: 'Total turns',
   giveMoreTime: 'Give more time',
+  resetTurn: 'Reset turn',
   break: 'Break',
   msgPool15OnlyWinner: 'Congratulations! Player {{name}} has won',
   msgStopGame: 'Are you sure want to end this game ?',

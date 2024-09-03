@@ -39,6 +39,7 @@ export interface Props {
   onPause: () => void;
   onStop: () => void;
   onReset: () => void;
+  onResetTurn: () => void;
 }
 
 const ConsoleViewModel = (props: Props) => {

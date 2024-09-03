@@ -1,14 +1,25 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
+import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
-  buttonGiveMoreTime: {
+  button: {
     flex: 1,
-    flexDirection: 'row',
+    borderRadius: 0,
+    paddingVertical: responsiveDimension(20),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.grayBlue,
-    borderRadius: 20,
+  },
+  buttonWrapper: {
+    overflow: 'hidden',
+    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  buttonGiveMoreTime: {
+    backgroundColor: colors.yellow,
+  },
+  buttonResetTurn: {
+    backgroundColor: colors.green,
   },
 });
 
