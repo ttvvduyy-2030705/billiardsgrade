@@ -15,6 +15,9 @@ export type GameSettingsMode = {
 };
 
 export type GameSettings = {
+  createdAt?: Date;
+  updatedAt?: Date;
+  totalTime?: number;
   category: BilliardCategory;
   mode: GameSettingsMode;
   players: PlayerSettings;

@@ -106,14 +106,14 @@ const GamePlay = () => {
   ]);
 
   const renderCountDownTime = useCallback(() => {
-    if (!viewModel.gameSettings?.mode.countdownTime) {
+    if (!viewModel.gameSettings?.mode?.countdownTime) {
       return <View />;
     }
 
     return (
       <View flex={'1'} direction={'row'} style={styles.countdown}>
         {Array.from(
-          {length: viewModel.gameSettings.mode.countdownTime},
+          {length: viewModel.gameSettings.mode?.countdownTime},
           (_, index) => {
             if (viewModel.countdownTime <= index) {
               return (

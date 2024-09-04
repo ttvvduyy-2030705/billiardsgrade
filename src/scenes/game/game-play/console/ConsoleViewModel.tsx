@@ -66,7 +66,7 @@ const ConsoleViewModel = (props: Props) => {
   const [arrowColorRight, setArrowColorRight] = useState(colors.white);
 
   const [proModeEnabled, setProModeEnabled] = useState(
-    props.currentMode.mode !== 'fast',
+    props.currentMode?.mode !== 'fast',
   );
 
   const onToggleValue = useCallback(
@@ -78,7 +78,7 @@ const ConsoleViewModel = (props: Props) => {
 
   const buildGameModeTitle = useCallback(() => {
     return `${i18n.t(`${gameSettings?.category}`).toUpperCase()} - ${i18n
-      .t(`${gameSettings?.mode.mode}`)
+      .t(`${gameSettings?.mode?.mode}`)
       .toUpperCase()}`;
   }, [gameSettings]);
 
@@ -98,7 +98,7 @@ const ConsoleViewModel = (props: Props) => {
         ...props.gameSettings,
         mode: {
           ...props.currentMode,
-          mode: props.currentMode.mode === 'fast' ? 'pro' : 'fast',
+          mode: props.currentMode?.mode === 'fast' ? 'pro' : 'fast',
         },
       }),
     );
@@ -117,7 +117,7 @@ const ConsoleViewModel = (props: Props) => {
       return;
     }
 
-    if (isPool15OnlyGame(props.gameSettings.category)) {
+    if (isPool15OnlyGame(props.gameSettings?.category)) {
       setBallLeft(ballRight);
       setBallRight(ballLeft);
       setPool15OnlyPointLeft(pool15OnlyPointRight);
@@ -155,7 +155,7 @@ const ConsoleViewModel = (props: Props) => {
 
   const onSelectBall = useCallback(
     (selectedBall: PoolBallType) => {
-      if (isPool15OnlyGame(props.gameSettings.category)) {
+      if (isPool15OnlyGame(props.gameSettings?.category)) {
         switch (selectedBall.number) {
           case ballLeft.number:
             if (pool15OnlyPointLeft + 1 === 8) {

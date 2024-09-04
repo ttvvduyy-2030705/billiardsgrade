@@ -12,6 +12,7 @@ const CreateGame = (realm: Realm, gameSettings: GameSettings) => {
       // id,
       createdAt: now,
       updatedAt: now,
+      totalTime: gameSettings.totalTime || 0,
       category: gameSettings.category,
       mode: gameSettings.mode,
       players: gameSettings.players,
@@ -19,16 +20,21 @@ const CreateGame = (realm: Realm, gameSettings: GameSettings) => {
   });
 };
 
-const ReadGames = (params?: {length?: number}): GameSettings[] => {
+const ReadGames = (params?: {
+  length?: number;
+}): (GameSettings & {createdAt: Date; updatedAt: Date})[] => {
   const games = useQuery(GameSchema);
 
   return games.slice(0, params?.length || 20).map(
     game =>
       ({
+        createdAt: game.createdAt,
+        updatedAt: game.updatedAt,
+        totalTime: game.totalTime,
         category: game.category,
         mode: game.mode,
         players: game.players,
-      } as GameSettings),
+      } as GameSettings & {createdAt: Date; updatedAt: Date}),
   );
 };
 

@@ -62,7 +62,7 @@ const GameConsole = (props: Props) => {
                   onChange={viewModel.onToggleRemote}
                 />
               </View>
-              {!isPoolGame(props.gameSettings.category) ? (
+              {!isPoolGame(props.gameSettings?.category) ? (
                 <View direction={'row'} alignItems={'center'} marginTop={'10'}>
                   <View marginRight={'10'}>
                     <Text>{i18n.t('proMode')}</Text>
@@ -90,21 +90,21 @@ const GameConsole = (props: Props) => {
             onStop={viewModel.onStop}
           />
 
-          {props.totalPlayers < 5 || props.currentMode.mode === 'fast' ? (
+          {props.totalPlayers < 5 || props.currentMode?.mode === 'fast' ? (
             <Webcam />
           ) : (
             <View />
           )}
 
           {props.totalPlayers === 2 &&
-          (props.currentMode.mode === 'fast' || !props.isStarted) ? (
+          (props.currentMode?.mode === 'fast' || !props.isStarted) ? (
             <View
               direction={'row'}
               justify={'end'}
               alignItems={'center'}
               marginHorizontal={'15'}
               marginTop={'15'}>
-              {!isPoolGame(props.gameSettings.category) ? (
+              {!isPoolGame(props.gameSettings?.category) ? (
                 <View
                   flex={'1'}
                   direction={'row'}
@@ -120,7 +120,7 @@ const GameConsole = (props: Props) => {
                 <View />
               )}
               <View marginHorizontal={'10'} />
-              {!isPoolGame(props.gameSettings.category) ? (
+              {!isPoolGame(props.gameSettings?.category) ? (
                 <View
                   flex={'1'}
                   direction={'row'}
@@ -140,7 +140,7 @@ const GameConsole = (props: Props) => {
             <View />
           )}
 
-          {isPoolGame(props.gameSettings.category) ? (
+          {isPoolGame(props.gameSettings?.category) ? (
             <BallsView
               isStarted={props.isStarted}
               winner={props.winner}

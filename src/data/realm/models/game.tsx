@@ -1,4 +1,4 @@
-import Realm, {BSON, ObjectSchema} from 'realm';
+import Realm, {ObjectSchema} from 'realm';
 import {PlayerSettings} from 'types/player';
 import {GameSettings, GameSettingsMode} from 'types/settings';
 
@@ -26,6 +26,7 @@ export class GameSchema extends Realm.Object<GameSettings> {
   // id!: BSON.ObjectId;
   createdAt!: Date;
   updatedAt!: Date;
+  totalTime!: number;
   category!: string;
   mode!: GameSettingsMode;
   players!: PlayerSettings;
@@ -36,6 +37,7 @@ export class GameSchema extends Realm.Object<GameSettings> {
       // id: 'objectId',
       updatedAt: {type: 'date'},
       createdAt: {type: 'date'},
+      totalTime: 'int',
       category: {type: 'string'},
       mode: {type: 'object', objectType: 'GameSettingsMode'},
       players: {type: 'object', objectType: 'PlayerSettings'},

@@ -45,7 +45,7 @@ const PlayerViewModel = (props: Props) => {
     if (
       (!isPoolGame(props.gameSettings.category) &&
         !props.isOnTurn &&
-        props.gameSettings.mode.mode !== 'fast') ||
+        props.gameSettings.mode?.mode !== 'fast') ||
       !props.isStarted ||
       props.isPaused
     ) {
@@ -60,7 +60,7 @@ const PlayerViewModel = (props: Props) => {
     if (
       (!isPoolGame(props.gameSettings.category) &&
         !props.isOnTurn &&
-        props.gameSettings.mode.mode !== 'fast') ||
+        props.gameSettings?.mode?.mode !== 'fast') ||
       !props.isStarted ||
       props.isPaused
     ) {
@@ -74,7 +74,7 @@ const PlayerViewModel = (props: Props) => {
   const onPressPointStep = useCallback(
     (addedPoint: number) => {
       if (
-        (!props.isOnTurn && props.gameSettings.mode.mode !== 'fast') ||
+        (!props.isOnTurn && props.gameSettings?.mode?.mode !== 'fast') ||
         !props.isStarted ||
         props.isPaused
       ) {

@@ -24,8 +24,8 @@ const GamePlayer = (props: Props) => {
 
   const POINT_STEPS = useMemo(() => {
     let STEPS =
-      props.gameSettings.category === 'libre' &&
-      props.gameSettings.mode.mode === 'fast'
+      props.gameSettings?.category === 'libre' &&
+      props.gameSettings?.mode?.mode === 'fast'
         ? GAME_PLAY_POINTS_STEPS
         : GAME_PLAY_POINTS_STEPS_SHORT;
 
@@ -67,8 +67,8 @@ const GamePlayer = (props: Props) => {
 
   const EXTRA_TIME_TURNS = useMemo(() => {
     if (
-      !props.gameSettings.mode.extraTimeTurns ||
-      props.gameSettings.mode.extraTimeTurns === 'infinity'
+      !props.gameSettings?.mode?.extraTimeTurns ||
+      props.gameSettings?.mode?.extraTimeTurns === 'infinity'
     ) {
       return null;
     }
@@ -257,10 +257,10 @@ const GamePlayer = (props: Props) => {
         direction={'row'}
         alignItems={'center'}
         justify={'center'}>
-        {props.gameSettings.mode.mode !== 'fast' &&
-        !isPoolGame(props.gameSettings.category) ? (
+        {props.gameSettings?.mode?.mode !== 'fast' &&
+        !isPoolGame(props.gameSettings?.category) ? (
           ADDITIONAL_POINTS
-        ) : isPoolGame(props.gameSettings.category) ? (
+        ) : isPoolGame(props.gameSettings?.category) ? (
           BALLS_VIEW
         ) : (
           <View />
@@ -270,17 +270,17 @@ const GamePlayer = (props: Props) => {
             {props.player.totalPoint}
           </Text>
         </View>
-        {props.gameSettings.mode.mode !== 'fast' ? (
+        {props.gameSettings?.mode?.mode !== 'fast' ? (
           <View marginRight={'15'}>{EXTRA_TIME_TURNS}</View>
         ) : (
           <View />
         )}
       </View>
 
-      {props.gameSettings.mode.mode === 'fast' &&
-      !isPoolGame(props.gameSettings.category)
+      {props.gameSettings?.mode?.mode === 'fast' &&
+      !isPoolGame(props.gameSettings?.category)
         ? POINT_STEPS
-        : isPoolGame(props.gameSettings.category)
+        : isPoolGame(props.gameSettings?.category)
         ? POOL_MODE_VIEW
         : PRO_MODE_VIEW}
     </View>

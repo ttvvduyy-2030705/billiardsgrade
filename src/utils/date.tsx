@@ -1,5 +1,7 @@
 const HOUR = 3600,
   MINUTE = 60;
+const DAY_FORMAT = 'DD/MM/YYYY';
+const TIME_FORMAT = 'HH:mm:ss';
 
 const formatTotalTime = (time: number) => {
   let _total = time;
@@ -12,4 +14,4 @@ const formatTotalTime = (time: number) => {
   return {hours, minutes, seconds};
 };
 
-export {formatTotalTime};
+export {formatTotalTime, TIME_FORMAT, DAY_FORMAT};

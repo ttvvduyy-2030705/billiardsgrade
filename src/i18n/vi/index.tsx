@@ -69,6 +69,8 @@ const vi = {
   txtStartNewGame: 'Bắt đầu trận mới',
   txtHistory: 'Lịch sử',
   txtWin: 'Chiến thắng',
+  txtDate: 'Ngày',
+  txtSecond: 'Giây',
   msgAppName: 'Digital Score Board',
   msgIntroTitle: 'Nâng tầm giải trí',
   msgIntroDescription: 'Billiards - Devices - Evolutions',

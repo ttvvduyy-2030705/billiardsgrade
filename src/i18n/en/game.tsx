@@ -62,6 +62,7 @@ const game = {
   giveMoreTime: 'Give more time',
   resetTurn: 'Reset turn',
   break: 'Break',
+  playingTime: 'Playing time',
   msgPool15OnlyWinner: 'Congratulations! Player {{name}} has won',
   msgStopGame: 'Are you sure want to end this game ?',
 

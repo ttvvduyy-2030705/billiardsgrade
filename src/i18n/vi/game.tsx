@@ -62,6 +62,7 @@ const game = {
   giveMoreTime: 'Thêm giờ',
   resetTurn: 'Bấm giờ',
   break: 'Phá bi',
+  playingTime: 'Thời gian chơi',
   msgPool15OnlyWinner: 'Chúc mừng {{name}} đã chiến thắng',
   msgStopGame: 'Bạn chắc chắn muốn kết thúc trận đấu chứ ?',
 

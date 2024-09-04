@@ -16,7 +16,6 @@ import {RemoteControlKeys} from 'types/bluetooth';
 import {BallType, PoolBallType} from 'types/ball';
 import i18n from 'i18n';
 import {COUNTDOWN_WIDTH} from './styles';
-import {CreateGame} from 'data/realm/RQL/game';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 
@@ -118,22 +117,22 @@ const GamePlayViewModel = () => {
       setPlayerSettings(gameSettings?.players);
     }
 
-    if (gameSettings?.mode.warmUpTime) {
+    if (gameSettings?.mode?.warmUpTime) {
       setWarmUpCount(gameSettings.players.playingPlayers.length);
     }
 
-    if (gameSettings?.mode.countdownTime) {
-      setCountdownTime(gameSettings.mode.countdownTime);
+    if (gameSettings?.mode?.countdownTime) {
+      setCountdownTime(gameSettings.mode?.countdownTime);
     }
 
-    if (gameSettings?.mode.mode === 'fast') {
-      setCountdownTime(gameSettings?.mode.countdownTime || 0);
+    if (gameSettings?.mode?.mode === 'fast') {
+      setCountdownTime(gameSettings?.mode?.countdownTime || 0);
       setIsPaused(false);
     }
 
     if (
       isPoolGame(gameSettings?.category) &&
-      gameSettings?.mode.countdownTime
+      gameSettings?.mode?.countdownTime
     ) {
       setPoolBreakEnabled(true);
     }
@@ -172,7 +171,7 @@ const GamePlayViewModel = () => {
   }, [warmUpCountdownTime]);
 
   useEffect(() => {
-    if (!isStarted || !soundEnabled || !gameSettings?.mode.countdownTime) {
+    if (!isStarted || !soundEnabled || !gameSettings?.mode?.countdownTime) {
       return;
     }
 
@@ -187,20 +186,20 @@ const GamePlayViewModel = () => {
   }, [isStarted, soundEnabled, countdownTime, gameSettings]);
 
   const getCountdownWidthItem = useCallback(() => {
-    if (!gameSettings?.mode.countdownTime) {
+    if (!gameSettings?.mode?.countdownTime) {
       return;
     }
 
-    return COUNTDOWN_WIDTH / gameSettings!.mode.countdownTime! - 10;
+    return COUNTDOWN_WIDTH / gameSettings!.mode?.countdownTime! - 10;
   }, [gameSettings]);
 
   const getCountdownColor = useCallback(
     (index: number) => {
-      if (!gameSettings?.mode.countdownTime) {
+      if (!gameSettings?.mode?.countdownTime) {
         return;
       }
 
-      const _time = gameSettings!.mode.countdownTime!;
+      const _time = gameSettings!.mode?.countdownTime!;
       const section = _time / 4;
 
       switch (true) {
@@ -221,14 +220,14 @@ const GamePlayViewModel = () => {
 
   const _resetCountdown = useCallback(
     (isResume?: boolean, cumulativeTime?: boolean) => {
-      if (!gameSettings || !gameSettings.mode.countdownTime) {
+      if (!gameSettings || !gameSettings.mode?.countdownTime) {
         return;
       }
 
       if (cumulativeTime) {
-        setCountdownTime(countdownTime + gameSettings!.mode.countdownTime);
+        setCountdownTime(countdownTime + gameSettings!.mode?.countdownTime);
       } else if (!isResume) {
-        setCountdownTime(gameSettings!.mode.countdownTime);
+        setCountdownTime(gameSettings!.mode?.countdownTime);
       }
     },
     [gameSettings, countdownTime],
@@ -479,12 +478,12 @@ const GamePlayViewModel = () => {
       !isStarted ||
       isPaused ||
       !gameSettings ||
-      !gameSettings.mode.countdownTime
+      !gameSettings.mode?.countdownTime
     ) {
       return;
     }
 
-    setCountdownTime(gameSettings.mode.countdownTime! * 2);
+    setCountdownTime(gameSettings.mode?.countdownTime! * 2);
     setPoolBreakEnabled(false);
     setIsStarted(true);
   }, [gameSettings, isStarted, isPaused]);
@@ -503,12 +502,12 @@ const GamePlayViewModel = () => {
   }, [warmUpCountdownTime]);
 
   const onWarmUp = useCallback(() => {
-    if (!gameSettings?.mode.warmUpTime) {
+    if (!gameSettings?.mode?.warmUpTime) {
       return;
     }
 
     setWarmUpCount(prev => (prev ? prev - 1 : 0));
-    setWarmUpCountdownTime(gameSettings?.mode.warmUpTime);
+    setWarmUpCountdownTime(gameSettings?.mode?.warmUpTime);
   }, [gameSettings]);
 
   const onEndWarmUp = useCallback(() => {
@@ -594,12 +593,17 @@ const GamePlayViewModel = () => {
       {
         text: i18n.t('stop'),
         onPress: () => {
-          dispatch(gameActions.endGame({realm, gameSettings}));
+          dispatch(
+            gameActions.endGame({
+              realm,
+              gameSettings: {...gameSettings, totalTime},
+            }),
+          );
           goBack();
         },
       },
     ]);
-  }, [dispatch, realm, gameSettings]);
+  }, [dispatch, realm, totalTime, gameSettings]);
 
   const onReset = useCallback(() => {
     const newPlayerSettings = {
@@ -612,7 +616,7 @@ const GamePlayViewModel = () => {
           ...player.proMode,
           highestRate: 0,
           average: 0,
-          extraTimeTurns: gameSettings?.mode.extraTimeTurns,
+          extraTimeTurns: gameSettings?.mode?.extraTimeTurns,
         },
       })),
     } as PlayerSettings;
@@ -621,7 +625,7 @@ const GamePlayViewModel = () => {
 
     if (
       isPoolGame(gameSettings?.category) &&
-      gameSettings?.mode.countdownTime
+      gameSettings?.mode?.countdownTime
     ) {
       setPoolBreakEnabled(true);
     }

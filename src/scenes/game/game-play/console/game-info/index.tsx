@@ -18,11 +18,11 @@ interface Props {
 }
 
 const GameInfo = (props: Props) => {
-  if (props.totalPlayers === 5 && props.currentMode.mode === 'fast') {
+  if (props.totalPlayers === 5 && props.currentMode?.mode === 'fast') {
     return <View />;
   }
 
-  if (props.currentMode.mode === 'fast') {
+  if (props.currentMode?.mode === 'fast') {
     return <View flex={'1'} />;
   }
 

@@ -202,7 +202,7 @@ const BallsView = (props: Props) => {
     );
   }
 
-  if (props.gameSettings.mode.mode === 'pro') {
+  if (props.gameSettings.mode?.mode === 'pro') {
     return (
       <View flex={'1'} justify={'between'} alignItems={'center'}>
         <View flex={'1'} justify={'center'}>
