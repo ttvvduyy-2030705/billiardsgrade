@@ -103,12 +103,6 @@ const GamePlayViewModel = () => {
   ]);
 
   useEffect(() => {
-    return () => {
-      RemoteControl.instance.removeAllListeners();
-    };
-  }, []);
-
-  useEffect(() => {
     clearInterval(countdownInterval);
     clearInterval(warmUpCountdownInterval);
     setIsStarted(false);

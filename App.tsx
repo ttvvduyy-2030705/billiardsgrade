@@ -24,6 +24,7 @@ import {
   PlayerSettingsSchema,
   PlayerGoalSchema,
 } from 'data/realm/models/player';
+import RemoteControl from 'utils/remote';
 // import {BLEService} from 'utils/bluetooth';
 
 const App = (): React.JSX.Element => {
@@ -49,6 +50,9 @@ const App = (): React.JSX.Element => {
     //   disconnectUnsubscribe.remove();
     // };
 
+    return () => {
+      RemoteControl.instance.removeAllListeners();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
