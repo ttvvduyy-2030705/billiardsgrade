@@ -58,7 +58,7 @@ const ButtonsConsole = (props: Props) => {
     <View
       direction={'row'}
       alignItems={'center'}
-      marginTop={'20'}
+      marginTop={'5'}
       marginHorizontal={'15'}>
       <View
         flex={'1'}

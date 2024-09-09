@@ -32,7 +32,9 @@ const GameInfo = (props: Props) => {
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Text>{i18n.t('totalTurns')}</Text>
           <Text
-            fontSize={dims.screenWidth * 0.05}
+            fontSize={dims.screenHeight * 0.1}
+            lineHeight={dims.screenHeight * 0.115}
+            adjustsFontSizeToFit
             color={colors.grayBlue}
             fontWeight={'bold'}>
             {props.totalTurns}
@@ -41,7 +43,9 @@ const GameInfo = (props: Props) => {
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Text>{i18n.t('goal')}</Text>
           <Text
-            fontSize={dims.screenWidth * 0.05}
+            fontSize={dims.screenHeight * 0.1}
+            lineHeight={dims.screenHeight * 0.115}
+            adjustsFontSizeToFit
             color={colors.grayBlue}
             fontWeight={'bold'}>
             {props.goal}

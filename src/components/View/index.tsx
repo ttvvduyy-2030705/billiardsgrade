@@ -36,7 +36,7 @@ interface Props {
   onLayout?: (e: LayoutChangeEvent) => void;
   alignItems?: 'start' | 'end' | 'center';
   direction?: 'row' | 'column';
-  flex?: '1' | '2' | '4' | '6' | '8' | '10';
+  flex?: '0' | '1' | '2' | '4' | '6' | '8' | '10';
   justify?: 'start' | 'end' | 'center' | 'between' | 'around';
   //margin
   margin?: '5' | '10' | '15' | '20';

@@ -13,8 +13,8 @@ const WebCam = () => {
   const viewModel = WebCamViewModel();
 
   return (
-    <View marginHorizontal={'15'} style={styles.container}>
-      <View flex={'1'} style={styles.video} direction={'row'} marginTop={'20'}>
+    <View style={styles.container}>
+      <View flex={'1'} style={styles.video} direction={'row'} marginTop={'10'}>
         <View flex={'1'}>
           <Text>{'a'}</Text>
         </View>

@@ -182,13 +182,7 @@ const BallsView = (props: Props) => {
   if (props.poolBreakEnabled && props.isStarted) {
     return (
       <View flex={'1'} justify={'end'} alignItems={'center'}>
-        <View flex={'1'} justify={'center'}>
-          <Image
-            source={images.logo}
-            style={styles.logo}
-            resizeMode={'contain'}
-          />
-        </View>
+        <View flex={'1'} />
         <View style={styles.buttonWrapper} direction={'row'}>
           <Button
             style={[styles.button, styles.buttonBreakPool]}
@@ -205,13 +199,7 @@ const BallsView = (props: Props) => {
   if (props.gameSettings.mode?.mode === 'pro') {
     return (
       <View flex={'1'} justify={'between'} alignItems={'center'}>
-        <View flex={'1'} justify={'center'}>
-          <Image
-            source={images.logo}
-            style={styles.logo}
-            resizeMode={'contain'}
-          />
-        </View>
+        <View flex={'1'} />
         <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
           <Button
             onPress={props.onResetTurn}

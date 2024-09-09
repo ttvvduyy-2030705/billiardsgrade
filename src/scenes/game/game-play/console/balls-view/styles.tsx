@@ -56,10 +56,6 @@ const styles = StyleSheet.create({
   buttonResetTurn: {
     backgroundColor: colors.green,
   },
-  logo: {
-    height: dims.screenHeight * 0.1,
-    width: dims.screenWidth * 0.2,
-  },
 });
 
 export default styles;

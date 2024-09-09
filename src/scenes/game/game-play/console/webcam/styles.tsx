@@ -1,11 +1,10 @@
-import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
 import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
   container: {
-    height: dims.screenHeight * 0.3,
+    width: '100%',
     aspectRatio: 1.77777,
     alignSelf: 'center',
   },

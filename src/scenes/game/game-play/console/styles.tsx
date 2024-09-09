@@ -1,3 +1,4 @@
+import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
 import {responsiveDimension} from 'utils/helper';
@@ -28,6 +29,10 @@ const styles = StyleSheet.create({
   },
   marginVertical: {
     marginVertical: responsiveDimension(20),
+  },
+  logo: {
+    height: dims.screenHeight * 0.07,
+    width: dims.screenWidth * 0.1,
   },
 });
 

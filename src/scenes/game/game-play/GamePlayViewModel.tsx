@@ -596,14 +596,18 @@ const GamePlayViewModel = () => {
           dispatch(
             gameActions.endGame({
               realm,
-              gameSettings: {...gameSettings, totalTime},
+              gameSettings: {
+                ...gameSettings,
+                players: playerSettings,
+                totalTime,
+              },
             }),
           );
           goBack();
         },
       },
     ]);
-  }, [dispatch, realm, totalTime, gameSettings]);
+  }, [dispatch, realm, totalTime, gameSettings, playerSettings]);
 
   const onReset = useCallback(() => {
     const newPlayerSettings = {

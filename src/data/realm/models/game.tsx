@@ -5,7 +5,7 @@ import {GameSettings, GameSettingsMode} from 'types/settings';
 export class GameSettingsModeSchema extends Realm.Object<GameSettingsMode> {
   // _id!: BSON.ObjectId;
   mode!: string;
-  extraTimeTurns?: string | number;
+  extraTimeTurns?: string;
   countdownTime?: number;
   warmUpTime?: number;
 

@@ -1,6 +1,6 @@
 import Realm, {BSON} from 'realm';
 import {GameSchema} from '../models/game';
-import {GameSettings} from 'types/settings';
+import {GameExtraTimeTurns, GameSettings} from 'types/settings';
 import {useQuery} from '@realm/react';
 
 const CreateGame = (realm: Realm, gameSettings: GameSettings) => {
@@ -14,7 +14,11 @@ const CreateGame = (realm: Realm, gameSettings: GameSettings) => {
       updatedAt: now,
       totalTime: gameSettings.totalTime || 0,
       category: gameSettings.category,
-      mode: gameSettings.mode,
+      mode: {
+        ...gameSettings.mode,
+        extraTimeTurns:
+          gameSettings.mode.extraTimeTurns?.toString() as GameExtraTimeTurns,
+      },
       players: gameSettings.players,
     });
   });

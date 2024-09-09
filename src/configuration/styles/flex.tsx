@@ -1,6 +1,9 @@
 import {StyleSheet} from 'react-native';
 
 const flex = StyleSheet.create({
+  flex0: {
+    flex: 0,
+  },
   flex1: {
     flex: 1,
   },
