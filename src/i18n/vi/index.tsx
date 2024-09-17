@@ -74,6 +74,8 @@ const vi = {
   msgAppName: 'Digital Score Board',
   msgIntroTitle: 'Nâng tầm giải trí',
   msgIntroDescription: 'Billiards - Devices - Evolutions',
+  txtEnterWebcamIPAddress: 'Nhập địa chỉ IP webcam',
+  txtReconnect: 'Kết nối lại',
 
   month: 'tháng',
   year: 'năm',

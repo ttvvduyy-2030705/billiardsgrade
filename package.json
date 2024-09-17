@@ -32,6 +32,7 @@
     "react-native-sound-player": "^0.14.3",
     "react-native-tts": "^4.1.1",
     "react-native-uuid": "^2.0.2",
+    "react-native-video": "^6.5.0",
     "react-redux": "^9.1.2",
     "realm": "^12.13.1",
     "redux": "^5.0.1",

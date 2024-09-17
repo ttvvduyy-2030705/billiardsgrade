@@ -4224,6 +4224,7 @@ __metadata:
     react-native-sound-player: ^0.14.3
     react-native-tts: ^4.1.1
     react-native-uuid: ^2.0.2
+    react-native-video: ^6.5.0
     react-redux: ^9.1.2
     react-test-renderer: 18.2.0
     realm: ^12.13.1
@@ -9213,6 +9214,16 @@ __metadata:
   version: 2.0.2
   resolution: "react-native-uuid@npm:2.0.2"
   checksum: 149f65549132a240ac237f4db34063fd08473e4b3a9b5958e3d0d6722cf10754efb222b1c6085a3dc42e0718ca9575b38cd5535ae83a96534dde0f54d343e915
+  languageName: node
+  linkType: hard
+
+"react-native-video@npm:^6.5.0":
+  version: 6.5.0
+  resolution: "react-native-video@npm:6.5.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 0c5947d301ebca7e5a5b12106e4467376d41dd2fd5d0418ca272db64e1bf1d069ee8352150be1e7ce6a6c1ced1aad0570bb51523179e0546f03e8664b3a6c438
   languageName: node
   linkType: hard
 
