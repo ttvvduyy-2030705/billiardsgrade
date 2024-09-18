@@ -100,6 +100,8 @@ const GamePlayViewModel = () => {
     gameSettings,
     playerSettings,
     warmUpCountdownTime,
+    warmUpCount,
+    poolBreakEnabled,
   ]);
 
   useEffect(() => {
@@ -471,6 +473,7 @@ const GamePlayViewModel = () => {
     if (
       !isStarted ||
       isPaused ||
+      !poolBreakEnabled ||
       !gameSettings ||
       !gameSettings.mode?.countdownTime
     ) {
@@ -480,7 +483,7 @@ const GamePlayViewModel = () => {
     setCountdownTime(gameSettings.mode?.countdownTime! * 2);
     setPoolBreakEnabled(false);
     setIsStarted(true);
-  }, [gameSettings, isStarted, isPaused]);
+  }, [gameSettings, isStarted, isPaused, poolBreakEnabled]);
 
   const getWarmUpTimeString = useCallback(() => {
     if (!warmUpCountdownTime) {
@@ -496,13 +499,16 @@ const GamePlayViewModel = () => {
   }, [warmUpCountdownTime]);
 
   const onWarmUp = useCallback(() => {
-    if (!gameSettings?.mode?.warmUpTime) {
+    if (
+      !gameSettings?.mode?.warmUpTime ||
+      (typeof warmUpCount === 'number' && warmUpCount <= 0)
+    ) {
       return;
     }
 
     setWarmUpCount(prev => (prev ? prev - 1 : 0));
     setWarmUpCountdownTime(gameSettings?.mode?.warmUpTime);
-  }, [gameSettings]);
+  }, [gameSettings, warmUpCount]);
 
   const onEndWarmUp = useCallback(() => {
     setWarmUpCountdownTime(undefined);
