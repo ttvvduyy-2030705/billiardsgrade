@@ -6,7 +6,7 @@ import {
   GameWarmUpTime,
 } from 'types/settings';
 
-type GAME_MODE_TYPE = 'FAST' | 'TIME' | 'ELIMINATE' | 'PRO';
+type GAME_MODE_TYPE = 'FAST' | 'PRO';
 type GAME_MODE_POOL_TYPE = 'FAST' | 'TIME';
 type GAME_EXTRA_TIME_TURN_TYPE = 't1' | 't2' | 't3' | 't4' | 'infinity';
 type GAME_COUNT_DOWN_TIME_TYPE =
@@ -28,8 +28,6 @@ type GAME_WARM_UP_TIME_TYPE =
 
 const GAME_MODE: {[key in GAME_MODE_TYPE]: GameMode} = {
   FAST: 'fast',
-  TIME: 'time',
-  ELIMINATE: 'eliminate',
   PRO: 'pro',
 };
 
