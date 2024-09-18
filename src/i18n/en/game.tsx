@@ -65,6 +65,7 @@ const game = {
   playingTime: 'Playing time',
   msgPool15OnlyWinner: 'Congratulations! Player {{name}} has won',
   msgStopGame: 'Are you sure want to end this game ?',
+  raceTo: 'RACE TO {{goal}}',
 
   //Pool
   ball1: 'one',

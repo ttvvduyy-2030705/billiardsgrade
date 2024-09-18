@@ -3,7 +3,7 @@ import Text from 'components/Text';
 import View from 'components/View';
 import colors from 'configuration/colors';
 import i18n from 'i18n';
-import React, {memo} from 'react';
+import React, {memo, useMemo} from 'react';
 import {PoolBallType} from 'types/ball';
 import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
@@ -37,6 +37,14 @@ interface Props {
 }
 
 const BallsView = (props: Props) => {
+  const RACE_TO_GOAL = useMemo(() => {
+    return (
+      <Text fontSize={48}>
+        {i18n.t('raceTo', {goal: props.gameSettings.players.goal.goal})}
+      </Text>
+    );
+  }, [props]);
+
   if (props.winner) {
     return (
       <View flex={'1'} marginBottom={'15'} style={styles.ballPool15OnlyWrapper}>
@@ -199,7 +207,9 @@ const BallsView = (props: Props) => {
   if (props.gameSettings.mode?.mode === 'pro') {
     return (
       <View flex={'1'} justify={'between'} alignItems={'center'}>
-        <View flex={'1'} />
+        <View flex={'1'} justify={'center'}>
+          {RACE_TO_GOAL}
+        </View>
         <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
           <Button
             onPress={props.onResetTurn}
@@ -231,7 +241,13 @@ const BallsView = (props: Props) => {
     );
   }
 
-  return <View />;
+  return (
+    <View flex={'1'} direction={'row'} alignItems={'center'}>
+      <View flex={'1'} alignItems={'center'} justify={'center'}>
+        {RACE_TO_GOAL}
+      </View>
+    </View>
+  );
 };
 
 export default memo(BallsView);
