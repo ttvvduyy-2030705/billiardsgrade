@@ -105,6 +105,7 @@ const History = () => {
       <FlatList
         data={viewModel.games}
         renderItem={renderItem}
+        removeClippedSubviews
         keyExtractor={keyExtractor}
       />
     </Container>

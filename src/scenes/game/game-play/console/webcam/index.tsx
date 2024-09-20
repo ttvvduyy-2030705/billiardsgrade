@@ -11,6 +11,7 @@ import Loading from 'components/Loading';
 import images from 'assets';
 import i18n from 'i18n';
 
+import colors from 'configuration/colors';
 import {
   WEBCAM_BUFFER_CONFIG,
   WEBCAM_SELECTED_VIDEO_TRACK,
@@ -34,20 +35,19 @@ const WebCam = (props: Props) => {
     );
   }, []);
 
-  const CONNECT_WEBCAM = useMemo(() => {
+  const WEBCAM_LOADING_INTRO = useMemo(() => {
     return (
       <View
         flex={'1'}
         style={styles.fullWidth}
-        direction={'row'}
         alignItems={'center'}
         justify={'center'}>
-        <Button style={styles.buttonIP} onPress={viewModel.onReconnectWebcam}>
-          <Text>{i18n.t('txtReconnect')}</Text>
-        </Button>
+        <Text color={colors.white}>
+          {i18n.t('msgWebcamIntro', {second: viewModel.connectCountdownTime})}
+        </Text>
       </View>
     );
-  }, [viewModel.onReconnectWebcam]);
+  }, [viewModel.connectCountdownTime]);
 
   return (
     <View style={styles.container}>
@@ -57,10 +57,10 @@ const WebCam = (props: Props) => {
         direction={'row'}
         marginTop={'10'}>
         <View flex={'1'}>
-          {viewModel.refreshing ? (
+          {viewModel.connectCountdownTime > 0 ? (
+            WEBCAM_LOADING_INTRO
+          ) : viewModel.refreshing ? (
             WEBCAM_LOADER
-          ) : !viewModel.autoConnect ? (
-            CONNECT_WEBCAM
           ) : (
             <Video
               id={'webcam-billiards'}

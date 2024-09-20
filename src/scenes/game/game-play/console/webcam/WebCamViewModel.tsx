@@ -25,10 +25,13 @@ export interface Props {
   updateWebcamFolderName: (name: string) => void;
 }
 
+let interval: NodeJS.Timeout;
+
 const WebCamViewModel = (props: Props) => {
   const videoRef = useRef<VideoRef>(null);
   const [webcamIP, setWebcamIP] = useState<string>('');
-  const [autoConnect, setAutoConnect] = useState<boolean>(true);
+  const [connectCountdownTime, setConnectCountdownTime] = useState<number>(10);
+  const [autoConnect, setAutoConnect] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [url, setUrl] = useState<string | undefined>();
 
@@ -37,13 +40,25 @@ const WebCamViewModel = (props: Props) => {
       AsyncStorage.getItem(keys.WEBCAM_IP_ADDRESS, (error, result) => {
         if (!error && result) {
           setWebcamIP(result);
-          setAutoConnect(false);
+
+          interval = setInterval(() => {
+            setConnectCountdownTime(prev => (prev - 1 > 0 ? prev - 1 : 0));
+          }, 1000);
         }
       });
     };
 
     _init();
   }, []);
+
+  useEffect(() => {
+    if (connectCountdownTime > 0) {
+      return;
+    }
+
+    setAutoConnect(true);
+    clearInterval(interval);
+  }, [connectCountdownTime]);
 
   useEffect(() => {
     if (!autoConnect) {
@@ -79,10 +94,6 @@ const WebCamViewModel = (props: Props) => {
     navigate(screens.playback, {webcamFolderName: props.webcamFolderName});
   }, [props]);
 
-  const onReconnectWebcam = useCallback(() => {
-    setAutoConnect(true);
-  }, []);
-
   const onFullscreenPlayerDidPresent = useCallback(() => {}, []);
 
   const onBuffer = useCallback((_data: OnBufferData) => {}, []);
@@ -112,8 +123,8 @@ const WebCamViewModel = (props: Props) => {
       refreshing,
       autoConnect,
       webcamIP,
+      connectCountdownTime,
       source: {uri: url, type: 'rtsp'},
-      onReconnectWebcam,
       onRefresh,
       onDelay,
       onReWatch,
@@ -131,7 +142,7 @@ const WebCamViewModel = (props: Props) => {
     autoConnect,
     webcamIP,
     url,
-    onReconnectWebcam,
+    connectCountdownTime,
     onRefresh,
     onDelay,
     onReWatch,

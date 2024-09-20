@@ -66,6 +66,7 @@ const game = {
   msgPool15OnlyWinner: 'Chúc mừng {{name}} đã chiến thắng',
   msgStopGame: 'Bạn chắc chắn muốn kết thúc trận đấu chứ ?',
   raceTo: 'RACE TO {{goal}}',
+  msgWebcamIntro: 'Webcam sẽ khởi chạy trong {{second}} giây',
 
   //Pool
   ball1: 'một',
