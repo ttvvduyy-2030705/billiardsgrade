@@ -26,6 +26,7 @@ export interface Props {
   soundEnabled: boolean;
   poolBreakEnabled: boolean;
   webcamFolderName?: string;
+  onGameBreak: () => void;
   onPoolBreak: () => void;
   onPressGiveMoreTime: () => void;
   onWarmUp: () => void;

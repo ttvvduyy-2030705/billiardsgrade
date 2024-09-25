@@ -102,6 +102,7 @@ const GameConsole = (props: Props) => {
               isPaused={props.isPaused}
               warmUpCount={props.warmUpCount}
               poolBreakEnabled={props.poolBreakEnabled}
+              onGameBreak={props.onGameBreak}
               onPoolBreak={props.onPoolBreak}
               onWarmUp={viewModel.onWarmUp}
               onStart={viewModel.onStart}

@@ -56,6 +56,7 @@ const game = {
   restart: 'Restart',
   pause: 'Pause',
   resume: 'Resume',
+  gameBreak: 'Break',
   stop: 'End',
   turn: 'On turn',
   totalTurns: 'Total turns',

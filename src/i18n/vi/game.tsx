@@ -56,6 +56,7 @@ const game = {
   restart: 'Ván mới',
   pause: 'Tạm dừng',
   resume: 'Tiếp tục',
+  gameBreak: 'Giải lao',
   stop: 'Kết thúc',
   turn: 'Tới lượt',
   totalTurns: 'Số lượt',

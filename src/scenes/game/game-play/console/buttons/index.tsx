@@ -10,6 +10,7 @@ interface Props {
   isPaused: boolean;
   warmUpCount?: number;
   poolBreakEnabled: boolean;
+  onGameBreak: () => void;
   onPoolBreak: () => void;
   onWarmUp: () => void;
   onStart: () => void;
@@ -59,20 +60,34 @@ const ButtonsConsole = (props: Props) => {
       direction={'row'}
       alignItems={'center'}
       marginTop={'5'}
-      marginHorizontal={'15'}>
+      marginHorizontal={'10'}>
       <View
         flex={'1'}
         direction={'row'}
         justify={'center'}
-        alignItems={'center'}>
+        alignItems={'center'}
+        marginRight={'10'}>
         {INITIAL_BUTTONS}
       </View>
-      <View marginHorizontal={'10'} />
       <View
         flex={'1'}
         direction={'row'}
         justify={'center'}
         alignItems={'center'}>
+        <Button
+          style={[styles.button, styles.breakGameButton]}
+          onPress={props.onGameBreak}>
+          <Text fontWeight={'bold'} letterSpacing={1.2}>
+            {i18n.t('gameBreak')}
+          </Text>
+        </Button>
+      </View>
+      <View
+        flex={'1'}
+        direction={'row'}
+        justify={'center'}
+        alignItems={'center'}
+        marginLeft={'10'}>
         <Button
           style={[styles.button, styles.stopButton]}
           onPress={props.onStop}>

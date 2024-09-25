@@ -159,10 +159,10 @@ const GamePlay = () => {
     return (
       <View style={styles.warmUpContainer}>
         <Text color={colors.white} fontSize={64}>
-          {i18n.t('warmUp')}
+          {viewModel.gameBreakEnabled ? i18n.t('gameBreak') : i18n.t('warmUp')}
         </Text>
         <View marginVertical={'15'}>
-          <Text color={colors.white} fontSize={128}>
+          <Text color={colors.white} fontSize={256} lineHeight={264}>
             {viewModel.getWarmUpTimeString()}
           </Text>
         </View>
@@ -175,6 +175,7 @@ const GamePlay = () => {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    viewModel.gameBreakEnabled,
     viewModel.warmUpCountdownTime,
     viewModel.getWarmUpTimeString,
     viewModel.onEndWarmUp,
@@ -213,6 +214,7 @@ const GamePlay = () => {
           soundEnabled={viewModel.soundEnabled}
           poolBreakEnabled={viewModel.poolBreakEnabled}
           webcamFolderName={viewModel.webcamFolderName}
+          onGameBreak={viewModel.onGameBreak}
           onPoolBreak={viewModel.onPoolBreak}
           onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
           onWarmUp={viewModel.onWarmUp}

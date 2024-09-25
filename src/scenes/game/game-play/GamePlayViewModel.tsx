@@ -6,6 +6,7 @@ import {RootState} from 'data/redux/reducers';
 import {gameActions} from 'data/redux/actions/game';
 import colors from 'configuration/colors';
 import {cancelStreamWebcamToFile} from 'services/ffmpeg/webcam';
+import {GAME_BREAK_TIME} from 'constants/game-play';
 
 import {goBack} from 'utils/navigation';
 import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
@@ -29,6 +30,7 @@ const GamePlayViewModel = () => {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [totalTurns, setTotalTurns] = useState(1);
   const [totalTime, setTotalTime] = useState(0);
+  const [gameBreakEnabled, setGameBreakEnabled] = useState<boolean>(false);
   const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
   const [countdownTime, setCountdownTime] = useState<number>(0);
   const [warmUpCount, setWarmUpCount] = useState<number>();
@@ -523,8 +525,14 @@ const GamePlayViewModel = () => {
     setWarmUpCountdownTime(gameSettings?.mode?.warmUpTime);
   }, [gameSettings, warmUpCount]);
 
+  const onGameBreak = useCallback(() => {
+    setGameBreakEnabled(true);
+    setWarmUpCountdownTime(GAME_BREAK_TIME);
+  }, []);
+
   const onEndWarmUp = useCallback(() => {
     setWarmUpCountdownTime(undefined);
+    setGameBreakEnabled(false);
     clearInterval(warmUpCountdownInterval);
   }, []);
 
@@ -671,6 +679,7 @@ const GamePlayViewModel = () => {
       isStarted,
       isPaused,
       soundEnabled,
+      gameBreakEnabled,
       poolBreakEnabled,
       webcamFolderName,
       getCountdownWidthItem,
@@ -680,6 +689,7 @@ const GamePlayViewModel = () => {
       onPressGiveMoreTime,
       onViolate,
       getWarmUpTimeString,
+      onGameBreak,
       onWarmUp,
       onEndWarmUp,
       onSwitchTurn,
@@ -711,6 +721,7 @@ const GamePlayViewModel = () => {
     isStarted,
     isPaused,
     soundEnabled,
+    gameBreakEnabled,
     poolBreakEnabled,
     webcamFolderName,
     getCountdownWidthItem,
@@ -720,6 +731,7 @@ const GamePlayViewModel = () => {
     onPressGiveMoreTime,
     onViolate,
     getWarmUpTimeString,
+    onGameBreak,
     onWarmUp,
     onEndWarmUp,
     onSwitchTurn,

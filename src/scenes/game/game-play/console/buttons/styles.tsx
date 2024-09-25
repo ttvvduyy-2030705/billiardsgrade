@@ -17,6 +17,11 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: 20,
   },
+  breakGameButton: {
+    backgroundColor: colors.lightPrimary2,
+    borderWidth: 0,
+    borderRadius: 20,
+  },
   stopButton: {
     backgroundColor: colors.lightRed,
     borderWidth: 0,
