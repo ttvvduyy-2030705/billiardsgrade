@@ -64,9 +64,15 @@ const BallsView = (props: Props) => {
           justify={'center'}
           alignItems={'end'}
           marginBottom={'15'}>
-          <View flex={'1'} alignItems={'center'}>
-            <Button style={styles.buttonRestart} onPress={props.onRestart}>
-              <Text>{i18n.t('restart')}</Text>
+          <View
+            style={styles.buttonWrapper}
+            flex={'1'}
+            direction={'row'}
+            alignItems={'center'}>
+            <Button
+              style={[styles.button, styles.buttonRestart]}
+              onPress={props.onRestart}>
+              <Text color={colors.white}>{i18n.t('restart')}</Text>
             </Button>
           </View>
         </View>
@@ -155,11 +161,16 @@ const BallsView = (props: Props) => {
           flex={'1'}
           direction={'row'}
           justify={'center'}
-          alignItems={'end'}
-          marginBottom={'15'}>
-          <View flex={'1'} alignItems={'center'}>
-            <Button style={styles.buttonRestart} onPress={props.onRestart}>
-              <Text>{i18n.t('restart')}</Text>
+          alignItems={'end'}>
+          <View
+            style={styles.buttonWrapper}
+            flex={'1'}
+            direction={'row'}
+            alignItems={'center'}>
+            <Button
+              style={[styles.button, styles.buttonRestart]}
+              onPress={props.onRestart}>
+              <Text color={colors.white}>{i18n.t('restart')}</Text>
             </Button>
           </View>
         </View>

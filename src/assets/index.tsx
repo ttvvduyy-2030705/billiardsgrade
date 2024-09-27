@@ -17,6 +17,7 @@ const images: Images = {
     edit: require('./images/game/edit.png'),
     soundOn: require('./images/game/sound-on.png'),
     soundOff: require('./images/game/sound-off.png'),
+    addTime: require('./images/game/add-time.png'),
   },
   webcam: {
     refresh: require('./images/webcam/refresh.png'),

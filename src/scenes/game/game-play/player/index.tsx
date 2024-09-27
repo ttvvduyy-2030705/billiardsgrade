@@ -86,7 +86,10 @@ const GamePlayer = (props: Props) => {
               <View
                 key={`extra-time-turns-${i}`}
                 style={styles.extraTimeTurnsWrapper}>
-                <View style={styles.extraTimeTurns} />
+                <Image
+                  source={images.game.addTime}
+                  style={styles.extraTimeIcon}
+                />
               </View>
             );
           },
@@ -132,8 +135,8 @@ const GamePlayer = (props: Props) => {
           <View flex={'1'}>
             <Text
               fontSize={dims.screenWidth * 0.03}
-              lineHeight={dims.screenWidth * 0.0325}
-              fontWeight={'bold'}>
+              fontWeight={'bold'}
+              adjustsFontSizeToFit={true}>
               {viewModel.highestRate}
             </Text>
           </View>
@@ -142,12 +145,14 @@ const GamePlayer = (props: Props) => {
           <Text fontWeight={'bold'} fontSize={dims.screenWidth * 0.01}>
             {'AVG'}
           </Text>
-          <Text
-            fontSize={dims.screenWidth * 0.03}
-            lineHeight={dims.screenWidth * 0.0325}
-            fontWeight={'bold'}>
-            {viewModel.averagePoint}
-          </Text>
+          <View flex={'1'}>
+            <Text
+              fontSize={dims.screenWidth * 0.03}
+              fontWeight={'bold'}
+              adjustsFontSizeToFit={true}>
+              {viewModel.averagePoint}
+            </Text>
+          </View>
         </View>
       </View>
     );
@@ -297,14 +302,16 @@ const GamePlayer = (props: Props) => {
           )}
         </View>
 
-        {props.gameSettings?.mode?.mode !== 'fast' &&
-        !isPoolGame(props.gameSettings?.category) ? (
-          ADDITIONAL_POINTS
-        ) : isPoolGame(props.gameSettings?.category) ? (
-          BALLS_VIEW
-        ) : (
-          <View />
-        )}
+        <View style={styles.leftContainer}>
+          {props.gameSettings?.mode?.mode !== 'fast' &&
+          !isPoolGame(props.gameSettings?.category) ? (
+            ADDITIONAL_POINTS
+          ) : isPoolGame(props.gameSettings?.category) ? (
+            BALLS_VIEW
+          ) : (
+            <View />
+          )}
+        </View>
 
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Text fontSize={512} adjustsFontSizeToFit={true}>
@@ -313,7 +320,9 @@ const GamePlayer = (props: Props) => {
         </View>
 
         {props.gameSettings?.mode?.mode !== 'fast' ? (
-          <View marginRight={'15'}>{EXTRA_TIME_TURNS}</View>
+          <View style={styles.extraTimeTurnsContainer} marginRight={'15'}>
+            {EXTRA_TIME_TURNS}
+          </View>
         ) : (
           <View />
         )}

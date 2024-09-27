@@ -15,6 +15,7 @@ export type Images = {
     edit: number;
     soundOn: number;
     soundOff: number;
+    addTime: number;
   };
   webcam: {
     refresh: number;

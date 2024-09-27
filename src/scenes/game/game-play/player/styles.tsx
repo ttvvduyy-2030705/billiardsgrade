@@ -51,14 +51,21 @@ const styles = StyleSheet.create({
     color: colors.lightBlack,
     marginHorizontal: 0,
   },
+  leftContainer: {
+    height: '100%',
+    position: 'absolute',
+    left: 0,
+  },
+  extraTimeTurnsContainer: {
+    position: 'absolute',
+    right: 0,
+  },
   extraTimeTurnsWrapper: {
     marginTop: responsiveDimension(10),
   },
-  extraTimeTurns: {
-    width: dims.screenWidth * 0.02,
-    height: dims.screenWidth * 0.02,
-    borderRadius: 32,
-    backgroundColor: colors.lightBlack,
+  extraTimeIcon: {
+    width: dims.screenWidth * 0.024,
+    height: dims.screenWidth * 0.024,
     elevation: 5,
   },
   extraTimeTurnsEmpty: {
@@ -93,7 +100,7 @@ const styles = StyleSheet.create({
   },
   ballsWrapper: {
     flexWrap: 'wrap',
-    maxWidth: '17%',
+    maxWidth: '20%',
   },
   functionWrapper: {
     top: responsiveDimension(24),
