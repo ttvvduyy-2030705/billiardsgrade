@@ -26,7 +26,7 @@ const GamePlayViewModel = () => {
   const {updateGameSettings} = useSelector((state: RootState) => state.UI.game);
   const {gameSettings} = useSelector((state: RootState) => state.game);
 
-  const [poolBreakPlayerIndex, setPoolBreakPlayerIndex] = useState<number>();
+  const [poolBreakPlayerIndex, setPoolBreakPlayerIndex] = useState<number>(0);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [totalTurns, setTotalTurns] = useState(1);
   const [totalTime, setTotalTime] = useState(0);
