@@ -10,7 +10,6 @@ const logEvent = (
     [key: string]: any;
   },
 ) => {
-  console.log('log event', name, params);
   analytics().logEvent(name, params);
 };
 
