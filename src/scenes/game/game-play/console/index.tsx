@@ -48,8 +48,7 @@ const GameConsole = (props: Props) => {
               </View>
               <View flex={'2'} alignItems={'center'} justify={'center'}>
                 {props.totalPlayers < 5 &&
-                (props.currentMode?.mode === 'fast' ||
-                  isPoolGame(props.gameSettings.category)) ? (
+                (props.isStarted || isPoolGame(props.gameSettings.category)) ? (
                   <Image
                     source={images.logo}
                     style={styles.logo}
