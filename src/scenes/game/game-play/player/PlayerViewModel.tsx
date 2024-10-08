@@ -12,6 +12,7 @@ export interface Props {
   isStarted: boolean;
   isPaused: boolean;
   soundEnabled: boolean;
+  proModeEnabled: boolean;
   totalTurns: number;
   onSwitchPoolBreakPlayerIndex: (
     index: number,
@@ -30,7 +31,7 @@ export interface Props {
 const PlayerViewModel = (props: Props) => {
   const [nameEditable, setNameEditable] = useState(false);
   const [highestRate, setHighestRate] = useState(0);
-  const [averagePoint, setAveragePoint] = useState(0);
+  const [averagePoint, setAveragePoint] = useState<string>('0');
   const [totalPointInTurn, setTotalPointInTurn] = useState(0);
 
   const onToggleEditName = useCallback(() => {
@@ -103,7 +104,7 @@ const PlayerViewModel = (props: Props) => {
         setHighestRate(totalPointInTurn);
       }
 
-      setAveragePoint(Math.floor(props.player.totalPoint / props.totalTurns));
+      setAveragePoint((props.player.totalPoint / props.totalTurns).toFixed(3));
       setTotalPointInTurn(0);
 
       props.onEndTurn(isPrevious);

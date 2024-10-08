@@ -46,6 +46,9 @@ const GamePlayViewModel = () => {
   const [gameBreakEnabled, setGameBreakEnabled] = useState<boolean>(false);
   const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [proModeEnabled, setProModeEnabled] = useState(
+    gameSettings?.mode?.mode !== 'fast',
+  );
 
   useEffect(() => {
     RemoteControl.instance.registerKeyEvents(
@@ -497,6 +500,10 @@ const GamePlayViewModel = () => {
     setSoundEnabled(prev => !prev);
   }, []);
 
+  const onToggleProMode = useCallback(() => {
+    setProModeEnabled(prev => !prev);
+  }, []);
+
   const onPoolBreak = useCallback(() => {
     if (
       !isStarted ||
@@ -722,6 +729,7 @@ const GamePlayViewModel = () => {
       soundEnabled,
       gameBreakEnabled,
       poolBreakEnabled,
+      proModeEnabled,
       webcamFolderName,
       getCountdownWidthItem,
       getCountdownColor,
@@ -737,6 +745,7 @@ const GamePlayViewModel = () => {
       onSwitchPoolBreakPlayerIndex,
       onSwapPlayers,
       onToggleSound,
+      onToggleProMode,
       updateWebcamFolderName,
       onPoolScore,
       onSelectWinner,
@@ -768,6 +777,7 @@ const GamePlayViewModel = () => {
     soundEnabled,
     gameBreakEnabled,
     poolBreakEnabled,
+    proModeEnabled,
     webcamFolderName,
     getCountdownWidthItem,
     getCountdownColor,
@@ -783,6 +793,7 @@ const GamePlayViewModel = () => {
     onSwitchPoolBreakPlayerIndex,
     onSwapPlayers,
     onToggleSound,
+    onToggleProMode,
     updateWebcamFolderName,
     onPoolScore,
     onSelectWinner,

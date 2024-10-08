@@ -1,10 +1,8 @@
 import colors from 'configuration/colors';
 import {BALLS_10, BALLS_15, BALLS_9} from 'constants/balls';
-import {gameActions} from 'data/redux/actions/game';
 import {RootState} from 'data/redux/reducers';
 import i18n from 'i18n';
 import {ReactNode, useCallback, useMemo, useState} from 'react';
-import {useDispatch} from 'react-redux';
 import {useSelector} from 'react-redux';
 import {BallType, PoolBallType} from 'types/ball';
 import {Player} from 'types/player';
@@ -25,6 +23,7 @@ export interface Props {
   isPaused: boolean;
   soundEnabled: boolean;
   poolBreakEnabled: boolean;
+  proModeEnabled: boolean;
   webcamFolderName?: string;
   onGameBreak: () => void;
   onPoolBreak: () => void;
@@ -33,6 +32,7 @@ export interface Props {
   onSwitchTurn: () => void;
   onSwapPlayers: () => void;
   onToggleSound: () => void;
+  onToggleProMode: () => void;
   onPoolScore: (ball: PoolBallType) => void;
   onSelectWinner: () => void;
   onClearWinner: () => void;
@@ -46,7 +46,6 @@ export interface Props {
 }
 
 const ConsoleViewModel = (props: Props) => {
-  const dispatch = useDispatch();
   const {gameSettings} = useSelector((state: RootState) => state.game);
 
   const [remoteEnabled, setRemoteEnabled] = useState(false);
@@ -67,10 +66,6 @@ const ConsoleViewModel = (props: Props) => {
   const [colorRight, setColorRight] = useState(colors.yellow2);
   const [arrowColorLeft, setArrowColorLeft] = useState(colors.gray2);
   const [arrowColorRight, setArrowColorRight] = useState(colors.white);
-
-  const [proModeEnabled, setProModeEnabled] = useState(
-    props.currentMode?.mode !== 'fast',
-  );
 
   const onToggleValue = useCallback(
     (setValue: React.Dispatch<React.SetStateAction<boolean>>) => () => {
@@ -93,19 +88,6 @@ const ConsoleViewModel = (props: Props) => {
 
     return `${_hours}:${_minutes}:${_seconds}`;
   }, [props]);
-
-  const toggleProMode = useCallback(() => {
-    setProModeEnabled(prev => !prev);
-    dispatch(
-      gameActions.updateGameSettings({
-        ...props.gameSettings,
-        mode: {
-          ...props.currentMode,
-          mode: props.currentMode?.mode === 'fast' ? 'pro' : 'fast',
-        },
-      }),
-    );
-  }, [dispatch, props]);
 
   const onPressGiveMoreTime = useCallback(() => {
     if (props.isPaused) {
@@ -243,12 +225,10 @@ const ConsoleViewModel = (props: Props) => {
       arrowColorLeft,
       arrowColorRight,
       remoteEnabled,
-      proModeEnabled,
       gameSettings,
       buildGameModeTitle,
       displayTotalTime,
       onToggleRemote: onToggleValue(setRemoteEnabled),
-      onToggleProMode: toggleProMode,
       onPressGiveMoreTime,
       onSwitchTurn,
       onSwapPlayers,
@@ -270,12 +250,10 @@ const ConsoleViewModel = (props: Props) => {
     arrowColorLeft,
     arrowColorRight,
     remoteEnabled,
-    proModeEnabled,
     gameSettings,
     buildGameModeTitle,
     displayTotalTime,
     onToggleValue,
-    toggleProMode,
     onPressGiveMoreTime,
     onSwitchTurn,
     onSwapPlayers,

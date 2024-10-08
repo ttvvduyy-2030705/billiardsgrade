@@ -24,6 +24,7 @@ const GamePlay = () => {
             isStarted={viewModel.isStarted}
             isPaused={viewModel.isPaused}
             soundEnabled={viewModel.soundEnabled}
+            proModeEnabled={viewModel.proModeEnabled}
             totalTurns={viewModel.totalTurns}
             gameSettings={viewModel.gameSettings!}
             player={viewModel.playerSettings!.playingPlayers[topIndex]}
@@ -45,6 +46,7 @@ const GamePlay = () => {
                 isStarted={viewModel.isStarted}
                 isPaused={viewModel.isPaused}
                 soundEnabled={viewModel.soundEnabled}
+                proModeEnabled={viewModel.proModeEnabled}
                 totalTurns={viewModel.totalTurns}
                 gameSettings={viewModel.gameSettings!}
                 player={viewModel.playerSettings!.playingPlayers[bottomIndex]}
@@ -69,6 +71,7 @@ const GamePlay = () => {
       viewModel.isStarted,
       viewModel.isPaused,
       viewModel.soundEnabled,
+      viewModel.proModeEnabled,
       viewModel.totalTurns,
       viewModel.gameSettings,
       viewModel.playerSettings,
@@ -93,6 +96,7 @@ const GamePlay = () => {
         isStarted={viewModel.isStarted}
         isPaused={viewModel.isPaused}
         soundEnabled={viewModel.soundEnabled}
+        proModeEnabled={viewModel.proModeEnabled}
         totalTurns={viewModel.totalTurns}
         gameSettings={viewModel.gameSettings!}
         player={viewModel.playerSettings!.playingPlayers[4]}
@@ -109,6 +113,7 @@ const GamePlay = () => {
     viewModel.isStarted,
     viewModel.isPaused,
     viewModel.soundEnabled,
+    viewModel.proModeEnabled,
     viewModel.totalTurns,
     viewModel.gameSettings,
     viewModel.playerSettings,
@@ -229,6 +234,7 @@ const GamePlay = () => {
           isPaused={viewModel.isPaused}
           soundEnabled={viewModel.soundEnabled}
           poolBreakEnabled={viewModel.poolBreakEnabled}
+          proModeEnabled={viewModel.proModeEnabled}
           webcamFolderName={viewModel.webcamFolderName}
           onGameBreak={viewModel.onGameBreak}
           onPoolBreak={viewModel.onPoolBreak}
@@ -237,6 +243,7 @@ const GamePlay = () => {
           onSwitchTurn={viewModel.onSwitchTurn}
           onSwapPlayers={viewModel.onSwapPlayers}
           onToggleSound={viewModel.onToggleSound}
+          onToggleProMode={viewModel.onToggleProMode}
           onPoolScore={viewModel.onPoolScore}
           renderLastPlayer={renderLastPlayer}
           onSelectWinner={viewModel.onSelectWinner}

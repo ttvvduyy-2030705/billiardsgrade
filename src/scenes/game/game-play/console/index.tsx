@@ -87,8 +87,8 @@ const GameConsole = (props: Props) => {
                       <Text>{i18n.t('proMode')}</Text>
                     </View>
                     <Switch
-                      defaultValue={viewModel.proModeEnabled}
-                      onChange={viewModel.onToggleProMode}
+                      defaultValue={props.proModeEnabled}
+                      onChange={props.onToggleProMode}
                     />
                   </View>
                 ) : (
