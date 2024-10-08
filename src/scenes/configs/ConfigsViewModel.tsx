@@ -6,10 +6,20 @@ import {
   WEBCAM_PATH,
   WEBCAM_PORT,
 } from 'constants/webcam';
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {LanguageContext} from 'context/language';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {OnLoadData, OnVideoErrorData, VideoRef} from 'react-native-video';
 
 const ConfigsViewModel = () => {
+  const {language, onChangeCurrentLanguage} = useContext(LanguageContext);
+
   const videoRef = useRef<VideoRef>(null);
   const [webcamIPAddress, setWebcamIPAddress] = useState('');
   const [webcamUrl, setWebcamUrl] = useState<string>('');
@@ -60,20 +70,33 @@ const ConfigsViewModel = () => {
     setAllowToSave(false);
   }, []);
 
+  const onChangeLanguage = useCallback(
+    (newLanguage: string) => {
+      onChangeCurrentLanguage(newLanguage);
+    },
+    [onChangeCurrentLanguage],
+  );
+
   return useMemo(() => {
     return {
+      language,
       videoRef,
       webcamUrl,
       webcamIPAddress,
       allowToSave,
-      source: {uri: webcamUrl, type: 'rtsp'},
+      source: {
+        uri: webcamUrl,
+        type: 'rtsp',
+      },
       onTest,
       onSaveConfig,
       onChangeText,
       onLoad,
       onWebcamError,
+      onChangeLanguage,
     };
   }, [
+    language,
     videoRef,
     webcamIPAddress,
     webcamUrl,
@@ -83,6 +106,7 @@ const ConfigsViewModel = () => {
     onChangeText,
     onLoad,
     onWebcamError,
+    onChangeLanguage,
   ]);
 };
 

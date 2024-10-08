@@ -13,6 +13,8 @@ const images: Images = {
   logoFilled: require('./images/logo-filled.png'),
   settings: require('./images/setting.png'),
   delete: require('./images/delete.png'),
+  vietnam: require('./images/vietnam.png'),
+  english: require('./images/english.png'),
   game: {
     edit: require('./images/game/edit.png'),
     soundOn: require('./images/game/sound-on.png'),

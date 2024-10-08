@@ -13,6 +13,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightPrimary1,
     borderRadius: 10,
   },
+  languageWrapper: {
+    backgroundColor: colors.lightPrimary1,
+    borderRadius: 10,
+  },
   buttonTest: {
     backgroundColor: colors.yellow,
     paddingHorizontal: responsiveDimension(20),
@@ -28,6 +32,22 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     backgroundColor: colors.black,
+  },
+  selectedButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: responsiveDimension(20),
+    paddingVertical: responsiveDimension(10),
+  },
+  button: {
+    paddingHorizontal: responsiveDimension(20),
+    paddingVertical: responsiveDimension(10),
+    borderWidth: 0.5,
+    borderColor: colors.gray,
+  },
+  iconFlag: {
+    width: responsiveDimension(24),
+    height: responsiveDimension(24),
+    marginRight: responsiveDimension(8),
   },
 });
 

@@ -3,7 +3,7 @@ const header = {
   gamePlay: '',
   history: 'History',
   playback: 'Playback',
-  configs: 'Cấu hình',
+  configs: 'Configuration',
 };
 
 export default header;

@@ -11,6 +11,8 @@ export type Images = {
   logoFilled: number;
   settings: number;
   delete: number;
+  vietnam: number;
+  english: number;
   game: {
     edit: number;
     soundOn: number;

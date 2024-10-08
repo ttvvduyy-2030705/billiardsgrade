@@ -14,7 +14,7 @@ import {LanguageContext} from 'context/language';
 import {StackScreens} from 'scenes';
 import {navigationRef} from 'utils/navigation';
 import storage, {persistor} from 'data/redux';
-import {loadLanguage} from 'i18n';
+import {loadLanguage, setLanguage} from 'i18n';
 import {RealmProvider} from '@realm/react';
 import {GameSchema, GameSettingsModeSchema} from 'data/realm/models/game';
 import {PoolBallSchema} from 'data/realm/models/ball';
@@ -63,6 +63,7 @@ const App = (): React.JSX.Element => {
 
   const onChangeCurrentLanguage = useCallback((language: string) => {
     setCurrentLanguage(language);
+    setLanguage(language);
   }, []);
 
   return (
