@@ -13,6 +13,7 @@ export type Images = {
   delete: number;
   vietnam: number;
   english: number;
+  share: number;
   game: {
     edit: number;
     soundOn: number;

@@ -41,6 +41,18 @@ const styles = StyleSheet.create({
     height: responsiveDimension(16),
     marginRight: responsiveDimension(5),
   },
+  buttonShare: {
+    position: 'absolute',
+    top: responsiveDimension(16),
+    right: responsiveDimension(16),
+    padding: responsiveDimension(16),
+    backgroundColor: colors.lightPrimary1,
+    borderRadius: 10,
+  },
+  iconShare: {
+    width: responsiveDimension(32),
+    height: responsiveDimension(32),
+  },
 });
 
 export default styles;

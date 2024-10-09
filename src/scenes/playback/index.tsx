@@ -85,17 +85,24 @@ const PlayBackWebcam = (props: Props) => {
         </View>
         <View flex={'1'} style={styles.webcamContainer}>
           {viewModel.webcamUrl ? (
-            <Video
-              id={'webcam-billiards-playback'}
-              ref={viewModel.videoRef}
-              style={styles.webcam}
-              controls
-              source={{uri: viewModel.webcamUrl}}
-              selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
-              bufferConfig={WEBCAM_BUFFER_CONFIG}
-              onError={viewModel.onWebcamError}
-              renderLoader={WEBCAM_LOADER}
-            />
+            <>
+              <Video
+                id={'webcam-billiards-playback'}
+                ref={viewModel.videoRef}
+                style={styles.webcam}
+                controls
+                source={{uri: viewModel.webcamUrl}}
+                selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
+                bufferConfig={WEBCAM_BUFFER_CONFIG}
+                onError={viewModel.onWebcamError}
+                renderLoader={WEBCAM_LOADER}
+              />
+              <Button
+                style={styles.buttonShare}
+                onPress={viewModel.onShareVideo}>
+                <Image source={images.share} style={styles.iconShare} />
+              </Button>
+            </>
           ) : (
             <View style={styles.webcam} />
           )}

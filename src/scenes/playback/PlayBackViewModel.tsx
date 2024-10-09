@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {OnVideoErrorData, VideoRef} from 'react-native-video';
 import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
 import {WebcamFile} from 'types/webcam';
 import {WEBCAM_BASE_FILE_NAME, WEBCAM_FILE_EXTENSION} from 'constants/webcam';
 
@@ -47,6 +48,12 @@ const PlayBackWebcamViewModel = (props: Props) => {
     }
   }, []);
 
+  const onShareVideo = useCallback(() => {
+    Share.open({url: webcamUrl}).catch(err => {
+      err && console.log(err);
+    });
+  }, [webcamUrl]);
+
   return useMemo(() => {
     return {
       videoRef,
@@ -55,6 +62,7 @@ const PlayBackWebcamViewModel = (props: Props) => {
       files,
       onSelectMinuteForWebcam,
       onWebcamError,
+      onShareVideo,
     };
   }, [
     videoRef,
@@ -63,6 +71,7 @@ const PlayBackWebcamViewModel = (props: Props) => {
     files,
     onSelectMinuteForWebcam,
     onWebcamError,
+    onShareVideo,
   ]);
 };
 

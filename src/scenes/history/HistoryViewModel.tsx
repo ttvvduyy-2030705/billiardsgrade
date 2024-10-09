@@ -25,6 +25,7 @@ const HistoryViewModel = () => {
 
   const onReWatchGame = useCallback((webcamFolderName?: string) => {
     if (!webcamFolderName) {
+      Alert.alert(i18n.t('txtError'), i18n.t('msgEmptyWebcamUrl'));
       return;
     }
 

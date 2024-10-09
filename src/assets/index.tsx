@@ -15,6 +15,7 @@ const images: Images = {
   delete: require('./images/delete.png'),
   vietnam: require('./images/vietnam.png'),
   english: require('./images/english.png'),
+  share: require('./images/share.png'),
   game: {
     edit: require('./images/game/edit.png'),
     soundOn: require('./images/game/sound-on.png'),
