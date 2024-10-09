@@ -191,7 +191,6 @@ const GameConsole = (props: Props) => {
                   totalPlayers={props.totalPlayers}
                   currentMode={props.currentMode}
                   onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
-                  onResetTurn={props.onResetTurn}
                 />
               </View>
             )}

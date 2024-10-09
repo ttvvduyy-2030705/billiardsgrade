@@ -18,8 +18,8 @@ const styles = StyleSheet.create({
   buttonGiveMoreTime: {
     backgroundColor: colors.yellow,
   },
-  buttonResetTurn: {
-    backgroundColor: colors.green,
+  functionItem: {
+    marginBottom: responsiveDimension(-16),
   },
 });
 

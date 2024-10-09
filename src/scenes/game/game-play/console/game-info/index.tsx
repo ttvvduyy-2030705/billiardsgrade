@@ -3,7 +3,6 @@ import View from 'components/View';
 import {GameSettingsMode} from 'types/settings';
 import Text from 'components/Text';
 import i18n from 'i18n';
-import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import Button from 'components/Button';
 import styles from './styles';
@@ -14,7 +13,6 @@ interface Props {
   totalPlayers: number;
   currentMode: GameSettingsMode;
   onPressGiveMoreTime: () => void;
-  onResetTurn: () => void;
 }
 
 const GameInfo = (props: Props) => {
@@ -29,37 +27,41 @@ const GameInfo = (props: Props) => {
   return (
     <View marginTop={'15'}>
       <View direction={'row'} alignItems={'center'}>
-        <View flex={'1'} alignItems={'center'} justify={'center'}>
-          <Text>{i18n.t('totalTurns')}</Text>
-          <Text
-            fontSize={dims.screenHeight * 0.1}
-            lineHeight={dims.screenHeight * 0.115}
-            adjustsFontSizeToFit
-            color={colors.grayBlue}
-            fontWeight={'bold'}>
-            {props.totalTurns}
-          </Text>
+        <View
+          style={styles.functionItem}
+          flex={'1'}
+          direction={'row'}
+          alignItems={'center'}
+          justify={'center'}>
+          <Text fontSize={16}>{i18n.t('totalTurns')}</Text>
+          <View marginLeft={'5'}>
+            <Text
+              fontSize={128}
+              adjustsFontSizeToFit={true}
+              color={colors.grayBlue}
+              fontWeight={'bold'}>
+              {props.totalTurns}
+            </Text>
+          </View>
         </View>
-        <View flex={'1'} alignItems={'center'} justify={'center'}>
-          <Text>{i18n.t('goal')}</Text>
-          <Text
-            fontSize={dims.screenHeight * 0.1}
-            lineHeight={dims.screenHeight * 0.115}
-            adjustsFontSizeToFit
-            color={colors.grayBlue}
-            fontWeight={'bold'}>
-            {props.goal}
-          </Text>
+        <View
+          style={styles.functionItem}
+          flex={'1'}
+          direction={'row'}
+          alignItems={'center'}>
+          <Text fontSize={16}>{i18n.t('goal')}</Text>
+          <View marginLeft={'5'}>
+            <Text
+              fontSize={128}
+              adjustsFontSizeToFit={true}
+              color={colors.grayBlue}
+              fontWeight={'bold'}>
+              {props.goal}
+            </Text>
+          </View>
         </View>
       </View>
       <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
-        <Button
-          onPress={props.onResetTurn}
-          style={[styles.button, styles.buttonResetTurn]}>
-          <Text color={colors.white} fontSize={16}>
-            {i18n.t('resetTurn')}
-          </Text>
-        </Button>
         <Button
           onPress={props.onPressGiveMoreTime}
           style={[styles.button, styles.buttonGiveMoreTime]}>
