@@ -1,4 +1,5 @@
 import React, {memo, useCallback, useMemo} from 'react';
+import {KeyboardTypeOptions, TextInput as RNTextInput} from 'react-native';
 import Video from 'react-native-video';
 import Button from 'components/Button';
 import Loading from 'components/Loading';
@@ -23,8 +24,18 @@ const WebcamConfig = () => {
       title: string,
       value: string,
       placeholder: string,
+      keyboardType: KeyboardTypeOptions,
+      returnKeyType: 'next' | 'default',
       onChangeText: (value: string) => void,
-      secureTextEntry?: boolean,
+      {
+        inputRef,
+        onSubmitEditing,
+        secureTextEntry,
+      }: {
+        inputRef?: React.RefObject<RNTextInput>;
+        onSubmitEditing?: () => void;
+        secureTextEntry?: boolean;
+      },
     ) => {
       return (
         <View flex={'1'}>
@@ -33,11 +44,15 @@ const WebcamConfig = () => {
           </View>
           <View direction={'row'}>
             <TextInput
+              ref={inputRef}
               inputStyle={styles.input}
               value={value}
               placeholder={placeholder}
               onChange={onChangeText}
+              onSubmitEditing={onSubmitEditing}
               secureTextEntry={secureTextEntry}
+              keyboardType={keyboardType}
+              returnKeyType={returnKeyType}
             />
           </View>
         </View>
@@ -67,20 +82,36 @@ const WebcamConfig = () => {
             i18n.t('webcamIP'),
             viewModel.webcamIPAddress,
             i18n.t('txtEnterWebcamIPAddress'),
+            'numeric',
+            'next',
             viewModel.onChangeIPAddress,
+            {
+              onSubmitEditing: viewModel.onSubmitEditingIPAddress,
+            },
           )}
           {renderInput(
             i18n.t('username'),
             viewModel.username,
             i18n.t('txtEnterUsername'),
+            'default',
+            'next',
             viewModel.onChangeUsername,
+            {
+              inputRef: viewModel.userNameRef,
+              onSubmitEditing: viewModel.onSubmitEditingUsername,
+            },
           )}
           {renderInput(
             i18n.t('password'),
             viewModel.password,
             i18n.t('txtEnterPassword'),
+            'default',
+            'default',
             viewModel.onChangePassword,
-            true,
+            {
+              inputRef: viewModel.passwordRef,
+              secureTextEntry: true,
+            },
           )}
         </View>
       </View>

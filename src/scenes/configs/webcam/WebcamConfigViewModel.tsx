@@ -66,6 +66,14 @@ const WebcamConfigViewModel = () => {
     [],
   );
 
+  const onSubmitEditing = useCallback(
+    (nextRef: React.RefObject<TextInput>) => () => {
+      console.log('nextRef.current', nextRef.current);
+      nextRef.current?.focus();
+    },
+    [],
+  );
+
   const onTest = useCallback(() => {
     const _url = `${WEBCAM_HOST}${username}:${password}@${webcamIPAddress}:${WEBCAM_PORT}${WEBCAM_PATH}`;
 
@@ -117,6 +125,8 @@ const WebcamConfigViewModel = () => {
       onChangeIPAddress: onChangeText(setWebcamIPAddress),
       onChangeUsername: onChangeText(setUsername),
       onChangePassword: onChangeText(setPassword),
+      onSubmitEditingIPAddress: onSubmitEditing(userNameRef),
+      onSubmitEditingUsername: onSubmitEditing(passwordRef),
       onTest,
       onSaveConfig,
       onChangeText,
@@ -134,6 +144,7 @@ const WebcamConfigViewModel = () => {
     onSaveConfig,
     onChangeText,
     onLoad,
+    onSubmitEditing,
     onWebcamError,
   ]);
 };
