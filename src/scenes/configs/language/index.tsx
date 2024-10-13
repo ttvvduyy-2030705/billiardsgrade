@@ -13,11 +13,7 @@ const LanguageConfig = () => {
   const viewModel = LanguageConfigViewModel();
 
   return (
-    <View
-      direction={'row'}
-      style={styles.languageWrapper}
-      marginLeft={'20'}
-      padding={'20'}>
+    <View direction={'row'} style={styles.languageWrapper} padding={'20'}>
       <View flex={'1'}>
         <Text fontWeight={'bold'}>{i18n.t('txtLanguage')}</Text>
         <View direction={'row'} marginTop={'10'}>

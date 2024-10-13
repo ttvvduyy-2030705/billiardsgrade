@@ -59,9 +59,9 @@ const WebCamViewModel = (props: Props) => {
               webcamIP: _ip,
               username: _username,
               password: _password,
-              scale: Number(_scale) || 1,
-              translateX: Number(_translateX) || 0,
-              translateY: Number(_translateY) || 0,
+              scale: _scale ? Number(_scale) : 1,
+              translateX: _translateX ? Number(_translateX) : 0,
+              translateY: _translateY ? Number(_translateY) : 0,
             });
 
             interval = setInterval(() => {

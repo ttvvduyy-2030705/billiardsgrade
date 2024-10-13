@@ -33,7 +33,7 @@ const WebcamConfig = () => {
     ) => {
       return (
         <View flex={'1'}>
-          <View marginLeft={'5'} marginBottom={'5'}>
+          <View marginLeft={'10'} marginBottom={'5'}>
             <Text fontSize={12}>{title}</Text>
           </View>
           <View direction={'row'}>
@@ -56,9 +56,11 @@ const WebcamConfig = () => {
   );
 
   return (
-    <View style={styles.configIPWrapper} padding={'20'}>
-      <Text fontWeight={'bold'}>{i18n.t('webcamConfig')}</Text>
-      <View direction={'row'} marginBottom={'10'}>
+    <View style={styles.configIPWrapper} paddingVertical={'20'}>
+      <View marginHorizontal={'20'}>
+        <Text fontWeight={'bold'}>{i18n.t('webcamConfig')}</Text>
+      </View>
+      <View direction={'row'} marginBottom={'10'} marginHorizontal={'10'}>
         <View direction={'row'} alignItems={'center'} marginTop={'15'}>
           {renderInput(
             i18n.t('webcamIP'),
@@ -98,10 +100,7 @@ const WebcamConfig = () => {
         </View>
       </View>
 
-      <View
-        flex={viewModel.webcamUrl ? '1' : '0'}
-        direction={'row'}
-        marginTop={'20'}>
+      <View direction={'row'} marginTop={'20'} marginHorizontal={'20'}>
         <View
           flex={'1'}
           direction={'row'}
@@ -119,20 +118,28 @@ const WebcamConfig = () => {
         </View>
       </View>
 
-      <View marginVertical={'20'} paddingVertical={'15'} />
+      <View marginTop={'20'} />
       {viewModel.webcamUrl ? (
-        <View style={styles.webcam} flex={'4'} direction={'row'}>
-          <Video
-            key={'webcam-billiards-test'}
-            ref={viewModel.videoRef}
-            source={viewModel.source}
-            initialScale={viewModel.webcam.scale}
-            initialTranslateX={viewModel.webcam.translateX}
-            initialTranslateY={viewModel.webcam.translateY}
-            onLoad={viewModel.onLoad}
-            onError={viewModel.onWebcamError}
-            onPosition={viewModel.onSaveWebcamPosition}
-          />
+        <View style={styles.webcamContainer}>
+          <View
+            flex={'1'}
+            style={styles.webcam}
+            direction={'row'}
+            marginTop={'10'}>
+            <View flex={'1'}>
+              <Video
+                key={'webcam-billiards-test'}
+                ref={viewModel.videoRef}
+                source={viewModel.source}
+                initialScale={viewModel.webcam.scale}
+                initialTranslateX={viewModel.webcam.translateX}
+                initialTranslateY={viewModel.webcam.translateY}
+                onLoad={viewModel.onLoad}
+                onError={viewModel.onWebcamError}
+                onPosition={viewModel.onSaveWebcamPosition}
+              />
+            </View>
+          </View>
         </View>
       ) : (
         <View />

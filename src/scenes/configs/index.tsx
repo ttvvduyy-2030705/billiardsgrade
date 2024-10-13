@@ -11,13 +11,14 @@ const Configs = () => {
     <Container>
       <View flex={'1'} padding={'20'}>
         <View flex={'1'} direction={'row'}>
+          <View flex={'1'} marginBottom={'20'} marginRight={'20'}>
+            <LanguageConfig />
+          </View>
           <View flex={'1'} direction={'row'} style={styles.fullHeight}>
             <WebcamConfig />
           </View>
 
-          <View flex={'1'} style={styles.fullHeight}>
-            <LanguageConfig />
-          </View>
+          <View flex={'1'} marginLeft={'20'} />
         </View>
       </View>
     </Container>

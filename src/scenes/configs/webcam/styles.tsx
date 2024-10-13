@@ -7,6 +7,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightPrimary1,
     borderRadius: 10,
   },
+  webcamContainer: {
+    width: '100%',
+    aspectRatio: 1.742,
+  },
   webcam: {
     overflow: 'hidden',
     backgroundColor: colors.black,

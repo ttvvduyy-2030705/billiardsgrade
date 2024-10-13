@@ -12,10 +12,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
     overflow: 'hidden',
   },
-  webcam: {
-    width: '100%',
-    height: '100%',
-  },
   icon: {
     width: responsiveDimension(24),
     height: responsiveDimension(24),
