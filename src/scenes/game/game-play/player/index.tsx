@@ -89,16 +89,18 @@ const GamePlayer = (props: Props) => {
         </View>
 
         <View flex={'1'} alignItems={'center'} justify={'center'}>
-          <Text
-            style={
-              viewModel.showProMode
-                ? styles.totalPointWrapper
-                : styles.totalPointNoMarginBottom
-            }
-            fontSize={512}
-            adjustsFontSizeToFit={true}>
-            {props.player.totalPoint}
-          </Text>
+          <Button onPress={viewModel.onIncreasePoint}>
+            <Text
+              style={
+                viewModel.showProMode
+                  ? styles.totalPointWrapper
+                  : styles.totalPointNoMarginBottom
+              }
+              fontSize={512}
+              adjustsFontSizeToFit={true}>
+              {props.player.totalPoint}
+            </Text>
+          </Button>
         </View>
 
         <ExtraTimeTurns
