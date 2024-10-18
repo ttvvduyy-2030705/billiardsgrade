@@ -15,37 +15,28 @@ import {
   GameWarmUpTime,
 } from 'types/settings';
 import {isPoolGame} from 'utils/game';
+import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 
 export interface Props extends Navigation {}
-
-const DEFAULT_PLAYERS = [
-  {
-    name: i18n.t('player1'),
-    color: PLAYER_COLOR[0],
-    totalPoint: 0,
-  },
-  {
-    name: i18n.t('player2'),
-    color: PLAYER_COLOR[1],
-    totalPoint: 0,
-  },
-];
 
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
 
   const [category, setCategory] = useState<BilliardCategory>('three-cusion');
-  const [gameSettingsMode, setGameSettingsMode] = useState<GameSettingsMode>({
-    mode: 'fast',
-  });
-  const [playerSettings, setPlayerSettings] = useState<PlayerSettings>({
-    playerNumber: 2,
-    playingPlayers: DEFAULT_PLAYERS,
-    goal: {
-      goal: 40,
-      pointSteps: [-5, -1, 1, 5],
-    },
-  });
+  const [gameSettingsMode, setGameSettingsMode] =
+    useState<GameSettingsMode>(GAME_SETTINGS);
+  const [playerSettings, setPlayerSettings] = useState<PlayerSettings>(
+    PLAYER_SETTINGS(),
+  );
+
+  const _resetData = useCallback(() => {
+    const timeout = setTimeout(() => {
+      setCategory('three-cusion');
+      setGameSettingsMode(GAME_SETTINGS);
+      setPlayerSettings(PLAYER_SETTINGS());
+      clearTimeout(timeout);
+    }, 100);
+  }, []);
 
   const onCancel = useCallback(() => {
     props.goBack();
@@ -64,7 +55,9 @@ const GameSettingsViewModel = (props: Props) => {
       }),
     );
     props.navigate(screens.gamePlay);
-  }, [dispatch, props, category, gameSettingsMode, playerSettings]);
+
+    _resetData();
+  }, [dispatch, _resetData, props, category, gameSettingsMode, playerSettings]);
 
   const onSelectCategory = useCallback(
     (selectedCategory: BilliardCategory) => {
@@ -72,8 +65,8 @@ const GameSettingsViewModel = (props: Props) => {
       setPlayerSettings({
         playerNumber: 2,
         playingPlayers: isPoolGame(selectedCategory)
-          ? DEFAULT_PLAYERS.map(item => ({...item, color: PLAYER_COLOR[1]}))
-          : DEFAULT_PLAYERS,
+          ? DEFAULT_PLAYERS().map(item => ({...item, color: PLAYER_COLOR[1]}))
+          : DEFAULT_PLAYERS(),
         goal: {
           ...playerSettings.goal,
           goal: isPoolGame(selectedCategory) ? 10 : 40,
