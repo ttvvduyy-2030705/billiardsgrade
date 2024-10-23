@@ -9,6 +9,7 @@ import i18n from 'i18n';
 
 export interface Props {
   webcamFolderName: string;
+  cache?: boolean;
 }
 
 const PlayBackWebcamViewModel = (props: Props) => {
@@ -36,6 +37,9 @@ const PlayBackWebcamViewModel = (props: Props) => {
       const fullVideoPath = await mergeVideos(
         props.webcamFolderName,
         duration === -1 ? totalFiles : duration,
+        {
+          cache: props.cache,
+        },
       );
 
       if (!fullVideoPath) {
