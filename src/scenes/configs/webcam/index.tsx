@@ -1,5 +1,6 @@
 import React, {memo, useCallback} from 'react';
 import {KeyboardTypeOptions, TextInput as RNTextInput} from 'react-native';
+import Slider from '@react-native-community/slider';
 import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
@@ -7,6 +8,7 @@ import TextInput from 'components/TextInput';
 import Video from 'components/Video';
 import i18n from 'i18n';
 
+import colors from 'configuration/colors';
 import WebcamConfigViewModel from './WebcamConfigViewModel';
 import styles from './styles';
 
@@ -59,6 +61,51 @@ const WebcamConfig = () => {
     <View style={styles.configIPWrapper} paddingVertical={'20'}>
       <View marginHorizontal={'20'}>
         <Text fontWeight={'bold'}>{i18n.t('webcamConfig')}</Text>
+      </View>
+      <View marginTop={'15'} marginHorizontal={'15'}>
+        <View marginHorizontal={'10'}>
+          <Text fontSize={12}>
+            {i18n.t('txtWebcamSyncTime')} ({i18n.t('txtSecond')})
+          </Text>
+        </View>
+        <View
+          direction={'row'}
+          alignItems={'center'}
+          marginHorizontal={'10'}
+          marginTop={'20'}
+          paddingTop={'10'}
+          marginBottom={'10'}>
+          <View>
+            <Text fontSize={12} color={colors.gray2}>
+              {3}
+            </Text>
+          </View>
+          <View flex={'1'} direction={'row'}>
+            <Slider
+              style={styles.slider}
+              value={viewModel.webcam.syncTime}
+              minimumValue={3}
+              maximumValue={60}
+              step={1}
+              thumbTintColor={colors.lightBlack}
+              minimumTrackTintColor={colors.statusBar}
+              maximumTrackTintColor={colors.deepGray}
+              onValueChange={viewModel.onChangeSyncTime}
+            />
+            <View style={[styles.sliderValue, viewModel.sliderValueStyle]}>
+              <Text fontSize={12} color={colors.white}>
+                {viewModel.webcam.syncTime < 10
+                  ? `0${viewModel.webcam.syncTime}`
+                  : viewModel.webcam.syncTime}
+              </Text>
+            </View>
+          </View>
+          <View>
+            <Text fontSize={12} color={colors.gray2}>
+              {60}
+            </Text>
+          </View>
+        </View>
       </View>
       <View direction={'row'} marginBottom={'10'} marginHorizontal={'10'}>
         <View direction={'row'} alignItems={'center'} marginTop={'15'}>

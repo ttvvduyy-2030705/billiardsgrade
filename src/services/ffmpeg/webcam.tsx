@@ -34,12 +34,16 @@ const _saveVideoInRange = async (
   return {noneVideosExist, mergeFilesTemp};
 };
 
-const streamWebcamToFile = async (url: string, folderName: string) => {
+const streamWebcamToFile = async (
+  url: string,
+  folderName: string,
+  segmentTime: number,
+) => {
   const folderPath = `${RNFS.DownloadDirectoryPath}/${folderName}`;
 
   await RNFS.mkdir(folderPath);
   FFmpegKit.executeAsync(
-    `-i ${url} -acodec copy -vcodec copy -f segment -segment_time 60 ${folderPath}/${WEBCAM_BASE_FILE_NAME}%02d${WEBCAM_FILE_EXTENSION}`,
+    `-i ${url} -acodec copy -vcodec copy -f segment -segment_time ${segmentTime} ${folderPath}/${WEBCAM_BASE_FILE_NAME}%02d${WEBCAM_FILE_EXTENSION}`,
   );
 };
 

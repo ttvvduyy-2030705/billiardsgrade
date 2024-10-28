@@ -8,6 +8,7 @@ export type Webcam = {
   webcamIP: string;
   username: string;
   password: string;
+  syncTime: number;
   scale?: number;
   translateX?: number;
   translateY?: number;

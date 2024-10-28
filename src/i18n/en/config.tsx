@@ -9,6 +9,7 @@ const config = {
   txtEnterWebcamIPAddress: 'Enter webcam IP address',
   txtEnterUsername: 'Enter webcam username',
   txtEnterPassword: 'Enter webcam password',
+  txtWebcamSyncTime: 'Webcam sync time',
 };
 
 export default config;

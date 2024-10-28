@@ -40,6 +40,7 @@ const WebCamViewModel = (props: Props) => {
           keys.WEBCAM_USERNAME,
           keys.WEBCAM_PASSWORD,
           keys.WEBCAM_SCALE,
+          keys.WEBCAM_SYNC_TIME,
           keys.WEBCAM_TRANSLATE_X,
           keys.WEBCAM_TRANSLATE_Y,
         ],
@@ -49,8 +50,9 @@ const WebCamViewModel = (props: Props) => {
             const _username = result[1][1];
             const _password = result[2][1];
             const _scale = result[3][1];
-            const _translateX = result[4][1];
-            const _translateY = result[5][1];
+            const _syncTime = result[4][1];
+            const _translateX = result[5][1];
+            const _translateY = result[6][1];
 
             if (!_ip || !_username || !_password) {
               return;
@@ -61,6 +63,7 @@ const WebCamViewModel = (props: Props) => {
               username: _username,
               password: _password,
               scale: _scale ? Number(_scale) : 1,
+              syncTime: _syncTime ? Number(_syncTime) : 60,
               translateX: _translateX ? Number(_translateX) : 0,
               translateY: _translateY ? Number(_translateY) : 0,
             });
@@ -99,7 +102,7 @@ const WebCamViewModel = (props: Props) => {
       const now = Date.now().toString();
       const _url = `${WEBCAM_HOST}${webcam?.username}:${webcam?.password}@${webcam?.webcamIP}:${WEBCAM_PORT}${WEBCAM_PATH}`;
 
-      streamWebcamToFile(_url, now);
+      streamWebcamToFile(_url, now, webcam?.syncTime || 60);
       setUrl(_url);
       props.updateWebcamFolderName(now);
       setIsWebcamStarted(true);

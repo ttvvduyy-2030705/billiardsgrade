@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@react-native-community/async-storage": "^1.12.1",
+    "@react-native-community/slider": "^4.5.5",
     "@react-native-firebase/analytics": "^21.0.0",
     "@react-native-firebase/app": "^21.0.0",
     "@react-native-firebase/crashlytics": "^21.0.0",

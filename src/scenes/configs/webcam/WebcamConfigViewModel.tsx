@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {TextInput} from 'react-native';
+import {TextInput, ViewStyle} from 'react-native';
 import AsyncStorage from '@react-native-community/async-storage';
 import {OnLoadData, OnVideoErrorData, VideoRef} from 'react-native-video';
 import {keys} from 'configuration/keys';
@@ -25,6 +25,7 @@ const WebcamConfigViewModel = () => {
     webcamIP: '',
     username: 'admin',
     password: '',
+    syncTime: 60,
   });
 
   const [webcamUrl, setWebcamUrl] = useState<string>('');
@@ -37,6 +38,7 @@ const WebcamConfigViewModel = () => {
         keys.WEBCAM_USERNAME,
         keys.WEBCAM_PASSWORD,
         keys.WEBCAM_SCALE,
+        keys.WEBCAM_SYNC_TIME,
         keys.WEBCAM_TRANSLATE_X,
         keys.WEBCAM_TRANSLATE_Y,
       ],
@@ -49,8 +51,9 @@ const WebcamConfigViewModel = () => {
         const _username = result[1][1];
         const _password = result[2][1];
         const _scale = result[3][1];
-        const _translateX = result[4][1];
-        const _translateY = result[5][1];
+        const _syncTime = result[4][1];
+        const _translateX = result[5][1];
+        const _translateY = result[6][1];
 
         if (!_ip || !_username || !_password) {
           return;
@@ -61,6 +64,7 @@ const WebcamConfigViewModel = () => {
           username: _username,
           password: _password,
           scale: _scale ? Number(_scale) : 1,
+          syncTime: _syncTime ? Number(_syncTime) : 60,
           translateX: _translateX ? Number(_translateX) : 0,
           translateY: _translateY ? Number(_translateY) : 0,
         });
@@ -69,7 +73,7 @@ const WebcamConfigViewModel = () => {
   }, []);
 
   const onChangeWebcamConfig = useCallback(
-    (key: string) => (value: string) => {
+    (key: string) => (value: string | number) => {
       setWebcam(prev => ({...prev, [key]: value}));
     },
     [],
@@ -99,6 +103,7 @@ const WebcamConfigViewModel = () => {
     AsyncStorage.setItem(keys.WEBCAM_IP_ADDRESS, webcam.webcamIP);
     AsyncStorage.setItem(keys.WEBCAM_USERNAME, webcam.username);
     AsyncStorage.setItem(keys.WEBCAM_PASSWORD, webcam.password);
+    AsyncStorage.setItem(keys.WEBCAM_SYNC_TIME, webcam.syncTime.toString());
   }, [allowToSave, webcam]);
 
   const onSaveWebcamPosition = useCallback(
@@ -127,9 +132,15 @@ const WebcamConfigViewModel = () => {
     }
 
     setWebcamUrl('');
-    setWebcam({webcamIP: '', username: '', password: ''});
+    setWebcam({webcamIP: '', username: '', password: '', syncTime: 60});
     setAllowToSave(false);
   }, []);
+
+  const sliderValueStyle: ViewStyle = useMemo(() => {
+    return {
+      left: `${webcam.syncTime * 1.5}%`,
+    };
+  }, [webcam]);
 
   return useMemo(() => {
     return {
@@ -144,9 +155,11 @@ const WebcamConfigViewModel = () => {
         uri: webcamUrl,
         type: 'rtsp',
       },
+      sliderValueStyle,
       onChangeIPAddress: onChangeWebcamConfig('webcamIP'),
       onChangeUsername: onChangeWebcamConfig('username'),
       onChangePassword: onChangeWebcamConfig('password'),
+      onChangeSyncTime: onChangeWebcamConfig('syncTime'),
       onSubmitEditingIPAddress: onSubmitEditing(userNameRef),
       onSubmitEditingUsername: onSubmitEditing(passwordRef),
       onTest,
@@ -160,6 +173,7 @@ const WebcamConfigViewModel = () => {
     webcam,
     webcamUrl,
     allowToSave,
+    sliderValueStyle,
     onChangeWebcamConfig,
     onSubmitEditing,
     onTest,

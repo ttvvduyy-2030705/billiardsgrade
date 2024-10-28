@@ -36,7 +36,7 @@ const PlayBackWebcamViewModel = (props: Props) => {
 
       const fullVideoPath = await mergeVideos(
         props.webcamFolderName,
-        duration === -1 ? totalFiles : duration,
+        duration === -1 ? totalFiles : duration * 20,
         {
           cache: props.cache,
         },
