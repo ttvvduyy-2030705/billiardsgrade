@@ -8,7 +8,11 @@ import {RootState} from 'data/redux/reducers';
 import {gameActions} from 'data/redux/actions/game';
 import colors from 'configuration/colors';
 import {cancelStreamWebcamToFile} from 'services/ffmpeg/webcam';
-import {MATCH_IMAGE, WEBCAM_BASE_CAMERA_FOLDER} from 'constants/webcam';
+import {
+  MATCH_COUNTDOWN,
+  MATCH_IMAGE,
+  WEBCAM_BASE_CAMERA_FOLDER,
+} from 'constants/webcam';
 import i18n from 'i18n';
 
 import {goBack} from 'utils/navigation';
@@ -31,6 +35,7 @@ const GamePlayViewModel = () => {
   const {gameSettings} = useSelector((state: RootState) => state.game);
 
   const matchRef = useRef(null);
+  const matchCountdownRef = useRef(null);
 
   const [poolBreakPlayerIndex, setPoolBreakPlayerIndex] = useState<number>(0);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
@@ -190,7 +195,12 @@ const GamePlayViewModel = () => {
   }, [warmUpCountdownTime, gameBreakEnabled]);
 
   useEffect(() => {
-    if (!isStarted || !soundEnabled || !gameSettings?.mode?.countdownTime) {
+    if (
+      !isStarted ||
+      !soundEnabled ||
+      !gameSettings?.mode?.countdownTime ||
+      !matchCountdownRef.current
+    ) {
       return;
     }
 
@@ -212,19 +222,57 @@ const GamePlayViewModel = () => {
       captureRef(matchRef, {
         format: 'png',
         quality: 1,
-      }).then(
-        async uri => {
-          const matchImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_IMAGE}`;
-          const _path = uri.slice(7);
+      })
+        .then(
+          async uri => {
+            const matchImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_IMAGE}`;
+            const _path = uri.slice(7);
 
-          RNFS.copyFile(_path, matchImagePath);
-        },
-        error => console.error('Oops, snapshot failed', error),
-      );
-
+            RNFS.copyFile(_path, matchImagePath);
+          },
+          error => console.error('Oops, match info failed', error),
+        )
+        .catch(e => {
+          if (__DEV__) {
+            console.log('Capture match info error', e);
+          }
+        });
       clearTimeout(timeout);
     }, 1000);
   }, [playerSettings]);
+
+  useEffect(() => {
+    if (!matchCountdownRef.current) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (!matchCountdownRef.current) {
+        return;
+      }
+
+      captureRef(matchCountdownRef, {
+        format: 'png',
+        quality: 1,
+      })
+        .then(
+          async uri => {
+            const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
+            const _path = uri.slice(7);
+
+            RNFS.copyFile(_path, matchCountdownImagePath);
+          },
+          error => console.error('Oops, match countdown failed', error),
+        )
+        .catch(e => {
+          if (__DEV__) {
+            console.log('Capture countdown error', e);
+          }
+        });
+
+      clearTimeout(timeout);
+    }, 1000);
+  }, [countdownTime]);
 
   useEffect(() => {
     return () => {
@@ -747,6 +795,7 @@ const GamePlayViewModel = () => {
   return useMemo(() => {
     return {
       matchRef,
+      matchCountdownRef,
       winner,
       currentPlayerIndex,
       poolBreakPlayerIndex,
@@ -796,6 +845,7 @@ const GamePlayViewModel = () => {
     };
   }, [
     matchRef,
+    matchCountdownRef,
     winner,
     currentPlayerIndex,
     poolBreakPlayerIndex,

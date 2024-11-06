@@ -7,16 +7,8 @@ import {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-community/async-storage';
-import RNFS from 'react-native-fs';
 import {keys} from 'configuration/keys';
-import {
-  CAMERA_FILE_EXTENSION,
-  WEBCAM_BASE_CAMERA_FOLDER,
-  WEBCAM_HOST,
-  WEBCAM_OUTPUT_FILE_NAME,
-  WEBCAM_PATH,
-  WEBCAM_PORT,
-} from 'constants/webcam';
+import {WEBCAM_HOST, WEBCAM_PATH, WEBCAM_PORT} from 'constants/webcam';
 import {
   OnBufferData,
   OnLoadData,
@@ -95,9 +87,7 @@ const WebCamViewModel = (props: Props) => {
       setIsWebcamStarted(true);
 
       if (webcamType === WebcamType.camera) {
-        const _url = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${WEBCAM_OUTPUT_FILE_NAME}${CAMERA_FILE_EXTENSION}`;
         liveStreamFromCamera(liveStream);
-        setUrl(_url);
         return;
       }
 

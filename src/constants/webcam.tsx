@@ -26,10 +26,11 @@ const WEBCAM_BASE_FILE_NAME = 'webcam_';
 const WEBCAM_FILE_EXTENSION = '.mov';
 
 const WEBCAM_BASE_CAMERA_FOLDER = 'camera';
-const WEBCAM_OUTPUT_FILE_NAME = 'output';
-const CAMERA_FILE_EXTENSION = '.mp4';
+const WEBCAM_OUTPUT_FILE_NAME = 'match_combined';
+const CAMERA_FILE_EXTENSION = '.mkv';
 
 const MATCH_IMAGE = 'match_info.png';
+const MATCH_COUNTDOWN = 'match_countdown.png';
 
 export {
   WEBCAM_HOST,
@@ -43,4 +44,5 @@ export {
   WEBCAM_FILE_EXTENSION,
   CAMERA_FILE_EXTENSION,
   MATCH_IMAGE,
+  MATCH_COUNTDOWN,
 };

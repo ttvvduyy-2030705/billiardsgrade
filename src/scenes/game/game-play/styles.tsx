@@ -56,6 +56,9 @@ const styles = StyleSheet.create({
   matchBackground: {
     backgroundColor: colors.darkOverlay,
   },
+  overlayWrapper: {
+    borderRadius: 64,
+  },
 });
 
 export {COUNTDOWN_WIDTH};

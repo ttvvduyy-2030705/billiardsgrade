@@ -171,6 +171,7 @@ const GamePlay = () => {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    viewModel.matchCountdownRef,
     viewModel.gameSettings,
     viewModel.countdownTime,
     viewModel.getCountdownColor,
@@ -322,9 +323,20 @@ const GamePlay = () => {
       </View>
       {viewModel.gameSettings?.mode?.mode !== 'fast' &&
       viewModel.gameSettings?.mode?.countdownTime ? (
-        <View direction={'row'} alignItems={'center'} marginRight={'20'}>
+        <View
+          ref={viewModel.matchCountdownRef}
+          collapsable={false}
+          direction={'row'}
+          alignItems={'center'}
+          marginRight={'20'}>
           <View flex={'1'} marginLeft={'20'}>
-            <View marginVertical={'20'}>
+            <View
+              style={[
+                styles.overlayWrapper,
+                {backgroundColor: colors.whiteDarkerOverlay},
+              ]}
+              marginVertical={'20'}
+              paddingHorizontal={'15'}>
               <Text fontSize={48}>{viewModel.countdownTime}</Text>
             </View>
             {viewModel.countdownTime >
