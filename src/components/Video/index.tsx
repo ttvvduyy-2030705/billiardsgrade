@@ -16,6 +16,10 @@ const Video = (props: Props, ref: React.LegacyRef<VideoRef>) => {
   const viewModel = VideoViewModel(props);
 
   const WEBCAM_LOADER = useMemo(() => {
+    if (props.loadingDisabled) {
+      return undefined;
+    }
+
     return (
       <View
         flex={'1'}
@@ -25,7 +29,7 @@ const Video = (props: Props, ref: React.LegacyRef<VideoRef>) => {
         <Loading isLoading size={'large'} showPlainLoading />
       </View>
     );
-  }, []);
+  }, [props]);
 
   return (
     <GestureDetector gesture={viewModel.gestureComposed}>
@@ -44,6 +48,7 @@ const Video = (props: Props, ref: React.LegacyRef<VideoRef>) => {
           onVideoTracks={viewModel.onVideoTracks}
           onEnd={viewModel.onEnd}
           onError={viewModel.onError}
+          paused={false}
           renderLoader={WEBCAM_LOADER}
         />
       </RNAnimated.View>

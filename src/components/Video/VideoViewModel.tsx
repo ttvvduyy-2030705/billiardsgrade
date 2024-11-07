@@ -12,6 +12,7 @@ import {
 
 export interface Props {
   gestureDisabled?: boolean;
+  loadingDisabled?: boolean;
   source:
     | Readonly<
         Omit<ReactVideoSourceProperties, 'uri'> & {

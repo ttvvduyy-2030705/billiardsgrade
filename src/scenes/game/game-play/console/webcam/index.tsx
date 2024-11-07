@@ -12,6 +12,7 @@ import images from 'assets';
 import i18n from 'i18n';
 
 import colors from 'configuration/colors';
+import {OutputType} from 'types/webcam';
 
 import WebCamViewModel, {Props} from './WebCamViewModel';
 import styles from './styles';
@@ -87,9 +88,12 @@ const WebCam = (props: Props) => {
               onVideoTracks={viewModel.onVideoTracks}
               onEnd={viewModel.onEnd}
               onError={viewModel.onWebcamError}
+              loadingDisabled
             />
-          ) : (
+          ) : viewModel.liveStream?.outputType === OutputType.livestream ? (
             LIVESTREAM_MESSAGE
+          ) : (
+            <View />
           )}
 
           {props.renderMatchInfo()}

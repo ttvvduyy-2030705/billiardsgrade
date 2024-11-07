@@ -12,10 +12,9 @@ import AsyncStorage from '@react-native-community/async-storage';
 import RNFS from 'react-native-fs';
 import {keys} from 'configuration/keys';
 import {
-  CAMERA_FILE_EXTENSION,
-  WEBCAM_BASE_CAMERA_FOLDER,
+  WEBCAM_BASE_FILE_NAME,
+  WEBCAM_FILE_EXTENSION,
   WEBCAM_HOST,
-  WEBCAM_OUTPUT_FILE_NAME,
   WEBCAM_PATH,
   WEBCAM_PORT,
 } from 'constants/webcam';
@@ -33,6 +32,7 @@ import {requestReadWriteStorage} from 'utils/permission';
 import {navigate} from 'utils/navigation';
 import {screens} from 'scenes/screens';
 import {LiveStreamCamera, OutputType, Webcam, WebcamType} from 'types/webcam';
+import {CAMERA_PLAYBACK_DURATION} from './constants';
 
 export interface Props {
   webcamFolderName?: string;
@@ -40,7 +40,7 @@ export interface Props {
   updateWebcamFolderName: (name: string) => void;
 }
 
-let interval: NodeJS.Timeout;
+let interval: NodeJS.Timeout, cameraInterval: NodeJS.Timeout;
 
 const WebCamViewModel = (props: Props) => {
   const videoRef = useRef<VideoRef>(null);
@@ -55,6 +55,7 @@ const WebCamViewModel = (props: Props) => {
   const [isWebcamStarted, setIsWebcamStarted] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [url, setUrl] = useState<string | undefined>();
+  const [currentSeekPosition, setCurrentSeekPosition] = useState<number>(0);
 
   useEffect(() => {
     AsyncStorage.getItem(keys.WEBCAM_TYPE, (error, result) => {
@@ -73,6 +74,9 @@ const WebCamViewModel = (props: Props) => {
       setWebcamType(result as WebcamType);
     });
 
+    return () => {
+      clearInterval(cameraInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,9 +107,9 @@ const WebCamViewModel = (props: Props) => {
           ? liveStream?.outputType
           : webcam?.outputType;
       const _url =
-        webcamType === WebcamType.camera
-          ? `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${WEBCAM_OUTPUT_FILE_NAME}${CAMERA_FILE_EXTENSION}`
-          : `${WEBCAM_HOST}${webcam?.username}:${webcam?.password}@${webcam?.webcamIP}:${WEBCAM_PORT}${WEBCAM_PATH}`;
+        webcamType === WebcamType.webcam
+          ? `${WEBCAM_HOST}${webcam?.username}:${webcam?.password}@${webcam?.webcamIP}:${WEBCAM_PORT}${WEBCAM_PATH}`
+          : undefined;
 
       if (_outputType === OutputType.livestream) {
         liveStreamFromCamera(
@@ -118,8 +122,32 @@ const WebCamViewModel = (props: Props) => {
       }
 
       const now = Date.now().toString();
-      streamWebcamToFile(_url, now, webcam?.syncTime || 60, webcamType);
-      setUrl(_url);
+      streamWebcamToFile(
+        now,
+        webcam?.syncTime || CAMERA_PLAYBACK_DURATION,
+        webcamType,
+        _url,
+      );
+
+      if (
+        webcamType === WebcamType.camera &&
+        _outputType === OutputType.local
+      ) {
+        let i = -1;
+        cameraInterval = setInterval(() => {
+          i++;
+
+          const _newCameraUrl = `${
+            RNFS.DownloadDirectoryPath
+          }/${now}/${WEBCAM_BASE_FILE_NAME}${
+            i < 10 ? `0${i}` : i
+          }${WEBCAM_FILE_EXTENSION}`;
+
+          setUrl(_newCameraUrl);
+        }, CAMERA_PLAYBACK_DURATION * 1000 + 500);
+      } else {
+        setUrl(_url);
+      }
 
       props.updateWebcamFolderName(now);
     });
@@ -256,9 +284,19 @@ const WebCamViewModel = (props: Props) => {
 
   const onSeek = useCallback((_data: OnSeekData) => {}, []);
 
-  const onLoad = useCallback((_data: OnLoadData) => {
-    videoRef.current?.setVolume(0);
-  }, []);
+  const onLoad = useCallback(
+    (_data: OnLoadData) => {
+      videoRef.current?.setVolume(0);
+
+      if (webcamType === WebcamType.camera) {
+        videoRef.current?.seek(currentSeekPosition);
+        videoRef.current?.resume();
+
+        setCurrentSeekPosition(currentSeekPosition + CAMERA_PLAYBACK_DURATION);
+      }
+    },
+    [webcamType, currentSeekPosition],
+  );
 
   const onVideoTracks = useCallback((_data: OnVideoTracksData) => {}, []);
 
@@ -280,7 +318,7 @@ const WebCamViewModel = (props: Props) => {
       source:
         webcamType === WebcamType.webcam
           ? {uri: url, type: 'rtsp'}
-          : {uri: url, type: 'ts'},
+          : {uri: url, type: 'mov'},
       onRefresh,
       onDelay,
       onReWatch,

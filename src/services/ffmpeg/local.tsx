@@ -36,10 +36,10 @@ const _saveVideoInRange = async (
 };
 
 const streamWebcamToFile = async (
-  url: string,
   folderName: string,
   segmentTime: number,
   webcamType?: WebcamType,
+  url?: string,
 ) => {
   const folderPath = `${RNFS.DownloadDirectoryPath}/${folderName}`;
 
@@ -52,19 +52,9 @@ const streamWebcamToFile = async (
     return;
   }
 
-  // const output = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${WEBCAM_OUTPUT_FILE_NAME}${CAMERA_FILE_EXTENSION}`;
-  // const outputTemp = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${WEBCAM_OUTPUT_TEMP_FILE_NAME}.mov`;
-  // FFmpegKit.executeAsync(
-  //   `-y -f android_camera -i 0 -f mpegts udp://127.0.0.1:23000`,
-  //   // -f segment -segment_time ${segmentTime} ${folderPath}/${WEBCAM_BASE_FILE_NAME}%02d${WEBCAM_FILE_EXTENSION}`,
-  // );
-
-  // tempInterval = setInterval(() => {
-  //   FFmpegKit.executeAsync(
-  //     `-y -sseof -3 -i ${output} -map 0:v:0 -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 ${outputTemp}`,
-  //     // -f segment -segment_time ${segmentTime} ${folderPath}/${WEBCAM_BASE_FILE_NAME}%02d${WEBCAM_FILE_EXTENSION}`,
-  //   );
-  // }, 3000);
+  FFmpegKit.executeAsync(
+    `-f android_camera -i 0 -f segment -segment_time ${segmentTime} ${folderPath}/${WEBCAM_BASE_FILE_NAME}%02d${WEBCAM_FILE_EXTENSION}`,
+  );
 };
 
 const mergeVideos = async (
