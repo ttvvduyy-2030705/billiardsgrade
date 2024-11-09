@@ -23,16 +23,16 @@ const liveStreamFromCamera = async (
     await RNFS.mkdir(folderPath);
   }
 
-  const videoAndMatchInfo = `-y -video_size hd720 -f android_camera -r 30 -i 0 -f image2 -r 30 -stream_loop -1 -i ${matchImagePath}`;
+  const videoAndMatchInfo = `-y -video_size hd720 -f android_camera -i 0 -f image2 -stream_loop -1 -i ${matchImagePath}`;
   const audioAndOutput = `-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
-      -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -r 30 ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
+      -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
 
   if (webcamType === WebcamType.camera) {
     FFmpegKit.executeAsync(
       `${videoAndMatchInfo} \
       ${
         countdownEnabled
-          ? `-f image2 -r 30 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "[0][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
+          ? `-f image2 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "[0][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
           : ''
       } \
       ${audioAndOutput}`,

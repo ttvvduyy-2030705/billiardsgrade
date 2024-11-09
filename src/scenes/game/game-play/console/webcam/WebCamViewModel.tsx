@@ -302,9 +302,15 @@ const WebCamViewModel = (props: Props) => {
 
   const onEnd = useCallback(() => {}, []);
 
-  const onWebcamError = useCallback((e: OnVideoErrorData) => {
-    console.log('On webcam error', e);
-  }, []);
+  const onWebcamError = useCallback(
+    (e: OnVideoErrorData) => {
+      console.log('On webcam error', e);
+      if (webcamType === WebcamType.camera) {
+        setCurrentSeekPosition(currentSeekPosition + CAMERA_PLAYBACK_DURATION);
+      }
+    },
+    [webcamType, currentSeekPosition],
+  );
 
   return useMemo(() => {
     return {
