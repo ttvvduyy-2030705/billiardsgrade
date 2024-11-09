@@ -22,7 +22,7 @@ export interface Props extends Navigation {}
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
 
-  const [category, setCategory] = useState<BilliardCategory>('three-cusion');
+  const [category, setCategory] = useState<BilliardCategory>('9-ball');
   const [gameSettingsMode, setGameSettingsMode] =
     useState<GameSettingsMode>(GAME_SETTINGS);
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>(
@@ -31,7 +31,7 @@ const GameSettingsViewModel = (props: Props) => {
 
   const _resetData = useCallback(() => {
     const timeout = setTimeout(() => {
-      setCategory('three-cusion');
+      setCategory('9-ball');
       setGameSettingsMode(GAME_SETTINGS);
       setPlayerSettings(PLAYER_SETTINGS());
       clearTimeout(timeout);
