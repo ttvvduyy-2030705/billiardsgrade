@@ -32,7 +32,7 @@ const liveStreamFromCamera = async (
       `${videoAndMatchInfo} \
       ${
         countdownEnabled
-          ? `-f image2 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "[0][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
+          ? `-f image2 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "hflip[flipped];[flipped][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
           : ''
       } \
       ${audioAndOutput}`,
@@ -48,7 +48,7 @@ const liveStreamFromCamera = async (
     `${webcamAndMatchInfo} \
     ${
       countdownEnabled
-        ? `-f image2 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "[0][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
+        ? `-f image2 -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "hflip[flipped];[flipped][1]overlay=25:25[img1];[2:v]scale=640:35[img2];[img1][img2]overlay=25:100"`
         : ''
     } \
     ${webcamAudioAndOutput}`,
