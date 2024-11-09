@@ -5,12 +5,11 @@ import Text from 'components/Text';
 import i18n from 'i18n';
 import Button from 'components/Button';
 import colors from 'configuration/colors';
-import Image from 'components/Image';
-import images from 'assets';
-import {isPoolGame} from 'utils/game';
+
 import GamePlayViewModel from './GamePlayViewModel';
 import GamePlayer from './player';
 import GameConsole from './console';
+import LivestreamImages from './livestream-images';
 import styles from './styles';
 
 const GamePlay = () => {
@@ -180,84 +179,18 @@ const GamePlay = () => {
   ]);
 
   const renderCameraMatchInfo = useCallback(() => {
-    if (
-      !viewModel.playerSettings ||
-      viewModel.playerSettings.playingPlayers.length > 2
-    ) {
-      return <View />;
-    }
-
-    const player0 = viewModel.playerSettings.playingPlayers[0];
-    const player1 = viewModel.playerSettings.playingPlayers[1];
-
     return (
-      <View
-        ref={viewModel.matchRef}
-        style={styles.matchInfo}
-        collapsable={false}
-        alignItems={'center'}>
-        <View style={styles.matchLogoWrapper} paddingHorizontal={'10'}>
-          <Image
-            source={images.logoSmall}
-            style={styles.matchLogo}
-            resizeMode={'contain'}
-          />
-        </View>
-        <View
-          style={styles.matchBackground}
-          flex={'1'}
-          direction={'row'}
-          alignItems={'center'}>
-          <View flex={'1'} direction={'row'} alignItems={'center'}>
-            <View flex={'1'} justify={'center'} paddingHorizontal={'15'}>
-              <Text fontWeight={'bold'}>{player0?.name}</Text>
-            </View>
-            <View
-              justify={'center'}
-              paddingHorizontal={'15'}
-              marginRight={'15'}>
-              <Text
-                style={styles.matchPointText}
-                fontWeight={'bold'}
-                fontSize={32}
-                color={colors.error}>
-                {player0?.totalPoint}
-              </Text>
-            </View>
-          </View>
-          {isPoolGame(viewModel.gameSettings?.category) ? (
-            <View paddingHorizontal={'20'} style={styles.matchRace}>
-              <Text color={colors.white}>
-                {i18n.t('raceTo', {
-                  goal: viewModel.gameSettings?.players.goal.goal,
-                })}
-              </Text>
-            </View>
-          ) : (
-            <View />
-          )}
-          <View flex={'1'} direction={'row'} alignItems={'center'}>
-            <View justify={'center'} paddingHorizontal={'15'} marginLeft={'15'}>
-              <Text
-                style={styles.matchPointText}
-                fontWeight={'bold'}
-                fontSize={32}
-                color={colors.error}>
-                {player1?.totalPoint}
-              </Text>
-            </View>
-            <View
-              flex={'1'}
-              alignItems={'end'}
-              justify={'center'}
-              paddingHorizontal={'15'}>
-              <Text fontWeight={'bold'}>{player1?.name}</Text>
-            </View>
-          </View>
-        </View>
-      </View>
+      <LivestreamImages
+        countdownTime={viewModel.countdownTime}
+        gameSettings={viewModel.gameSettings}
+        playerSettings={viewModel.playerSettings}
+      />
     );
-  }, [viewModel.matchRef, viewModel.gameSettings, viewModel.playerSettings]);
+  }, [
+    viewModel.countdownTime,
+    viewModel.gameSettings,
+    viewModel.playerSettings,
+  ]);
 
   const WARM_UP_VIEW = useMemo(() => {
     if (!viewModel.warmUpCountdownTime) {

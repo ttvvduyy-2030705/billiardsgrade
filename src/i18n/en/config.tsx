@@ -13,6 +13,8 @@ const config = {
   channelId: 'Channel ID',
   local: 'Local',
   livestream: 'LiveStream',
+  sponsorLogos: 'Sponsor logos',
+  showOnLiveStream: 'Show on LiveStream',
   msgEmptyWebcamUrl: 'Video does not exist',
   txtEnterWebcamIPAddress: 'Enter webcam IP address',
   txtEnterUsername: 'Enter webcam username',
@@ -24,6 +26,10 @@ const config = {
   txtEnterChannelID: 'Enter channel ID',
   msgLiveStreamPublished: 'LiveStream published on Youtube',
   txtChooseOutputType: 'Video output: ',
+  txtTopLeft: 'Top-Left',
+  txtTopRight: 'Top-Right',
+  txtBottomLeft: 'Bottom-Left',
+  txtBottomRight: 'Bottom-Right',
 };
 
 export default config;

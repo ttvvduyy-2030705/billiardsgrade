@@ -4947,6 +4947,7 @@ __metadata:
     react-native-fs: ^2.20.0
     react-native-gesture-handler: ^2.20.0
     react-native-get-random-values: ^1.11.0
+    react-native-image-picker: ^7.1.2
     react-native-linear-gradient: ^2.8.3
     react-native-localize: ^3.2.0
     react-native-reanimated: ^3.12.1
@@ -10076,6 +10077,16 @@ __metadata:
   peerDependencies:
     react-native: ">=0.56"
   checksum: 07729f70a007f7a3b8f98ebf687c1298ba288b87dd71d8ba385be6b5a377718b27b97547bbe1db6b225b83ee109dfce0b01721e6ed535d53892f3ac81e6bf975
+  languageName: node
+  linkType: hard
+
+"react-native-image-picker@npm:^7.1.2":
+  version: 7.1.2
+  resolution: "react-native-image-picker@npm:7.1.2"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: af52328b7cb06c28549442f0d923cfa92dde8d5a968a642336df4c882f81adbf0e5e606a14de27f96883a76fa1e03230061c4080011c9107942edebc8e09c478
   languageName: node
   linkType: hard
 

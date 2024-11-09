@@ -11,6 +11,7 @@ import ConfigsViewModel from './ConfigsViewModel';
 import {WebcamType} from 'types/webcam';
 import Livestream from './livestream';
 import styles from './styles';
+import Thumbnails from './thumbnails';
 
 const Configs = () => {
   const viewModel = ConfigsViewModel();
@@ -58,7 +59,9 @@ const Configs = () => {
             </View>
           </View>
 
-          <View flex={'1'} marginLeft={'20'} />
+          <View flex={'1'} marginLeft={'20'}>
+            <Thumbnails />
+          </View>
         </View>
       </View>
     </Container>

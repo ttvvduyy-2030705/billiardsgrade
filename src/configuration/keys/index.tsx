@@ -13,6 +13,12 @@ const keys = {
   CAMERA_STREAM_KEY: 'CameraStreamKey',
 
   OUTPUT_TYPE: 'OutputType',
+
+  SHOW_THUMBNAILS_ON_LIVESTREAM: 'ShowThumbnailOnLiveStream',
+  THUMBNAILS_TOP_LEFT: 'ThumbnailsTopLeft',
+  THUMBNAILS_TOP_RIGHT: 'ThumbnailsTopRight',
+  THUMBNAILS_BOTTOM_LEFT: 'ThumbnailsBottomLeft',
+  THUMBNAILS_BOTTOM_RIGHT: 'ThumbnailsBottomRight',
 };
 
 export {keys};

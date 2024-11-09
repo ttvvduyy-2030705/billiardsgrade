@@ -1,20 +1,22 @@
 export type Images = {
   back: number;
-  doubleArrow: number;
-  eye: number;
+  close: number;
   default: number;
-  offline: number;
-  startGame: number;
+  delete: number;
+  doubleArrow: number;
+  english: number;
+  eye: number;
   history: number;
   logo: number;
-  logoSmall: number;
-  logoOutlined: number;
   logoFilled: number;
+  logoOutlined: number;
+  logoSmall: number;
+  offline: number;
+  plus: number;
   settings: number;
-  delete: number;
-  vietnam: number;
-  english: number;
   share: number;
+  startGame: number;
+  vietnam: number;
   game: {
     edit: number;
     soundOn: number;

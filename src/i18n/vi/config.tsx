@@ -13,6 +13,8 @@ const config = {
   channelId: 'Channel ID',
   local: 'Lưu vô thiết bị',
   livestream: 'LiveStream',
+  sponsorLogos: 'Logo nhà tài trợ',
+  showOnLiveStream: 'Hiển thị trên LiveStream',
   msgEmptyWebcamUrl: 'Không có video tồn tại',
   txtEnterWebcamIPAddress: 'Nhập địa chỉ IP webcam',
   txtEnterUsername: 'Nhập tên đăng nhập webcam',
@@ -24,6 +26,10 @@ const config = {
   txtEnterChannelID: 'Nhập channel ID',
   msgLiveStreamPublished: 'LiveStream đã bắt đầu trên Youtube',
   txtChooseOutputType: 'Đầu ra video: ',
+  txtTopLeft: 'Trên-Trái',
+  txtTopRight: 'Trên-Phải',
+  txtBottomLeft: 'Dưới-Trái',
+  txtBottomRight: 'Dưới-Phải',
 };
 
 export default config;
