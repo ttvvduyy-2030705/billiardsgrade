@@ -18,7 +18,8 @@ const styles = StyleSheet.create({
   },
   input: {
     fontSize: responsiveFontSize(12),
-    marginHorizontal: responsiveDimension(8),
+    marginHorizontal: responsiveDimension(0),
+    marginLeft: 0,
   },
   buttonTest: {
     backgroundColor: colors.yellow,

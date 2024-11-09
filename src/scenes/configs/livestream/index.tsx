@@ -24,8 +24,10 @@ const LiveStream = () => {
       onChangeText: (value: string) => void,
       {
         secureTextEntry,
+        secureTextView,
       }: {
         secureTextEntry?: boolean;
+        secureTextView?: boolean;
       },
     ) => {
       return (
@@ -43,6 +45,7 @@ const LiveStream = () => {
                 secureTextEntry={secureTextEntry}
                 keyboardType={keyboardType}
                 returnKeyType={returnKeyType}
+                secureTextView={secureTextView}
               />
             </View>
           </View>
@@ -77,7 +80,7 @@ const LiveStream = () => {
               'default',
               'next',
               viewModel.onChangeStreamKey,
-              {secureTextEntry: true},
+              {secureTextEntry: true, secureTextView: true},
             )}
           </>
         ) : (

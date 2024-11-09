@@ -10,7 +10,6 @@ const styles = StyleSheet.create({
   },
   input: {
     fontSize: responsiveFontSize(12),
-    marginHorizontal: responsiveDimension(8),
   },
   buttonSaveConfig: {
     backgroundColor: colors.primary,

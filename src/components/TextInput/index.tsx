@@ -14,8 +14,8 @@ import {
   Image,
   TextStyle,
   KeyboardTypeOptions,
+  Pressable,
 } from 'react-native';
-import Button from '../Button';
 import Text from '../Text';
 import images from 'assets';
 import i18n from 'i18n';
@@ -34,10 +34,10 @@ interface TextInputProps {
   cancelStyle?: ViewStyle;
   inputStyle?: TextStyle | TextStyle[];
   value: string;
-  cancelEnable?: boolean;
   multiline?: boolean;
   notEmpty?: boolean;
   blurOnSubmit?: boolean;
+  secureTextView?: boolean;
   secureTextEntry?: boolean;
   isCurrency?: boolean;
   autoFocus?: boolean;
@@ -75,7 +75,7 @@ const TextInput = forwardRef(
       style,
       inputStyle,
       value = '',
-      cancelEnable = false,
+      secureTextView = false,
       multiline = false,
       notEmpty = false,
       blurOnSubmit = multiline ? false : true,
@@ -99,10 +99,11 @@ const TextInput = forwardRef(
       : styles.container;
     const _inputStyle = multiline
       ? styles.textArea
-      : cancelEnable
+      : secureTextView
       ? styles.input
       : styles.flexInput;
 
+    const [secureView, setSecureView] = useState(secureTextEntry);
     const [isError, setIsError] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
@@ -135,9 +136,13 @@ const TextInput = forwardRef(
       [_validate, isCurrency, onChange],
     );
 
-    const _onCancelSearch = useCallback(() => {
-      onChange('');
-    }, [onChange]);
+    const _onTouchSecureView = useCallback(() => {
+      setSecureView(false);
+    }, []);
+
+    const _onReleaseTouchSecureView = useCallback(() => {
+      setSecureView(true);
+    }, []);
 
     const _onBlur = useCallback(() => {
       _validate(value);
@@ -178,7 +183,7 @@ const TextInput = forwardRef(
             keyboardType={keyboardType}
             returnKeyType={returnKeyType}
             onChangeText={_onChangeText}
-            secureTextEntry={secureTextEntry}
+            secureTextEntry={secureView}
             autoCapitalize={autoCapitalize}
             onBlur={_onBlur}
             onFocus={onFocus}
@@ -188,22 +193,17 @@ const TextInput = forwardRef(
             selectionColor={colors.deepGray}
             maxLength={maxLength}
           />
-          {cancelEnable && (
-            <Button
+          {secureTextView && (
+            <Pressable
               style={buttonCancelStyle}
-              onPress={_onCancelSearch}
-              disable={value === ''}
-              disableStyle={styles.backgroundWhite}>
-              {value !== '' ? (
-                <Image
-                  source={images.close}
-                  style={styles.cancelInputIcon}
-                  resizeMode={'contain'}
-                />
-              ) : (
-                <View style={styles.emptyView} />
-              )}
-            </Button>
+              onPressIn={_onTouchSecureView}
+              onPressOut={_onReleaseTouchSecureView}>
+              <Image
+                source={images.eye}
+                style={styles.cancelInputIcon}
+                resizeMode={'contain'}
+              />
+            </Pressable>
           )}
         </View>
         {isError && (

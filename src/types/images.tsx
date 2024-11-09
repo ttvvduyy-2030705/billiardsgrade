@@ -1,7 +1,7 @@
 export type Images = {
   back: number;
   doubleArrow: number;
-  close: number;
+  eye: number;
   default: number;
   offline: number;
   startGame: number;

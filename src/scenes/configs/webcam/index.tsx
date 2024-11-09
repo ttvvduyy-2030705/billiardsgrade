@@ -29,10 +29,12 @@ const WebcamConfig = () => {
         inputRef,
         onSubmitEditing,
         secureTextEntry,
+        secureTextView,
       }: {
         inputRef?: React.RefObject<RNTextInput>;
         onSubmitEditing?: () => void;
         secureTextEntry?: boolean;
+        secureTextView?: boolean;
       },
     ) => {
       return (
@@ -40,7 +42,7 @@ const WebcamConfig = () => {
           <View marginLeft={'10'} marginBottom={'5'}>
             <Text fontSize={12}>{title}</Text>
           </View>
-          <View direction={'row'}>
+          <View direction={'row'} marginLeft={'10'}>
             <TextInput
               ref={inputRef}
               inputStyle={styles.input}
@@ -51,6 +53,7 @@ const WebcamConfig = () => {
               secureTextEntry={secureTextEntry}
               keyboardType={keyboardType}
               returnKeyType={returnKeyType}
+              secureTextView={secureTextView}
             />
           </View>
         </View>
@@ -119,7 +122,7 @@ const WebcamConfig = () => {
           </View>
         </View>
       </View>
-      <View direction={'row'} marginBottom={'10'} marginHorizontal={'10'}>
+      <View direction={'row'} marginBottom={'10'}>
         <View direction={'row'} alignItems={'center'} marginTop={'15'}>
           {renderInput(
             i18n.t('webcamIP'),
@@ -154,6 +157,7 @@ const WebcamConfig = () => {
             {
               inputRef: viewModel.passwordRef,
               secureTextEntry: true,
+              secureTextView: true,
             },
           )}
         </View>
