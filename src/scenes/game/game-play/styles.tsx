@@ -44,20 +44,34 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   extraText: {},
+  matchLogoWrapper: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    marginBottom: -1,
+  },
   matchLogo: {
     width: responsiveDimension(64),
     height: responsiveDimension(32),
   },
   matchInfo: {
     position: 'absolute',
-    bottom: -70,
+    bottom: 15,
     width: '100%',
   },
   matchBackground: {
-    backgroundColor: colors.darkOverlay,
+    backgroundColor: colors.white,
+    height: 50,
   },
   overlayWrapper: {
     borderRadius: 64,
+  },
+  matchRace: {
+    backgroundColor: colors.error,
+    borderRadius: 8,
+  },
+  matchPointText: {
+    marginTop: -7,
   },
 });
 
