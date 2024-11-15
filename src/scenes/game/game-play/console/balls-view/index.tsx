@@ -31,6 +31,7 @@ interface Props {
   poolBreakEnabled: boolean;
   onSelectBall: (selectedBall: PoolBallType) => void;
   onPressGiveMoreTime: () => void;
+  onSwapPlayers: () => void;
   onPoolBreak: () => void;
   onRestart: () => void;
   onResetTurn: () => void;
@@ -222,30 +223,42 @@ const BallsView = (props: Props) => {
           {RACE_TO_GOAL}
         </View>
         <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
-          <Button
-            onPress={props.onResetTurn}
-            style={[styles.button, styles.buttonResetTurn]}>
-            <Text color={colors.white} fontSize={16}>
-              {i18n.t('resetTurn')}
-            </Text>
-          </Button>
-          <Button
-            onPress={props.onPressGiveMoreTime}
-            style={[styles.button, styles.buttonGiveMoreTime]}>
-            <Text color={colors.white} fontSize={16}>
-              {i18n.t('giveMoreTime')}
-            </Text>
-          </Button>
           {props.isStarted ? (
-            <Button
-              style={[styles.button, styles.buttonRestart]}
-              onPress={props.onRestart}>
-              <Text fontSize={16} color={colors.white}>
-                {i18n.t('restart')}
-              </Text>
-            </Button>
+            <>
+              <Button
+                onPress={props.onResetTurn}
+                style={[styles.button, styles.buttonResetTurn]}>
+                <Text color={colors.white} fontSize={16}>
+                  {i18n.t('resetTurn')}
+                </Text>
+              </Button>
+              <Button
+                onPress={props.onPressGiveMoreTime}
+                style={[styles.button, styles.buttonGiveMoreTime]}>
+                <Text color={colors.white} fontSize={16}>
+                  {i18n.t('giveMoreTime')}
+                </Text>
+              </Button>
+              <Button
+                style={[styles.button, styles.buttonRestart]}
+                onPress={props.onRestart}>
+                <Text fontSize={16} color={colors.white}>
+                  {i18n.t('restart')}
+                </Text>
+              </Button>
+            </>
           ) : (
-            <View />
+            <View
+              flex={'1'}
+              direction={'row'}
+              justify={'center'}
+              alignItems={'center'}>
+              <Button
+                style={[styles.button, styles.buttonSwapPlayers]}
+                onPress={props.onSwapPlayers}>
+                <Text>{i18n.t('switchPlayer')}</Text>
+              </Button>
+            </View>
           )}
         </View>
       </View>

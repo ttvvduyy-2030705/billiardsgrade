@@ -56,6 +56,12 @@ const styles = StyleSheet.create({
   buttonResetTurn: {
     backgroundColor: colors.green,
   },
+  buttonSwapPlayers: {
+    borderWidth: 0.5,
+    borderColor: colors.border,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
 });
 
 export default styles;
