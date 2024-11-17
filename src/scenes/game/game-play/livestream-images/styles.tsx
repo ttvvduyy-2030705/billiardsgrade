@@ -4,7 +4,7 @@ import {responsiveDimension} from 'utils/helper';
 const styles = StyleSheet.create({
   image: {
     width: responsiveDimension(256),
-    height: responsiveDimension(128),
+    height: responsiveDimension(144),
     marginRight: responsiveDimension(10),
   },
   absolute: {
@@ -13,7 +13,7 @@ const styles = StyleSheet.create({
   },
   emptyView: {
     width: responsiveDimension(256),
-    height: responsiveDimension(128),
+    height: responsiveDimension(144),
   },
 });
 
