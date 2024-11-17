@@ -30,6 +30,11 @@ const config = {
   txtTopRight: 'Trên-Phải',
   txtBottomLeft: 'Dưới-Trái',
   txtBottomRight: 'Dưới-Phải',
+  resolution: 'Độ phân giải tối đa',
+  frame: 'Fps tối đa',
+  bitrate: 'Bitrate tối đa',
+  loginWithGoogle: 'Google',
+  platform: 'Nền tảng',
 };
 
 export default config;

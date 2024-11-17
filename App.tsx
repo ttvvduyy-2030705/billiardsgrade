@@ -9,19 +9,23 @@ import 'react-native-get-random-values';
 import React, {useCallback, useEffect, useState} from 'react';
 import {StyleSheet} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {RealmProvider} from '@realm/react';
 import {Provider} from 'react-redux';
 import {PersistGate} from 'redux-persist/integration/react';
 import {NavigationContainer} from '@react-navigation/native';
-import {logEvent, sendUserId} from 'services/firebase/analytics';
+import DeviceInfo from 'react-native-device-info';
+import {GoogleSignin} from '@react-native-google-signin/google-signin';
+
+import {StackScreens} from 'scenes';
+import {LanguageContext} from 'context/language';
+import {loadLanguage, setLanguage} from 'i18n';
+import {navigationRef} from 'utils/navigation';
+
 import Container from 'components/Container';
 import View from 'components/View';
 import Loading from 'components/Loading';
-import {LanguageContext} from 'context/language';
-import {StackScreens} from 'scenes';
-import {navigationRef} from 'utils/navigation';
+
 import storage, {persistor} from 'data/redux';
-import {loadLanguage, setLanguage} from 'i18n';
-import {RealmProvider} from '@realm/react';
 import {GameSchema, GameSettingsModeSchema} from 'data/realm/models/game';
 import {PoolBallSchema} from 'data/realm/models/ball';
 import {
@@ -31,10 +35,17 @@ import {
   PlayerGoalSchema,
 } from 'data/realm/models/player';
 import RemoteControl from 'utils/remote';
+
+import {logEvent, sendUserId} from 'services/firebase/analytics';
 import {initRemoteConfig} from 'services/firebase/remote-config';
 import analyticsKeys from 'services/firebase/analytics/keys';
-import DeviceInfo from 'react-native-device-info';
 // import {BLEService} from 'utils/bluetooth';
+
+GoogleSignin.configure({
+  scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
+  webClientId:
+    '378804694906-259gm8ni9ub5q27jb9796l16djd8clva.apps.googleusercontent.com',
+});
 
 const App = (): React.JSX.Element => {
   const [isLoading, setIsLoading] = useState(true);

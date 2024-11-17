@@ -11,6 +11,9 @@ const keys = {
 
   CAMERA_RTMP_URL: 'CameraRTMPURL',
   CAMERA_STREAM_KEY: 'CameraStreamKey',
+  CAMERA_RESOLUTION: 'CameraResolution',
+  CAMERA_FPS: 'CameraFPS',
+  CAMERA_BITRATE: 'CameraBitrate',
 
   OUTPUT_TYPE: 'OutputType',
 

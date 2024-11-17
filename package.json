@@ -18,6 +18,7 @@
     "@react-native-firebase/app": "^21.0.0",
     "@react-native-firebase/crashlytics": "^21.0.0",
     "@react-native-firebase/remote-config": "^21.0.0",
+    "@react-native-google-signin/google-signin": "latest",
     "@react-navigation/native": "^6.1.17",
     "@react-navigation/native-stack": "^6.10.0",
     "@react-navigation/routers": "^6.1.9",

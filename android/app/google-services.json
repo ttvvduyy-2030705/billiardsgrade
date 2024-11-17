@@ -2,7 +2,7 @@
   "project_info": {
     "project_number": "378804694906",
     "project_id": "aplus-score",
-    "storage_bucket": "aplus-score.appspot.com"
+    "storage_bucket": "aplus-score.firebasestorage.app"
   },
   "client": [
     {
@@ -12,7 +12,28 @@
           "package_name": "com.aplus.score"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "378804694906-q09dc28s1k5gtvl205l13tptavg0ihra.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aplus.score",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "378804694906-vhq58mrb1l7kfap30k56smkk4nh5omo0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aplus.score",
+            "certificate_hash": "fc629ac6747c1ddfb287853de48fb68cf4e584d0"
+          }
+        },
+        {
+          "client_id": "378804694906-259gm8ni9ub5q27jb9796l16djd8clva.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAFJgDV_bTUpqowmH_j97x3wiYA6-bKlMc"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "378804694906-259gm8ni9ub5q27jb9796l16djd8clva.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -25,6 +25,10 @@ const styles = StyleSheet.create({
     borderColor: colors.gray,
     borderRadius: 16,
   },
+  liveStreamConfigWrapper: {
+    backgroundColor: colors.lightPrimary1,
+    borderRadius: responsiveDimension(8),
+  },
 });
 
 export default styles;

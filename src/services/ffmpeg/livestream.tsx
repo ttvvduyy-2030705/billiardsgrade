@@ -22,7 +22,7 @@ const _mapThumbnailItem = (
   left: string,
 ) => {
   return {
-    inputPrompt: `-framerate 30 -i ${imagePath}`,
+    inputPrompt: `-i ${imagePath}`,
     filterPrompt: `[${currentFilterIndex}]overlay=${top}:${left}`,
   };
 };
@@ -74,13 +74,13 @@ const liveStreamFromCamera = async (
     : '(W-w)/2:(H-h)-85';
   const showThumbnailsOnLiveStream =
     (await AsyncStorage.getItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM)) === '1';
-  const videoAndMatchInfo = `-y -video_size 1920x1080 -input_queue_size 120 -f android_camera -framerate 30 -i 0 -f image2 -stream_loop -1 -framerate 30 -i ${matchImagePath}`;
-  const audioAndOutput = `-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -framerate 30 \
-      -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -preset medium -b:v 9000k -maxrate 9000k -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
+  const videoAndMatchInfo = `-y -video_size 1920x1080 -input_queue_size 120 -f android_camera -framerate ${liveStream?.fps} -i 0 -f image2 -stream_loop -1 -i ${matchImagePath}`;
+  const audioAndOutput = `-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -framerate ${liveStream?.fps} \
+      -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -tune zerolatency -preset ultrafast -b:v ${liveStream?.bitrate} -maxrate ${liveStream?.bitrate} -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
 
   let overlayInput = `-i ${matchCountdownImagePath}`;
   let overlayFilter = `-filter_complex "hflip[flipped];[flipped][1]overlay=${boardPosition}[img1];[2:v]scale=620:35[img2];[img1][img2]overlay=${countdownPosition}`;
-  let filterComplex = '-f image2 -stream_loop -1 -framerate 30';
+  let filterComplex = `-f image2 -stream_loop -1 -framerate ${liveStream?.fps}`;
 
   if (showThumbnailsOnLiveStream) {
     const result = _buildThumbnailUrls();
@@ -110,6 +110,7 @@ const liveStreamFromCamera = async (
   );
 };
 
+//-preset medium -b:v 9000k -maxrate 9000k -bufsize 24000k
 //-vf scale=iw*3:ih*3:flags=neighbor
 // -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
 // -f image2 -stream_loop -1 -i ${matchImagePath} -stream_loop -1 -i ${matchCountdownImagePath} -filter_complex "overlay=25:25,overlay=25:180"

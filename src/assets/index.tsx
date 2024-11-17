@@ -19,6 +19,7 @@ const images: Images = {
   share: require('./images/share.png'),
   startGame: require('./images/start-game.png'),
   vietnam: require('./images/vietnam.png'),
+  google: require('./images/google.png'),
   game: {
     edit: require('./images/game/edit.png'),
     soundOn: require('./images/game/sound-on.png'),

@@ -31,7 +31,15 @@ import {liveStreamFromCamera} from 'services/ffmpeg/livestream';
 import {requestReadWriteStorage} from 'utils/permission';
 import {navigate} from 'utils/navigation';
 import {screens} from 'scenes/screens';
-import {LiveStreamCamera, OutputType, Webcam, WebcamType} from 'types/webcam';
+import {
+  Bitrate,
+  Fps,
+  LiveStreamCamera,
+  OutputType,
+  Resolution,
+  Webcam,
+  WebcamType,
+} from 'types/webcam';
 import {CAMERA_PLAYBACK_DURATION} from './constants';
 
 export interface Props {
@@ -179,12 +187,22 @@ const WebCamViewModel = (props: Props) => {
 
   const getCameraData = useCallback(() => {
     AsyncStorage.multiGet(
-      [keys.CAMERA_RTMP_URL, keys.CAMERA_STREAM_KEY, keys.OUTPUT_TYPE],
+      [
+        keys.CAMERA_RTMP_URL,
+        keys.CAMERA_STREAM_KEY,
+        keys.OUTPUT_TYPE,
+        keys.CAMERA_RESOLUTION,
+        keys.CAMERA_FPS,
+        keys.CAMERA_BITRATE,
+      ],
       (error, result) => {
         if (!error && result) {
           const _rtmpUrl = result[0][1];
           const _streamKey = result[1][1];
           const _outputType = result[2][1];
+          const _resolution = result[3][1];
+          const _fps = result[4][1];
+          const _bitrate = result[5][1];
 
           if (
             (_outputType &&
@@ -199,6 +217,9 @@ const WebCamViewModel = (props: Props) => {
             rtmpUrl: _rtmpUrl || '',
             streamKey: _streamKey || '',
             outputType: _outputType as OutputType,
+            resolution: (_resolution || Resolution.FullHD) as Resolution,
+            fps: (_fps || Fps.F30) as Fps,
+            bitrate: (_bitrate || Bitrate.B9000) as Bitrate,
           });
 
           interval = setInterval(() => {
@@ -222,6 +243,9 @@ const WebCamViewModel = (props: Props) => {
         keys.OUTPUT_TYPE,
         keys.CAMERA_RTMP_URL,
         keys.CAMERA_STREAM_KEY,
+        keys.CAMERA_RESOLUTION,
+        keys.CAMERA_FPS,
+        keys.CAMERA_BITRATE,
       ],
       (error, result) => {
         if (!error && result) {
@@ -235,6 +259,9 @@ const WebCamViewModel = (props: Props) => {
           const _outputType = result[7][1];
           const _rtmpUrl = result[8][1];
           const _streamKey = result[9][1];
+          const _resolution = result[10][1];
+          const _fps = result[11][1];
+          const _bitrate = result[12][1];
 
           if (!_ip || !_username || !_password || !_outputType) {
             return;
@@ -255,6 +282,9 @@ const WebCamViewModel = (props: Props) => {
             rtmpUrl: _rtmpUrl || '',
             streamKey: _streamKey || '',
             outputType: _outputType as OutputType,
+            resolution: (_resolution || Resolution.FullHD) as Resolution,
+            fps: (_fps || Fps.F30) as Fps,
+            bitrate: (_bitrate || Bitrate.B9000) as Bitrate,
           });
 
           interval = setInterval(() => {

@@ -9,6 +9,7 @@ buildscript {
         useExoplayerRtsp = true
         useExoplayerSmoothStreaming = true
         ffmpegKitPackage = "video"
+        googlePlayServicesAuthVersion = "20.7.0"
     }
     repositories {
         google()

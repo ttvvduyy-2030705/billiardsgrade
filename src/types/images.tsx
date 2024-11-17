@@ -17,6 +17,7 @@ export type Images = {
   share: number;
   startGame: number;
   vietnam: number;
+  google: number;
   game: {
     edit: number;
     soundOn: number;

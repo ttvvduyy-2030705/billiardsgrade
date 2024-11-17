@@ -30,6 +30,11 @@ const config = {
   txtTopRight: 'Top-Right',
   txtBottomLeft: 'Bottom-Left',
   txtBottomRight: 'Bottom-Right',
+  resolution: 'Maximum Resolution',
+  frame: 'Maximum Fps',
+  bitrate: 'Maximum Bitrate',
+  loginWithGoogle: 'Google',
+  platform: 'Platform',
 };
 
 export default config;
