@@ -202,32 +202,25 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    const timeout = setTimeout(() => {
-      if (!matchCountdownRef.current || isCaromGame(gameSettings?.category)) {
-        return;
-      }
+    captureRef(matchCountdownRef, {
+      format: 'png',
+      quality: 0.01,
+      width: 1242,
+    })
+      .then(
+        async uri => {
+          const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
+          const _path = uri.slice(7);
 
-      captureRef(matchCountdownRef, {
-        format: 'png',
-        quality: 0.1,
-      })
-        .then(
-          async uri => {
-            const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
-            const _path = uri.slice(7);
-
-            RNFS.copyFile(_path, matchCountdownImagePath);
-          },
-          error => console.error('Oops, match countdown failed', error),
-        )
-        .catch(e => {
-          if (__DEV__) {
-            console.log('Capture countdown error', e);
-          }
-        });
-
-      clearTimeout(timeout);
-    }, 1000);
+          RNFS.copyFile(_path, matchCountdownImagePath);
+        },
+        error => console.error('Oops, match countdown failed', error),
+      )
+      .catch(e => {
+        if (__DEV__) {
+          console.log('Capture countdown error', e);
+        }
+      });
   }, [countdownTime, gameSettings]);
 
   useEffect(() => {

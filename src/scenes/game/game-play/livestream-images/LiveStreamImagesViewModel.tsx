@@ -46,7 +46,9 @@ const LiveStreamImagesViewModel = (props: Props) => {
 
       captureRef(ref, {
         format: 'png',
-        quality: 0.1,
+        quality: 0.01,
+        width: 256,
+        height: 128,
       })
         .then(
           async uri => {

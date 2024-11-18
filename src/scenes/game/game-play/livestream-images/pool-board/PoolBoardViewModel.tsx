@@ -31,7 +31,8 @@ const PoolBoardViewModel = (props: Props) => {
 
       captureRef(matchRef, {
         format: 'png',
-        quality: 0.1,
+        quality: 0.01,
+        width: 256,
       })
         .then(
           async uri => {

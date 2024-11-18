@@ -74,8 +74,8 @@ const liveStreamFromCamera = async (
     : '(W-w)/2:(H-h)-85';
   const showThumbnailsOnLiveStream =
     (await AsyncStorage.getItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM)) === '1';
-  const videoAndMatchInfo = `-y -video_size 1920x1080 -thread_queue_size 60 -input_queue_size 720 -f android_camera -framerate ${liveStream?.fps} -re -i 0 -f image2 -stream_loop -1 -framerate 1 -r 1 -i ${matchImagePath}`;
-  const audioAndOutput = `-f lavfi -r 1 -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+  const videoAndMatchInfo = `-y -video_size 1920x1080 -thread_queue_size 60 -input_queue_size 720 -f android_camera -framerate ${liveStream?.fps} -i 0 -f image2 -stream_loop -1 -framerate 1 -r 1 -i ${matchImagePath}`;
+  const audioAndOutput = `-f lavfi -r 1 -i anullsrc \
       -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -tune zerolatency -preset ultrafast -b:v ${liveStream?.bitrate} -maxrate 18000k -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
 
   let overlayInput = `-i ${matchCountdownImagePath}`;
