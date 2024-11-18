@@ -67,11 +67,17 @@ const liveStreamFromCamera = async (
   }
 
   const countdownPosition = isCaromGame(category)
-    ? '90:(H-h)-50'
+    ? '90:(H-h)-68'
     : '(W-w)/2:(H-h)-50';
   const boardPosition = isCaromGame(category)
     ? '90:(H-h)-85'
     : '(W-w)/2:(H-h)-85';
+  const boardScale = isCaromGame(category)
+    ? '[1:v]scale=360:-1[matchScale];[flipped][matchScale]'
+    : '[flipped][1]';
+  const countdownScale = isCaromGame(category)
+    ? 'scale=360:18'
+    : 'scale=620:35';
   const showThumbnailsOnLiveStream =
     (await AsyncStorage.getItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM)) === '1';
   const videoAndMatchInfo = `-y -video_size 1920x1080 -thread_queue_size 60 -input_queue_size 720 -f android_camera -framerate ${liveStream?.fps} -i 0 -f image2 -stream_loop -1 -framerate 1 -r 1 -i ${matchImagePath}`;
@@ -79,7 +85,7 @@ const liveStreamFromCamera = async (
       -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -tune zerolatency -preset ultrafast -b:v ${liveStream?.bitrate} -maxrate 18000k -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
 
   let overlayInput = `-i ${matchCountdownImagePath}`;
-  let overlayFilter = `-filter_complex "scale=iw*${liveStream?.resolution}:-1:flags=neighbor+bitexact+accurate_rnd+full_chroma_int+full_chroma_inp,hflip[flipped];[flipped][1]overlay=${boardPosition}[img1];[2:v]scale=620:35[img2];[img1][img2]overlay=${countdownPosition}`;
+  let overlayFilter = `-filter_complex "scale=iw*${liveStream?.resolution}:-1:flags=neighbor+bitexact+accurate_rnd+full_chroma_int+full_chroma_inp,hflip[flipped];${boardScale}overlay=${boardPosition}[img1];[2:v]${countdownScale}[img2];[img1][img2]overlay=${countdownPosition}`;
   let filterComplex = '-f image2 -stream_loop -1 -framerate 1 -r 1';
 
   if (showThumbnailsOnLiveStream) {
