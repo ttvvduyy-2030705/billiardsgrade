@@ -92,7 +92,7 @@ const CaromInfoViewModel = (props: Props) => {
       captureRef(matchRef, {
         format: 'png',
         quality: 0.01,
-        width: 256,
+        width: 128,
       })
         .then(
           async uri => {
@@ -109,27 +109,28 @@ const CaromInfoViewModel = (props: Props) => {
           }
         });
 
-      captureRef(matchCountdownRef, {
-        format: 'png',
-        quality: 0.01,
-        width: 256,
-      })
-        .then(
-          async uri => {
-            const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
-            const _path = uri.slice(7);
-
-            RNFS.copyFile(_path, matchCountdownImagePath);
-          },
-          error => console.error('Oops, match countdown failed', error),
-        )
-        .catch(e => {
-          if (__DEV__) {
-            console.log('Capture countdown error', e);
-          }
-        });
       clearTimeout(timeout);
     }, 1000);
+
+    captureRef(matchCountdownRef, {
+      format: 'png',
+      quality: 0.01,
+      width: 256,
+    })
+      .then(
+        async uri => {
+          const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
+          const _path = uri.slice(7);
+
+          RNFS.copyFile(_path, matchCountdownImagePath);
+        },
+        error => console.error('Oops, match countdown failed', error),
+      )
+      .catch(e => {
+        if (__DEV__) {
+          console.log('Capture countdown error', e);
+        }
+      });
   }, [props.countdownTime, props.playerSettings]);
 
   return useMemo(() => {

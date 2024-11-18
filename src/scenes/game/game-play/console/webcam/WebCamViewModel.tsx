@@ -91,14 +91,20 @@ const WebCamViewModel = (props: Props) => {
   }, []);
 
   useEffect(() => {
-    if (connectCountdownTime > 0) {
+    const _countdownTime = (webcam?.syncTime || CAMERA_PLAYBACK_DURATION) * 2;
+    const canConnect =
+      _countdownTime > 10 ? true : _countdownTime - connectCountdownTime >= 0;
+
+    if (!canConnect) {
       return;
     }
 
     setAutoConnect(true);
 
-    clearInterval(interval);
-  }, [connectCountdownTime]);
+    if (connectCountdownTime === 0) {
+      clearInterval(interval);
+    }
+  }, [webcam, connectCountdownTime]);
 
   useEffect(() => {
     if (!autoConnect || isWebcamStarted) {

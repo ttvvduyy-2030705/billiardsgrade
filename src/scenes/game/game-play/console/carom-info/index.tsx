@@ -68,7 +68,11 @@ const CaromInfo = (props: Props) => {
   return (
     <View style={styles.container} direction={'row'} marginTop={'10'}>
       <View flex={'1'}>
-        <View ref={viewModel.matchRef} collapsable={false} direction={'row'}>
+        <View
+          ref={viewModel.matchRef}
+          collapsable={false}
+          style={styles.countdownContainer}
+          direction={'row'}>
           <View>
             <View
               flex={'1'}
