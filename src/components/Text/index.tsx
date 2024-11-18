@@ -78,6 +78,8 @@ const Text = (props: TextProps) => {
 
     if (fontWeight === 'bold') {
       result.push({fontFamily: getSelectedFont('Nunito-Regular', 'bold')});
+    } else if (fontWeight === '900') {
+      result.push({fontFamily: getSelectedFont('Nunito-Regular', 'black')});
     }
 
     if (textDecorationStyle) {

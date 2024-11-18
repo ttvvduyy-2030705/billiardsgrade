@@ -97,6 +97,7 @@ const GamePlayer = (props: Props) => {
                   : styles.totalPointNoMarginBottom
               }
               fontSize={512}
+              fontWeight={'bold'}
               adjustsFontSizeToFit={true}>
               {props.player.totalPoint}
             </Text>
