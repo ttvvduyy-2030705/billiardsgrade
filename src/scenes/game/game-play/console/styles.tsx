@@ -42,6 +42,10 @@ const styles = StyleSheet.create({
   buttonGiveMoreTime: {
     backgroundColor: colors.yellow,
   },
+  buttonTurns: {
+    borderColor: colors.black,
+    borderWidth: 0.5,
+  }
 });
 
 export default styles;

@@ -193,13 +193,13 @@ const WebcamConfigViewModel = () => {
     }
 
     setWebcamUrl('');
-    setWebcam({
-      webcamIP: '',
-      username: '',
-      password: '',
-      syncTime: 60,
-      outputType: OutputType.local,
-    });
+    // setWebcam({
+    //   webcamIP: '',
+    //   username: '',
+    //   password: '',
+    //   syncTime: 60,
+    //   outputType: OutputType.local,
+    // });
     setAllowToSave(false);
   }, []);
 

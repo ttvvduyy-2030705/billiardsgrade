@@ -20,6 +20,9 @@ interface Props {
   onPressGiveMoreTime: () => void;
   updateWebcamFolderName: (name: string) => void;
   renderMatchInfo: () => React.ReactNode;
+  onIncreaseTotalTurns: () => void;
+  onDecreaseTotalTurns: () => void;
+  onSwapPlayers : () => void;
 }
 
 const GameInfo = (props: Props) => {
@@ -77,7 +80,6 @@ const GameInfo = (props: Props) => {
           webcamFolderName={props.webcamFolderName}
           renderMatchInfo={props.renderMatchInfo}
           updateWebcamFolderName={props.updateWebcamFolderName}
-          innerControls
         />
       ) : (
         <View />
@@ -90,7 +92,44 @@ const GameInfo = (props: Props) => {
         </View>
       )}
 
-      {!isCaromGame(props.gameSettings.category) && (
+      {(isCaromGame(props.gameSettings.category) && !props.isStarted) &&
+        <View
+        flex={'1'}
+        direction={'row'}
+        justify={'center'}
+        alignItems={'center'}>
+          <Button
+            style={[styles.button, styles.buttonBorder]}
+            onPress={props.onSwapPlayers}>
+            <Text>{i18n.t('switchPlayer')}</Text>
+          </Button>
+        </View>
+      }
+     
+     {(isCaromGame(props.gameSettings.category) && props.isStarted) && (
+                  <View direction={'row'} marginHorizontal={'20'} marginTop={'10'}>
+                    <View
+                      flex={'1'}
+                      direction={'row'}
+                      justify={'center'}
+                      alignItems={'center'}>
+                      <Button
+                        style={[styles.button]}
+                        onPress={props.onIncreaseTotalTurns}>
+                        <Text>{i18n.t('increaseTotalTurns')}</Text>
+                      </Button>
+                      <View marginHorizontal={'10'} />
+                      <Button
+                        style={[styles.button]}
+                        onPress={props.onDecreaseTotalTurns}>
+                        <Text>{i18n.t('decreaseTotalTurns')}</Text>
+                      </Button>
+                    </View>
+                  </View>
+                )
+              }
+
+      {isCaromGame(props.gameSettings.category) && props.isStarted && (
         <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
           <Button
             onPress={props.onPressGiveMoreTime}

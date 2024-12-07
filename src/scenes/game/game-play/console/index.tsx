@@ -254,11 +254,14 @@ const GameConsole = (props: Props) => {
                   onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
                   renderMatchInfo={props.renderMatchInfo}
                   updateWebcamFolderName={props.updateWebcamFolderName}
+                  onIncreaseTotalTurns = {props.onIncreaseTotalTurns}
+                  onDecreaseTotalTurns = {props.onDecreaseTotalTurns}
+                  onSwapPlayers = {props.onSwapPlayers}
                 />
               </View>
             )}
             {/* doi bi */}
-            {
+            {/* {
               isCaromGame(props.gameSettings?.category) && (
                 props.totalPlayers === 2 &&
                   (props.currentMode?.mode === 'fast' || !props.isStarted) ? (
@@ -300,34 +303,14 @@ const GameConsole = (props: Props) => {
                       <View />
                     )}
                   </View>
-                ) : isCaromGame(props.gameSettings.category) && props.isStarted ? (
-                  <View direction={'row'} marginHorizontal={'20'} marginTop={'10'}>
-                    <View
-                      flex={'1'}
-                      direction={'row'}
-                      justify={'center'}
-                      alignItems={'center'}>
-                      <Button
-                        style={styles.button}
-                        onPress={props.onIncreaseTotalTurns}>
-                        <Text>{i18n.t('increaseTotalTurns')}</Text>
-                      </Button>
-                      <View marginHorizontal={'10'} />
-                      <Button
-                        style={styles.button}
-                        onPress={props.onDecreaseTotalTurns}>
-                        <Text>{i18n.t('decreaseTotalTurns')}</Text>
-                      </Button>
-                    </View>
-                  </View>
-                ) : (
+                )  : (
                   <View />
                 )
               )
-            }
+            } */}
             {/* end doi bi */}
 
-            {
+            {/* {
               isCaromGame(props.gameSettings.category) && (<View
                 style={styles.buttonWrapper}
                 direction={'row'} alignItems={'end'}>
@@ -340,7 +323,7 @@ const GameConsole = (props: Props) => {
                   </Text>
                 </Button>
               </View>)
-            }
+            } */}
 
             {props.totalPlayers === 5 ? (
               <View flex={'1'} direction={'row'} marginTop={'20'}>
