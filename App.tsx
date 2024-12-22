@@ -97,7 +97,7 @@ const App = (): React.JSX.Element => {
   }, []);
 
   return ( 
-  <BlueProvider>
+  // <BlueProvider>
     <RealmProvider
       deleteRealmIfMigrationNeeded
       schema={[
@@ -130,7 +130,7 @@ const App = (): React.JSX.Element => {
         </PersistGate>
       </Provider>
     </RealmProvider>
-    </BlueProvider>
+    // </BlueProvider>
   );
 };
 

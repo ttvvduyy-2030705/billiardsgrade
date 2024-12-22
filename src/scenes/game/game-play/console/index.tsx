@@ -62,7 +62,7 @@ const GameConsole = (props: Props) => {
                 </View>
               </View>
               <View flex={'2'} alignItems={'center'} justify={'center'}>
-                {props.totalPlayers < 5 &&
+                {/* {props.totalPlayers < 5 &&
                   !(
                     isCaromGame(props.gameSettings.category) &&
                     props.gameSettings.mode?.mode === 'pro'
@@ -75,7 +75,7 @@ const GameConsole = (props: Props) => {
                   />
                 ) : (
                   <View />
-                )}
+                )} */}
                 <Text fontSize={16}>{viewModel.buildGameModeTitle()}</Text>
                 <View>
                   <Text

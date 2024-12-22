@@ -8,6 +8,7 @@ import {RootState} from 'data/redux/reducers';
 import {gameActions} from 'data/redux/actions/game';
 import {cancelStreamWebcamToFile} from 'services/ffmpeg/local';
 import i18n from 'i18n';
+import { Camera, useCameraDevices } from 'react-native-vision-camera';
 
 import {goBack} from 'utils/navigation';
 import {isCaromGame, isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
@@ -17,6 +18,8 @@ import RemoteControl from 'utils/remote';
 import {Player, PlayerSettings} from 'types/player';
 import {RemoteControlKeys} from 'types/bluetooth';
 import {BallType, PoolBallType} from 'types/ball';
+import KeyEvent from 'react-native-keyevent';
+
 
 import {MATCH_COUNTDOWN, WEBCAM_BASE_CAMERA_FOLDER} from 'constants/webcam';
 
@@ -102,6 +105,10 @@ const GamePlayViewModel = () => {
     RemoteControl.instance.registerKeyEvents(
       RemoteControlKeys.RIGHT,
       onEndTurn,
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.OK,
+      onToggleCountDown,
     );
 
     // eslint-disable-next-line react-hooks/exhaustive-deps

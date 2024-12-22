@@ -17,6 +17,7 @@ export enum RemoteControlKeys {
   LEFT = '22',
   DOWN = '20',
   RIGHT = '21',
+  OK = '4'
 }
 
 export type RemoteControlKeysNative = {
