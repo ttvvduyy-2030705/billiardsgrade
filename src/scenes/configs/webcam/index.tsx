@@ -12,12 +12,13 @@ import TextInput from 'components/TextInput';
 import Video from 'components/Video';
 import i18n from 'i18n';
 
-import {OutputType} from 'types/webcam';
+import {OutputType, WebcamType} from 'types/webcam';
 
 import colors from 'configuration/colors';
 import WebcamConfigViewModel from './WebcamConfigViewModel';
 import styles from './styles';
 import Livestream from '../livestream';
+import webcam from 'scenes/game/game-play/console/webcam';
 
 const WebcamConfig = () => {
   const viewModel = WebcamConfigViewModel();
@@ -257,6 +258,7 @@ const WebcamConfig = () => {
               marginTop={'10'}>
               <View flex={'1'}>
                 <Video
+                  webcamType={WebcamType.webcam}
                   key={'webcam-billiards-test'}
                   ref={viewModel.videoRef}
                   source={viewModel.source}
@@ -266,7 +268,6 @@ const WebcamConfig = () => {
                   onLoad={viewModel.onLoad}
                   onError={viewModel.onWebcamError}
                   onPosition={viewModel.onSaveWebcamPosition}
-                  //cameraRef={viewModel.webcam}
                   isStarted={false}
                   isPaused={false}
                   isPreview={false}

@@ -105,7 +105,7 @@ const WebCam = (props: Props) => {
                       isStarted={props.isStarted}
                       isPreview={props.isPreview}
                       videoUri={props.videoUri}
-                      
+                      webcamType={viewModel.webcamType!}
                 />
               ) : viewModel.liveStream?.outputType === OutputType.livestream ? (
                 LIVESTREAM_MESSAGE

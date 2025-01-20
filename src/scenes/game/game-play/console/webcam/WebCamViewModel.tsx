@@ -51,16 +51,15 @@ export interface Props {
   webcamFolderName?: string;
   renderMatchInfo: () => ReactNode;
   updateWebcamFolderName: (name: string) => void;
-  cameraRef : RefObject<Camera>;
+  cameraRef? : RefObject<Camera>;
   isStarted: boolean;
   isPaused: boolean;
   isPreview: boolean;
-  pauseVideoRecording: () => void;
+  pauseVideoRecording?: () => void;
   videoUri? : string;
-  resumeVideoRecording: () => void,
-  stopVideoRecording: () => void,
-  setVideoUri: (name: string) => void;
-
+  resumeVideoRecording?: () => void,
+  stopVideoRecording?: () => void,
+  setVideoUri?: (name: string) => void;
 }
 
 let interval: NodeJS.Timeout, cameraInterval: NodeJS.Timeout;
@@ -82,6 +81,7 @@ const WebCamViewModel = (props: Props) => {
   useEffect(() => {
     AsyncStorage.getItem(keys.WEBCAM_TYPE, (error, result) => {
       if (error) {
+
         return;
       }
 
@@ -91,16 +91,19 @@ const WebCamViewModel = (props: Props) => {
         } else {
           getCameraData();
         }
-      }
+        setWebcamType(result as WebcamType);
 
-      setWebcamType(result as WebcamType);
+
+      }else{
+        setWebcamType(WebcamType.webcam);
+      }
     });
 
     return () => {
       clearInterval(cameraInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
   useEffect(() => {
     const _countdownTime = (webcam?.syncTime || CAMERA_PLAYBACK_DURATION) * 2;
@@ -186,7 +189,7 @@ const WebCamViewModel = (props: Props) => {
         setUrl(_url);
       }
 
-      props.updateWebcamFolderName(now);
+      //props.updateWebcamFolderName(now);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -334,9 +337,9 @@ const WebCamViewModel = (props: Props) => {
   const onDelay = useCallback(() => {}, []);
 
   const onReWatch = useCallback(async () => {
-    if(!props.isPaused){
-      props.stopVideoRecording();
-    }
+    // if(!props.isPaused){
+    //   props.stopVideoRecording();
+    // }
 
     navigate(screens.playback, {webcamFolderName: props.webcamFolderName, videoUrl : props.videoUri } as PlayBackWebcamViewModelProps);
   }, [props]);

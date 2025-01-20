@@ -15,16 +15,13 @@ import {PersistGate} from 'redux-persist/integration/react';
 import {NavigationContainer} from '@react-navigation/native';
 import DeviceInfo from 'react-native-device-info';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
-
 import {StackScreens} from 'scenes';
 import {LanguageContext} from 'context/language';
 import {loadLanguage, setLanguage} from 'i18n';
 import {navigationRef} from 'utils/navigation';
-
 import Container from 'components/Container';
 import View from 'components/View';
 import Loading from 'components/Loading';
-
 import storage, {persistor} from 'data/redux';
 import {GameSchema, GameSettingsModeSchema} from 'data/realm/models/game';
 import {PoolBallSchema} from 'data/realm/models/ball';
@@ -105,6 +102,7 @@ const App = (): React.JSX.Element => {
   }, []);
 
   return ( 
+
    <PreviewVideoProvider>
     <RealmProvider
       deleteRealmIfMigrationNeeded

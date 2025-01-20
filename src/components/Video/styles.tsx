@@ -11,7 +11,10 @@ const styles = StyleSheet.create({
   webcam: {
     width: '100%',
     height: '100%',
-    flex:1
+    flex:1,
+    transform : [
+      { rotate: '180deg' }
+    ]
   },
   loading: {
     width: '100%',

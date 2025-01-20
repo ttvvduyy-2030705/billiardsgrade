@@ -43,7 +43,8 @@ const GamePlayViewModel = () => {
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
   const [winner, setWinner] = useState<Player>();
 
-  const now = Date.now().toString();
+  const now = gameSettings?.webcamFolderName != null ? gameSettings?.webcamFolderName:  Date.now().toString();
+
   const [webcamFolderName, setWebcamFolderName] = useState<string>(now)
 
   const [isStarted, setIsStarted] = useState(

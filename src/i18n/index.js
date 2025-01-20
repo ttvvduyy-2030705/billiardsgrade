@@ -14,8 +14,11 @@ export const LANGUAGES = ['vi', 'en'];
 const systemLocale = RNLocalize.getLocales()[0];
 
 export const loadLanguage = async () => {
-  const currentLanguage = await AsyncStorage.getItem('language');
 
+
+  const currentLanguage = await AsyncStorage.getItem('language');
+  console.log("lang " + currentLanguage);
+  
   const language = currentLanguage
     ? currentLanguage
     : ['vi', 'en'].includes(systemLocale.languageCode)

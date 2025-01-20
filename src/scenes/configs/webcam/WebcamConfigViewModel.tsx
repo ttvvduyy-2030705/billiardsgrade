@@ -37,6 +37,7 @@ const WebcamConfigViewModel = () => {
     syncTime: 60,
     outputType: OutputType.local,
   });
+
   const [liveStreamData, setLiveStreamData] = useState<LiveStreamCamera>({
     rtmpUrl: '',
     streamKey: '',
@@ -264,6 +265,7 @@ const WebcamConfigViewModel = () => {
     onLoad,
     onWebcamError,
     onSaveWebcamPosition,
+    WebcamType
   ]);
 };
 

@@ -3,7 +3,7 @@ import {Alert} from 'react-native';
 import {OnVideoErrorData, VideoRef} from 'react-native-video';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
-import {mergeVideos} from 'services/ffmpeg/local';
+import {mergeVideoFiles, getFiles} from 'services/ffmpeg/local';
 import i18n from 'i18n';
 import { usePreviewContext } from 'context/PreviewVideo';
 
@@ -19,7 +19,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
   const [webcamUrl, setWebcamUrl] = useState<string>();
   const [selectedDurationIndex, setSelectedDurationIndex] = useState<number>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { isPreview, setIsPreview , videoUri, setIsRewatch} = usePreviewContext();
+  const { isPreview, setIsPreview , videoUri, setIsRewatch, setVideoUri} = usePreviewContext();
 
   useEffect(() => {
 
@@ -50,26 +50,40 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
     );
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPreview, videoUri]);
+  }, [isPreview, videoUri, webcamUrl]);
 
   const onSelectMinuteForWebcam = useCallback(
     async (index: number, duration: number) => {
       setIsLoading(true);
       setSelectedDurationIndex(index);
-      setIsRewatch(false)
-     // setWebcamUrl(props.videoUri);
-      
+      //setIsRewatch(false)
+      //setWebcamUrl(props.videoUri);
+
+      console.log("view video");
+
       if(totalFiles < 2){
-        setWebcamUrl(videoUri);
+
+        console.log("view video");
+
+        const files = await getFiles(props.webcamFolderName);
+
+        console.log("file" + JSON.stringify(files));
+        if(files){
+          setWebcamUrl(files[0].path);
+
+        }
+ 
         setIsLoading(false);
-      }else{
-        const fullVideoPath = await mergeVideos(
-          props.webcamFolderName,
-          duration === -1 ? totalFiles : duration * 20,
-          {
-            cache: props.cache,
-          },
-        );
+      } else {
+        // const fullVideoPath = await mergeVideos(
+        //   props.webcamFolderName,
+        //   duration === -1 ? totalFiles : duration * 20,
+        //   {
+        //     cache: props.cache,
+        //   },
+        // );
+
+        const fullVideoPath = await mergeVideoFiles(props.webcamFolderName)
   
         if (!fullVideoPath) {
           Alert.alert(i18n.t('txtError'), i18n.t('msgWebcamVideoNotExist'));
@@ -77,11 +91,12 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
         }
   
         setWebcamUrl(fullVideoPath);
+        setVideoUri(fullVideoPath);
         setIsLoading(false);
       }
 
     },
-    [props, totalFiles],
+    [props, totalFiles, webcamUrl],
   );
 
   const onWebcamError = useCallback((e: OnVideoErrorData) => {

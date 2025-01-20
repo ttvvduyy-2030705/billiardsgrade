@@ -27,7 +27,7 @@ interface Props {
 
 const GameInfo = (props: Props) => {
   const isFullPlayer = props.totalPlayers === 5;
-
+ 
   const renderPoint = useCallback((title: string, value: number) => {
     return (
       <View
@@ -80,9 +80,18 @@ const GameInfo = (props: Props) => {
             webcamFolderName={props.webcamFolderName}
             renderMatchInfo={props.renderMatchInfo}
             updateWebcamFolderName={props.updateWebcamFolderName}
-             cameraRef={undefined}
-              isStarted={false}
-              isPaused={false} isPreview={false}        />
+            isStarted={false}
+            isPaused={false}
+            isPreview={false} pauseVideoRecording={function (): void {
+              throw new Error('Function not implemented.');
+            } } resumeVideoRecording={function (): void {
+              throw new Error('Function not implemented.');
+            } } stopVideoRecording={function (): void {
+              throw new Error('Function not implemented.');
+            } } setVideoUri={function (name: string): void {
+              throw new Error('Function not implemented.');
+            } }
+                    />
       ) : (
         <View />
       )}
