@@ -144,6 +144,7 @@ const getFiles = async (folderPath: string) : Promise<RNFS.ReadDirItem[] | undef
        const files = await RNFS.readDir(fullPath) as ReadDirItem[];
        const videoFiles = files.filter((file) => file.name.endsWith('.mov'))
        .sort((a, b) => (b.mtime?.getTime() || 0) - (a.mtime?.getTime() || 0)); // Newest first
+
       return videoFiles;
       
   } catch (error) {

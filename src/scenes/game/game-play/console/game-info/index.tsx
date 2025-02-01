@@ -56,12 +56,41 @@ const GameInfo = (props: Props) => {
     );
   }, []);
 
+  const renderBigPoint = useCallback((title: string, value: number) => {
+    return (
+      <View
+        flex={'1'}
+        direction={'row'}
+        alignItems={'center'}
+        justify={'center'}
+        style={styles.pointWrapper}>
+        <Text fontSize={60}>{title}</Text>
+        <View
+          style={styles.valueWrapper}
+          direction={'row'}
+          alignItems={'center'}
+          marginLeft={'5'}>
+          <Text
+            style={styles.valueText}
+            fontSize={120}
+            adjustsFontSizeToFit={true}
+            color={colors.grayBlue}
+            fontWeight={'bold'}>
+            {value}
+          </Text>
+        </View>
+      </View>
+    );
+  }, []);
+
   if (isFullPlayer && props.currentMode?.mode === 'fast') {
     return <View />;
   }
 
   if (props.currentMode?.mode === 'fast') {
-    return <View flex={'1'} />;
+    return  <View flex={isFullPlayer ? '0' : '1'} direction={'row'} alignItems={'center'}  >    
+    {renderBigPoint(i18n.t('goal'), props.goal)}
+ </View>
   }
 
   return (
