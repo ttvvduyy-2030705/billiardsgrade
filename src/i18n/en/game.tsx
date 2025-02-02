@@ -70,7 +70,9 @@ const game = {
   msgWebcamIntro: 'Webcam will launch in {{second}}',
   decreaseTotalTurns: 'Decrease total turns',
   increaseTotalTurns: 'Increase total turns',
-
+  msgOutOfMemory:'Out Of 10GB Memory , please delete the history match',
+  txtwarn:'Warning!',
+  btnHistory: 'Go to history',
   //Pool
   ball1: 'one',
   ball2: 'two',

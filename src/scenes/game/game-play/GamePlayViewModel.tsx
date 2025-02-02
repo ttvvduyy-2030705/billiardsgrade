@@ -17,6 +17,9 @@ import {RemoteControlKeys} from 'types/bluetooth';
 import {BallType, PoolBallType} from 'types/ball';
 //import {MATCH_COUNTDOWN, WEBCAM_BASE_CAMERA_FOLDER} from 'constants/webcam';
 import { NativeModules } from 'react-native';
+import DeviceInfo from 'react-native-device-info';
+import { screens } from 'scenes/screens';
+import {navigate} from 'utils/navigation';
 
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
@@ -672,10 +675,30 @@ const GamePlayViewModel = () => {
     if (isStarted) {
       return;
     }
+  
+    const freeDisk = await DeviceInfo.getFreeDiskStorage() / (1024 * 1024 * 1024); // Convert to GB
 
-    setIsStarted(true);
-    await startVideoRecording()
+    console.log("Free disk storae " + freeDisk)
 
+    if(freeDisk <= 10){
+      Alert.alert(i18n.t('txtwarn'), i18n.t('msgOutOfMemory'), [
+        {
+          text: i18n.t('txtCancel'),
+          style: 'cancel',
+        },
+        {
+          text: i18n.t('btnHistory'),
+          onPress: () => {
+            navigate(screens.history);
+
+          },
+        },
+      ]);
+    } else {
+      setIsStarted(true);
+      await startVideoRecording()
+    }
+    
   }, [isStarted]);
 
   const onToggleCountDown = useCallback(() => {
@@ -820,58 +843,6 @@ const GamePlayViewModel = () => {
 
     setIsRecording(pre => !pre);
   };
-
-  // const pauseVideoRecording = async () => {
-
-  //   if(!cameraRef.current) return;
-  //   try {
-  //     console.log('pause recording...');
-  //     await cameraRef.current?.pauseRecording();
-
-  //   //  await getLatestCachedVideo();
-
-  //   } catch (error) {
-  //     console.error('Failed to stop recording:', error);
-  //   }
-  // };
-
-  // const resumeVideoRecording = async () => {
-  //   try {
-  //     console.log('resume recording...');
-  //     await cameraRef.current?.resumeRecording();
-  //   } catch (error) {
-  //     console.error('Failed to stop recording:', error);
-  //   }
-  // };
-
-  // const getLatestCachedVideo = async () => {
-  //   try {
-  //     const cacheDir = RNFS.TemporaryDirectoryPath; // Path to cache directory
-  //     const files = await RNFS.readDir(cacheDir); // Get all files in the cache
-
-  //     if (files.length === 0) {
-  //       console.log('No files in the cache directory.');
-  //       return;
-  //     }
-
-  //     // Sort files by modification time (most recent first)
-  //     const sortedFiles = files
-  //       .filter((file: ReadDirItem) => file.name.endsWith('.mov')).sort((a, b) => b.mtime!.getTime() - a.mtime!.getTime());
-
-
-  //     if (sortedFiles.length > 0) {
-
-  //       console.log("set video url " + `file:/${sortedFiles[0].path}`);
-
-  //       setVideoUri(`file://${sortedFiles[0].path}`); // Set the path of the latest video
-  //     } else {
-  //       console.log('No video files found in cache.');
-  //     }
-  //   } catch (error) {
-  //     console.error('Error reading cache files:', error);
-  //   }
-  // };
-
 
   return useMemo(() => {
     return {

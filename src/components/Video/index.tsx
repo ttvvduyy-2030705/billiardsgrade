@@ -19,12 +19,12 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
     ToastAndroid.show('Camera không trợ zoom!', ToastAndroid.SHORT);
   };
   const viewModel = VideoViewModel(props);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const device = useCameraDevice('front');
 
   const [zoom, setZoom] = useState(0); // Initial zoom level
   const maxZoom = device?.maxZoom ?? 1;
-
 
   const handlePinchGesture = (event: any) => {
     if (device) {
@@ -37,7 +37,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
     { videoResolution: { width: 1280, height: 720 } }
   ])
 
-  
+
 
   const WEBCAM_LOADER = useMemo(() => {
     if (props.loadingDisabled) {
@@ -67,7 +67,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
             video={true}
             format={format}
             zoom={zoom}
-          
+            onInitialized={() => setIsCameraReady(true)} // ✅ Set the camera as ready
             /> ): (
               <ImageBackground
                 source={images.logoPhuQuoc} // Replace with your image URL or local asset

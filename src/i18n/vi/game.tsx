@@ -70,6 +70,9 @@ const game = {
   msgWebcamIntro: 'Webcam sẽ khởi chạy trong {{second}} giây',
   decreaseTotalTurns: 'Trừ lượt',
   increaseTotalTurns: 'Tăng lượt',
+  msgOutOfMemory:'Bộ nhớ không đủ ít nhất 10GB. làm ơn xoá lịch sử trận đấu khác',
+  txtwarn:'Cảnh báo!',
+  btnHistory: 'Đi tới lịch sử',
 
   //Pool
   ball1: 'một',
