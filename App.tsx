@@ -38,7 +38,7 @@ import RemoteControl from 'utils/remote';
 import {logEvent, sendUserId} from 'services/firebase/analytics';
 import {initRemoteConfig} from 'services/firebase/remote-config';
 import analyticsKeys from 'services/firebase/analytics/keys';
-// import {BLEService} from 'utils/bluetooth';
+import { Camera } from 'react-native-vision-camera';
 
 GoogleSignin.configure({
   scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
@@ -49,6 +49,14 @@ GoogleSignin.configure({
 const App = (): React.JSX.Element => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('vi');
+
+  useEffect(() => {
+    async function requestPermissions() {
+      const cameraStatus = await Camera.requestCameraPermission();
+      const micStatus = await Camera.requestMicrophonePermission();
+    }
+    requestPermissions();
+  }, []);
 
 
   useEffect(() => {

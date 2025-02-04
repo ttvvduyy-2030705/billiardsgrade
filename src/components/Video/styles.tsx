@@ -35,6 +35,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', // Center content vertically
     alignItems: 'center', // Center content horizontally
   },
+  preview: { flex: 1 },
 });
 
 export default styles;

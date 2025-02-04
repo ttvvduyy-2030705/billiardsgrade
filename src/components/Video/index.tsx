@@ -37,8 +37,6 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
     { videoResolution: { width: 1280, height: 720 } }
   ])
 
-
-
   const WEBCAM_LOADER = useMemo(() => {
     if (props.loadingDisabled) {
       return undefined;
@@ -67,6 +65,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
             video={true}
             format={format}
             zoom={zoom}
+            videoStabilizationMode="standard"
             onInitialized={() => setIsCameraReady(true)} // ✅ Set the camera as ready
             /> ): (
               <ImageBackground
