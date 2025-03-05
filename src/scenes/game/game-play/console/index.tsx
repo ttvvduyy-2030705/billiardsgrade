@@ -257,23 +257,25 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             ) : (
               <View flex={props.totalPlayers === 5 ? '0' : '1'}>
                 <GameInfo
-                  isStarted={props.isStarted}
-                  webcamFolderName={props.webcamFolderName}
-                  goal={props.goal}
-                  totalTurns={props.totalTurns}
-                  totalPlayers={props.totalPlayers}
-                  currentMode={props.currentMode}
-                  gameSettings={props.gameSettings}
-                  onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
-                  //renderMatchInfo={props.renderMatchInfo}
-                  updateWebcamFolderName={props.updateWebcamFolderName}
-                  onIncreaseTotalTurns = {props.onIncreaseTotalTurns}
-                  onDecreaseTotalTurns = {props.onDecreaseTotalTurns}
-                  onSwapPlayers = {props.onSwapPlayers}
-                  isPaused ={props.isPaused}
-                  setIsCameraReady={props.setIsCameraReady}
-                  isCameraReady={props.isCameraReady}
-                />
+                  
+                    isStarted={props.isStarted}
+                    webcamFolderName={props.webcamFolderName}
+                    goal={props.goal}
+                    totalTurns={props.totalTurns}
+                    totalPlayers={props.totalPlayers}
+                    currentMode={props.currentMode}
+                    gameSettings={props.gameSettings}
+                    onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+                    //renderMatchInfo={props.renderMatchInfo}
+                    updateWebcamFolderName={props.updateWebcamFolderName}
+                    onIncreaseTotalTurns={props.onIncreaseTotalTurns}
+                    onDecreaseTotalTurns={props.onDecreaseTotalTurns}
+                    onSwapPlayers={props.onSwapPlayers}
+                    isPaused={props.isPaused}
+                    setIsCameraReady={props.setIsCameraReady}
+                    isCameraReady={props.isCameraReady}
+                    cameraRef={props.cameraRef}
+                    />
               </View>
             )}
             {/* doi bi */}

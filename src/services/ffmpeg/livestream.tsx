@@ -56,9 +56,9 @@ const liveStreamFromCamera = async (
   countdownEnabled?: boolean,
   category?: BilliardCategory,
 ) => {
-  // const folderPath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}`;
-  // const matchImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_IMAGE}`;
-  // const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
+  const folderPath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}`;
+  const matchImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_IMAGE}`;
+  const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
 
   // const isFolderExist = await RNFS.exists(folderPath);
 
@@ -66,44 +66,44 @@ const liveStreamFromCamera = async (
   //  // await RNFS.mkdir(folderPath);
   // }
 
-  // const countdownPosition = isCaromGame(category)
-  //   ? '90:(H-h)-68'
-  //   : '(W-w)/2:(H-h)-50';
-  // const boardPosition = isCaromGame(category)
-  //   ? '90:(H-h)-85'
-  //   : '(W-w)/2:(H-h)-85';
-  // const boardScale = isCaromGame(category)
-  //   ? '[1:v]scale=360:-1[matchScale];[flipped][matchScale]'
-  //   : '[flipped][1]';
-  // const countdownScale = isCaromGame(category)
-  //   ? 'scale=360:18'
-  //   : 'scale=620:35';
-  // const showThumbnailsOnLiveStream =
-  //   (await AsyncStorage.getItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM)) === '1';
-  // const videoAndMatchInfo = `-y -video_size 1920x1080 -thread_queue_size 60 -input_queue_size 720 -f android_camera -framerate ${liveStream?.fps} -i 0 -f image2 -stream_loop -1 -framerate 1 -r 1 -i ${matchImagePath}`;
-  // const audioAndOutput = `-f lavfi -r 1 -i anullsrc \
-  //     -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -tune zerolatency -preset ultrafast -b:v ${liveStream?.bitrate} -maxrate 18000k -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
+  const countdownPosition = isCaromGame(category)
+    ? '90:(H-h)-68'
+    : '(W-w)/2:(H-h)-50';
+  const boardPosition = isCaromGame(category)
+    ? '90:(H-h)-85'
+    : '(W-w)/2:(H-h)-85';
+  const boardScale = isCaromGame(category)
+    ? '[1:v]scale=360:-1[matchScale];[flipped][matchScale]'
+    : '[flipped][1]';
+  const countdownScale = isCaromGame(category)
+    ? 'scale=360:18'
+    : 'scale=620:35';
+  const showThumbnailsOnLiveStream =
+    (await AsyncStorage.getItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM)) === '1';
+  const videoAndMatchInfo = `-y -video_size 1920x1080 -thread_queue_size 60 -input_queue_size 720 -f android_camera -framerate ${liveStream?.fps} -i 0 -f image2 -stream_loop -1 -framerate 1 -r 1 -i ${matchImagePath}`;
+  const audioAndOutput = `-f lavfi -r 1 -i anullsrc \
+      -f flv -drop_pkts_on_overflow 1 -attempt_recovery 1 -recover_any_error 1 -tune zerolatency -preset ultrafast -b:v ${liveStream?.bitrate} -maxrate 18000k -bufsize 24000k ${liveStream?.rtmpUrl}/${liveStream?.streamKey}`;
 
-  // let overlayInput = `-i ${matchCountdownImagePath}`;
-  // let overlayFilter = `-filter_complex "scale=iw*${liveStream?.resolution}:-1:flags=neighbor+bitexact+accurate_rnd+full_chroma_int+full_chroma_inp,hflip[flipped];${boardScale}overlay=${boardPosition}[img1];[2:v]${countdownScale}[img2];[img1][img2]overlay=${countdownPosition}`;
-  // let filterComplex = '-f image2 -stream_loop -1 -framerate 1 -r 1';
+  let overlayInput = `-i ${matchCountdownImagePath}`;
+  let overlayFilter = `-filter_complex "scale=iw*${liveStream?.resolution}:-1:flags=neighbor+bitexact+accurate_rnd+full_chroma_int+full_chroma_inp,hflip[flipped];${boardScale}overlay=${boardPosition}[img1];[2:v]${countdownScale}[img2];[img1][img2]overlay=${countdownPosition}`;
+  let filterComplex = '-f image2 -stream_loop -1 -framerate 1 -r 1';
 
-  // if (showThumbnailsOnLiveStream) {
-  //   const result = _buildThumbnailUrls();
-  //   overlayInput = `${overlayInput} ${result.inputUrl}`;
-  //   overlayFilter = `${overlayFilter}${result.filterUrl}"`;
-  // } else {
-  //   overlayFilter = `${overlayFilter}"`;
-  // }
+  if (showThumbnailsOnLiveStream) {
+    const result = _buildThumbnailUrls();
+    overlayInput = `${overlayInput} ${result.inputUrl}`;
+    overlayFilter = `${overlayFilter}${result.filterUrl}"`;
+  } else {
+    overlayFilter = `${overlayFilter}"`;
+  }
 
   // filterComplex = `${filterComplex} ${overlayInput} ${overlayFilter}`;
 
   // if (webcamType === WebcamType.camera) {
-  //   FFmpegKit.executeAsync(
-  //     `${videoAndMatchInfo} \
-  //     ${countdownEnabled ? filterComplex : '-filter_complex "hflip"'} \
-  //     ${audioAndOutput}`,
-  //   );
+    FFmpegKit.executeAsync(
+      `${videoAndMatchInfo} \
+      ${countdownEnabled ? filterComplex : '-filter_complex "hflip"'} \
+      ${audioAndOutput}`,
+    );
   //   return;
   // }
 
