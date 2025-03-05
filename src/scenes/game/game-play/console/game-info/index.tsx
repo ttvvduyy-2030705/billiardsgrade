@@ -23,7 +23,9 @@ interface Props {
   onIncreaseTotalTurns: () => void;
   onDecreaseTotalTurns: () => void;
   onSwapPlayers : () => void;
-  isPaused: boolean
+  isPaused: boolean,
+  isCameraReady: boolean;
+  setIsCameraReady: ((isReady: boolean) => void);
 }
 
 const GameInfo = (props: Props) => {
@@ -111,6 +113,8 @@ const GameInfo = (props: Props) => {
             updateWebcamFolderName={props.updateWebcamFolderName}
             isStarted={props.isStarted}
             isPaused={props.isPaused}
+            setIsCameraReady={props.setIsCameraReady}
+            isCameraReady={props.isCameraReady}
           />
       ) : (
         <View />

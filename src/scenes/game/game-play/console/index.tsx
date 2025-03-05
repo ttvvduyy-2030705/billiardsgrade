@@ -141,8 +141,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               />
             ) : props.totalPlayers < 5 || props.currentMode?.mode === 'fast' ? (
               <Webcam
-              setIsCameraReady={props.setIsCameraReady}
-              isCameraReady={props.isCameraReady}
+                setIsCameraReady={props.setIsCameraReady}
+                isCameraReady={props.isCameraReady}
                 webcamFolderName={props.webcamFolderName}
                // enderMatchInfo={props.renderMatchInfo}
                 updateWebcamFolderName={props.updateWebcamFolderName}
@@ -271,6 +271,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                   onDecreaseTotalTurns = {props.onDecreaseTotalTurns}
                   onSwapPlayers = {props.onSwapPlayers}
                   isPaused ={props.isPaused}
+                  setIsCameraReady={props.setIsCameraReady}
+                  isCameraReady={props.isCameraReady}
                 />
               </View>
             )}

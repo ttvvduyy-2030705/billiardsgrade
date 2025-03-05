@@ -11,9 +11,6 @@ import Video from 'components/Video';
 import images from 'assets';
 import i18n from 'i18n';
 
-import colors from 'configuration/colors';
-import {OutputType} from 'types/webcam';
-
 import WebCamViewModel, {Props} from './WebCamViewModel';
 import styles from './styles';
 import {ImageBackground } from 'react-native';
