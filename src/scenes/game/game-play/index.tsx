@@ -257,7 +257,9 @@ const GamePlay = () => {
           onResetTurn={viewModel.onResetTurn}
           updateWebcamFolderName={viewModel.updateWebcamFolderName}
           cameraRef={viewModel.cameraRef}
-          />
+          isCameraReady={viewModel.isCameraReady}
+          setIsCameraReady={viewModel.setIsCameraReady}
+           />
         {renderPlayers(
           1,
           viewModel.playerSettings.playingPlayers[3] ? 3 : undefined,

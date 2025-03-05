@@ -10,6 +10,8 @@ apply plugin: 'com.google.firebase.crashlytics'
  */
 react {
     autolinkLibrariesWithApp()
+
+
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '..'
     // root = file("../")
@@ -128,6 +130,7 @@ dependencies {
     // implementation 'com.google.android:camerax-camera2:1.2.2'
     // implementation 'com.google.android:camerax-lifecycle:1.2.2'
     //implementation project(path: ':react-native-camera', configuration: 'mlkit')
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
@@ -136,5 +139,9 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+project.ext.react = [
+    enableHermes: true
+]
 
 // apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)

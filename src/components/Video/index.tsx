@@ -1,7 +1,7 @@
 import React, {memo, useMemo, forwardRef, useState, useEffect, RefObject, useRef} from 'react';
-import {Video, VideoRef} from 'react-native-video';
+import {Orientation, Video, VideoRef} from 'react-native-video';
 import {Gesture, GestureDetector, GestureHandlerRootView} from 'react-native-gesture-handler';
-import RNAnimated from 'react-native-reanimated';
+import RNAnimated, { runOnJS, runOnUI } from 'react-native-reanimated';
 import Loading from 'components/Loading';
 import View from 'components/View';
 import VideoViewModel, {Props} from './VideoViewModel';
@@ -10,22 +10,20 @@ import colors from 'configuration/colors';
 import { WEBCAM_SELECTED_VIDEO_TRACK } from 'constants/webcam';
 import { Fps, WebcamType } from 'types/webcam';
 import { PinchGestureHandler } from 'react-native-gesture-handler';
-import { Alert, ImageBackground, ToastAndroid } from 'react-native';
+import {  ImageBackground, ToastAndroid } from 'react-native';
 import images from 'assets';
-import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera';
+import { Camera, Frame, useCameraDevice, useCameraFormat, useFrameProcessor, VisionCameraProxy } from 'react-native-vision-camera';
+import { Worklets }from 'react-native-worklets-core';
 
 const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
   const showToast = () => {
     ToastAndroid.show('Camera không trợ zoom!', ToastAndroid.SHORT);
   };
   const viewModel = VideoViewModel(props);
-  const [isCameraReady, setIsCameraReady] = useState(false);
-
- const devices = Camera.getAvailableCameraDevices(); 
 
   const device = useCameraDevice('front');
 
-  console.log("device" + JSON.stringify(device));
+ // console.log("device" + JSON.stringify(device));
 
   const [zoom, setZoom] = useState(0); // Initial zoom level
   const maxZoom = device?.maxZoom ?? 1;
@@ -36,26 +34,24 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
       setZoom(newZoom);
     }
   };
-  
+
+  const processFrame = (frame: any) => {
+    // Here, you can apply AI processing, filters, etc.g
+
+    console.log('Frame received:', frame);
+  };
+
+  const processFrameJS = Worklets.createRunOnJS(processFrame);
+
+  const frameProcessor = useFrameProcessor((frame: Frame) => {
+    'worklet';
+    //console.log(`Processing frame: ${frame.width}x${frame.height}`);
+    //runOnJS(processFrameJS)
+  }, []);
+
   const format = useCameraFormat(device, [
-    { videoResolution: { width: 1280, height: 720 } }
+    { videoResolution: { width: 2550, height: 1440 } }
   ])
-
-  const WEBCAM_LOADER = useMemo(() => {
-    if (props.loadingDisabled) {
-      return undefined;
-    }
-
-    return (
-      <View
-        flex={'1'}
-        style={styles.loading}
-        alignItems={'center'}
-        justify={'center'}>
-        <Loading isLoading size={'large'} showPlainLoading />
-      </View>
-    );
-  }, [props]);
 
   return (
     <GestureDetector  gesture={viewModel.gestureComposed}>
@@ -72,14 +68,20 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<VideoRef>) => {
             videoStabilizationMode="standard"
             enableZoomGesture={true}
             //enableFpsGraph={true}
+            //frameProcessor={frameProcessor}
+            //outputOrientation='preview'
+            fps={30}
             enableDepthData
-            onInitialized={() => setIsCameraReady(true)} // ✅ Set the camera as ready
+            pixelFormat="yuv"
+            onInitialized={() => props.setIsCameraReady(true)} // ✅ Set the camera as ready
+            onStopped={() => props.setIsCameraReady(false)}
+            onStarted={() => props.setIsCameraReady(true)}
             /> ): (
               <ImageBackground
                 source={images.logoclb} // Replace with your image URL or local asset
                 style={styles.background}
                 resizeMode="stretch">
-                </ImageBackground> 
+                </ImageBackground>
             ) }
           </PinchGestureHandler>
      </RNAnimated.View>

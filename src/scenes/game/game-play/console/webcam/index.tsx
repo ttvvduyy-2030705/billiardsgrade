@@ -64,6 +64,7 @@ const WebCam = (props: Props) => {
                 isStarted={props.isStarted}
                 videoUri={props.videoUri}
                 webcamType={viewModel.webcamType!}
+                setIsCameraReady={props.setIsCameraReady}
               />
               {/* {props.renderMatchInfo()} */}
             </View>) : (

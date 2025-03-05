@@ -56,7 +56,35 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   video: { width: '90%', height: 300 },
   label: { marginTop: 10, fontSize: 16 },
-  slider: { width: 150, marginTop: 10 },
+  slider: { width: 150, marginTop: 10, alignItems:'center' },
+  controls: { flexDirection: 'row', marginTop: 10 },
+  itemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    //padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    marginLeft: 50
+  },
+  selectITem: {
+   borderColor: colors.deepGray
+  },
+  unselectItem: {
+    borderColor: colors.white
+   },
+  thumbnail: {
+    width: 120,
+    height: 90,
+    borderRadius: 8,
+  },
+  details: {
+    alignItems: 'center'
+  },
+  duration: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color:  colors.black
+  },
 });
 
 export default styles;

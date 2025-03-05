@@ -60,6 +60,8 @@ export interface Props {
   //resumeVideoRecording?: () => void,
   //stopVideoRecording?: () => void,
   setVideoUri?: (name: string) => void;
+  isCameraReady: boolean;
+  setIsCameraReady: ((isReady: boolean) => void);
 }
 
 let interval: NodeJS.Timeout, cameraInterval: NodeJS.Timeout;

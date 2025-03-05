@@ -39,6 +39,7 @@ export interface Props {
   isPreview?: boolean;
   videoUri?:  string;
   webcamType : string;
+  setIsCameraReady: ((isReady: boolean) => void);
 }
 
 const VideoViewModel = (props: Props) => {
@@ -201,7 +202,6 @@ const VideoViewModel = (props: Props) => {
       onEnd,
       onError,
       webcamType,
-      
     };
   }, [
     pinch,
@@ -217,6 +217,7 @@ const VideoViewModel = (props: Props) => {
     onEnd,
     onError,
     webcamType,
+    props.setIsCameraReady,
   ]);
 };
 

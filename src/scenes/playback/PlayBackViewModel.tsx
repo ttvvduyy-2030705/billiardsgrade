@@ -1,16 +1,18 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Alert} from 'react-native';
+import {Alert, NativeModules} from 'react-native';
 import {OnVideoErrorData, VideoRef} from 'react-native-video';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
-import {mergeVideoFiles, getFiles} from 'services/ffmpeg/local';
+import {getFiles} from 'services/ffmpeg/local';
 import i18n from 'i18n';
+import { NetworkInfo } from 'react-native-network-info';
+
+const { HttpServer } = NativeModules;
 
 export interface PlayBackWebcamViewModelProps {
   webcamFolderName: string;
   merged: boolean;
   videoUri?: string;
-
 }
 
 const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
@@ -20,19 +22,63 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
   const [selectedDurationIndex, setSelectedDurationIndex] = useState<number>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [videoDurations, setVideoDurations] = useState<any>({}); // Store duration per file
-  const [videoFiles, setVideoFiles] = useState<string[]>([]);
+  const [videoFiles, setVideoFiles] = useState<RNFS.ReadDirItem[]>([]);
   const [startTime, setStartTime] = useState(0); // Start time in seconds
   const [endTime, setEndTime] = useState(0); // End time in seconds
+
   const handleVideoLoad = (videoUri: any, duration: any) => {
     setVideoDurations((prev: any) => ({ ...prev, [videoUri]: duration }));
   };
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  // const [ip, setIp] = useState("");
 
+
+  // useEffect(() => {
+  //   NetworkInfo.getIPAddress().then(ipAddress => {
+  //     console.log("IP Address:", ipAddress);
+
+  //     if(ipAddress){
+  //       setIp(ipAddress);
+  //     }
+  //   });
+  // }, []);
+  
+  const [fileUrl, setFileUrl] = useState<string>();
+
+  const handleNext = () => {
+    if (currentIndex < videoFiles.length - 1) {
+      if (videoRef.current) {
+        videoRef.current.seek(0)
+      }
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  // const startServer = async (filePath: string) => {
+  //   try {
+
+  //         const url = await HttpServer.startServer(filePath);
+  //         setFileUrl(`http://${ip}:8000`);
+    
+  //   } catch (error: any) {
+  //     Alert.alert("Error", error);
+  //   }
+  // };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
 
   const handleLoad = () => {
     videoRef.current?.seek(startTime);
+    videoRef.current?.resume();
+
   };
+
 
   // Stop the video at the specified end time
   const handleProgress = (data: any) => {
@@ -42,18 +88,10 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
     }
   };
 
-  const startPlayback = () => {
-    if (videoRef.current) {
-      videoRef.current.seek(startTime);
-      setIsPlaying(true);
-    }
-  };
-
   useEffect(() => {
     const folder = `${RNFS.DownloadDirectoryPath}/${props.webcamFolderName}`;
-
     RNFS.exists(folder).then(
-     isExist => {
+     async isExist => {
         if (!isExist) {
 
           console.log("File is not Exit " + folder);
@@ -61,67 +99,46 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
           return;
         }
 
-        // const files = await getFiles(props.webcamFolderName);
+        //const files = await getFiles(props.webcamFolderName);
 
-        // if(files && files?.length > 0){
-        //   setWebcamUrl(files[0].path)
+        // if(files){
+        //   setVideoFiles(files)
         // }
 
-        RNFS.readDir(
-          `${RNFS.DownloadDirectoryPath}/${props.webcamFolderName}`,
-        ).then(result => {
+        const files = await getFiles(props.webcamFolderName);
 
-          console.log("Total Files " + result.length);
+        if(files && files.length > 0){
+          setVideoFiles(files)
+          setIsLoading(false)
+          setIsPlaying(true)
 
-          const numOfFiles: number = result.length;
-          setTotalFiles(numOfFiles);
-        });
+          if (videoRef.current) {
+            videoRef.current.seek(0)
+          }
+        }
       },
     );
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ webcamUrl]);
+  }, []);
 
   const onSelectMinuteForWebcam = useCallback(
     async (index: number, duration: number) => {
       setIsLoading(true);
       setSelectedDurationIndex(index);
-      console.log("index " + index);
-
-      console.log("view video");
-
-      if(totalFiles < 2){
-
-        console.log("view video");
-
+      if(totalFiles > 0){
         const files = await getFiles(props.webcamFolderName);
 
-        console.log("file" + JSON.stringify(files));
-        if(files){
-          setWebcamUrl(files[0].path);
-        }
- 
-        setIsLoading(false);
-      } else {
-        if(props.merged){
-          const fullVideoPath = await mergeVideoFiles(props.webcamFolderName)
-  
-          if (!fullVideoPath) {
-            Alert.alert(i18n.t('txtError'), i18n.t('msgWebcamVideoNotExist'));
-            return;
-          }
-          setWebcamUrl(fullVideoPath);
-        }else{
-          const files = await getFiles(props.webcamFolderName);
+        console.log(JSON.stringify(files))
 
-          console.log("file" + JSON.stringify(files));
-          if(files){
-            setWebcamUrl(files[0].path);
-          }
+        if(files){
+          setVideoFiles(files);
+          setIsLoading(false);
+          setIsPlaying(true);
         }
-        
-  
-        setIsLoading(false);
+      }else{
+          Alert.alert(i18n.t('txtError'), i18n.t('msgWebcamVideoNotExist'));
+          return;
       }
 
       setStartTime(duration*60);
@@ -131,7 +148,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
         setIsPlaying(true);
       }
     },
-    [props, totalFiles, webcamUrl],
+    [props, totalFiles, videoFiles],
   );
 
   const onWebcamError = useCallback((e: OnVideoErrorData) => {
@@ -141,15 +158,15 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
   }, []);
 
   const onShareVideo = useCallback(() => {
-    Share.open({url: `file://${webcamUrl}`}).catch(err => {
-      err && console.log(err);
-    });
-    console.log(" " + props.videoUri);
+    // Share.open({url: `file://${webcamUrl}`}).catch(err => {
+    //   err && console.log(err);
+    // });
+    // console.log(" " + props.videoUri);
 
-    Share.open({url: props.videoUri}).catch(err => {
-      err && console.log(err);
-    });
-  }, [webcamUrl]);
+    // Share.open({url: props.videoUri}).catch(err => {
+    //   err && console.log(err);
+    // });
+  }, [videoFiles]);
 
 
   return useMemo(() => {
@@ -157,27 +174,35 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       videoRef,
       isLoading,
       selectedDurationIndex,
-      webcamUrl,
       onSelectMinuteForWebcam,
       onWebcamError,
       onShareVideo,
       handleVideoLoad,
       handleProgress,
       isPlaying,
-      handleLoad
+      handleLoad,
+      handleNext,
+      handlePrevious,
+      videoFiles,
+      currentIndex,
+      setCurrentIndex,
     };
   }, [
     videoRef,
     isLoading,
     selectedDurationIndex,
-    webcamUrl,
     onSelectMinuteForWebcam,
     onWebcamError,
     onShareVideo,
     handleVideoLoad,
     handleProgress,
     isPlaying,
-    handleLoad
+    handleLoad,
+    handleNext,
+    handlePrevious,
+    videoFiles,
+    currentIndex,
+    setCurrentIndex,
   ]);
 };
 

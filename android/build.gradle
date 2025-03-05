@@ -6,10 +6,10 @@ buildscript {
         //targetSdkVersion = 33
         //kotlinVersion = "1.8.0" // Update as required
         buildToolsVersion = "35.0.0"
-        minSdkVersion = 24
+        minSdkVersion = 26
         compileSdkVersion = 35
         targetSdkVersion = 35
-        ndkVersion = "25.2.9519653"
+        ndkVersion = "27.0.12077973"
         kotlinVersion = "1.9.22"
         useExoplayerRtsp = true
         useExoplayerSmoothStreaming = true
@@ -21,7 +21,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.8.0")
+        classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
         classpath 'com.google.gms:google-services:4.4.2'
