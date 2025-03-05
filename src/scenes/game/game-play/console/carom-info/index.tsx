@@ -69,7 +69,7 @@ const CaromInfo = (props: Props) => {
     <View style={styles.container} direction={'row'} marginTop={'10'}>
       <View flex={'1'}>
         <View
-          ref={viewModel.matchRef}
+          //ref={viewModel.matchRef}
           collapsable={false}
           style={styles.countdownContainer}
           direction={'row'}>
@@ -91,7 +91,7 @@ const CaromInfo = (props: Props) => {
         </View>
 
         <View
-          ref={viewModel.matchCountdownRef}
+          //ref={viewModel.matchCountdownRef}
           collapsable={false}
           style={styles.countdownContainer}
           direction={'row'}
