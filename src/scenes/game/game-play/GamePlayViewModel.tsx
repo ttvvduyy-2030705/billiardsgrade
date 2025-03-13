@@ -42,6 +42,7 @@ const GamePlayViewModel = () => {
   const [warmUpCountdownTime, setWarmUpCountdownTime] = useState<number>();
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
   const [winner, setWinner] = useState<Player>();
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const now = gameSettings?.webcamFolderName != null ? gameSettings?.webcamFolderName:  Date.now().toString();
 
@@ -709,17 +710,13 @@ const GamePlayViewModel = () => {
     setIsMatchPaused(prev => !prev);
   }, [isStarted, isPaused]);
 
-  const onPause = useCallback(() => {
+  const onPause = useCallback(async () => {
     if (isPaused) {
-      console.log("pause test countdown top" +isPaused )
       _resetCountdown(true);
-       startVideoRecording();
-       setIsRecording(true)
+      await startVideoRecording();
     } else {
-      console.log("end pause test countdown top"+ isPaused)
-
       clearInterval(countdownInterval);
-      stopVideoRecording();
+      await stopVideoRecording();
     }
 
     setIsPaused(prev => !prev);
@@ -733,7 +730,7 @@ const GamePlayViewModel = () => {
       },
       {
         text: i18n.t('stop'),
-        onPress: () => {
+        onPress: async () => {
           dispatch(
             gameActions.endGame({
               realm,
@@ -746,10 +743,8 @@ const GamePlayViewModel = () => {
             }),
           );
 
-          if(isRecording){
-           stopVideoRecording();
-           setIsRecording(prev => !prev);
-          }
+          await stopVideoRecording();
+
           goBack();
         },
       },
@@ -800,9 +795,6 @@ const GamePlayViewModel = () => {
   ]);
 
   const startVideoRecording = async () => {
-
-     if(isRecording) return;
-
     try {
       const folderPath = `${RNFS.DownloadDirectoryPath}/${webcamFolderName}`;
              if (!(await RNFS.exists(folderPath))) {
@@ -812,36 +804,42 @@ const GamePlayViewModel = () => {
       cameraRef.current?.startRecording({
        // flash: 'on',
         path: `${RNFS.DownloadDirectoryPath}/${webcamFolderName}`,
-        fileType: 'mov',
+        fileType: 'mp4',
         videoCodec:'h265',
         onRecordingFinished: async (video) => {
           console.log('Recording finished:', video);
-        
+          setIsRecording(false)
         },
         onRecordingError: (error) => {
           console.error('Recording error:', error);
+          setIsRecording(false)
+
         },
       });
+
+      setIsRecording(true)
+
     } catch (error) {
       console.error('Failed to start recording:', error);
-    }
-  };
+        setIsRecording(false)
 
-  const getFileName = (filePath: string) => {
-    return filePath.split('/').pop();
+    }
   };
 
   const stopVideoRecording = async () => {
     console.log('Stopping recording...');
-    if(cameraRef.current){
-      try {
-        await cameraRef.current?.stopRecording();
-      } catch (error) {
-        console.error('Failed to stop recording:', error);
-      }
-    }
 
-    setIsRecording(pre => !pre);
+    if(!isRecording)
+      return;
+    
+    try {
+      if(cameraRef.current){
+        await cameraRef.current?.stopRecording();
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      setIsRecording(false);
+    }
   };
 
   return useMemo(() => {
@@ -894,6 +892,8 @@ const GamePlayViewModel = () => {
       onReset,
       onResetTurn,
       cameraRef,
+      setIsCameraReady,
+      isCameraReady
       //isPreview,
       //setIsPreview,
       //pauseVideoRecording,
@@ -952,6 +952,8 @@ const GamePlayViewModel = () => {
     onResetTurn,
     cameraRef,
     isPaused,
+    setIsCameraReady,
+    isCameraReady
     // isPreview,
     // setIsPreview,
     // videoUri,

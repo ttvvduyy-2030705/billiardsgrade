@@ -29,7 +29,7 @@ const HistoryViewModel = () => {
       return;
     }
 
-    navigate(screens.playback, {webcamFolderName, merged: true});
+    navigate(screens.playback, {webcamFolderName, merged: false});
   }, []);
 
   const onDeleteGame = useCallback(

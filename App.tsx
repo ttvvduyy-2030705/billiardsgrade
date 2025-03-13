@@ -35,9 +35,7 @@ import RemoteControl from 'utils/remote';
 
 // Disable frame processors globall
 
-import {logEvent, sendUserId} from 'services/firebase/analytics';
-import {initRemoteConfig} from 'services/firebase/remote-config';
-import analyticsKeys from 'services/firebase/analytics/keys';
+//import {initRemoteConfig} from 'services/firebase/remote-config';
 import { Camera } from 'react-native-vision-camera';
 
 GoogleSignin.configure({
@@ -96,7 +94,7 @@ const App = (): React.JSX.Element => {
 
     //sendUserId(deviceId);
     //logEvent(analyticsKeys.deviceId, {device_id: deviceId});
-    initRemoteConfig();
+   // initRemoteConfig();
 
     const _currentLanguage = await loadLanguage();
     setCurrentLanguage(_currentLanguage);

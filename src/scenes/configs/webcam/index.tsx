@@ -271,7 +271,9 @@ const WebcamConfig = () => {
                   isStarted={false}
                   isPaused={false}
                   isPreview={false}
-                  />
+                  setIsCameraReady={function (isReady: boolean): void {
+                    throw new Error('Function not implemented.');
+                  } }                  />
               </View>
             </View>
           </View>

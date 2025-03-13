@@ -123,6 +123,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               onStart={viewModel.onStart}
               onPause={viewModel.onPause}
               onStop={viewModel.onStop}
+              isCameraReady={props.isCameraReady}
             />
 
             {isCaromGame(props.gameSettings.category) &&
@@ -140,18 +141,14 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               />
             ) : props.totalPlayers < 5 || props.currentMode?.mode === 'fast' ? (
               <Webcam
+                setIsCameraReady={props.setIsCameraReady}
+                isCameraReady={props.isCameraReady}
                 webcamFolderName={props.webcamFolderName}
                // enderMatchInfo={props.renderMatchInfo}
                 updateWebcamFolderName={props.updateWebcamFolderName}
                 cameraRef={props.cameraRef}
                 isPaused={props.isPaused}
                 isStarted={props.isStarted}
-                //isPreview={props.isPreview}
-                //pauseVideoRecording={props.pauseVideoRecording}
-                // videoUri={props.videoUri}
-                // setVideoUri={props.setVideoUri}
-                //resumeVideoRecording={props.resumeVideoRecording}
-                //stopVideoRecording={props.stopVideoRecording}
               />
             ) : (
               <View />
@@ -253,21 +250,25 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             ) : (
               <View flex={props.totalPlayers === 5 ? '0' : '1'}>
                 <GameInfo
-                  isStarted={props.isStarted}
-                  webcamFolderName={props.webcamFolderName}
-                  goal={props.goal}
-                  totalTurns={props.totalTurns}
-                  totalPlayers={props.totalPlayers}
-                  currentMode={props.currentMode}
-                  gameSettings={props.gameSettings}
-                  onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
-                  //renderMatchInfo={props.renderMatchInfo}
-                  updateWebcamFolderName={props.updateWebcamFolderName}
-                  onIncreaseTotalTurns = {props.onIncreaseTotalTurns}
-                  onDecreaseTotalTurns = {props.onDecreaseTotalTurns}
-                  onSwapPlayers = {props.onSwapPlayers}
-                  isPaused ={props.isPaused}
-                />
+                  
+                    isStarted={props.isStarted}
+                    webcamFolderName={props.webcamFolderName}
+                    goal={props.goal}
+                    totalTurns={props.totalTurns}
+                    totalPlayers={props.totalPlayers}
+                    currentMode={props.currentMode}
+                    gameSettings={props.gameSettings}
+                    onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+                    //renderMatchInfo={props.renderMatchInfo}
+                    updateWebcamFolderName={props.updateWebcamFolderName}
+                    onIncreaseTotalTurns={props.onIncreaseTotalTurns}
+                    onDecreaseTotalTurns={props.onDecreaseTotalTurns}
+                    onSwapPlayers={props.onSwapPlayers}
+                    isPaused={props.isPaused}
+                    setIsCameraReady={props.setIsCameraReady}
+                    isCameraReady={props.isCameraReady}
+                    cameraRef={props.cameraRef}
+                    />
               </View>
             )}
             {/* doi bi */}

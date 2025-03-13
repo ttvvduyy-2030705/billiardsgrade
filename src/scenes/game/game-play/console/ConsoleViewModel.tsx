@@ -54,6 +54,8 @@ export interface ConsoleViewModelProps {
   onResetTurn: () => void;
   updateWebcamFolderName: (name: string) => void;
   cameraRef : RefObject<Camera>;
+  isCameraReady: boolean;
+  setIsCameraReady: ((isReady: boolean) => void);
   //isPreview: boolean;
   // videoUri?: string;
   // setVideoUri: (name: string) => void;

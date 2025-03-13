@@ -16,19 +16,7 @@ const DURATION_LIST = [
   {
     title: () => i18n.t('txtMinuteOrder', {minute: 30}),
     value: 30,
-  },
-  {
-    title: () => i18n.t('txtMinuteOrder', {minute: 45}),
-    value: 45,
-  },
-  {
-    title: () => i18n.t('txtMinuteOrder', {minute: 60}),
-    value: 60,
-  },
-  {
-    title: () => i18n.t('txtFullGame'),
-    value: -1,
-  },
+  }
 ];
 
 export {DURATION_LIST};

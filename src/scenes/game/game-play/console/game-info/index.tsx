@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, RefObject, useCallback } from 'react';
 import View from 'components/View';
 import { GameSettings, GameSettingsMode } from 'types/settings';
 import Text from 'components/Text';
@@ -8,6 +8,7 @@ import Button from 'components/Button';
 import { isCaromGame, isPoolGame } from 'utils/game';
 import styles from './styles';
 import Webcam from '../webcam';
+import { Camera } from 'react-native-vision-camera';
 
 interface Props {
   isStarted: boolean;
@@ -23,7 +24,10 @@ interface Props {
   onIncreaseTotalTurns: () => void;
   onDecreaseTotalTurns: () => void;
   onSwapPlayers : () => void;
-  isPaused: boolean
+  isPaused: boolean,
+  isCameraReady: boolean;
+  setIsCameraReady: ((isReady: boolean) => void);
+  cameraRef : RefObject<Camera>;
 }
 
 const GameInfo = (props: Props) => {
@@ -107,10 +111,14 @@ const GameInfo = (props: Props) => {
         props.totalPlayers < 5 &&
         props.currentMode?.mode === 'pro' ? (
         <Webcam
-            webcamFolderName={props.webcamFolderName}
-            updateWebcamFolderName={props.updateWebcamFolderName}
-            isStarted={props.isStarted}
-            isPaused={props.isPaused}
+          setIsCameraReady={props.setIsCameraReady}
+          isCameraReady={props.isCameraReady}
+          webcamFolderName={props.webcamFolderName}
+        // enderMatchInfo={props.renderMatchInfo}
+          updateWebcamFolderName={props.updateWebcamFolderName}
+          cameraRef={props.cameraRef}
+          isPaused={props.isPaused}
+          isStarted={props.isStarted}
           />
       ) : (
         <View />
