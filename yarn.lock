@@ -3079,9 +3079,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@realm/react@npm:0.10.0":
-  version: 0.10.0
-  resolution: "@realm/react@npm:0.10.0"
+"@realm/react@npm:^0.11.0":
+  version: 0.11.0
+  resolution: "@realm/react@npm:0.11.0"
   dependencies:
     "@babel/runtime": ">=7"
     lodash.isequal: ^4.5.0
@@ -3094,7 +3094,7 @@ __metadata:
       optional: true
     react-native:
       optional: true
-  checksum: 6292a8541eb515acddbff48a58879f263e3c611f420447209500ae6b3e0a89066b4c9e8381f6a56f371b66599c5afa354499d66142caabfad9b2ba90836daed9
+  checksum: c520e87cd566da315187ef6f41ec577b75e80f36eeaa2b63679acb2b4e8a81a7250a7a1434abf43f7c4440d592d1abe93299d1b54ec2cafd92348b3f49073f7a
   languageName: node
   linkType: hard
 
@@ -4188,7 +4188,7 @@ __metadata:
     "@react-navigation/native": ^6.1.17
     "@react-navigation/native-stack": ^6.10.0
     "@react-navigation/routers": ^6.1.9
-    "@realm/react": 0.10.0
+    "@realm/react": ^0.11.0
     "@reduxjs/toolkit": ^2.5.0
     "@types/convert-string": ^0.1.3
     "@types/numeral": ^2.0.5
@@ -4232,13 +4232,14 @@ __metadata:
     react-native-tts: ^4.1.1
     react-native-uuid: ^2.0.2
     react-native-video: ^6.5.0
+    react-native-video-trim: ^3.0.2
     react-native-view-shot: ^3.8.0
     react-native-vision-camera: ^4.6.4
     react-native-webrtc: ^124.0.5
     react-native-worklets-core: ^1.5.0
     react-redux: ^9.2.0
     react-test-renderer: 18.2.0
-    realm: ^12.13.1
+    realm: latest
     redux: ^5.0.1
     redux-persist: ^6.0.0
     redux-saga: ^1.3.0
@@ -9962,6 +9963,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-video-trim@npm:^3.0.2":
+  version: 3.0.2
+  resolution: "react-native-video-trim@npm:3.0.2"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 0f97d5670e94f2de87928814e67f11e32b119eea7cf991f671a769140862f35ddb51b59fa9d231eb5e877db6db9913a837523827b6bcbd67596c37b5810af65e
+  languageName: node
+  linkType: hard
+
 "react-native-video@npm:^6.5.0":
   version: 6.10.2
   resolution: "react-native-video@npm:6.10.2"
@@ -10236,7 +10247,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"realm@npm:^12.13.1":
+"realm@npm:latest":
   version: 12.14.1
   resolution: "realm@npm:12.14.1"
   dependencies:

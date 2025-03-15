@@ -1,5 +1,5 @@
 import React, {memo, useEffect, useMemo, useState} from 'react';
-import {Alert, NativeModules, ScrollView} from 'react-native';
+import {Alert, NativeEventEmitter, NativeModules, ScrollView} from 'react-native';
 import Video from 'react-native-video';
 import Container from 'components/Container';
 import View from 'components/View';
@@ -10,6 +10,9 @@ import Image from 'components/Image';
 import images from 'assets';
 import i18n from 'i18n';
 import {goBack} from 'utils/navigation';
+import { showEditor, listFiles, deleteFile } from 'react-native-video-trim';
+import RNFS from 'react-native-fs';
+
 
 const { HttpServer } = NativeModules;
 
@@ -27,7 +30,9 @@ import { NetworkInfo } from 'react-native-network-info';
 
 const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   const viewModel = PlayBackWebcamViewModel(props);
- 
+
+  const folder = `${RNFS.DownloadDirectoryPath}/${props.webcamFolderName}`;
+
   const [playbackRate, setPlaybackRate] = useState(1.0); // Default speed is 1.0 (normal)
 
   const [ip, setIp] = useState("");
@@ -88,6 +93,93 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     viewModel.setCurrentIndex(index);
     await startServer(path)
   };
+
+  const saveTrimmedVideo = async (trimmedVideoPath: string) => {
+    const destinationPath = `${RNFS.DocumentDirectoryPath}/trimmed-video.mp4`;
+  
+    try {
+      await RNFS.moveFile(trimmedVideoPath, destinationPath);
+      console.log('Video saved to:', destinationPath);
+    } catch (error) {
+      console.error('Error saving video:', error);
+    }
+  };
+  const getFileName = (filePath: string) => {
+    return filePath.split('/').pop(); 
+  };
+  
+  const filePath = "/storage/emulated/0/DCIM/Camera/video.mp4";
+  useEffect(() => {
+    const eventEmitter = new NativeEventEmitter(NativeModules.VideoTrim);
+    const subscription = eventEmitter.addListener('VideoTrim', async (event) => {
+      switch (event.name) {
+        case 'onLoad': {
+          // on media loaded successfully
+          console.log('onLoadListener', event);
+          break;
+        }
+        case 'onShow': {
+          console.log('onShowListener', event);
+          break;
+        }
+        case 'onHide': {
+          console.log('onHide', event);
+          break;
+        }
+        case 'onStartTrimming': {
+          console.log('onStartTrimming', event);
+          break;
+        }
+        case 'onFinishTrimming': {
+          console.log('onFinishTrimming', event);
+
+          var files  = await listFiles();
+          for (let index = 0; index < files.length; index++) {
+            
+              try {
+              
+                const fileName =  getFileName(files[index]);
+
+                await RNFS.moveFile(files[index], folder+ "/"+ fileName);
+                console.log('Video saved to:', files[index]);
+
+                await deleteFile(files[index]);
+
+              } catch (error) {
+                console.error('Error saving video:', error);
+              }
+          }
+          console.log(files);
+          
+          break;
+        }
+        case 'onCancelTrimming': {
+          console.log('onCancelTrimming', event);
+          break;
+        }
+        case 'onCancel': {
+          console.log('onCancel', event);
+          break;
+        }
+        case 'onError': {
+          console.log('onError', event);
+          break;
+        }
+        case 'onLog': {
+          console.log('onLog', event);
+          break;
+        }
+        case 'onStatistics': {
+          console.log('onStatistics', event);
+          break;
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   return (
     <Container>
@@ -156,12 +248,37 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
                 onEnd={viewModel.handleNext}   
                 controlsStyles={{hideNext:true, hidePrevious: true, hideForward:true, hideRewind:true}}
               /> 
+
+            {viewModel.videoFiles.length ?  (<Button
+                style={styles.buttonShare}
+                onPress={ () => {
+                  showEditor(viewModel.videoFiles[viewModel.currentIndex].path, {
+                    //maxDuration: viewModel.videoDurations,
+                    type:'video',
+                    trimmingText: "Đang cắt video...",
+                    cancelTrimmingDialogMessage: "Dừng cắt video",
+                    cancelTrimmingButtonText: "Huỷ",
+                    saveDialogConfirmText: "Lưu",
+                    saveDialogTitle:"Bạn có muốn lưu video mới cắt?",
+                    saveButtonText: "Lưu",
+                    saveDialogMessage: "Lưu",
+                    cancelDialogConfirmText: "Huỷ",
+                    openDocumentsOnFinish: false
+                  })
+                }}>
+                <Image source={images.share} style={styles.iconShare} />
+              </Button>) : <View></View>
+              
+            }
+          
+               
+            
+
+
             </>
             ) : (
               <View style={styles.webcam} />
             )}
-
-       
         </View>
       </View>
     </Container>

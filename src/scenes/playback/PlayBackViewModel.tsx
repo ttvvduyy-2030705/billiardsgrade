@@ -15,7 +15,6 @@ export interface PlayBackWebcamViewModelProps {
 const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
   const videoRef = useRef<VideoRef>(null);
   const [totalFiles, setTotalFiles] = useState<number>(0);
-  const [webcamUrl, setWebcamUrl] = useState<string>();
   const [selectedDurationIndex, setSelectedDurationIndex] = useState<number>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [videoDurations, setVideoDurations] = useState<any>({}); // Store duration per file
@@ -137,6 +136,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       videoFiles,
       currentIndex,
       setCurrentIndex,
+      videoDurations
     };
   }, [
     videoRef,
@@ -153,6 +153,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
     videoFiles,
     currentIndex,
     setCurrentIndex,
+    videoDurations
   ]);
 };
 

@@ -731,19 +731,27 @@ const GamePlayViewModel = () => {
       {
         text: i18n.t('stop'),
         onPress: async () => {
-          dispatch(
-            gameActions.endGame({
-              realm,
-              gameSettings: {
-                ...gameSettings,
-                players: playerSettings,
-                totalTime,
-                webcamFolderName,
-              },
-            }),
-          );
 
-          await stopVideoRecording();
+          try {
+            dispatch(
+            
+              gameActions.endGame({
+                realm,
+                gameSettings: {
+                  ...gameSettings,
+                  players: playerSettings,
+                  totalTime,
+                  webcamFolderName,
+                },
+              }),
+            );
+          } catch (error) {
+            console.error(JSON.stringify(error))
+          } 
+          
+          if(isRecording){
+            await stopVideoRecording();
+          }
 
           goBack();
         },
@@ -796,6 +804,9 @@ const GamePlayViewModel = () => {
 
   const startVideoRecording = async () => {
     try {
+
+      setIsRecording(true)
+
       const folderPath = `${RNFS.DownloadDirectoryPath}/${webcamFolderName}`;
              if (!(await RNFS.exists(folderPath))) {
               await RNFS.mkdir(folderPath);
@@ -809,29 +820,24 @@ const GamePlayViewModel = () => {
         onRecordingFinished: async (video) => {
           console.log('Recording finished:', video);
           setIsRecording(false)
+          setIsPaused(true);
         },
         onRecordingError: (error) => {
           console.error('Recording error:', error);
           setIsRecording(false)
-
+          setIsPaused(true);
         },
       });
 
-      setIsRecording(true)
 
     } catch (error) {
       console.error('Failed to start recording:', error);
         setIsRecording(false)
-
     }
   };
 
   const stopVideoRecording = async () => {
     console.log('Stopping recording...');
-
-    if(!isRecording)
-      return;
-    
     try {
       if(cameraRef.current){
         await cameraRef.current?.stopRecording();

@@ -35,7 +35,7 @@ const ButtonsConsole = (props: Props) => {
 
     if (!props.isStarted) {
       return (
-        <Button disable={!props.isCameraReady}
+        <Button
           style={[styles.button, styles.pauseButton]}
           onPress={props.onStart}>
           <Text fontWeight={'bold'} letterSpacing={1.2}>
@@ -46,7 +46,7 @@ const ButtonsConsole = (props: Props) => {
     }
 
     return (
-      <Button disable={!props.isCameraReady}
+      <Button
         style={[styles.button, styles.pauseButton]}
         onPress={props.onPause}>
         <Text fontWeight={'bold'} letterSpacing={1.2}>
