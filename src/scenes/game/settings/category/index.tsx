@@ -7,6 +7,7 @@ import styles from './styles';
 import {BilliardCategory} from 'types/category';
 import {
   GameCountDownTime,
+  GameExtraTimeBonus,
   GameExtraTimeTurns,
   GameMode,
   GameSettingsMode,
@@ -16,6 +17,7 @@ import {CUSHION, LIBRE, POOL} from 'constants/category';
 import colors from 'configuration/colors';
 import {
   GAME_COUNT_DOWN_TIME,
+  GAME_EXTRA_TIME_BONUS,
   GAME_EXTRA_TIME_TURN,
   GAME_MODE,
   GAME_WARM_UP_TIME,
@@ -28,11 +30,13 @@ interface Props {
   extraTimeTurnsEnabled: boolean;
   countdownEnabled: boolean;
   warmUpEnabled: boolean;
+  extraTimeBonusEnabled: boolean;
   onSelectCategory: (_selectedCategory: BilliardCategory) => void;
   onSelectGameMode: (_selectedGameMode: GameMode) => void;
   onSelectExtraTimeTurns: (_selectedExtraTimeTurns: GameExtraTimeTurns) => void;
   onSelectCountdown: (_selectedCountdownTime: GameCountDownTime) => void;
   onSelectWarmUp: (selectedWarmUpTime: GameWarmUpTime) => void;
+  onSelectExtraTimeBonus: (_selectedExtraTimeBonus: GameExtraTimeBonus) => void;
 }
 
 const CategorySettings = (props: Props) => {
@@ -43,11 +47,13 @@ const CategorySettings = (props: Props) => {
     extraTimeTurnsEnabled,
     countdownEnabled,
     warmUpEnabled,
+    extraTimeBonusEnabled,
     onSelectCategory,
     onSelectGameMode,
     onSelectExtraTimeTurns,
     onSelectCountdown,
     onSelectWarmUp,
+    onSelectExtraTimeBonus,
   } = props;
 
   const renderCategoryLine = useCallback(
@@ -131,6 +137,14 @@ const CategorySettings = (props: Props) => {
           GAME_WARM_UP_TIME,
           onSelectWarmUp,
           gameSettingsMode?.warmUpTime,
+          true,
+        )}
+      {extraTimeBonusEnabled &&
+        renderCategoryLine(
+          i18n.t('extraTimeBonus'),
+          GAME_EXTRA_TIME_BONUS,
+          onSelectExtraTimeBonus,
+          gameSettingsMode?.extraTimeBonus || 0,
           true,
         )}
     </View>

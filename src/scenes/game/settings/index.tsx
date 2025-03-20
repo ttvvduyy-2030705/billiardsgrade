@@ -26,11 +26,13 @@ const GameSettings = (props: Props) => {
                 extraTimeTurnsEnabled={viewModel.extraTimeTurnsEnabled}
                 countdownEnabled={viewModel.countdownEnabled}
                 warmUpEnabled={viewModel.warmUpEnabled}
+                extraTimeBonusEnabled={viewModel.extraTimeBonusEnabled}
                 onSelectCategory={viewModel.onSelectCategory}
                 onSelectGameMode={viewModel.onSelectGameMode}
                 onSelectExtraTimeTurns={viewModel.onSelectExtraTimeTurns}
                 onSelectCountdown={viewModel.onSelectCountdown}
                 onSelectWarmUp={viewModel.onSelectWarmUp}
+                onSelectExtraTimeBonus={viewModel.onSelectExtraTimeBonus}
               />
             </ScrollView>
           </View>

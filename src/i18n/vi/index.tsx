@@ -85,6 +85,20 @@ const vi = {
   month: 'tháng',
   year: 'năm',
 
+  //Playback
+  trimmingText: 'Đang cắt video...',
+  cancelTrimmingDialogMessage: 'Dừng cắt video?',
+  cancelTrimmingButtonText: 'Huỷ',
+  saveDialogConfirmText: 'Lưu',
+  saveDialogTitle: 'Bạn có muốn lưu video mới cắt?',
+  saveButtonText: 'Lưu',
+  saveDialogMessage: 'Lưu video mới cắt?',
+  cancelDialogConfirmText: 'Huỷ',
+  openDocumentsOnFinish: false,
+  cancelButtonText: 'Đóng',
+  cancelTrimmingDialogCancelText: 'Bạn có muốn huỷ cắt video?',
+  cancelDialogCancelText: 'Đóng',
+  cancelDialogMessage: 'Bạn có muốn huỷ cắt video?',
 };
 
 export default vi;

@@ -6,6 +6,7 @@ const game = {
   extraTimeTurns: 'Lượt thêm giờ',
   countdown: 'Đếm ngược',
   warmUp: 'Khởi động',
+  extraTimeBonus: 'Thời gian cộng thêm',
   player: 'Người chơi',
   'one-cushion': '1 băng',
   'three-cusion': '3 băng',
@@ -24,6 +25,10 @@ const game = {
   t3: 3,
   t4: 4,
   infinity: 'Không giới hạn',
+  s0: '0s',
+  s10: '10s',
+  s20: '20s',
+  s25: '25s',
   s30: '30s',
   s35: '35s',
   s40: '40s',
@@ -70,8 +75,9 @@ const game = {
   msgWebcamIntro: 'Webcam sẽ khởi chạy trong {{second}} giây',
   decreaseTotalTurns: 'Trừ lượt',
   increaseTotalTurns: 'Tăng lượt',
-  msgOutOfMemory:'Bộ nhớ không đủ ít nhất 10GB. làm ơn xoá lịch sử trận đấu khác',
-  txtwarn:'Cảnh báo!',
+  msgOutOfMemory:
+    'Bộ nhớ không đủ ít nhất 10GB. làm ơn xoá lịch sử trận đấu khác',
+  txtwarn: 'Cảnh báo!',
   btnHistory: 'Đi tới lịch sử',
 
   //Pool

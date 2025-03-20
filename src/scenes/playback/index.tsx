@@ -1,5 +1,13 @@
 import React, {memo, useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, Animated, Dimensions, NativeEventEmitter, NativeModules, Pressable, ScrollView} from 'react-native';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  NativeEventEmitter,
+  NativeModules,
+  Pressable,
+  ScrollView,
+} from 'react-native';
 import Container from 'components/Container';
 import View from 'components/View';
 import Button from 'components/Button';
@@ -9,27 +17,33 @@ import Image from 'components/Image';
 import images from 'assets';
 import i18n from 'i18n';
 import {goBack} from 'utils/navigation';
-import { showEditor, listFiles, deleteFile } from 'react-native-video-trim';
+import {showEditor, listFiles, deleteFile} from 'react-native-video-trim';
 import RNFS from 'react-native-fs';
 
+const {HttpServer} = NativeModules;
 
-const { HttpServer } = NativeModules;
+import {WEBCAM_SELECTED_VIDEO_TRACK} from 'constants/webcam';
 
-import {
-  WEBCAM_SELECTED_VIDEO_TRACK,
-} from 'constants/webcam';
-
-import PlayBackWebcamViewModel, {PlayBackWebcamViewModelProps} from './PlayBackViewModel';
+import PlayBackWebcamViewModel, {
+  PlayBackWebcamViewModelProps,
+} from './PlayBackViewModel';
 import styles from './styles';
 import Slider from '@react-native-community/slider';
 import VideoListItem from './videoListItem';
 import QRCode from 'react-native-qrcode-svg';
-import { NetworkInfo } from 'react-native-network-info';
-import { Gesture, GestureDetector, PinchGestureHandler } from 'react-native-gesture-handler';
-import { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { Video } from 'react-native-video';
-import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
-
+import {NetworkInfo} from 'react-native-network-info';
+import {
+  Gesture,
+  GestureDetector,
+  PinchGestureHandler,
+} from 'react-native-gesture-handler';
+import {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import {Video} from 'react-native-video';
+import {ReactNativeZoomableView} from '@openspacelabs/react-native-zoomable-view';
 
 const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   const viewModel = PlayBackWebcamViewModel(props);
@@ -38,34 +52,32 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   const [playbackRate, setPlaybackRate] = useState(1.0); // Default speed is 1.0 (normal)
 
-  const [ip, setIp] = useState("");
+  const [ip, setIp] = useState('');
   const [fileUrl, setFileUrl] = useState<string>();
 
   useEffect(() => {
     NetworkInfo.getIPAddress().then(ipAddress => {
-      if(ipAddress){
+      if (ipAddress) {
         setIp(ipAddress);
       }
     });
   }, []);
 
   useEffect(() => {
-   if(viewModel.videoFiles.length > 0)
-   {
-    startServer(viewModel.videoFiles[0].path);
-   }
+    if (viewModel.videoFiles.length > 0) {
+      startServer(viewModel.videoFiles[0].path);
+    }
   }, [viewModel.videoFiles]);
 
   const startServer = async (filePath: string) => {
     try {
-         stopServer()
+      stopServer();
 
-          const url = await HttpServer.startServer(filePath);
+      const url = await HttpServer.startServer(filePath);
 
-          console.log(url);
+      console.log(url);
 
-          setFileUrl(`http://${ip}:8000`+ filePath);
-    
+      setFileUrl(`http://${ip}:8000` + filePath);
     } catch (error: any) {
       //Alert.alert("Error", error);
     }
@@ -74,7 +86,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   const stopServer = async () => {
     try {
       await HttpServer.stopServer();
-      setFileUrl("");
+      setFileUrl('');
     } catch (error: any) {
       //Alert.alert("Error", error);
     }
@@ -94,46 +106,46 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   const onPress = async (index: number, path: string) => {
     viewModel.setCurrentIndex(index);
-    await startServer(path)
+    await startServer(path);
   };
 
   const getFileName = (filePath: string) => {
-    return filePath.split('/').pop(); 
+    return filePath.split('/').pop();
   };
-  
-    const scale = useSharedValue(1); // Default scale
-    const doubleTapZoom = 2; // Zoom level for double-tap
-    const maxZoom = 128; // Max pinch zoom level
-    const minZoom = 1; // Minimum zoom level
-  
-    // Pinch Gesture for Smooth Zooming
-    const pinchGesture = Gesture.Pinch()
-    .onUpdate((event) => {
+
+  const scale = useSharedValue(1); // Default scale
+  const doubleTapZoom = 2; // Zoom level for double-tap
+  const maxZoom = 128; // Max pinch zoom level
+  const minZoom = 1; // Minimum zoom level
+
+  // Pinch Gesture for Smooth Zooming
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate(event => {
       scale.value = Math.max(minZoom, Math.min(event.scale, maxZoom)); // Clamp zoom level
 
-      console.log("pinch" , scale.value)
+      console.log('pinch', scale.value);
     })
     .onEnd(() => {
       if (scale.value < minZoom) {
         scale.value = withSpring(minZoom); // Reset to default zoom if too small
       }
     });
-    // Double Tap Gesture for Quick Zoom In/Out
-    const doubleTapGesture = Gesture.Tap()
-      .numberOfTaps(2)
-      .onEnd(() => {
-        scale.value = scale.value === 1 ? withSpring(doubleTapZoom) : withSpring(1);
-      });
+  // Double Tap Gesture for Quick Zoom In/Out
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value =
+        scale.value === 1 ? withSpring(doubleTapZoom) : withSpring(1);
+    });
 
-    // Apply Animated Zoom Effect
-    const animatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: scale.value }],
-    }));
-
+  // Apply Animated Zoom Effect
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{scale: scale.value}],
+  }));
 
   useEffect(() => {
     const eventEmitter = new NativeEventEmitter(NativeModules.VideoTrim);
-    const subscription = eventEmitter.addListener('VideoTrim', async (event) => {
+    const subscription = eventEmitter.addListener('VideoTrim', async event => {
       switch (event.name) {
         case 'onLoad': {
           // on media loaded successfully
@@ -155,19 +167,18 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
         case 'onFinishTrimming': {
           console.log('onFinishTrimming', event);
 
-          var files  = await listFiles();
+          var files = await listFiles();
           for (let index = 0; index < files.length; index++) {
-              try {
-                const fileName =  getFileName(files[index]);
+            try {
+              const fileName = getFileName(files[index]);
 
-                await RNFS.moveFile(files[index], folder+ "/"+ fileName);
-                console.log('Video saved to:', files[index]);
+              await RNFS.moveFile(files[index], folder + '/' + fileName);
+              console.log('Video saved to:', files[index]);
 
-                await deleteFile(files[index]);
-
-              } catch (error) {
-                console.error('Error saving video:', error);
-              }
+              await deleteFile(files[index]);
+            } catch (error) {
+              console.error('Error saving video:', error);
+            }
           }
 
           viewModel.loadFiles();
@@ -203,17 +214,17 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   }, []);
 
   // get screen width and height
-let { width, height } = Dimensions.get('window');
+  let {width, height} = Dimensions.get('window');
 
-//video width assume your video dimension is 16:9
- const  getVideoWidth = () => {
-  return Math.floor(width);
-}
+  //video width assume your video dimension is 16:9
+  const getVideoWidth = () => {
+    return Math.floor(width);
+  };
 
-//video height, assume your video dimension is 16:9
-const  getVideoHeight = () =>  {
-  return Math.floor((9 * Math.floor(width)) / 16);
-}
+  //video height, assume your video dimension is 16:9
+  const getVideoHeight = () => {
+    return Math.floor((9 * Math.floor(width)) / 16);
+  };
 
   return (
     <Container>
@@ -227,37 +238,40 @@ const  getVideoHeight = () =>  {
             </View>
           </View>
           <View flex={'1'} style={{alignItems: 'center'}}>
-
-            { viewModel.videoFiles.length > 0 ? (
-              <ScrollView showsVerticalScrollIndicator={false} style={{height: 300}}>
-              {viewModel.videoFiles.map((item, index) => (
-                <VideoListItem
-                  key={index}
-                  time={item.mtime?.toLocaleTimeString()}
-                  path={item.path}
-                  onPress={() => onPress(index, item.path)}
-                  index={index}
-                  currentIndex={viewModel.currentIndex}
+            {viewModel.videoFiles.length > 0 ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{height: 300}}>
+                {viewModel.videoFiles.map((item, index) => (
+                  <VideoListItem
+                    key={index}
+                    time={item.mtime?.toLocaleTimeString()}
+                    path={item.path}
+                    onPress={() => onPress(index, item.path)}
+                    index={index}
+                    currentIndex={viewModel.currentIndex}
                   />
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
             ) : (
-
               <Text lineHeight={15}>No video!</Text>
-
             )}
 
-          {fileUrl ? <QRCode  value={fileUrl} size={100} /> : ""}
+            {fileUrl ? <QRCode value={fileUrl} size={100} /> : ''}
 
-          <Text style={styles.label}>{i18n.t('txtTocDoXem')}: {playbackRate.toFixed(2)}x</Text>
+            <Text style={styles.label}>
+              {i18n.t('txtTocDoXem')}: {playbackRate.toFixed(2)}x
+            </Text>
 
-          <Slider
+            <Slider
               style={styles.slider}
               minimumValue={0.25}
               maximumValue={2.0}
               step={0.25}
               value={playbackRate}
-              onValueChange={(value: React.SetStateAction<number>) => setPlaybackRate(value)}
+              onValueChange={(value: React.SetStateAction<number>) =>
+                setPlaybackRate(value)
+              }
             />
           </View>
 
@@ -274,73 +288,90 @@ const  getVideoHeight = () =>  {
             <View style={styles.webcam}>{WEBCAM_LOADER}</View>
           ) : viewModel.videoFiles.length > 0 ? (
             <>
-           <GestureDetector gesture={pinchGesture}>
-              <Animated.View style={[styles.webcam, animatedStyle]}>
-
-          <ReactNativeZoomableView
-          maxZoom={40}
-          minZoom={1}
-          zoomStep={0.5}
-          initialZoom={1}
-          bindToBorders={true}
-          doubleTapZoomToCenter={true}
-          disablePanOnInitialZoom={true}
-          panBoundaryPadding={0}
-          movementSensibility={3}
-          contentHeight={getVideoHeight()}
-          contentWidth={getVideoWidth()}
-        >
-          <Video  
-            resizeMode="contain" // Ensure it scales correctly
-            id={'webcam-billiards-playback'}
-            ref={viewModel.videoRef}
-            style={[styles.webcam]}
-            controls={true}
-            source={{ uri: viewModel.videoFiles.length > 0 ?  viewModel.videoFiles[viewModel.currentIndex].path : ""}}
-            selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
-            onError={viewModel.onWebcamError}
-            renderLoader={WEBCAM_LOADER}
-            rate={playbackRate}
-            onLoad={viewModel.handleLoad}
-            onProgress={viewModel.handleProgress}
-            onEnd={viewModel.handleNext}   
-            controlsStyles={{hideNext:true, hidePrevious: true, hideForward:true, hideRewind:true, hideDuration:false, hideSettingButton: false, hidePosition: false}}
-          />
+              <GestureDetector gesture={pinchGesture}>
+                <Animated.View style={[styles.webcam, animatedStyle]}>
+                  <ReactNativeZoomableView
+                    maxZoom={40}
+                    minZoom={1}
+                    zoomStep={0.5}
+                    initialZoom={1}
+                    bindToBorders={true}
+                    doubleTapZoomToCenter={true}
+                    disablePanOnInitialZoom={true}
+                    panBoundaryPadding={0}
+                    movementSensibility={3}
+                    contentHeight={getVideoHeight()}
+                    contentWidth={getVideoWidth()}>
+                    <Video
+                      resizeMode="contain" // Ensure it scales correctly
+                      id={'webcam-billiards-playback'}
+                      ref={viewModel.videoRef}
+                      style={[styles.webcam]}
+                      controls={true}
+                      source={{
+                        uri:
+                          viewModel.videoFiles.length > 0
+                            ? viewModel.videoFiles[viewModel.currentIndex].path
+                            : '',
+                      }}
+                      selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
+                      onError={viewModel.onWebcamError}
+                      renderLoader={WEBCAM_LOADER}
+                      rate={playbackRate}
+                      onLoad={viewModel.handleLoad}
+                      onProgress={viewModel.handleProgress}
+                      onEnd={viewModel.handleNext}
+                      controlsStyles={{
+                        hideNext: true,
+                        hidePrevious: true,
+                        hideForward: true,
+                        hideRewind: true,
+                        hideDuration: false,
+                        hideSettingButton: false,
+                        hidePosition: false,
+                      }}
+                    />
                   </ReactNativeZoomableView>
-              </Animated.View>
-            </GestureDetector>
+                </Animated.View>
+              </GestureDetector>
             </>
-            ) : (
-              <View style={styles.webcam} />
-            )}
+          ) : (
+            <View style={styles.webcam} />
+          )}
         </View>
 
-        {viewModel.videoFiles.length > 0 ?  (<Button
-                style={styles.buttonShare}
-                onPress={ () => {
-                  showEditor(viewModel.videoFiles[viewModel.currentIndex].path, {
-                    //maxDuration: viewModel.videoDurations,
-                    type:'video',
-                    outputExt: "mov",
-                    trimmingText: "Đang cắt video...",
-                    cancelTrimmingDialogMessage: "Dừng cắt video",
-                    cancelTrimmingButtonText: "Huỷ cắt video",
-                    saveDialogConfirmText: "Lưu",
-                    saveDialogTitle:"Bạn có muốn lưu video mới cắt?",
-                    saveButtonText: "Lưu",
-                    saveDialogMessage: "Lưu",
-                    cancelDialogConfirmText: "Huỷ",
-                    openDocumentsOnFinish: false,
-                    cancelButtonText : "Đóng",
-                    cancelTrimmingDialogCancelText: "Bạn có có muốn huỷ cắt video",
-                    cancelDialogCancelText: "Đóng",
-                    cancelDialogMessage: "Bạn có có muốn huỷ cắt video"
-                  })
-                }}>
-                <Image source={images.videoEditor} style={styles.iconShare} />
-              </Button>) : <View></View>
-              
-            } 
+        {viewModel.videoFiles.length > 0 ? (
+          <Button
+            style={styles.buttonShare}
+            onPress={() => {
+              showEditor(viewModel.videoFiles[viewModel.currentIndex].path, {
+                //maxDuration: viewModel.videoDurations,
+                type: 'video',
+                outputExt: 'mov',
+                trimmingText: i18n.t('trimmingText'),
+                cancelTrimmingDialogMessage: i18n.t(
+                  'cancelTrimmingDialogMessage',
+                ),
+                cancelTrimmingButtonText: i18n.t('cancelTrimmingButtonText'),
+                saveDialogConfirmText: i18n.t('saveDialogConfirmText'),
+                saveDialogTitle: i18n.t('saveDialogTitle'),
+                saveButtonText: i18n.t('saveButtonText'),
+                saveDialogMessage: i18n.t('saveDialogMessage'),
+                cancelDialogConfirmText: i18n.t('cancelDialogConfirmText'),
+                openDocumentsOnFinish: false,
+                cancelButtonText: i18n.t('cancelButtonText'),
+                cancelTrimmingDialogCancelText: i18n.t(
+                  'cancelTrimmingDialogCancelText',
+                ),
+                cancelDialogCancelText: i18n.t('cancelDialogCancelText'),
+                cancelDialogMessage: i18n.t('cancelDialogMessage'),
+              });
+            }}>
+            <Image source={images.videoEditor} style={styles.iconShare} />
+          </Button>
+        ) : (
+          <View></View>
+        )}
       </View>
     </Container>
   );

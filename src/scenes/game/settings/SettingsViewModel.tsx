@@ -9,6 +9,7 @@ import {Navigation} from 'types/navigation';
 import {PlayerNumber, PlayerSettings} from 'types/player';
 import {
   GameCountDownTime,
+  GameExtraTimeBonus,
   GameExtraTimeTurns,
   GameMode,
   GameSettingsMode,
@@ -16,6 +17,7 @@ import {
 } from 'types/settings';
 import {isCarom3CGame, isPoolGame} from 'utils/game';
 import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
+import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
 
 export interface Props extends Navigation {}
 
@@ -121,6 +123,9 @@ const GameSettingsViewModel = (props: Props) => {
             extraTimeTurns: isCarom3CGame(category) ? 2 : 1,
             countdownTime: isCarom3CGame(category) ? 40 : 35,
             warmUpTime: 300,
+            extraTimeBonus: isPoolGame(category)
+              ? GAME_EXTRA_TIME_BONUS.s0
+              : undefined,
           });
           break;
         default:
@@ -128,6 +133,16 @@ const GameSettingsViewModel = (props: Props) => {
       }
     },
     [category],
+  );
+
+  const onSelectExtraTimeBonus = useCallback(
+    (extraTimeBonus: GameExtraTimeBonus) => {
+      setGameSettingsMode({
+        ...gameSettingsMode,
+        extraTimeBonus,
+      } as GameSettingsMode);
+    },
+    [gameSettingsMode],
   );
 
   const onSelectExtraTimeTurns = useCallback(
@@ -248,6 +263,8 @@ const GameSettingsViewModel = (props: Props) => {
       extraTimeTurnsEnabled: gameMode === 'time' || gameMode === 'pro',
       countdownEnabled: gameMode !== 'fast',
       warmUpEnabled: gameMode === 'pro',
+      extraTimeBonusEnabled: gameMode === 'pro' && isPoolGame(category),
+      onSelectExtraTimeBonus,
       onSelectCategory,
       onSelectGameMode,
       onSelectExtraTimeTurns,
@@ -266,6 +283,7 @@ const GameSettingsViewModel = (props: Props) => {
     playerSettings,
     onSelectCategory,
     onSelectGameMode,
+    onSelectExtraTimeBonus,
     onSelectExtraTimeTurns,
     onSelectCountdown,
     onSelectWarmUp,

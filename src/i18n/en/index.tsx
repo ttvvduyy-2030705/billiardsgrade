@@ -82,6 +82,21 @@ const en = {
 
   month: 'month',
   year: 'year',
+
+  //Playback
+  trimmingText: 'Trimming video...',
+  cancelTrimmingDialogMessage: 'Cancel trimming?',
+  cancelTrimmingButtonText: 'Cancel',
+  saveDialogConfirmText: 'Save',
+  saveDialogTitle: 'Do you want to save the trimmed video?',
+  saveButtonText: 'Save',
+  saveDialogMessage: 'Save the trimmed video?',
+  cancelDialogConfirmText: 'Cancel',
+  openDocumentsOnFinish: false,
+  cancelButtonText: 'Close',
+  cancelTrimmingDialogCancelText: 'Are you sure you want to cancel trimming?',
+  cancelDialogCancelText: 'Close',
+  cancelDialogMessage: 'Are you sure you want to cancel trimming?',
 };
 
 export default en;

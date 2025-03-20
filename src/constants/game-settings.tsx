@@ -1,5 +1,6 @@
 import {
   GameCountDownTime,
+  GameExtraTimeBonus,
   GameExtraTimeTurns,
   GameMode,
   GameModePool,
@@ -25,6 +26,18 @@ type GAME_WARM_UP_TIME_TYPE =
   | 'p10'
   | 'p15'
   | 'undefined';
+
+type GAME_EXTRA_TIME_BONUS_TYPE = 's0' | 's10' | 's20' | 's30' | 's45';
+
+const GAME_EXTRA_TIME_BONUS: {
+  [key in GAME_EXTRA_TIME_BONUS_TYPE]: GameExtraTimeBonus;
+} = {
+  s0: 0,
+  s10: 10,
+  s20: 20,
+  s30: 30,
+  s45: 45,
+};
 
 const GAME_MODE: {[key in GAME_MODE_TYPE]: GameMode} = {
   FAST: 'fast',
@@ -74,4 +87,5 @@ export {
   GAME_EXTRA_TIME_TURN,
   GAME_COUNT_DOWN_TIME,
   GAME_WARM_UP_TIME,
+  GAME_EXTRA_TIME_BONUS,
 };

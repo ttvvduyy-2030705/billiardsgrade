@@ -1,14 +1,14 @@
-import React, { memo, RefObject, useCallback } from 'react';
+import React, {memo, RefObject, useCallback} from 'react';
 import View from 'components/View';
-import { GameSettings, GameSettingsMode } from 'types/settings';
+import {GameSettings, GameSettingsMode} from 'types/settings';
 import Text from 'components/Text';
 import i18n from 'i18n';
 import colors from 'configuration/colors';
 import Button from 'components/Button';
-import { isCaromGame, isPoolGame } from 'utils/game';
+import {isCaromGame, isPoolGame} from 'utils/game';
 import styles from './styles';
 import Webcam from '../webcam';
-import { Camera } from 'react-native-vision-camera';
+import {Camera} from 'react-native-vision-camera';
 
 interface Props {
   isStarted: boolean;
@@ -23,16 +23,16 @@ interface Props {
   //renderMatchInfo: () => React.ReactNode;
   onIncreaseTotalTurns: () => void;
   onDecreaseTotalTurns: () => void;
-  onSwapPlayers : () => void;
-  isPaused: boolean,
+  onSwapPlayers: () => void;
+  isPaused: boolean;
   isCameraReady: boolean;
-  setIsCameraReady: ((isReady: boolean) => void);
-  cameraRef : RefObject<Camera>;
+  setIsCameraReady: (isReady: boolean) => void;
+  cameraRef: RefObject<Camera>;
 }
 
 const GameInfo = (props: Props) => {
   const isFullPlayer = props.totalPlayers === 5;
- 
+
   const renderPoint = useCallback((title: string, value: number) => {
     return (
       <View
@@ -92,9 +92,14 @@ const GameInfo = (props: Props) => {
   }
 
   if (props.currentMode?.mode === 'fast') {
-    return  <View flex={isFullPlayer ? '0' : '1'} direction={'row'} alignItems={'center'}  >    
-    {renderBigPoint(i18n.t('goal'), props.goal)}
- </View>
+    return (
+      <View
+        flex={isFullPlayer ? '0' : '1'}
+        direction={'row'}
+        alignItems={'center'}>
+        {renderBigPoint(i18n.t('goal'), props.goal)}
+      </View>
+    );
   }
 
   return (
@@ -106,28 +111,27 @@ const GameInfo = (props: Props) => {
         </View>
       )}
 
-
       {isCaromGame(props.gameSettings.category) &&
-        props.totalPlayers < 5 &&
-        props.currentMode?.mode === 'pro' ? (
+      props.totalPlayers < 5 &&
+      props.currentMode?.mode === 'pro' ? (
         <Webcam
           setIsCameraReady={props.setIsCameraReady}
           isCameraReady={props.isCameraReady}
           webcamFolderName={props.webcamFolderName}
-        // enderMatchInfo={props.renderMatchInfo}
+          // enderMatchInfo={props.renderMatchInfo}
           updateWebcamFolderName={props.updateWebcamFolderName}
           cameraRef={props.cameraRef}
           isPaused={props.isPaused}
           isStarted={props.isStarted}
-          />
+        />
       ) : (
         <View />
       )}
 
       {isCaromGame(props.gameSettings.category) && (
         <View flex={isFullPlayer ? '0' : '1'} direction={'row'}>
-        {renderPoint(i18n.t('totalTurns'), props.totalTurns)}
-        {renderPoint(i18n.t('goal'), props.goal)}
+          {renderPoint(i18n.t('totalTurns'), props.totalTurns)}
+          {renderPoint(i18n.t('goal'), props.goal)}
         </View>
       )}
 
@@ -144,51 +148,50 @@ const GameInfo = (props: Props) => {
           </Button>
         </View>
       } */}
-     
-        {(isCaromGame(props.gameSettings.category) && (
-           <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
 
+      {isCaromGame(props.gameSettings.category) && (
+        <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
           {props.isStarted ? (
-                  <>
-                  <Button
-                        style={[styles.button, styles.buttonTurns]}
-                        onPress={props.onIncreaseTotalTurns}>
-                        <Text color={colors.white} fontSize={16}>{i18n.t('increaseTotalTurns')}</Text>
-                      </Button>
-                  <Button
-                    onPress={props.onPressGiveMoreTime}
-                    style={[styles.button, styles.buttonGiveMoreTime]}>
-                    <Text color={colors.white} fontSize={16}>
-                      {i18n.t('giveMoreTime')}
-                    </Text>
-                  </Button>
-                  <Button
-                        style={[styles.button, styles.buttonTurns]}
-                        onPress={props.onDecreaseTotalTurns}>
-                        <Text color={colors.white} fontSize={16}>{i18n.t('decreaseTotalTurns')}</Text>
-                 </Button>
-                </>
-              )
-              : (
-                <View
-                  flex={'1'}
-                  direction={'row'}
-                  justify={'center'}
-                  alignItems={'center'}>
-                  <Button
-                    style={[styles.button, styles.buttonSwapPlayers]}
-                    onPress={props.onSwapPlayers}>
-                    <Text>{i18n.t('switchPlayer')}</Text>
-                  </Button>
-                </View>
-              )}
-                </View>
-                )  
-              )}
-        
+            <>
+              <Button
+                style={[styles.button, styles.buttonTurns]}
+                onPress={props.onIncreaseTotalTurns}>
+                <Text color={colors.white} fontSize={16}>
+                  {i18n.t('increaseTotalTurns')}
+                </Text>
+              </Button>
+              <Button
+                onPress={props.onPressGiveMoreTime}
+                style={[styles.button, styles.buttonGiveMoreTime]}>
+                <Text color={colors.white} fontSize={16}>
+                  {i18n.t('giveMoreTime')}
+                </Text>
+              </Button>
+              <Button
+                style={[styles.button, styles.buttonTurns]}
+                onPress={props.onDecreaseTotalTurns}>
+                <Text color={colors.white} fontSize={16}>
+                  {i18n.t('decreaseTotalTurns')}
+                </Text>
+              </Button>
+            </>
+          ) : (
+            <View
+              flex={'1'}
+              direction={'row'}
+              justify={'center'}
+              alignItems={'center'}>
+              <Button
+                style={[styles.button, styles.buttonSwapPlayers]}
+                onPress={props.onSwapPlayers}>
+                <Text>{i18n.t('switchPlayer')}</Text>
+              </Button>
+            </View>
+          )}
+        </View>
+      )}
 
-
-     {/* {(isCaromGame(props.gameSettings.category) && props.isStarted) && (
+      {/* {(isCaromGame(props.gameSettings.category) && props.isStarted) && (
                   <View direction={'row'} marginHorizontal={'20'} marginTop={'10'}>
                     <View
                       flex={'1'}
@@ -211,8 +214,6 @@ const GameInfo = (props: Props) => {
                 )
               } */}
 
-              
-
       {/* {isCaromGame(props.gameSettings.category) && props.isStarted && (
         <View style={styles.buttonWrapper} direction={'row'} alignItems={'end'}>
           <Button
@@ -225,7 +226,6 @@ const GameInfo = (props: Props) => {
         </View>
       )
       } */}
-
     </View>
   );
 };
