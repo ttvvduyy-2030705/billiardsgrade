@@ -1,7 +1,9 @@
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import { RemoteControlKeys } from 'types/bluetooth';
 import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {isPoolGame} from 'utils/game';
+import RemoteControl from 'utils/remote';
 
 export interface Props {
   index: number;
@@ -45,6 +47,35 @@ const PlayerViewModel = (props: Props) => {
     },
     [props],
   );
+
+  useEffect(() => {
+    if(props.isOnTurn){
+      RemoteControl.instance.registerKeyEvents(
+        RemoteControlKeys.UP,
+        onIncreasePoint,
+      );
+      RemoteControl.instance.registerKeyEvents(
+        RemoteControlKeys.DOWN,
+        onDecreasePoint
+      );
+      RemoteControl.instance.registerKeyEvents(
+        RemoteControlKeys.LEFT,
+        onEndTurn.bind(PlayerViewModel, undefined),
+      );
+      RemoteControl.instance.registerKeyEvents(
+        RemoteControlKeys.RIGHT,
+        onEndTurn,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    props.isStarted,
+    props.isPaused,
+    props.totalTurns,
+    props.gameSettings,
+    props.player,
+  ]);
+
 
   const onIncreasePoint = useCallback(() => {
     if (

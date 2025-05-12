@@ -21,6 +21,7 @@ class RemoteControl {
   private onKeyDown = (data: RemoteControlKeysNative) => {
     const callback = this._keyEvents[data.keyCode];
 
+    
     if (!callback) {
       return;
     }

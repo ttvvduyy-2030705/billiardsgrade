@@ -102,26 +102,26 @@ const GamePlayViewModel = () => {
       RemoteControlKeys.MUTE,
       onToggleSound,
     );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.UP,
-      onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.DOWN,
-      onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.LEFT,
-      onEndTurn.bind(GamePlayViewModel, true),
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.RIGHT,
-      onEndTurn,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.OK,
-      onToggleCountDown,
-    );
+    // RemoteControl.instance.registerKeyEvents(
+    //   RemoteControlKeys.UP,
+    //   onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
+    // );
+    // RemoteControl.instance.registerKeyEvents(
+    //   RemoteControlKeys.DOWN,
+    //   onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
+    // );
+    // RemoteControl.instance.registerKeyEvents(
+    //   RemoteControlKeys.LEFT,
+    //   onEndTurn.bind(GamePlayViewModel, true),
+    // );
+    // RemoteControl.instance.registerKeyEvents(
+    //   RemoteControlKeys.RIGHT,
+    //   onEndTurn,
+    // );
+    // RemoteControl.instance.registerKeyEvents(
+    //   RemoteControlKeys.OK,
+    //   onToggleCountDown,
+    // );
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
