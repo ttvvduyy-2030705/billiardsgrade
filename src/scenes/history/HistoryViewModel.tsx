@@ -24,12 +24,17 @@ const HistoryViewModel = () => {
   }, []);
 
   const onReWatchGame = useCallback((webcamFolderName?: string) => {
+    console.log('HISTORY webcamFolderName =', webcamFolderName);
+
     if (!webcamFolderName) {
       Alert.alert(i18n.t('txtError'), i18n.t('msgEmptyWebcamUrl'));
       return;
     }
 
-    navigate(screens.playback, {webcamFolderName, merged: false});
+    navigate(screens.playback, {
+      webcamFolderName,
+      merged: false,
+    });
   }, []);
 
   const onDeleteGame = useCallback(

@@ -50,6 +50,12 @@ const GamePlayViewModel = () => {
 
   const [webcamFolderName, setWebcamFolderName] = useState<string>(now);
 
+  useEffect(() => {
+  if (gameSettings?.webcamFolderName && gameSettings.webcamFolderName !== webcamFolderName) {
+    setWebcamFolderName(gameSettings.webcamFolderName);
+  }
+}, [gameSettings?.webcamFolderName, webcamFolderName]);
+
   const [isStarted, setIsStarted] = useState(
     gameSettings?.mode?.mode === 'fast' ? true : false,
   );
@@ -733,14 +739,15 @@ const GamePlayViewModel = () => {
         text: i18n.t('stop'),
         onPress: async () => {
           try {
+            console.log('END_GAME webcamFolderName =', webcamFolderName);
             dispatch(
               gameActions.endGame({
                 realm,
                 gameSettings: {
                   ...gameSettings,
+                  webcamFolderName: webcamFolderName || now,
                   players: playerSettings,
                   totalTime,
-                  webcamFolderName,
                 },
               }),
             );

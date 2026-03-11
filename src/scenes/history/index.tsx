@@ -52,24 +52,28 @@ const History = () => {
               </Text>{' '}
               {viewModel.buildCategoryTitle(item)}
             </Text>
+
             <Text fontSize={12}>
               <Text fontSize={12} color={colors.deepGray}>
                 {i18n.t('mode')}:
               </Text>{' '}
               {viewModel.buildModeTitle(item)}
             </Text>
+
             <Text fontSize={12}>
               <Text fontSize={12} color={colors.deepGray}>
                 {i18n.t('time')}:
               </Text>{' '}
               {dayjs(item.updatedAt).format(TIME_FORMAT)}
             </Text>
+
             <Text fontSize={12}>
               <Text fontSize={12} color={colors.deepGray}>
                 {i18n.t('txtDate')}:
               </Text>{' '}
               {dayjs(item.updatedAt).format(DAY_FORMAT)}
             </Text>
+
             <Text fontSize={12}>
               <Text fontSize={12} color={colors.deepGray}>
                 {i18n.t('playingTime')}:
@@ -77,9 +81,11 @@ const History = () => {
               {item.totalTime} {i18n.t('txtSecond')}
             </Text>
           </View>
+
           <View flex={'1'} direction={'row'} justify={'center'}>
             {item.players.playingPlayers.map(renderPlayer)}
           </View>
+
           <View
             flex={'1'}
             direction={'row'}
@@ -87,24 +93,20 @@ const History = () => {
             justify={'between'}>
             <Button
               style={styles.button}
-              onPress={viewModel.onReWatchGame.bind(
-                History,
-                item.webcamFolderName,
-                
-              )}>
+              onPress={() => viewModel.onReWatchGame(item.webcamFolderName)}>
               <Text>{i18n.t('reWatch')}</Text>
             </Button>
+
             <Button
               style={styles.buttonDelete}
-              onPress={viewModel.onDeleteGame.bind(History, item)}>
+              onPress={() => viewModel.onDeleteGame(item)}>
               <Image source={images.delete} style={styles.icon} />
             </Button>
           </View>
         </View>
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [viewModel, renderPlayer],
   );
 
   const keyExtractor = useCallback(

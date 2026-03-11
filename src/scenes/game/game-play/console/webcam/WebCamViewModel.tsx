@@ -145,53 +145,56 @@ const WebCamViewModel = (props: Props) => {
           : undefined;
 
       if (_outputType === OutputType.livestream) {
-        liveStreamFromCamera(
-          liveStream,
-          _url,
-          webcamType,
-          !!gameSettings?.mode.countdownTime,
-          gameSettings?.category,
-        );
-        return;
-      }
+  liveStreamFromCamera(
+    liveStream,
+    _url,
+    webcamType,
+    !!gameSettings?.mode.countdownTime,
+    gameSettings?.category,
+  );
+  return;
+}
 
-      const now = Date.now().toString();
-      streamWebcamToFile(
-        now,
-        webcam?.syncTime || CAMERA_PLAYBACK_DURATION,
-        webcamType,
-        _url,
-      );
+const now = Date.now().toString();
 
-      if (
-        webcamType === WebcamType.camera &&
-        _outputType === OutputType.local
-      ) {
-        await new Promise(resolve => {
-          const timeout = setTimeout(async () => {
-            resolve(true);
+await RNFS.mkdir(`${RNFS.DownloadDirectoryPath}/${now}`);
 
-            clearTimeout(timeout);
-          }, CAMERA_PLAYBACK_DURATION * 1000);
-        });
+streamWebcamToFile(
+  now,
+  webcam?.syncTime || CAMERA_PLAYBACK_DURATION,
+  webcamType,
+  _url,
+);
 
-        let i = -1;
-        cameraInterval = setInterval(async () => {
-          i++;
+if (
+  webcamType === WebcamType.camera &&
+  _outputType === OutputType.local
+) {
+  await new Promise(resolve => {
+    const timeout = setTimeout(async () => {
+      resolve(true);
 
-          const _newCameraUrl = `${
-            RNFS.DownloadDirectoryPath
-          }/${now}/${WEBCAM_BASE_FILE_NAME}${
-            i < 10 ? `0${i}` : i
-          }${WEBCAM_FILE_EXTENSION}`;
+      clearTimeout(timeout);
+    }, CAMERA_PLAYBACK_DURATION * 1000);
+  });
 
-          setUrl(_newCameraUrl);
-        }, CAMERA_PLAYBACK_DURATION * 1000 + 100);
-      } else {
-        setUrl(_url);
-      }
+  let i = -1;
+  cameraInterval = setInterval(async () => {
+    i++;
 
-      //props.updateWebcamFolderName(now);
+    const _newCameraUrl = `${
+      RNFS.DownloadDirectoryPath
+    }/${now}/${WEBCAM_BASE_FILE_NAME}${
+      i < 10 ? `0${i}` : i
+    }${WEBCAM_FILE_EXTENSION}`;
+
+    setUrl(_newCameraUrl);
+  }, CAMERA_PLAYBACK_DURATION * 1000 + 100);
+} else {
+  setUrl(_url);
+}
+
+props.updateWebcamFolderName(now);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -387,33 +390,7 @@ const WebCamViewModel = (props: Props) => {
   }, [props.innerControls]);
 
   return useMemo(() => {
-    return {
-      videoRef,
-      innerControlsShow,
-      refreshing,
-      autoConnect,
-      webcamType,
-      webcam,
-      liveStream,
-      connectCountdownTime,
-      source:
-        webcamType === WebcamType.webcam
-          ? {uri: url, type: 'rtsp'}
-          : {uri: url, type: 'mov'},
-      onRefresh,
-      onDelay,
-      onReWatch,
-      onFullscreenPlayerDidPresent,
-      onBuffer,
-      onSeek,
-      onLoad,
-      onVideoTracks,
-      onEnd,
-      onWebcamError,
-      onToggleInnerControls,
-
-    };
-  }, [
+  return {
     videoRef,
     innerControlsShow,
     refreshing,
@@ -421,11 +398,15 @@ const WebCamViewModel = (props: Props) => {
     webcamType,
     webcam,
     liveStream,
-    url,
     connectCountdownTime,
+    source:
+      webcamType === WebcamType.webcam
+        ? {uri: url, type: 'rtsp'}
+        : {uri: url, type: 'mov'},
     onRefresh,
     onDelay,
     onReWatch,
+    onOpenPlayback: onReWatch,
     onFullscreenPlayerDidPresent,
     onBuffer,
     onSeek,
@@ -434,7 +415,29 @@ const WebCamViewModel = (props: Props) => {
     onEnd,
     onWebcamError,
     onToggleInnerControls,
-  ]);
+  };
+}, [
+  videoRef,
+  innerControlsShow,
+  refreshing,
+  autoConnect,
+  webcamType,
+  webcam,
+  liveStream,
+  url,
+  connectCountdownTime,
+  onRefresh,
+  onDelay,
+  onReWatch,
+  onFullscreenPlayerDidPresent,
+  onBuffer,
+  onSeek,
+  onLoad,
+  onVideoTracks,
+  onEnd,
+  onWebcamError,
+  onToggleInnerControls,
+]);
 };
 
 

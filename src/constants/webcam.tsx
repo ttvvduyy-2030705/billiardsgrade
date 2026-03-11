@@ -1,4 +1,5 @@
-import {BufferConfig, SelectedVideoTrackType} from 'react-native-video';
+type BufferConfig = any;
+type SelectedVideoTrackType = any;
 
 const WEBCAM_HOST = 'rtsp://';
 const WEBCAM_PORT = '554';

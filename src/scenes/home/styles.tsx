@@ -10,22 +10,21 @@ const styles = StyleSheet.create({
     globalStyles.padding.padding20,
     globalStyles.justify.justify_between,
   ]),
-  button: StyleSheet.flatten([
-    globalStyles.flex.flex1,
-    // globalStyles.padding.paddingVertical30,
-    globalStyles.padding.paddingLeft30,
-    // globalStyles.align.alignItems_center,
-    globalStyles.justify.justify_center,
-    globalStyles.margin.marginVertical20,
-    {borderRadius: 20, backgroundColor: colors.primary, width: '30%'},
-  ]),
-  image: StyleSheet.flatten([
-    globalStyles.margin.marginRight20,
-    {
-      width: '12%',
-      height: '100%',
-    },
-  ]),
+
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 28,
+    paddingVertical: 18,
+    alignSelf: 'center',
+  },
+
+  image: {
+    width: 28,
+    height: 28,
+    marginRight: 10,
+  },
+
   buttonHistory: StyleSheet.flatten([
     globalStyles.padding.paddingHorizontal20,
     globalStyles.padding.paddingVertical15,
@@ -34,14 +33,28 @@ const styles = StyleSheet.create({
       backgroundColor: colors.lightPrimary1,
     },
   ]),
+
   logo: {
     height: dims.screenHeight * 0.1,
     width: dims.screenWidth * 0.2,
   },
+
+  logoWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  logoLarge: {
+    width: 260,
+    height: 260,
+  },
+
   icon: {
     width: responsiveDimension(32),
     height: responsiveDimension(32),
   },
+
   buttonConfigs: {
     backgroundColor: colors.lightPrimary1,
     padding: responsiveDimension(10),
