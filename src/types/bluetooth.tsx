@@ -5,19 +5,22 @@ export enum DiscoverableDevices {
 }
 
 export enum RemoteControlKeys {
-  PLAY_OR_PAUSE = '85',
-  LIGHT = '82',
-  PAGE_UP = '92',
-  PAGE_DOWN = '93',
-  VOL_UP = '24',
-  VOL_DOWN = '25',
-  DEL = '67',
-  MUTE = '164',
+  START = '30',
+  WARM_UP = '31',
+
+  NEW_GAME = '29',
+  BREAK = '32',
+  TIMER = '25',
+  EXTENSION = '24',
+
+  STOP = '85',
+  SOUND = '164',
+
   UP = '19',
   LEFT = '22',
   DOWN = '20',
   RIGHT = '21',
-  OK = '4'
+  OK = '4',
 }
 
 export type RemoteControlKeysNative = {

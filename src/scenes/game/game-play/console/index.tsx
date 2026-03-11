@@ -79,11 +79,16 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 <Text fontSize={16}>{viewModel.buildGameModeTitle()}</Text>
                 <View>
                   <Text
-                    fontSize={32}
-                    fontWeight={'bold'}
-                    color={colors.primary}>
-                    {viewModel.displayTotalTime()}
-                  </Text>
+  fontSize={32}
+  fontWeight={'bold'}
+  color="#FFFFFF"
+  style={{
+    textShadowColor: '#000000',
+    textShadowOffset: {width: 0, height: 0},
+    textShadowRadius: 10,
+  }}>
+  {viewModel.displayTotalTime()}
+</Text>
                 </View>
               </View>
               <View flex={'1'} alignItems={'end'} justify={'center'}>

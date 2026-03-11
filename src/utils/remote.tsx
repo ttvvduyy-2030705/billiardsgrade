@@ -19,10 +19,12 @@ class RemoteControl {
   }
 
   private onKeyDown = (data: RemoteControlKeysNative) => {
+    console.log('REMOTE_JS keyCode =', data?.keyCode, 'data =', JSON.stringify(data));
+
     const callback = this._keyEvents[data.keyCode];
 
-    
     if (!callback) {
+      console.log('REMOTE_JS no callback for keyCode =', data?.keyCode);
       return;
     }
 
@@ -31,6 +33,12 @@ class RemoteControl {
 
   public registerKeyEvents = (event: RemoteControlKeys, callback: Function) => {
     this._keyEvents[event] = callback;
+  };
+
+  public clearKeyEvents = () => {
+    Object.keys(this._keyEvents).forEach(key => {
+      this._keyEvents[key] = null;
+    });
   };
 
   public removeAllListeners = () => {

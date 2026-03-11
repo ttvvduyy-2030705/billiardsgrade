@@ -12,11 +12,21 @@ const styles = StyleSheet.create({
   ]),
 
   button: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 28,
+    backgroundColor: '#B31217',
+    borderRadius: 22,
+    paddingHorizontal: 32,
     paddingVertical: 18,
     alignSelf: 'center',
+    borderWidth: 1.2,
+    borderColor: '#FF5A5A',
+    shadowColor: '#FF2A2A',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    elevation: 10,
   },
 
   image: {
@@ -30,7 +40,17 @@ const styles = StyleSheet.create({
     globalStyles.padding.paddingVertical15,
     {
       borderRadius: 20,
-      backgroundColor: colors.lightPrimary1,
+      backgroundColor: '#160707',
+      borderWidth: 1,
+      borderColor: '#7A1E22',
+      shadowColor: '#FF2A2A',
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: {
+        width: 0,
+        height: 0,
+      },
+      elevation: 7,
     },
   ]),
 
@@ -56,10 +76,20 @@ const styles = StyleSheet.create({
   },
 
   buttonConfigs: {
-    backgroundColor: colors.lightPrimary1,
+    backgroundColor: '#160707',
     padding: responsiveDimension(10),
     marginLeft: responsiveDimension(24),
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#7A1E22',
+    shadowColor: '#FF2A2A',
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    elevation: 6,
   },
 });
 

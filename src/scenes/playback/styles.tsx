@@ -8,7 +8,7 @@ const styles = StyleSheet.create({
     paddingVertical: responsiveDimension(15),
     marginTop: responsiveDimension(15),
     borderRadius: 10,
-    backgroundColor: colors.yellow,
+    backgroundColor: colors.lightPrimary2,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
@@ -27,8 +27,8 @@ const styles = StyleSheet.create({
   },
   webcamContainer: {
     backgroundColor: colors.black,
-    height:'100%',
-    width:'100%'
+    height: '100%',
+    width: '100%',
   },
   webcam: {
     width: '100%',
@@ -37,9 +37,9 @@ const styles = StyleSheet.create({
     marginLeft: 0.5,
   },
   videoResize: {
-    width: 300, // Default width of the video
-    height: 200, // Default height of the video
-    backgroundColor: 'black', // Optional: for better visibility
+    width: 300,
+    height: 200,
+    backgroundColor: 'black',
   },
   fullWidth: {
     width: '100%',
@@ -61,26 +61,47 @@ const styles = StyleSheet.create({
     width: responsiveDimension(32),
     height: responsiveDimension(32),
   },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  video: { width: '90%', height: 300 },
-  label: { marginTop: 10, fontSize: 16 },
-  slider: { width: 150, marginTop: 10, alignItems:'center' },
-  controls: { flexDirection: 'row', marginTop: 10 },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  video: {
+    width: '90%',
+    height: 300,
+  },
+  label: {
+    marginTop: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  slider: {
+    width: 150,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  controls: {
+    flexDirection: 'row',
+    marginTop: 10,
+  },
   itemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     width: '100%',
-    marginTop:5,
-    justifyContent: 'space-between'
+    marginTop: 5,
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
   },
   selectITem: {
-   width:'100%',
-   backgroundColor: colors.yellow
+    width: '100%',
+    backgroundColor: colors.lightPrimary2,
   },
   unselectItem: {
-    borderColor: colors.gray
-   },
+    borderColor: colors.gray,
+  },
   thumbnail: {
     width: 120,
     height: 90,
@@ -88,17 +109,15 @@ const styles = StyleSheet.create({
   },
   details: {
     alignItems: 'center',
-    flexDirection:'row'
+    flexDirection: 'row',
   },
   duration: {
     fontSize: 16,
     fontWeight: 'bold',
-    color:  colors.black
+    color: colors.text,
   },
   videoContainer: {
     flex: 1,
-    //justifyContent: "center",
-    //alignItems: "center",
   },
 });
 

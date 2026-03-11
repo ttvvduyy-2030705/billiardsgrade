@@ -1,24 +1,48 @@
 import React, {memo} from 'react';
+import {ScrollView} from 'react-native';
 import Container from 'components/Container';
 import View from 'components/View';
 import Text from 'components/Text';
 import Button from 'components/Button';
-import i18n from 'i18n';
+import Image from 'components/Image';
+import images from 'assets';
 import GameSettingsViewModel, {Props} from './SettingsViewModel';
 import CategorySettings from './category';
 import PlayerSettings from './player';
 import styles from './styles';
-import {ScrollView} from 'react-native';
 
 const GameSettings = (props: Props) => {
   const viewModel = GameSettingsViewModel(props);
 
   return (
-    <Container>
-      <View flex={'1'} direction={'row'} style={styles.container}>
-        <View flex={'1'} padding={'20'} style={styles.wrapper}>
-          <View flex={'1'} direction={'row'}>
-            <ScrollView>
+    <Container style={styles.screen} safeAreaDisabled>
+      <View style={styles.frame}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image
+              source={images.logo}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+
+          <View style={styles.headerCenter}>
+            <Text style={styles.title}>CÀI ĐẶT TRẬN ĐẤU</Text>
+            <View style={styles.titleUnderline} />
+          </View>
+
+          <View style={styles.headerRight}>
+            <View style={styles.historyButton}>
+              <Text style={styles.historyText}>Lịch sử</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.contentRow}>
+          <View style={styles.wrapperLeft}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}>
               <CategorySettings
                 category={viewModel.category}
                 gameMode={viewModel.gameMode}
@@ -36,10 +60,11 @@ const GameSettings = (props: Props) => {
               />
             </ScrollView>
           </View>
-        </View>
-        <View flex={'1'} style={styles.wrapper}>
-          <View flex={'1'} direction={'row'}>
-            <ScrollView>
+
+          <View style={styles.wrapperRight}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}>
               <PlayerSettings
                 gameMode={viewModel.gameMode}
                 category={viewModel.category}
@@ -52,21 +77,16 @@ const GameSettings = (props: Props) => {
             </ScrollView>
           </View>
         </View>
-      </View>
-      <View
-        direction={'row'}
-        alignItems={'center'}
-        justify={'end'}
-        paddingHorizontal={'20'}
-        paddingBottom={'20'}>
-        <Button style={styles.buttonCancel} onPress={viewModel.onCancel}>
-          <Text textDecorationLine={'underline'}>{i18n.t('txtCancel')}</Text>
-        </Button>
-        <Button style={styles.buttonStart} onPress={viewModel.onStart}>
-          <Text fontWeight={'bold'} letterSpacing={1.5}>
-            {i18n.t('txtStart')}
-          </Text>
-        </Button>
+
+        <View style={styles.footerButtons}>
+          <Button style={styles.buttonCancel} onPress={viewModel.onCancel}>
+            <Text style={styles.buttonCancelText}>Hủy</Text>
+          </Button>
+
+          <Button style={styles.buttonStart} onPress={viewModel.onStart}>
+            <Text style={styles.buttonStartText}>Bắt đầu trận</Text>
+          </Button>
+        </View>
       </View>
     </Container>
   );

@@ -1,7 +1,5 @@
-import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
+import React, {memo, useEffect, useMemo, useState} from 'react';
 import View from 'components/View';
-import colors from 'configuration/colors';
-
 import styles from './styles';
 
 interface Props {
@@ -12,12 +10,17 @@ interface Props {
   marginHorizontal?: number;
 }
 
+const COLOR_GREEN = '#20D95C';
+const COLOR_YELLOW = '#F2B705';
+const COLOR_RED = '#E53935';
+const COLOR_EMPTY = '#101010';
+
 const Countdown = (props: Props) => {
   const [itemWidth, setItemWidth] = useState(0);
 
   useEffect(() => {
     setItemWidth(
-      Number((props.countdownWidth / props.originalCountdownTime!).toFixed(2)) -
+      Number((props.countdownWidth / props.originalCountdownTime).toFixed(2)) -
         (props.marginHorizontal ? props.marginHorizontal * 2 : 10),
     );
   }, [
@@ -25,31 +28,6 @@ const Countdown = (props: Props) => {
     props.marginHorizontal,
     props.originalCountdownTime,
   ]);
-
-  const getCountdownColor = useCallback(
-    (index: number) => {
-      if (!props.originalCountdownTime) {
-        return;
-      }
-
-      const _time = props.originalCountdownTime;
-      const section = _time / 4;
-
-      switch (true) {
-        case index > section * 3:
-          return colors.green;
-        case index > section * 2:
-          return colors.primary;
-        case index > section * 1:
-          return colors.yellow;
-        case index >= 0:
-          return colors.red;
-        default:
-          return colors.primary;
-      }
-    },
-    [props.originalCountdownTime],
-  );
 
   const ITEM_HEIGHT = useMemo(
     () => (props.heightItem ? props.heightItem : '100%'),
@@ -61,16 +39,15 @@ const Countdown = (props: Props) => {
     [props.marginHorizontal],
   );
 
+  const activeColor = useMemo(() => {
+    if (props.currentCountdownTime <= 5) return COLOR_RED;
+    if (props.currentCountdownTime <= 10) return COLOR_YELLOW;
+    return COLOR_GREEN;
+  }, [props.currentCountdownTime]);
+
   const COUNTDOWN = useMemo(() => {
     return Array.from({length: props.originalCountdownTime}, (_, index) => {
-      if (props.currentCountdownTime <= index) {
-        return (
-          <View
-            key={`countdown-item-hide-${index}`}
-            style={[styles.countdownItem, {width: itemWidth}]}
-          />
-        );
-      }
+      const isPassed = props.currentCountdownTime <= index;
 
       return (
         <View
@@ -81,7 +58,8 @@ const Countdown = (props: Props) => {
               height: ITEM_HEIGHT,
               marginHorizontal: MARGIN_HORIZONTAL,
               width: itemWidth,
-              backgroundColor: getCountdownColor(index),
+              backgroundColor: isPassed ? COLOR_EMPTY : activeColor,
+              borderRadius: 3,
             },
           ]}
         />
@@ -93,7 +71,7 @@ const Countdown = (props: Props) => {
     ITEM_HEIGHT,
     MARGIN_HORIZONTAL,
     itemWidth,
-    getCountdownColor,
+    activeColor,
   ]);
 
   return (

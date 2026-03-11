@@ -1,8 +1,8 @@
+import React, {memo, useCallback} from 'react';
 import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
 import i18n from 'i18n';
-import React, {memo, useCallback} from 'react';
 import styles from './styles';
 import {BilliardCategory} from 'types/category';
 import {
@@ -14,7 +14,6 @@ import {
   GameWarmUpTime,
 } from 'types/settings';
 import {CUSHION, LIBRE, POOL} from 'constants/category';
-import colors from 'configuration/colors';
 import {
   GAME_COUNT_DOWN_TIME,
   GAME_EXTRA_TIME_BONUS,
@@ -40,55 +39,30 @@ interface Props {
 }
 
 const CategorySettings = (props: Props) => {
-  const {
-    category,
-    gameMode,
-    gameSettingsMode,
-    extraTimeTurnsEnabled,
-    countdownEnabled,
-    warmUpEnabled,
-    extraTimeBonusEnabled,
-    onSelectCategory,
-    onSelectGameMode,
-    onSelectExtraTimeTurns,
-    onSelectCountdown,
-    onSelectWarmUp,
-    onSelectExtraTimeBonus,
-  } = props;
-
-  const renderCategoryLine = useCallback(
+  const renderOptionRow = useCallback(
     (
       title: string,
       data: Object,
-      onSelect: (item: any) => void,
       currentItem: string | number | undefined,
+      onSelect: (item: any) => void,
       useKey = false,
+      compact = false,
     ) => {
       return (
-        <View
-          direction={'row'}
-          alignItems={'center'}
-          marginTop={'20'}
-          marginBottom={'10'}>
-          <View flex={'1'}>
-            <Text fontSize={18} letterSpacing={1.2} color={colors.deepGray}>
-              {title}
-            </Text>
-          </View>
-          <View flex={'4'} direction={'row'} alignItems={'center'}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+
+          <View style={[styles.optionsRow, compact && styles.optionsRowCompact]}>
             {Object.keys(data).map(key => {
               const item = (data as any)[key];
+              const selected = item === currentItem;
 
               return (
                 <Button
                   key={`${title}-${key}`}
-                  style={
-                    item === currentItem
-                      ? [styles.button, styles.active]
-                      : styles.button
-                  }
-                  onPress={onSelect.bind(CategorySettings, item)}>
-                  <Text fontSize={20}>
+                  style={[styles.button, selected && styles.active]}
+                  onPress={() => onSelect(item)}>
+                  <Text style={[styles.buttonText, selected && styles.activeText]}>
                     {useKey ? i18n.t(key) : i18n.t(item)}
                   </Text>
                 </Button>
@@ -102,49 +76,51 @@ const CategorySettings = (props: Props) => {
   );
 
   return (
-    <View flex={'1'}>
-      <Text fontSize={24} fontWeight={'bold'} letterSpacing={1.2}>
-        {i18n.t('category')}
-      </Text>
-      {renderCategoryLine(i18n.t('carom'), CUSHION, onSelectCategory, category)}
-      {renderCategoryLine(i18n.t('libre'), LIBRE, onSelectCategory, category)}
-      {renderCategoryLine(i18n.t('pool'), POOL, onSelectCategory, category)}
-      {renderCategoryLine(
-        i18n.t('mode'),
-        GAME_MODE,
-        onSelectGameMode,
-        gameMode,
-      )}
-      {extraTimeTurnsEnabled &&
-        renderCategoryLine(
-          i18n.t('extraTimeTurns'),
+    <View>
+      <Text style={styles.screenTitle}>THỂ LOẠI</Text>
+
+      {renderOptionRow('Carom', CUSHION, props.category, props.onSelectCategory)}
+      {renderOptionRow('Libre', LIBRE, props.category, props.onSelectCategory)}
+      {renderOptionRow('Pool', POOL, props.category, props.onSelectCategory)}
+      {renderOptionRow('Chế độ', GAME_MODE, props.gameMode, props.onSelectGameMode)}
+
+      {props.extraTimeTurnsEnabled &&
+        renderOptionRow(
+          'Hiệp phụ',
           GAME_EXTRA_TIME_TURN,
-          onSelectExtraTimeTurns,
-          gameSettingsMode?.extraTimeTurns,
+          props.gameSettingsMode?.extraTimeTurns,
+          props.onSelectExtraTimeTurns,
+          true,
           true,
         )}
-      {countdownEnabled &&
-        renderCategoryLine(
-          i18n.t('countdown'),
+
+      {props.countdownEnabled &&
+        renderOptionRow(
+          'Đếm giây',
           GAME_COUNT_DOWN_TIME,
-          onSelectCountdown,
-          gameSettingsMode?.countdownTime,
+          props.gameSettingsMode?.countdownTime,
+          props.onSelectCountdown,
+          true,
           true,
         )}
-      {warmUpEnabled &&
-        renderCategoryLine(
-          i18n.t('warmUp'),
+
+      {props.warmUpEnabled &&
+        renderOptionRow(
+          'Khởi động',
           GAME_WARM_UP_TIME,
-          onSelectWarmUp,
-          gameSettingsMode?.warmUpTime,
+          props.gameSettingsMode?.warmUpTime,
+          props.onSelectWarmUp,
+          true,
           true,
         )}
-      {extraTimeBonusEnabled &&
-        renderCategoryLine(
-          i18n.t('extraTimeBonus'),
+
+      {props.extraTimeBonusEnabled &&
+        renderOptionRow(
+          'Thưởng giờ',
           GAME_EXTRA_TIME_BONUS,
-          onSelectExtraTimeBonus,
-          gameSettingsMode?.extraTimeBonus || 0,
+          props.gameSettingsMode?.extraTimeBonus || 0,
+          props.onSelectExtraTimeBonus,
+          true,
           true,
         )}
     </View>

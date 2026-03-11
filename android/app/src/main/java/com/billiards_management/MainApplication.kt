@@ -1,4 +1,4 @@
-package com.billiards_management
+package com.aplus.score
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -22,7 +22,6 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
                 add(RemoteControlPackage());
-                add(HttpServerPackage());
             }
 
         override fun getJSMainModuleName(): String = "index"

@@ -1,7 +1,6 @@
 import React, {memo, useMemo, ReactNode} from 'react';
 import {Text as RNText, TextStyle, LayoutChangeEvent} from 'react-native';
 import {responsiveFontSize} from 'utils/helper';
-
 import colors from 'configuration/colors';
 import {getSelectedFont} from 'configuration/fonts';
 
@@ -54,7 +53,7 @@ const Text = (props: TextProps) => {
     letterSpacing,
     ellipsizeMode = 'tail',
     textAlign = 'left',
-    color = colors.black,
+    color = colors.text,
     adjustsFontSizeToFit,
     onLayout,
   } = props;
@@ -66,7 +65,7 @@ const Text = (props: TextProps) => {
       fontSize: responsiveFontSize(fontSize),
     };
 
-    const result = [style, propStyle];
+    const result: any[] = [style, propStyle];
 
     if (color) {
       result.push({color});

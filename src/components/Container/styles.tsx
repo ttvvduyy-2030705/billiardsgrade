@@ -5,7 +5,7 @@ import colors from 'configuration/colors';
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.lightGray3,
+    backgroundColor: colors.background,
     paddingTop: Platform.OS === 'android' ? 0 : getStatusBarHeight(),
   },
   loadingWrapper: {
@@ -15,6 +15,7 @@ const styles = StyleSheet.create({
     height: dims.screenHeight - getHeaderHeight() + 10,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.overlay,
   },
 });
 

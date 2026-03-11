@@ -76,72 +76,93 @@ const GamePlayViewModel = () => {
   // }, [hasPermission]);
 
   useEffect(() => {
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.PLAY_OR_PAUSE,
-      isStarted ? onPause : onStart,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.LIGHT,
-      onSwitchTurn,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.PAGE_UP,
-      onPoolBreak,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.PAGE_DOWN,
-      onPressGiveMoreTime,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.VOL_UP,
-      onResetTurn,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.VOL_DOWN,
-      onReset,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.DEL,
-      warmUpCountdownTime ? onEndWarmUp : onWarmUp,
-    );
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.MUTE,
-      onToggleSound,
-    );
-    // RemoteControl.instance.registerKeyEvents(
-    //   RemoteControlKeys.UP,
-    //   onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
-    // );
-    // RemoteControl.instance.registerKeyEvents(
-    //   RemoteControlKeys.DOWN,
-    //   onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
-    // );
-    // RemoteControl.instance.registerKeyEvents(
-    //   RemoteControlKeys.LEFT,
-    //   onEndTurn.bind(GamePlayViewModel, true),
-    // );
-    // RemoteControl.instance.registerKeyEvents(
-    //   RemoteControlKeys.RIGHT,
-    //   onEndTurn,
-    // );
-    // RemoteControl.instance.registerKeyEvents(
-    //   RemoteControlKeys.OK,
-    //   onToggleCountDown,
-    // );
+  RemoteControl.instance.clearKeyEvents();
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    isStarted,
-    isPaused,
-    currentPlayerIndex,
-    totalTurns,
-    gameSettings,
-    playerSettings,
-    warmUpCountdownTime,
-    warmUpCount,
-    poolBreakEnabled,
-    countdownTime,
-  ]);
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.UP,
+    onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.DOWN,
+    onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.LEFT,
+    onEndTurn.bind(GamePlayViewModel, true),
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.RIGHT,
+    onEndTurn,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.WARM_UP,
+    onRemoteWarmUp,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.START,
+    onRemoteStart,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.STOP,
+    onRemoteStop,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.BREAK,
+    onRemoteBreak,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.TIMER,
+    onRemoteTimer,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.EXTENSION,
+    onRemoteExtension,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.NEW_GAME,
+    onRemoteNewGame,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.SOUND,
+    onToggleSound,
+  );
+
+  return () => {
+    RemoteControl.instance.clearKeyEvents();
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [
+  isStarted,
+  isPaused,
+  currentPlayerIndex,
+  totalTurns,
+  gameSettings,
+  playerSettings,
+  warmUpCountdownTime,
+  warmUpCount,
+  poolBreakEnabled,
+  countdownTime,
+  gameBreakEnabled,
+  onRemoteWarmUp,
+  onRemoteStart,
+  onRemoteStop,
+  onRemoteBreak,
+  onRemoteTimer,
+  onRemoteExtension,
+  onRemoteNewGame,
+]);
 
   useEffect(() => {
     clearInterval(countdownInterval);
@@ -808,6 +829,65 @@ const GamePlayViewModel = () => {
     playerSettings,
     onSwitchPoolBreakPlayerIndex,
   ]);
+
+  const onRemoteWarmUp = useCallback(() => {
+  if (isStarted) {
+    return;
+  }
+
+  onWarmUp();
+}, [isStarted, onWarmUp]);
+
+const onRemoteStart = useCallback(async () => {
+  if (!isStarted) {
+    if (warmUpCountdownTime) {
+      onEndWarmUp();
+    }
+    await onStart();
+    return;
+  }
+
+  await onPause();
+}, [isStarted, warmUpCountdownTime, onEndWarmUp, onStart, onPause]);
+
+const onRemoteStop = useCallback(async () => {
+  await onStop();
+}, [onStop]);
+
+const onRemoteBreak = useCallback(() => {
+  if (!isStarted || gameBreakEnabled) {
+    return;
+  }
+
+  onGameBreak();
+}, [isStarted, gameBreakEnabled, onGameBreak]);
+
+const onRemoteTimer = useCallback(() => {
+  if (!isStarted || !gameBreakEnabled || isPaused || !gameSettings?.mode?.countdownTime) {
+    return;
+  }
+
+  _resetCountdown();
+  setIsMatchPaused(false);
+}, [isStarted, gameBreakEnabled, isPaused, gameSettings, _resetCountdown]);
+
+const onRemoteExtension = useCallback(() => {
+  if (!isStarted || !gameBreakEnabled) {
+    return;
+  }
+
+  onPressGiveMoreTime();
+}, [isStarted, gameBreakEnabled, onPressGiveMoreTime]);
+
+const onRemoteNewGame = useCallback(() => {
+  if (!isStarted || !gameBreakEnabled) {
+    return;
+  }
+
+  onReset();
+  setGameBreakEnabled(false);
+  setWarmUpCountdownTime(undefined);
+}, [isStarted, gameBreakEnabled, onReset]);
 
   const startVideoRecording = async () => {
     try {

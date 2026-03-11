@@ -1,10 +1,9 @@
-import React, {memo, useCallback} from 'react';
-import {ScrollView} from 'react-native';
+import React, {memo, useCallback, useMemo} from 'react';
 import Text from 'components/Text';
 import View from 'components/View';
-import i18n from 'i18n';
 import Button from 'components/Button';
 import TextInput from 'components/TextInput';
+import i18n from 'i18n';
 import {Player, PlayerNumber, PlayerSettings} from 'types/player';
 import {
   PLAYER_NUMBER,
@@ -12,7 +11,7 @@ import {
   PLAYER_NUMBER_POOL_15,
   PLAYER_POINT_STEPS,
 } from 'constants/player';
-import {responsiveDimension, responsiveFontSize} from 'utils/helper';
+import {responsiveDimension} from 'utils/helper';
 import {BilliardCategory} from 'types/category';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
 import {GameMode} from 'types/settings';
@@ -33,129 +32,89 @@ interface Props {
 }
 
 const PlayerSettingsComponent = (props: Props) => {
+  const playerNumberSource = useMemo(() => {
+    return isPool15OnlyGame(props.category) ||
+      (isPoolGame(props.category) && props.gameMode === 'pro')
+      ? PLAYER_NUMBER_POOL_15
+      : isPoolGame(props.category)
+      ? PLAYER_NUMBER_POOL
+      : PLAYER_NUMBER;
+  }, [props.category, props.gameMode]);
+
   const renderPlayerNumber = useCallback(() => {
     return (
-      <View direction={'row'} alignItems={'center'} marginTop={'20'}>
-        <View marginRight={'15'}>
-          <Text letterSpacing={1.2}>{i18n.t('playerNumber')}</Text>
-        </View>
-        <View direction={'row'} alignItems={'center'}>
-          {Object.keys(
-            isPool15OnlyGame(props.category) ||
-              (isPoolGame(props.category) && props.gameMode === 'pro')
-              ? PLAYER_NUMBER_POOL_15
-              : isPoolGame(props.category)
-              ? PLAYER_NUMBER_POOL
-              : PLAYER_NUMBER,
-          ).map(key => {
-            const item = (PLAYER_NUMBER as any)[key];
+      <View style={styles.numberRow}>
+        <Text style={styles.numberLabel}>Số người</Text>
+
+        <View direction={'row'}>
+          {Object.keys(playerNumberSource).map(key => {
+            const item = (playerNumberSource as any)[key];
+            const selected = props.playerSettings.playerNumber === item;
 
             return (
               <Button
-                key={`${i18n.t('playerNumber')}-${key}`}
-                style={
-                  item === props.playerSettings.playerNumber
-                    ? [styles.button, styles.active]
-                    : styles.button
-                }
-                onPress={props.onSelectPlayerNumber.bind(
-                  PlayerSettingsComponent,
-                  item,
-                )}>
-                <Text fontSize={20}>{(PLAYER_NUMBER as any)[key]}</Text>
+                key={`player-number-${key}`}
+                style={[styles.numberButton, selected && styles.numberButtonActive]}
+                onPress={() => props.onSelectPlayerNumber(item)}>
+                <Text
+                  style={[
+                    styles.numberButtonText,
+                    selected && styles.numberButtonTextActive,
+                  ]}>
+                  {item}
+                </Text>
               </Button>
             );
           })}
         </View>
       </View>
     );
-  }, [props]);
-
-  const renderPlayGoal = useCallback(() => {
-    return (
-      <View direction={'row'} alignItems={'center'} marginTop={'20'}>
-        <View marginRight={'15'}>
-          <Text letterSpacing={1.2}>{i18n.t('goal')}</Text>
-        </View>
-        <View direction={'row'} alignItems={'center'}>
-          {[
-            ...props.playerSettings.goal.pointSteps.slice(0, 2),
-            props.playerSettings.goal.goal,
-            ...props.playerSettings.goal.pointSteps.slice(-2),
-          ].map((step, index) => {
-            return (
-              <Button
-                key={`goal-${step}`}
-                style={
-                  index === 2 ? [styles.button, styles.active] : styles.button
-                }
-                onPress={props.onSelectPlayerGoal.bind(
-                  PlayerSettingsComponent,
-                  step,
-                  index,
-                )}>
-                <Text fontSize={20}>{step}</Text>
-              </Button>
-            );
-          })}
-        </View>
-      </View>
-    );
-  }, [props]);
+  }, [playerNumberSource, props]);
 
   const renderPlayerItem = useCallback(
     (player: Player, index: number) => {
       return (
-        <View
-          style={[
-            styles.playerItem,
-            index % 2 === 0
-              ? {marginLeft: responsiveDimension(20)}
-              : {marginRight: responsiveFontSize(20)},
-            {backgroundColor: player.color},
-          ]}
-          padding={'15'}>
-          <View direction={'row'} alignItems={'center'}>
-            <View style={styles.avatar} marginRight={'15'}>
-              <Text>{player.name[0]}</Text>
-            </View>
-            <View flex={'1'}>
-              <TextInput
-                style={styles.input}
-                inputStyle={styles.inputStyle}
-                value={player.name}
-                onChange={(value: string) =>
-                  props.onChangePlayerName(value, index)
-                }
-              />
-            </View>
+        <View style={styles.playerItem}>
+          <View style={styles.playerHeader}>
+            <Text style={styles.playerHeaderText}>{`NGƯỜI CHƠI ${index + 1}`}</Text>
           </View>
-          <View direction={'row'}>
-            <View
-              flex={'1'}
-              direction={'row'}
-              alignItems={'center'}
-              marginTop={'15'}
-              style={styles.stepWrapper}>
+
+          <View style={styles.playerBody}>
+            <TextInput
+              style={styles.input}
+              inputStyle={styles.inputStyle}
+              value={player.name}
+              onChange={(value: string) => props.onChangePlayerName(value, index)}
+            />
+
+            <View style={styles.stepWrapper}>
               {Object.keys(PLAYER_POINT_STEPS).map((key, stepIndex) => {
+                const pointValue =
+                  stepIndex === 4
+                    ? player.totalPoint
+                    : (PLAYER_POINT_STEPS as any)[key];
+
+                const onPress = () =>
+                  props.onChangePlayerPoint(
+                    (PLAYER_POINT_STEPS as any)[key],
+                    index,
+                    stepIndex,
+                  );
+
                 return (
                   <Button
-                    key={`point-step-${key}`}
-                    onPress={props.onChangePlayerPoint.bind(
-                      PlayerSettingsComponent,
-                      (PLAYER_POINT_STEPS as any)[key],
-                      index,
-                      stepIndex,
-                    )}
-                    style={
-                      stepIndex === 4
-                        ? [styles.stepItem, styles.activePlayerPoint]
-                        : styles.stepItem
-                    }>
-                    <Text fontSize={18}>
-                      {stepIndex === 4
-                        ? player.totalPoint
-                        : (PLAYER_POINT_STEPS as any)[key]}
+                    key={`${player.name}-${key}-${stepIndex}`}
+                    style={[
+                      styles.stepItem,
+                      stepIndex === 4 && styles.activePlayerPoint,
+                    ]}
+                    onPress={onPress}>
+                    <Text
+                      style={[
+                        styles.stepText,
+                        stepIndex === 4 && styles.stepTextActive,
+                      ]}>
+                      {pointValue}
                     </Text>
                   </Button>
                 );
@@ -168,71 +127,50 @@ const PlayerSettingsComponent = (props: Props) => {
     [props],
   );
 
-  const renderPlayers = useCallback(() => {
-    return (
-      <View flex={'1'} direction={'row'} marginTop={'20'}>
-        <ScrollView>
-          <View direction={'row'} alignItems={'center'} marginBottom={'10'}>
-            <View flex={'1'}>
-              {renderPlayerItem(props.playerSettings.playingPlayers[0], 0)}
-            </View>
-            <View marginHorizontal={'15'} />
-            <View flex={'1'}>
-              {renderPlayerItem(props.playerSettings.playingPlayers[1], 1)}
-            </View>
-          </View>
-          <View
-            direction={'row'}
-            alignItems={'center'}
-            marginTop={'20'}
-            marginBottom={'10'}>
-            {props.playerSettings.playingPlayers[2] && (
-              <View flex={'1'}>
-                {renderPlayerItem(props.playerSettings.playingPlayers[2], 2)}
-              </View>
-            )}
-            <View marginHorizontal={'15'} />
-            {props.playerSettings.playingPlayers[3] ? (
-              <View flex={'1'}>
-                {renderPlayerItem(props.playerSettings.playingPlayers[3], 3)}
-              </View>
-            ) : (
+  const renderRows = useCallback(() => {
+    const players = props.playerSettings.playingPlayers;
+    const rows: JSX.Element[] = [];
+
+    for (let i = 0; i < players.length; i += 2) {
+      rows.push(
+        <View
+          key={`row-${i}`}
+          direction={'row'}
+          alignItems={'stretch'}
+          style={styles.playerRow}>
+          <View flex={'1'}>{renderPlayerItem(players[i], i)}</View>
+
+          {players[i + 1] ? (
+            <>
+              <View style={{width: responsiveDimension(18)}} />
+              <View flex={'1'}>{renderPlayerItem(players[i + 1], i + 1)}</View>
+            </>
+          ) : (
+            <>
+              <View style={{width: responsiveDimension(18)}} />
               <View flex={'1'} />
-            )}
-          </View>
-          <View direction={'row'} alignItems={'center'} marginTop={'20'}>
-            {props.playerSettings.playingPlayers[4] && (
-              <View flex={'1'} paddingBottom={'20'}>
-                {renderPlayerItem(props.playerSettings.playingPlayers[4], 4)}
-              </View>
-            )}
-            <View marginHorizontal={'15'} />
-            <View flex={'1'} />
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }, [props, renderPlayerItem]);
+            </>
+          )}
+        </View>,
+      );
+    }
+
+    return rows;
+  }, [props.playerSettings.playingPlayers, renderPlayerItem]);
 
   return (
-    <View flex={'1'}>
-      <View paddingHorizontal={'20'} paddingTop={'20'}>
-        <Text fontSize={24} fontWeight={'bold'} letterSpacing={1.2}>
-          {i18n.t('player')}
-        </Text>
-      </View>
-      <View direction={'row'}>
-        <View
-          flex={'1'}
-          direction={'row'}
-          alignItems={'center'}
-          justify={'between'}
-          paddingHorizontal={'20'}>
-          {renderPlayerNumber()}
-          {renderPlayGoal()}
+    <View>
+      <View style={styles.topHeader}>
+        <Text style={styles.screenTitle}>NGƯỜI CHƠI</Text>
+
+        <View style={styles.controlPill}>
+          <Text style={styles.controlPillText}>ĐIỀU KHIỂN</Text>
         </View>
       </View>
-      <View>{renderPlayers()}</View>
+
+      {renderPlayerNumber()}
+
+      <View style={styles.playersWrap}>{renderRows()}</View>
     </View>
   );
 };

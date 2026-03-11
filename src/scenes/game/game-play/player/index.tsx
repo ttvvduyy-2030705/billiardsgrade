@@ -34,11 +34,22 @@ const GamePlayer = (props: Props) => {
     );
   }, [props]);
 
-  return (
-    <View
-      flex={'1'}
-      style={[styles.container, {backgroundColor: props.player.color}]}
-      marginHorizontal={'20'}>
+  const playerPanelStyle = {
+  backgroundColor: props.isOnTurn ? '#22090B' : '#140708',
+  borderColor: props.isOnTurn ? '#FF4545' : '#6A1A1D',
+  borderWidth: props.isOnTurn ? 1.4 : 1,
+  shadowColor: '#FF2A2A',
+  shadowOpacity: props.isOnTurn ? 0.32 : 0.18,
+  shadowRadius: props.isOnTurn ? 18 : 10,
+  shadowOffset: {width: 0, height: 0},
+  elevation: props.isOnTurn ? 12 : 7,
+};
+
+return (
+  <View
+    flex={'1'}
+    style={[styles.container, playerPanelStyle]}
+    marginHorizontal={'20'}>
       <PlayerName
         totalPlayers={props.totalPlayers}
         player={props.player}
@@ -91,16 +102,22 @@ const GamePlayer = (props: Props) => {
         <View flex={'1'} alignItems={'center'} justify={'center'}>
           <Button onPress={viewModel.onIncreasePoint}>
             <Text
-              style={
-                viewModel.showProMode
-                  ? styles.totalPointWrapper
-                  : styles.totalPointNoMarginBottom
-              }
-              fontSize={512}
-              fontWeight={'bold'}
-              adjustsFontSizeToFit={true}>
-              {props.player.totalPoint}
-            </Text>
+  style={[
+    viewModel.showProMode
+      ? styles.totalPointWrapper
+      : styles.totalPointNoMarginBottom,
+    {
+      color: '#FFF7F7',
+      textShadowColor: 'rgba(255, 20, 20, 1)',
+      textShadowOffset: {width: 0, height: 0},
+      textShadowRadius: 34,
+    },
+  ]}
+  fontSize={512}
+  fontWeight={'bold'}
+  adjustsFontSizeToFit={true}>
+  {props.player.totalPoint}
+</Text>
           </Button>
         </View>
 
