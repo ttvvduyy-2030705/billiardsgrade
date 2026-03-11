@@ -1,207 +1,203 @@
 import {StyleSheet} from 'react-native';
-import {responsiveDimension, responsiveFontSize} from 'utils/helper';
 
 const styles = StyleSheet.create({
-  screenTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
-
-  topHeader: {
+  topRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 18,
   },
-
-  controlPill: {
-    minWidth: 160,
-    height: 54,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#171920',
-    borderWidth: 1,
-    borderColor: '#3E404A',
+  title: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
-
-  controlPillText: {
-    color: '#F5F5F5',
+  goalGroup: {
+    alignItems: 'flex-end',
+  },
+  goalLabel: {
+    color: '#f0f0f0',
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: 8,
   },
-
+  goalButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  goalButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#525661',
+    backgroundColor: '#24272d',
+  },
+  goalButtonActive: {
+    backgroundColor: '#ff2334',
+    borderColor: '#ff6b76',
+  },
+  goalButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  goalButtonTextActive: {
+    color: '#ffffff',
+  },
   numberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 18,
+    marginBottom: 20,
   },
-
   numberLabel: {
-    color: '#F2F2F2',
+    color: '#f0f0f0',
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 14,
+  },
+  numberButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  numberButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#4f535d',
+    backgroundColor: '#1f2228',
+  },
+  numberButtonActive: {
+    backgroundColor: '#b31217',
+    borderColor: '#ff5d5d',
+  },
+  numberButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  numberButtonTextActive: {
+    color: '#ffffff',
+  },
+  playersWrap: {
+    flex: 1,
+  },
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: 16,
+  },
+  playerCol: {
+    flex: 1,
+  },
+  playerColSpacing: {
+    marginLeft: 16,
+  },
+  playerCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#9f1f25',
+    backgroundColor: '#0f1117',
+    overflow: 'hidden',
+  },
+  playerCardPrimary: {
+    borderColor: '#ff3d45',
+    shadowColor: '#ff2a2a',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 0},
+    elevation: 4,
+  },
+  playerCardHeader: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#1a1d24',
+    borderBottomWidth: 1,
+    borderBottomColor: '#8e1a1f',
+    alignItems: 'center',
+  },
+  playerCardHeaderPrimary: {
+    backgroundColor: '#b31217',
+    borderBottomColor: '#ff5d5d',
+  },
+  playerCardHeaderText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  playerCardBody: {
+    padding: 14,
+    backgroundColor: '#0f1117',
+  },
+  playerInput: {
+    marginBottom: 12,
+  },
+  playerInputStyle: {
+    height: 56,
+    marginHorizontal: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#5a1f22',
+    backgroundColor: '#151821',
+    color: '#ffffff',
+    textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
   },
-
-  numberButton: {
-    borderWidth: 1,
-    borderColor: '#3D404A',
-    borderRadius: 50,
-    width: responsiveDimension(52),
-    height: responsiveDimension(52),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 10,
-    backgroundColor: '#171920',
-  },
-
-  numberButtonActive: {
-    backgroundColor: '#B31217',
-    borderWidth: 1,
-    borderColor: '#FF5252',
-    shadowColor: '#FF2A2A',
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: 0},
-    elevation: 7,
-  },
-
-  numberButtonText: {
-    color: '#F5F5F5',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-
-  numberButtonTextActive: {
-    color: '#FFFFFF',
-  },
-
-  playersWrap: {
-    marginTop: 4,
-  },
-
-  playerRow: {
-    marginBottom: responsiveDimension(18),
-  },
-
-  playerItem: {
-    borderRadius: 22,
-    backgroundColor: '#110809',
-    borderWidth: 1,
-    borderColor: '#6A1A1D',
-    shadowColor: '#FF2A2A',
-    shadowRadius: 10,
-    shadowOpacity: 0.18,
-    shadowOffset: {width: 0, height: 4},
-    elevation: 6,
-    overflow: 'hidden',
-  },
-
-  playerHeader: {
-    height: responsiveDimension(62),
-    backgroundColor: '#8E1015',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FF4040',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  playerHeaderText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-
-  playerBody: {
-    padding: responsiveDimension(16),
-    backgroundColor: '#12090A',
-  },
-
-  input: {
-    height: responsiveDimension(55),
-    paddingBottom: 1,
-    marginBottom: responsiveDimension(14),
-  },
-
-  inputStyle: {
-    fontSize: responsiveFontSize(24),
-    marginHorizontal: 0,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#4A1E20',
-    backgroundColor: '#140B0C',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-
-  stepWrapper: {
-    borderWidth: 1,
-    borderRadius: 18,
-    borderColor: '#4A1E20',
-    backgroundColor: '#12090A',
+  stepRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#5a1f22',
+    borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: '#151821',
   },
-
-  stepItem: {
+  stepButton: {
     flex: 1,
-    height: responsiveDimension(48),
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#291516',
-    backgroundColor: '#171920',
+    borderRightColor: '#2b2f38',
   },
-
-  activePlayerPoint: {
-    backgroundColor: '#B31217',
-    borderRightColor: '#FF5252',
+  stepButtonFirst: {
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
-
-  stepText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  stepButtonLast: {
+    borderRightWidth: 0,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  stepButtonActive: {
+    backgroundColor: '#b31217',
+    borderRightColor: '#ff5d5d',
+  },
+  stepButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '700',
   },
-
-  stepTextActive: {
-    color: '#FFFFFF',
+  stepButtonTextActive: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '800',
-  },
-
-  button: {
-    borderWidth: 1,
-    borderColor: '#3D404A',
-    borderRadius: 50,
-    width: responsiveDimension(52),
-    height: responsiveDimension(52),
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 2,
-    marginRight: 10,
-    backgroundColor: '#171920',
-  },
-
-  active: {
-    backgroundColor: '#B31217',
-    borderWidth: 1,
-    borderColor: '#FF5252',
-  },
-
-  avatar: {
-    width: responsiveDimension(56),
-    height: responsiveDimension(56),
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1A1010',
-    borderWidth: 1,
-    borderColor: '#4B1D1F',
   },
 });
 
