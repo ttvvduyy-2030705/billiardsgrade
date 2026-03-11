@@ -1,45 +1,49 @@
-import {NativeModules, NativeEventEmitter} from 'react-native';
+import {
+  NativeModules,
+  NativeEventEmitter,
+  EmitterSubscription,
+} from 'react-native';
 import {RemoteControlKeysNative} from 'types/bluetooth';
 
-const RemoteControl = NativeModules.RemoteControl;
-const RemoteControlEventEmitter = new NativeEventEmitter(RemoteControl);
+const NativeRemoteControl = NativeModules?.RemoteControl ?? null;
 
-const eventNames = ['onRemoteKeyDown'];
+const RemoteControlEventEmitter = NativeRemoteControl
+  ? new NativeEventEmitter(NativeRemoteControl)
+  : null;
 
-const eventHandlers = eventNames.reduce((result, eventName) => {
-  result[eventName] = new Map();
-  return result;
-}, {} as any);
-
-const addEventListener = (
-  type: string,
-  handler: (data: RemoteControlKeysNative) => void,
-) => {
-  const handlers = eventHandlers[type];
-  if (!handlers) {
-    console.warn(`Event with type ${type} does not exist.`);
-    return;
-  }
-
-  if (handlers.has(handler)) {
-    console.warn(`Event with type ${type} and handler has already been added.`);
-    return;
-  }
-
-  handlers.set(handler, RemoteControlEventEmitter.addListener(type, handler));
-};
-
-const removeAllRemoteControlListeners = () => {
-  const count = eventNames.length;
-  for (let i = 0; i < count; i++) {
-    RemoteControlEventEmitter.removeAllListeners(eventNames[i]);
-  }
-};
+const subscriptions = new Map<
+  (data: RemoteControlKeysNative) => void,
+  EmitterSubscription
+>();
 
 const registerRemoteControlListener = (
   callback: (data: RemoteControlKeysNative) => void,
 ) => {
-  addEventListener('onRemoteKeyDown', callback);
+  if (!RemoteControlEventEmitter) {
+    console.log('[RemoteControl] Native module not found');
+    return;
+  }
+
+  if (subscriptions.has(callback)) {
+    return;
+  }
+
+  const sub = RemoteControlEventEmitter.addListener(
+    'onRemoteKeyDown',
+    callback,
+  );
+  subscriptions.set(callback, sub);
+};
+
+const removeAllRemoteControlListeners = () => {
+  subscriptions.forEach(sub => {
+    try {
+      sub.remove();
+    } catch (error) {
+      console.log('[RemoteControl] remove listener error', error);
+    }
+  });
+  subscriptions.clear();
 };
 
 export const RemoteControlModule = {

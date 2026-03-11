@@ -27,6 +27,10 @@ import {
 } from 'constants/player';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
 
+const HistoryIcon = () => <Text style={styles.iconText}>↺</Text>;
+const ControlIcon = () => <Text style={styles.iconText}>☷</Text>;
+const PlayIcon = () => <Text style={styles.startIconText}>▶</Text>;
+
 const GameSettings = (props: Props) => {
   const viewModel = GameSettingsViewModel(props);
 
@@ -114,9 +118,15 @@ const GameSettings = (props: Props) => {
   };
 
   const renderPlayerCard = (player: any, index: number) => {
+    const isPrimary = index === 0;
+
     return (
       <View key={`player-card-${index}`} style={styles.playerCard}>
-        <View style={styles.playerCardHeader}>
+        <View
+          style={[
+            styles.playerCardHeader,
+            isPrimary && styles.playerCardHeaderPrimary,
+          ]}>
           <Text style={styles.playerCardHeaderText}>
             {`NGƯỜI CHƠI ${index + 1}`}
           </Text>
@@ -139,14 +149,17 @@ const GameSettings = (props: Props) => {
                   ? player.totalPoint
                   : (PLAYER_POINT_STEPS as any)[key];
 
+              const isScore = stepIndex === 4;
+              const isLast =
+                stepIndex === Object.keys(PLAYER_POINT_STEPS).length - 1;
+
               return (
                 <Button
                   key={`player-${index}-point-${key}-${stepIndex}`}
                   style={[
                     styles.pointButton,
-                    stepIndex === 4 && styles.pointButtonActive,
-                    stepIndex === Object.keys(PLAYER_POINT_STEPS).length - 1 &&
-                      styles.pointButtonLast,
+                    isScore && styles.pointButtonActive,
+                    isLast && styles.pointButtonLast,
                   ]}
                   onPress={() =>
                     viewModel.onChangePlayerPoint(
@@ -158,7 +171,7 @@ const GameSettings = (props: Props) => {
                   <Text
                     style={[
                       styles.pointButtonText,
-                      stepIndex === 4 && styles.pointButtonTextActive,
+                      isScore && styles.pointButtonTextActive,
                     ]}>
                     {stepValue}
                   </Text>
@@ -178,14 +191,16 @@ const GameSettings = (props: Props) => {
     for (let i = 0; i < players.length; i += 2) {
       rows.push(
         <View key={`player-row-${i}`} style={styles.playerCardsRow}>
-          <View style={styles.playerCardCol}>{renderPlayerCard(players[i], i)}</View>
+          <View style={[styles.playerCardCol, styles.playerCardColLeft]}>
+            {renderPlayerCard(players[i], i)}
+          </View>
 
           {players[i + 1] ? (
-            <View style={styles.playerCardCol}>
+            <View style={[styles.playerCardCol, styles.playerCardColRight]}>
               {renderPlayerCard(players[i + 1], i + 1)}
             </View>
           ) : (
-            <View style={styles.playerCardCol} />
+            <View style={[styles.playerCardCol, styles.playerCardColRight]} />
           )}
         </View>,
       );
@@ -199,7 +214,11 @@ const GameSettings = (props: Props) => {
       <View style={styles.frame}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Image source={images.logo} style={styles.logo} resizeMode="contain" />
+            <Image
+              source={images.logo}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
           <View style={styles.headerCenter}>
@@ -209,7 +228,10 @@ const GameSettings = (props: Props) => {
 
           <View style={styles.headerRight}>
             <View style={styles.historyButton}>
-              <Text style={styles.historyText}>Lịch sử</Text>
+              <View style={styles.historyButtonContent}>
+                <HistoryIcon />
+                <Text style={styles.historyText}>Lịch sử</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -223,12 +245,12 @@ const GameSettings = (props: Props) => {
 
               {renderChoiceGroup('Carom', CUSHION, viewModel.category, viewModel.onSelectCategory)}
               {renderChoiceGroup('Libre', LIBRE, viewModel.category, viewModel.onSelectCategory)}
-              {renderChoiceGroup('Pool', POOL, viewModel.category, viewModel.onSelectCategory)}
-              {renderChoiceGroup('Chế độ', GAME_MODE, viewModel.gameMode, viewModel.onSelectGameMode)}
+              {renderChoiceGroup('POOL', POOL, viewModel.category, viewModel.onSelectCategory)}
+              {renderChoiceGroup('CHẾ ĐỘ', GAME_MODE, viewModel.gameMode, viewModel.onSelectGameMode)}
 
               {viewModel.extraTimeTurnsEnabled &&
                 renderChoiceGroup(
-                  'Hiệp phụ',
+                  'HIỆP PHỤ',
                   GAME_EXTRA_TIME_TURN,
                   viewModel.gameSettingsMode?.extraTimeTurns,
                   viewModel.onSelectExtraTimeTurns,
@@ -238,7 +260,7 @@ const GameSettings = (props: Props) => {
 
               {viewModel.countdownEnabled &&
                 renderChoiceGroup(
-                  'Đếm giây',
+                  'ĐẾM GIÂY',
                   GAME_COUNT_DOWN_TIME,
                   viewModel.gameSettingsMode?.countdownTime,
                   viewModel.onSelectCountdown,
@@ -248,7 +270,7 @@ const GameSettings = (props: Props) => {
 
               {viewModel.warmUpEnabled &&
                 renderChoiceGroup(
-                  'Khởi động',
+                  'KHỞI ĐỘNG',
                   GAME_WARM_UP_TIME,
                   viewModel.gameSettingsMode?.warmUpTime,
                   viewModel.onSelectWarmUp,
@@ -258,7 +280,7 @@ const GameSettings = (props: Props) => {
 
               {viewModel.extraTimeBonusEnabled &&
                 renderChoiceGroup(
-                  'Thưởng giờ',
+                  'THƯỞNG GIỜ',
                   GAME_EXTRA_TIME_BONUS,
                   viewModel.gameSettingsMode?.extraTimeBonus || 0,
                   viewModel.onSelectExtraTimeBonus,
@@ -274,7 +296,10 @@ const GameSettings = (props: Props) => {
                 <Text style={styles.panelTitle}>NGƯỜI CHƠI</Text>
 
                 <View style={styles.controlPill}>
-                  <Text style={styles.controlPillText}>ĐIỀU KHIỂN</Text>
+                  <View style={styles.controlPillContent}>
+                    <ControlIcon />
+                    <Text style={styles.controlPillText}>ĐIỀU KHIỂN</Text>
+                  </View>
                 </View>
               </View>
 
@@ -293,7 +318,10 @@ const GameSettings = (props: Props) => {
               </Button>
 
               <Button style={styles.buttonStart} onPress={viewModel.onStart}>
-                <Text style={styles.buttonStartText}>Bắt đầu trận</Text>
+                <View style={styles.buttonStartContent}>
+                  <PlayIcon />
+                  <Text style={styles.buttonStartText}>Bắt đầu trận</Text>
+                </View>
               </Button>
             </View>
           </View>

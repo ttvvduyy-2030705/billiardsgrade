@@ -6,12 +6,16 @@ class RemoteControl {
   private _keyEvents: {[key in string]: Function | null};
 
   private constructor() {
-    RemoteControlModule.registerRemoteControlListener(this.onKeyDown);
-    const _keys = Object.keys(RemoteControlKeys);
-
-    this._keyEvents = _keys.reduce((prev, current) => {
+    const keys = Object.values(RemoteControlKeys);
+    this._keyEvents = keys.reduce((prev, current) => {
       return {...prev, [current]: null};
     }, {});
+
+    try {
+      RemoteControlModule.registerRemoteControlListener(this.onKeyDown);
+    } catch (error) {
+      console.log('REMOTE init error =', error);
+    }
   }
 
   public static get instance() {
@@ -19,16 +23,24 @@ class RemoteControl {
   }
 
   private onKeyDown = (data: RemoteControlKeysNative) => {
-    console.log('REMOTE_JS keyCode =', data?.keyCode, 'data =', JSON.stringify(data));
+    try {
+      console.log(
+        'REMOTE_JS keyCode =',
+        data?.keyCode,
+        'data =',
+        JSON.stringify(data),
+      );
 
-    const callback = this._keyEvents[data.keyCode];
+      const callback = this._keyEvents[data.keyCode];
+      if (!callback) {
+        console.log('REMOTE_JS no callback for keyCode =', data?.keyCode);
+        return;
+      }
 
-    if (!callback) {
-      console.log('REMOTE_JS no callback for keyCode =', data?.keyCode);
-      return;
+      callback();
+    } catch (error) {
+      console.log('REMOTE onKeyDown error =', error);
     }
-
-    callback();
   };
 
   public registerKeyEvents = (event: RemoteControlKeys, callback: Function) => {
