@@ -54,8 +54,13 @@ const GamePlayViewModel = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isMatchPaused, setIsMatchPaused] = useState<boolean>(false);
   const [gameBreakEnabled, setGameBreakEnabled] = useState<boolean>(false);
-  const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+
+const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
+const [soundEnabled, setSoundEnabled] = useState(true);
+const [breakMenuVisible, setBreakMenuVisible] = useState(false);
+const [extensionUsedInTurn, setExtensionUsedInTurn] = useState(false);
+const newGameHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+const [newGameHoldStarted, setNewGameHoldStarted] = useState(false);
   const [proModeEnabled, setProModeEnabled] = useState(
     gameSettings?.mode?.mode !== 'fast',
   );

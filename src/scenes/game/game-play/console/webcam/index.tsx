@@ -1,11 +1,9 @@
 import React, {memo, useMemo} from 'react';
-
 import View from 'components/View';
 import Button from 'components/Button';
 import Text from 'components/Text';
 import Image from 'components/Image';
 import Divider from 'components/Divider';
-
 import images from 'assets';
 import i18n from 'i18n';
 
@@ -25,69 +23,54 @@ const WebCam = (props: Props) => {
   );
 
   const CONTROL_STYLE = useMemo(
-    () =>
-      props.innerControls ? styles.innerControlWrapper : styles.controlWrapper,
+    () => (props.innerControls ? styles.innerControlWrapper : styles.controlWrapper),
     [props.innerControls],
   );
 
   return (
-    <View style={CONTAINER_STYLE} marginTop={'10'}>
-      <View flex={'1'} direction={'row'}>
-        <Button
-          style={styles.webcamButton}
-          onPress={viewModel.onToggleInnerControls}>
-          <View flex={'1'} style={styles.webcamWrapper}>
-            <View style={styles.placeholderWrap}>
-              <Image
-                source={images.logo}
-                style={styles.logo}
-                resizeMode={'contain'}
-              />
-            </View>
-          </View>
-        </Button>
+    <View style={CONTAINER_STYLE}>
+      <View style={styles.webcamWrapper}>
+        <View style={styles.placeholderWrap}>
+          <Image
+            source={images.logo}
+            style={styles.logo}
+            resizeMode={'contain'}
+          />
+        </View>
       </View>
 
       {!props.innerControls || viewModel.innerControlsShow ? (
-        <View style={CONTROL_STYLE} direction={'row'} alignItems={'center'}>
-          <View flex={'1'} direction={'row'} justify={'center'}>
-            <Button onPress={viewModel.onRefresh} style={styles.actionButton}>
-              <View
-                direction={'row'}
-                alignItems={'center'}
-                justify={'center'}
-                paddingVertical={'10'}>
-                <View marginRight={'8'}>
-                  <Text style={styles.actionText}>{i18n.t('refresh')}</Text>
-                </View>
-                <Image source={images.webcam.refresh} style={styles.icon} />
-              </View>
-            </Button>
-          </View>
-
-          <Divider vertical size={'small'} />
-
-          <View flex={'1'} direction={'row'} justify={'center'}>
+        <View style={CONTROL_STYLE}>
+          <View row alignItems={'center'}>
             <Button
-              onPress={viewModel.onReWatch}
-              disable={!canRewatch}
-              style={styles.actionButton}>
-              <View
-                direction={'row'}
-                alignItems={'center'}
-                justify={'center'}
-                paddingVertical={'10'}>
-                <View marginRight={'8'}>
-                  <Text style={styles.actionText}>{i18n.t('reWatch')}</Text>
-                </View>
-                <Image source={images.webcam.watch} style={styles.icon} />
-              </View>
+              style={styles.actionButton}
+              onPress={viewModel.onRefresh}>
+              <Image
+                source={images.webcam.refresh}
+                style={styles.icon}
+                resizeMode={'contain'}
+              />
+              <Text style={styles.actionText}>{i18n.t('refresh')}</Text>
             </Button>
+
+            {canRewatch ? (
+              <>
+                <Divider />
+                <Button
+                  style={styles.actionButton}
+                  onPress={viewModel.onReWatch}>
+                  <Image
+                    source={images.webcam.watch}
+                    style={styles.icon}
+                    resizeMode={'contain'}
+                  />
+                  <Text style={styles.actionText}>{i18n.t('reWatch')}</Text>
+                </Button>
+              </>
+            ) : null}
           </View>
         </View>
-      ) : (
-        <View />
-      )}
+      ) : null}
     </View>
   );
 };

@@ -72,12 +72,13 @@ const Scenes = sceneKeys.map((name, index) => {
   };
 
   switch (name) {
-    case 'home':
-    case 'gamePlay':
-    case 'playback':
-      _options = noHeader;
-      break;
-  }
+  case 'home':
+  case 'gamePlay':
+  case 'playback':
+  case 'gameSettings':
+    _options = noHeader;
+    break;
+}
 
   return (
     <Stack.Screen
