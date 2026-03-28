@@ -1,5 +1,4 @@
-
-import React, {memo} from 'react';
+import React, {memo, useMemo} from 'react';
 import {StyleSheet, TextInput} from 'react-native';
 
 import View from 'components/View';
@@ -9,14 +8,29 @@ import i18n from 'i18n';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 
+const isEnglish = () => {
+  const locale = String(
+    (i18n as any)?.locale || (i18n as any)?.language || '',
+  ).toLowerCase();
+  return locale.startsWith('en');
+};
+
+const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
+
 const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
   const viewModel = PlayerViewModel(props);
 
-  const showStats = !!props.proModeEnabled;
+  const extraTimeTurns = Math.max(
+    0,
+    Number((props.player as any)?.proMode?.extraTimeTurns ?? 0),
+  );
+
   const showAddTime =
-    !!props.isOnTurn &&
-    !!props.onPressGiveMoreTime &&
-    ((props.player as any)?.proMode?.extraTimeTurns ?? 1) > 0;
+    !!props.isOnTurn && !!props.onPressGiveMoreTime && extraTimeTurns > 0;
+
+  const addTimeButtons = useMemo(() => {
+    return Array.from({length: extraTimeTurns}, (_, index) => index);
+  }, [extraTimeTurns]);
 
   return (
     <View style={styles.panel}>
@@ -68,21 +82,28 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
       </View>
 
       {showAddTime ? (
-        <Button onPress={props.onPressGiveMoreTime} style={styles.addTimeButton}>
-          <Text style={styles.addTimeText}>＋</Text>
-        </Button>
+        <View style={styles.addTimeStack}>
+          {addTimeButtons.map(index => (
+            <Button
+              key={`extra-time-${index}`}
+              onPress={props.onPressGiveMoreTime}
+              style={styles.addTimeButton}>
+              <Text style={styles.addTimeText}>◷+</Text>
+            </Button>
+          ))}
+        </View>
       ) : null}
 
       <View direction={'row'} style={styles.footerRow}>
         <View style={styles.playingBadge}>
-          <Text style={styles.playingText}>{i18n.t('playing')}</Text>
+          <Text color={'#FF2A2A'} style={styles.playingText}>{tr('Đang đánh', 'Playing')}</Text>
         </View>
 
         <View direction={'row'} alignItems={'center'} style={styles.violateWrap}>
           <View style={styles.violateCircle}>
             <Text style={styles.violateX}>×</Text>
           </View>
-          <Text style={styles.violateCount}>{props.player.violate || 0}</Text>
+          <Text color={'#FFFFFF'} style={styles.violateCount}>{props.player.violate || 0}</Text>
         </View>
       </View>
     </View>
@@ -153,7 +174,7 @@ const styles = StyleSheet.create({
   },
 
   stepButtonText: {
-    color: '#1A1B20',
+    color: '#ffffff',
     fontSize: 22,
     fontWeight: '700',
   },
@@ -185,22 +206,26 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 8,
   },
 
   scoreText: {
     color: '#FFFFFF',
-    fontSize: 236,
-    lineHeight: 236,
+    fontSize: 248,
+    lineHeight: 248,
     fontWeight: '800',
     textAlign: 'center',
   },
 
-  addTimeButton: {
+  addTimeStack: {
     position: 'absolute',
     right: 16,
-    top: '46%',
+    top: '42%',
+    gap: 10,
+  },
+
+  addTimeButton: {
     width: 42,
     height: 42,
     borderRadius: 21,
@@ -213,9 +238,9 @@ const styles = StyleSheet.create({
 
   addTimeText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 18,
   },
 
   footerRow: {

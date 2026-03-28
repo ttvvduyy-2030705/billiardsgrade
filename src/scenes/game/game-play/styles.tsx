@@ -1,4 +1,3 @@
-
 import {StyleSheet} from 'react-native';
 import colors from 'configuration/colors';
 
@@ -18,15 +17,15 @@ const styles = StyleSheet.create({
 
   countdownContainer: {
     width: '100%',
-    paddingHorizontal: 10,
-    paddingTop: 2,
+    paddingHorizontal: 2,
+    paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: '#000000',
   },
 
   mainArea: {
     flex: 1,
-    paddingTop: 12,
+    paddingTop: 10,
   },
 
   mainAreaFullscreen: {
@@ -36,9 +35,9 @@ const styles = StyleSheet.create({
 
   poolArenaScreen: {
     backgroundColor: '#000000',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 2,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 0,
   },
 
   poolArenaBoard: {
@@ -50,8 +49,9 @@ const styles = StyleSheet.create({
   },
 
   poolArenaConsoleWrapper: {
-    flex: 0.96,
+    flex: 0.98,
     marginHorizontal: 0,
+    paddingBottom: 0,
   },
 });
 

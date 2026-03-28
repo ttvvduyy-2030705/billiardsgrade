@@ -1,4 +1,3 @@
-
 import React, {memo, useMemo} from 'react';
 
 import Button from 'components/Button';
@@ -22,7 +21,7 @@ const PoolShotClock = ({
   const safeCurrent = Math.max(0, Math.min(currentCountdownTime, safeOriginal));
 
   const activeColor =
-    safeCurrent <= 5 ? '#FF2D22' : safeCurrent <= 10 ? '#FFBE2F' : '#12D63A';
+    safeCurrent <= 5 ? '#FF2D22' : safeCurrent <= 10 ? '#FFBE2F' : '#20E247';
 
   const litCount = useMemo(() => {
     return Math.max(0, Math.ceil((safeCurrent / safeOriginal) * SEGMENTS));
@@ -33,8 +32,8 @@ const PoolShotClock = ({
       onPress={onPress}
       style={{
         width: '100%',
-        paddingTop: 4,
-        paddingBottom: 2,
+        paddingTop: 0,
+        paddingBottom: 0,
       }}>
       <View
         style={{width: '100%'}}
@@ -46,7 +45,7 @@ const PoolShotClock = ({
           direction={'row'}
           justify={'between'}
           alignItems={'center'}
-          style={{minHeight: 62}}>
+          style={{minHeight: 32}}>
           {Array.from({length: SEGMENTS}, (_, index) => {
             const isLit = index < litCount;
             return (
@@ -54,7 +53,7 @@ const PoolShotClock = ({
                 key={`clock-segment-${index}`}
                 style={{
                   flex: 1,
-                  height: 58,
+                  height: 28,
                   marginHorizontal: 2,
                   borderRadius: 4,
                   backgroundColor: isLit ? activeColor : '#2A2B31',
@@ -67,9 +66,9 @@ const PoolShotClock = ({
 
         <Text
           color={activeColor}
-          fontSize={26}
+          fontSize={20}
           fontWeight={'bold'}
-          marginLeft={'14'}>
+          marginLeft={'10'}>
           {`${safeCurrent}s`}
         </Text>
       </View>

@@ -1,4 +1,3 @@
-
 import React, {memo} from 'react';
 import {StyleSheet} from 'react-native';
 
@@ -22,6 +21,13 @@ interface Props {
   onToggleProMode?: (value: boolean) => void;
 }
 
+const localeText = (vi: string, en: string) => {
+  const locale = String(
+    (i18n as any)?.locale || (i18n as any)?.language || '',
+  ).toLowerCase();
+  return locale.startsWith('en') ? en : vi;
+};
+
 const TopMatchHeader = ({
   title,
   soundEnabled,
@@ -34,11 +40,7 @@ const TopMatchHeader = ({
   return (
     <View style={styles.header}>
       <View style={styles.logoSlot}>
-        <Image
-          source={images.logo}
-          resizeMode={'contain'}
-          style={styles.logo}
-        />
+        <Image source={images.logo} resizeMode={'contain'} style={styles.logo} />
       </View>
 
       <View style={styles.titleSlot}>
@@ -56,7 +58,9 @@ const TopMatchHeader = ({
           </View>
 
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{i18n.t('remote')}</Text>
+            <Text style={styles.switchLabel}>
+              {localeText('Điều khiển', 'Remote')}
+            </Text>
             <Switch
               defaultValue={remoteEnabled}
               onChange={value => onToggleRemote?.(value)}
@@ -81,27 +85,27 @@ const styles = StyleSheet.create({
     minHeight: 74,
     borderRadius: 24,
     borderWidth: 1.2,
-    borderColor: 'rgba(255, 32, 32, 0.5)',
-    backgroundColor: '#090A0E',
+    borderColor: 'rgba(255, 32, 32, 0.55)',
+    backgroundColor: '#0A0B0E',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 10,
     shadowColor: '#ff1f1f',
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
     shadowOffset: {width: 0, height: 0},
     elevation: 10,
   },
 
   logoSlot: {
-    width: 180,
+    width: 170,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
 
   logo: {
-    width: 96,
+    width: 98,
     height: 40,
   },
 
@@ -114,24 +118,26 @@ const styles = StyleSheet.create({
 
   titleText: {
     color: colors.white,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 27,
+    lineHeight: 31,
+    fontWeight: '900',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 
   rightSlot: {
-    width: 220,
+    width: 224,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
 
   switchGroup: {
-    width: 160,
+    width: 172,
   },
 
   switchRow: {
-    minHeight: 28,
+    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -144,8 +150,8 @@ const styles = StyleSheet.create({
   },
 
   soundButton: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     marginLeft: 12,
     alignItems: 'center',
     justifyContent: 'center',

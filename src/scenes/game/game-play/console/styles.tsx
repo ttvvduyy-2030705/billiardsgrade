@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
     borderRadius: 18,
-    backgroundColor: '#15161B',
+    backgroundColor: '#f6f6f8',
     gap: 10,
   },
   arenaWinnerText: {

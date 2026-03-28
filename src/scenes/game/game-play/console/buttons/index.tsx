@@ -26,7 +26,7 @@ const ButtonsConsole = (props: Props) => {
         <Button
           style={[styles.button, styles.pauseButton]}
           onPress={props.onWarmUp}>
-          <Text fontWeight={'bold'} letterSpacing={1.2}>
+          <Text fontWeight={'bold'} letterSpacing={1.2} color={'white'}>
             {i18n.t('warmUp')} {`(${props.warmUpCount})`}
           </Text>
         </Button>
@@ -38,7 +38,7 @@ const ButtonsConsole = (props: Props) => {
         <Button
           style={[styles.button, styles.pauseButton]}
           onPress={props.onStart}>
-          <Text fontWeight={'bold'} letterSpacing={1.2}>
+          <Text fontWeight={'bold'} letterSpacing={1.2} color={'white'}>
             {i18n.t('start')}
           </Text>
         </Button>
@@ -49,7 +49,7 @@ const ButtonsConsole = (props: Props) => {
       <Button
         style={[styles.button, styles.pauseButton]}
         onPress={props.onPause}>
-        <Text fontWeight={'bold'} letterSpacing={1.2}>
+        <Text fontWeight={'bold'} letterSpacing={1.2} color={'white'}>
           {i18n.t(props.isPaused ? 'resume' : 'pause')}
         </Text>
       </Button>
@@ -78,7 +78,7 @@ const ButtonsConsole = (props: Props) => {
         <Button
           style={[styles.button, styles.breakGameButton]}
           onPress={props.onGameBreak}>
-          <Text fontWeight={'bold'} letterSpacing={1.2}>
+          <Text fontWeight={'bold'} letterSpacing={1.2} color={'white'}>
             {i18n.t('gameBreak')}
           </Text>
         </Button>
@@ -92,7 +92,7 @@ const ButtonsConsole = (props: Props) => {
         <Button
           style={[styles.button, styles.stopButton]}
           onPress={props.onStop}>
-          <Text fontWeight={'bold'} letterSpacing={1.2}>
+          <Text fontWeight={'bold'} letterSpacing={1.2} color={'white'}>
             {i18n.t('stop')}
           </Text>
         </Button>

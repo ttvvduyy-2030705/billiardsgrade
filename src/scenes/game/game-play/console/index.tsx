@@ -1,22 +1,25 @@
-
 import React, {memo, useMemo, useRef} from 'react';
-import {StyleSheet} from 'react-native';
+import {StyleSheet, Text as RNText} from 'react-native';
 
 import View from 'components/View';
 import Text from 'components/Text';
 import Button from 'components/Button';
-import i18n from 'i18n';
 
 import ConsoleViewModel, {ConsoleViewModelProps} from './ConsoleViewModel';
 import Webcam, {WebCamHandle} from './webcam';
 import {isPoolGame} from 'utils/game';
+import i18n from 'i18n';
 
-type ActionButtonTone =
-  | 'dark'
-  | 'amber'
-  | 'red'
-  | 'green'
-  | 'muted';
+type ActionButtonTone = 'dark' | 'amber' | 'red' | 'green' | 'muted';
+
+const isEnglish = () => {
+  const locale = String(
+    (i18n as any)?.locale || (i18n as any)?.language || '',
+  ).toLowerCase();
+  return locale.startsWith('en');
+};
+
+const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
 
 const buttonToneStyle = (tone: ActionButtonTone) => {
   switch (tone) {
@@ -67,7 +70,7 @@ const SmallActionButton = ({
         buttonToneStyle(tone),
         disabled ? styles.disabledButton : undefined,
       ]}>
-      <Text style={styles.smallActionText}>{label}</Text>
+      <Text color={'#FFFFFF'} style={styles.smallActionText}>{label}</Text>
     </Button>
   );
 };
@@ -82,8 +85,10 @@ const WideActionButton = ({
   tone?: ActionButtonTone;
 }) => {
   return (
-    <Button onPress={onPress} style={[styles.wideButton, buttonToneStyle(tone)]}>
-      <Text style={styles.wideButtonText}>{label}</Text>
+    <Button
+      onPress={onPress}
+      style={[styles.wideButton, buttonToneStyle(tone)]}>
+      <Text color={'#FFFFFF'} style={styles.wideButtonText}>{label}</Text>
     </Button>
   );
 };
@@ -105,16 +110,12 @@ const DualButton = ({
 }) => {
   return (
     <View direction={'row'} style={styles.dualButtonRow}>
-      <Button
-        onPress={onLeftPress}
-        style={[styles.dualButton, styles.dualButtonLeft, buttonToneStyle(leftTone)]}>
-        <Text style={styles.wideButtonText}>{leftLabel}</Text>
+      <Button onPress={onLeftPress} style={[styles.dualButton, buttonToneStyle(leftTone)]}>
+        <Text color={'#FFFFFF'} style={styles.wideButtonText}>{leftLabel}</Text>
       </Button>
 
-      <Button
-        onPress={onRightPress}
-        style={[styles.dualButton, styles.dualButtonRight, buttonToneStyle(rightTone)]}>
-        <Text style={styles.wideButtonText}>{rightLabel}</Text>
+      <Button onPress={onRightPress} style={[styles.dualButton, buttonToneStyle(rightTone)]}>
+        <Text color={'#FFFFFF'} style={styles.wideButtonText}>{rightLabel}</Text>
       </Button>
     </View>
   );
@@ -127,15 +128,17 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isPool = isPoolGame(props.gameSettings?.category);
   const totalTimeText = viewModel.displayTotalTime();
 
-  const bottomLeftLabel = useMemo(() => {
+  const startLabel = useMemo(() => {
     if (!props.isStarted) {
       if ((props.warmUpCount ?? 0) > 0) {
-        return `${i18n.t('warmUp')} (${props.warmUpCount})`;
+        return `▷ ${tr(`Khởi động (${props.warmUpCount})`, `Warm-up (${props.warmUpCount})`)}`;
       }
-      return i18n.t('start');
+      return `▷ ${tr('Bắt đầu', 'Start')}`;
     }
 
-    return props.isPaused ? i18n.t('resume') : i18n.t('pause');
+    return props.isPaused
+      ? `▷ ${tr('Tiếp tục', 'Resume')}`
+      : `⏸ ${tr('Tạm dừng', 'Pause')}`;
   }, [props.isStarted, props.isPaused, props.warmUpCount]);
 
   const handleBottomLeft = () => {
@@ -151,11 +154,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     viewModel.onPause();
   };
 
-  const middleRow = useMemo(() => {
+  const mainActionRow = useMemo(() => {
     if (isPool && props.isStarted && props.poolBreakEnabled) {
       return (
         <WideActionButton
-          label={i18n.t('break')}
+          label={`↗ ${tr('Phá bi', 'Break shot')}`}
           tone={'green'}
           onPress={props.onPoolBreak}
         />
@@ -165,8 +168,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     if (isPool && props.isStarted && !props.poolBreakEnabled) {
       return (
         <DualButton
-          leftLabel={i18n.t('resetTurn')}
-          rightLabel={i18n.t('restart')}
+          leftLabel={`◴ ${tr('Bấm giờ', 'Timer')}`}
+          rightLabel={`▣ ${tr('Ván mới', 'New game')}`}
           onLeftPress={props.onResetTurn}
           onRightPress={viewModel.onRestart}
           leftTone={'green'}
@@ -177,9 +180,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     return (
       <WideActionButton
-        label={i18n.t('switchPlayer')}
+        label={`↗ ${tr('Đổi người', 'Switch turn')}`}
         tone={'amber'}
-        onPress={viewModel.onSwapPlayers}
+        onPress={viewModel.onSwitchTurn}
       />
     );
   }, [
@@ -189,24 +192,26 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     props.onPoolBreak,
     props.onResetTurn,
     viewModel.onRestart,
-    viewModel.onSwapPlayers,
+    viewModel.onSwitchTurn,
   ]);
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.timeCard}>
-        <Text style={styles.timeText}>{totalTimeText}</Text>
+      <View style={styles.timeWrap}>
+        <View style={styles.timeCard}>
+          <RNText allowFontScaling={false} style={styles.timeText}>{totalTimeText}</RNText>
+        </View>
       </View>
 
       <View direction={'row'} style={styles.metaRow}>
         <View style={styles.metaCard}>
-          <Text style={styles.metaLabel}>{i18n.t('totalTurns')}</Text>
-          <Text style={styles.metaValue}>{props.totalTurns}</Text>
+          <Text style={styles.metaLabel}>{tr('Số lượt', 'Turns')}</Text>
+          <Text color={'#FF2525'} style={styles.metaValue}>{props.totalTurns}</Text>
         </View>
 
         <View style={styles.metaCard}>
-          <Text style={styles.metaLabel}>{i18n.t('goal')}</Text>
-          <Text style={styles.metaValue}>{props.goal}</Text>
+          <Text style={styles.metaLabel}>{tr('Mục tiêu', 'Goal')}</Text>
+          <Text color={'#FF2525'} style={styles.metaValue}>{props.goal}</Text>
         </View>
       </View>
 
@@ -228,11 +233,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       <View style={styles.actionStack}>
         <View direction={'row'} style={styles.actionRow}>
           <SmallActionButton
-            label={i18n.t('gameBreak')}
+            label={`◔ ${tr('Giải lao', 'Break')}`}
             onPress={props.onGameBreak}
           />
           <SmallActionButton
-            label={i18n.t('reWatch')}
+            label={`◷ ${tr('Xem lại', 'Replay')}`}
             onPress={() => webcamRef.current?.rewatch()}
             disabled={!webcamRef.current?.canRewatch()}
           />
@@ -240,22 +245,22 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
         <View direction={'row'} style={styles.actionRow}>
           <SmallActionButton
-            label={i18n.t('refresh')}
+            label={`↺ ${tr('Làm mới', 'Refresh')}`}
             onPress={() => webcamRef.current?.refresh()}
             disabled={!webcamRef.current?.canRefresh()}
           />
           <SmallActionButton
-            label={i18n.t('switchCamera')}
+            label={`⌁ ${tr('Đổi cam', 'Switch cam')}`}
             onPress={() => webcamRef.current?.switchCamera()}
             disabled={!webcamRef.current?.canSwitchCamera()}
           />
         </View>
 
-        {middleRow}
+        {mainActionRow}
 
         <DualButton
-          leftLabel={bottomLeftLabel}
-          rightLabel={i18n.t('stop')}
+          leftLabel={startLabel}
+          rightLabel={`✈ ${tr('Kết thúc', 'End')}`}
           onLeftPress={handleBottomLeft}
           onRightPress={viewModel.onStop}
           leftTone={'amber'}
@@ -269,27 +274,40 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingBottom: 8,
+  },
+
+  timeWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
 
   timeCard: {
-    alignSelf: 'center',
-    minWidth: 246,
+    minWidth: 380,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: '#160708',
+    backgroundColor: '#2c0202',
     paddingHorizontal: 28,
     paddingVertical: 10,
-    marginBottom: 10,
+    overflow: 'visible',
   },
 
   timeText: {
-    color: '#FF2020',
-    fontSize: 58,
-    lineHeight: 64,
+    color: '#ffffff',
+    fontSize: 75,
+    lineHeight: 88,
     fontWeight: '900',
     textAlign: 'center',
+    includeFontPadding: false,
   },
 
   metaRow: {
+    width: '100%',
     gap: 12,
     marginBottom: 10,
   },
@@ -300,49 +318,53 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#2A2D33',
-    backgroundColor: '#17181C',
+    backgroundColor: '#17181c',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
   },
 
   metaLabel: {
-    color: '#FFFFFF',
+    color: '#922d2d',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
 
   metaValue: {
     color: '#FF2525',
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: 3,
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 2,
     textAlign: 'center',
   },
 
   cameraCard: {
-    flex: 1,
-    minHeight: 230,
+    width: '100%',
+    height: 218,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#383B40',
     backgroundColor: '#141518',
+    marginBottom: 8,
   },
 
   actionStack: {
-    marginTop: 12,
-    gap: 10,
+    width: '100%',
+    alignSelf: 'stretch',
+    gap: 8,
+    paddingBottom: 4,
   },
 
   actionRow: {
+    width: '100%',
     gap: 12,
   },
 
   smallActionButton: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 42,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
@@ -358,7 +380,8 @@ const styles = StyleSheet.create({
   },
 
   wideButton: {
-    minHeight: 52,
+    width: '100%',
+    minHeight: 50,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
@@ -374,25 +397,18 @@ const styles = StyleSheet.create({
   },
 
   dualButtonRow: {
+    width: '100%',
     gap: 12,
   },
 
   dualButton: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 50,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
-  },
-
-  dualButtonLeft: {
-    marginRight: 6,
-  },
-
-  dualButtonRight: {
-    marginLeft: 6,
   },
 
   disabledButton: {

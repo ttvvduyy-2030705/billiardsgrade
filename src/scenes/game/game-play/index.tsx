@@ -1,4 +1,3 @@
-
 import React, {memo, useEffect, useMemo, useState} from 'react';
 import {useWindowDimensions} from 'react-native';
 
@@ -119,7 +118,9 @@ const GamePlay = () => {
 
   return (
     <Container>
-      <View style={isPoolArenaLayout ? styles.poolArenaScreen : undefined} flex={'1'}>
+      <View
+        style={isPoolArenaLayout ? styles.poolArenaScreen : undefined}
+        flex={'1'}>
         {!isCameraFullscreen ? (
           <TopMatchHeader
             title={title}
