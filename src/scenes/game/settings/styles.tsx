@@ -1,0 +1,161 @@
+import {StyleSheet} from 'react-native';
+
+import colors from 'configuration/colors';
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#000000',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  headerGlow: {
+    position: 'relative',
+    minHeight: 56,
+    borderRadius: 22,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 52, 52, 0.24)',
+    backgroundColor: '#050505',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    shadowColor: '#FF1414',
+    shadowOpacity: 0.36,
+    shadowRadius: 16,
+    shadowOffset: {width: 0, height: 6},
+    elevation: 8,
+  },
+  logoButton: {
+    position: 'absolute',
+    left: 14,
+    top: 0,
+    bottom: 0,
+    width: 100,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingVertical: 4,
+    zIndex: 2,
+  },
+  logoImage: {
+    width: 82,
+    height: 28,
+  },
+  headerTitle: {
+    flexShrink: 1,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: {width: 0, height: 0},
+    textShadowRadius: 1.2,
+  },
+  headerSpacer: {
+    width: 0,
+  },
+  contentRow: {
+    flex: 1,
+    flexDirection: 'row',
+    marginTop: 12,
+    minHeight: 0,
+  },
+  panelShell: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 42, 42, 0.18)',
+    backgroundColor: '#050505',
+    paddingTop: 10,
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+    shadowColor: '#FF1414',
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: {width: 0, height: 4},
+    elevation: 7,
+  },
+  leftPanel: {
+    marginRight: 8,
+  },
+  rightPanel: {
+    marginLeft: 8,
+  },
+  panelHeader: {
+    borderBottomWidth: 1.1,
+    borderBottomColor: '#FF1F26',
+    paddingBottom: 7,
+    marginBottom: 6,
+  },
+  panelHeaderText: {
+    alignSelf: 'flex-start',
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: {width: 0, height: 0},
+    textShadowRadius: 1.1,
+  },
+  panelScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  panelScrollContent: {
+    paddingBottom: 2,
+  },
+  rightPanelContent: {
+    flex: 1,
+    minHeight: 0,
+  },
+  playerScrollContent: {
+    paddingBottom: 2,
+  },
+  footerInside: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingTop: 8,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  footerButton: {
+    minWidth: 82,
+    height: 38,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  cancelButton: {
+    backgroundColor: '#050505',
+    borderWidth: 1.6,
+    borderColor: colors.white,
+    marginRight: 10,
+  },
+  startButton: {
+    backgroundColor: '#D61F26',
+    borderWidth: 1.6,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  cancelText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  startText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  buttonPressed: {
+    opacity: 0.86,
+    transform: [{scale: 0.985}],
+  },
+});
+
+export default styles;
