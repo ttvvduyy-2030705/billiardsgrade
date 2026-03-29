@@ -121,6 +121,44 @@ const DualButton = ({
   );
 };
 
+const TripleButton = ({
+  leftLabel,
+  centerLabel,
+  rightLabel,
+  onLeftPress,
+  onCenterPress,
+  onRightPress,
+  leftTone = 'green',
+  centerTone = 'amber',
+  rightTone = 'muted',
+}: {
+  leftLabel: string;
+  centerLabel: string;
+  rightLabel: string;
+  onLeftPress?: () => void;
+  onCenterPress?: () => void;
+  onRightPress?: () => void;
+  leftTone?: ActionButtonTone;
+  centerTone?: ActionButtonTone;
+  rightTone?: ActionButtonTone;
+}) => {
+  return (
+    <View direction={'row'} style={styles.tripleButtonRow}>
+      <Button onPress={onLeftPress} style={[styles.tripleButton, buttonToneStyle(leftTone)]}>
+        <Text color={'#FFFFFF'} style={styles.tripleButtonText}>{leftLabel}</Text>
+      </Button>
+
+      <Button onPress={onCenterPress} style={[styles.tripleButton, buttonToneStyle(centerTone)]}>
+        <Text color={'#FFFFFF'} style={styles.tripleButtonText}>{centerLabel}</Text>
+      </Button>
+
+      <Button onPress={onRightPress} style={[styles.tripleButton, buttonToneStyle(rightTone)]}>
+        <Text color={'#FFFFFF'} style={styles.tripleButtonText}>{rightLabel}</Text>
+      </Button>
+    </View>
+  );
+};
+
 const GameConsole = (props: ConsoleViewModelProps) => {
   const viewModel = ConsoleViewModel(props);
   const webcamRef = useRef<WebCamHandle>(null);
@@ -167,14 +205,17 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     if (isPool && props.isStarted && !props.poolBreakEnabled) {
       return (
-        <DualButton
-          leftLabel={`◴ ${tr('Bấm giờ', 'Timer')}`}
-          rightLabel={`▣ ${tr('Ván mới', 'New game')}`}
-          onLeftPress={props.onResetTurn}
-          onRightPress={viewModel.onRestart}
-          leftTone={'green'}
-          rightTone={'muted'}
-        />
+        <TripleButton
+  leftLabel={`◴ ${tr('Bấm giờ', 'Timer')}`}
+  centerLabel={`✚ ${tr('Thêm giờ', 'Extension')}`}
+  rightLabel={`▣ ${tr('Ván mới', 'New game')}`}
+  onLeftPress={props.onResetTurn}
+  onCenterPress={viewModel.onPressGiveMoreTime}
+  onRightPress={props.onReset}
+  leftTone={'green'}
+  centerTone={'amber'}
+  rightTone={'muted'}
+/>
       );
     }
 
@@ -191,7 +232,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     props.poolBreakEnabled,
     props.onPoolBreak,
     props.onResetTurn,
-    viewModel.onRestart,
+    viewModel.onPressGiveMoreTime,
+    props.onReset,
     viewModel.onSwitchTurn,
   ]);
 
@@ -199,19 +241,19 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     <View style={styles.wrapper}>
       <View style={styles.timeWrap}>
         <View style={styles.timeCard}>
-          <RNText allowFontScaling={false} style={styles.timeText}>{totalTimeText}</RNText>
+          <RNText style={styles.timeText}>{totalTimeText}</RNText>
         </View>
       </View>
 
       <View direction={'row'} style={styles.metaRow}>
         <View style={styles.metaCard}>
-          <Text style={styles.metaLabel}>{tr('Số lượt', 'Turns')}</Text>
-          <Text color={'#FF2525'} style={styles.metaValue}>{props.totalTurns}</Text>
+          <Text color={'#FFFFFF'} fontSize={18} fontWeight={'800'} style={styles.metaLabel}>{tr('Số lượt', 'Turns')}</Text>
+          <Text color={'#FF2525'} fontSize={30} fontWeight={'900'} style={styles.metaValue}>{props.totalTurns}</Text>
         </View>
 
         <View style={styles.metaCard}>
-          <Text style={styles.metaLabel}>{tr('Mục tiêu', 'Goal')}</Text>
-          <Text color={'#FF2525'} style={styles.metaValue}>{props.goal}</Text>
+          <Text color={'#FFFFFF'} fontSize={18} fontWeight={'800'} style={styles.metaLabel}>{tr('Mục tiêu', 'Goal')}</Text>
+          <Text color={'#FF2525'} fontSize={30} fontWeight={'900'} style={styles.metaValue}>{props.goal}</Text>
         </View>
       </View>
 
@@ -298,9 +340,9 @@ const styles = StyleSheet.create({
   },
 
   timeText: {
-    color: '#ffffff',
-    fontSize: 75,
-    lineHeight: 88,
+    color: '#FF2020',
+    fontSize: 70,
+    lineHeight: 70,
     fontWeight: '900',
     textAlign: 'center',
     includeFontPadding: false,
@@ -325,16 +367,10 @@ const styles = StyleSheet.create({
   },
 
   metaLabel: {
-    color: '#922d2d',
-    fontSize: 15,
-    fontWeight: '700',
     textAlign: 'center',
   },
 
   metaValue: {
-    color: '#FF2525',
-    fontSize: 22,
-    fontWeight: '900',
     marginTop: 2,
     textAlign: 'center',
   },
@@ -409,6 +445,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
+  },
+
+  tripleButtonRow: {
+    width: '100%',
+    gap: 12,
+  },
+
+  tripleButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  tripleButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 
   disabledButton: {

@@ -1,10 +1,11 @@
 import React, {memo, useMemo} from 'react';
-import {StyleSheet, TextInput} from 'react-native';
+import {StyleSheet, TextInput, Text as RNText} from 'react-native';
 
 import View from 'components/View';
 import Text from 'components/Text';
 import Button from 'components/Button';
 import i18n from 'i18n';
+import {isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 
@@ -19,21 +20,26 @@ const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
 
 const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
   const viewModel = PlayerViewModel(props);
+  const isPoolMode = isPoolGame(props.gameSettings?.category);
+  const isActiveCard = !!props.isOnTurn;
 
   const extraTimeTurns = Math.max(
     0,
     Number((props.player as any)?.proMode?.extraTimeTurns ?? 0),
   );
 
-  const showAddTime =
-    !!props.isOnTurn && !!props.onPressGiveMoreTime && extraTimeTurns > 0;
+  const showAddTime = extraTimeTurns > 0;
 
   const addTimeButtons = useMemo(() => {
     return Array.from({length: extraTimeTurns}, (_, index) => index);
   }, [extraTimeTurns]);
 
   return (
-    <View style={styles.panel}>
+    <View
+      style={[
+        styles.panel,
+        isActiveCard ? styles.panelActive : styles.panelInactive,
+      ]}>
       <View style={styles.nameRow}>
         {viewModel.nameEditable ? (
           <TextInput
@@ -41,70 +47,150 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
             onChangeText={viewModel.onChangeName}
             autoFocus
             onBlur={viewModel.onToggleEditName}
-            style={styles.nameInput}
+            style={[
+              styles.nameInput,
+              !isActiveCard && styles.nameTextInactive,
+            ]}
             placeholderTextColor={'#8B8D95'}
           />
         ) : (
-          <Text style={styles.nameText}>{props.player.name}</Text>
+          <RNText
+            style={[
+              styles.nameText,
+              !isActiveCard && styles.nameTextInactive,
+            ]}>
+            {props.player.name}
+          </RNText>
         )}
 
-        <Button onPress={viewModel.onToggleEditName} style={styles.editButton}>
-          <Text style={styles.editText}>✎</Text>
+        <Button
+          onPress={viewModel.onToggleEditName}
+          style={[
+            styles.editButton,
+            !isActiveCard && styles.editButtonInactive,
+          ]}>
+          <RNText
+            style={[
+              styles.editText,
+              !isActiveCard && styles.editTextInactive,
+            ]}>
+            ✎
+          </RNText>
         </Button>
       </View>
 
-      <View direction={'row'} style={styles.plusMinusRow}>
+      <View
+        direction={'row'}
+        style={[
+          styles.plusMinusRow,
+          !isActiveCard && styles.controlsRowInactive,
+        ]}>
         <Button style={styles.stepButton} onPress={viewModel.onDecreasePoint}>
-          <Text style={styles.stepButtonText}>−</Text>
+          <RNText style={styles.stepButtonText}>−</RNText>
         </Button>
 
         <Button style={styles.stepButton} onPress={viewModel.onIncreasePoint}>
-          <Text style={styles.stepButtonText}>＋</Text>
+          <RNText style={styles.stepButtonText}>＋</RNText>
         </Button>
       </View>
 
-      <View direction={'row'} style={styles.statsRow}>
-        <View style={styles.statBlock}>
-          <Text style={styles.statLabel}>High run</Text>
-          <Text style={styles.statValue}>{viewModel.highestRate}</Text>
-        </View>
+      {!isPoolMode ? (
+        <View
+          direction={'row'}
+          style={[
+            styles.statsRow,
+            !isActiveCard && styles.statsRowInactive,
+          ]}>
+          <View style={styles.statBlock}>
+            <RNText style={styles.statLabel}>High run</RNText>
+            <RNText style={styles.statValue}>{viewModel.highestRate}</RNText>
+          </View>
 
-        <View style={styles.statBlock}>
-          <Text style={styles.statLabel}>Average</Text>
-          <Text style={styles.statValue}>{viewModel.averagePoint}</Text>
+          <View style={styles.statBlock}>
+            <RNText style={styles.statLabel}>Average</RNText>
+            <RNText style={styles.statValue}>{viewModel.averagePoint}</RNText>
+          </View>
         </View>
-      </View>
+      ) : null}
 
-      <View style={styles.scoreWrap}>
-        <Text adjustsFontSizeToFit numberOfLines={1} style={styles.scoreText}>
-          {props.player.totalPoint}
-        </Text>
+      <View
+        style={[
+          styles.scoreLayer,
+          !isActiveCard && styles.scoreLayerInactive,
+        ]}
+        pointerEvents="none">
+        <RNText style={styles.scoreText}>{props.player.totalPoint}</RNText>
       </View>
 
       {showAddTime ? (
-        <View style={styles.addTimeStack}>
+        <View
+          style={[
+            styles.addTimeStack,
+            !isActiveCard && styles.addTimeStackInactive,
+          ]}>
           {addTimeButtons.map(index => (
             <Button
               key={`extra-time-${index}`}
-              onPress={props.onPressGiveMoreTime}
-              style={styles.addTimeButton}>
-              <Text style={styles.addTimeText}>◷+</Text>
+              onPress={isActiveCard ? props.onPressGiveMoreTime : undefined}
+              style={[
+                styles.addTimeButton,
+                !isActiveCard && styles.addTimeButtonInactive,
+              ]}>
+              <RNText
+                style={[
+                  styles.addTimeText,
+                  !isActiveCard && styles.addTimeTextInactive,
+                ]}>
+                ◷+
+              </RNText>
             </Button>
           ))}
         </View>
       ) : null}
 
-      <View direction={'row'} style={styles.footerRow}>
-        <View style={styles.playingBadge}>
-          <Text color={'#FF2A2A'} style={styles.playingText}>{tr('Đang đánh', 'Playing')}</Text>
+      {isActiveCard ? (
+        <Button
+          onPress={() => viewModel.onEndTurn()}
+          style={[styles.playingBadge, styles.playingBadgeActive]}>
+          <RNText style={[styles.playingText, styles.playingTextActive]}>
+            {tr('Đang đánh', 'Playing')}
+          </RNText>
+        </Button>
+      ) : (
+        <View style={[styles.playingBadge, styles.playingBadgeInactive]}>
+          <RNText style={[styles.playingText, styles.playingTextInactive]}>
+            {tr('Đang đánh', 'Playing')}
+          </RNText>
         </View>
+      )}
 
-        <View direction={'row'} alignItems={'center'} style={styles.violateWrap}>
-          <View style={styles.violateCircle}>
-            <Text style={styles.violateX}>×</Text>
-          </View>
-          <Text color={'#FFFFFF'} style={styles.violateCount}>{props.player.violate || 0}</Text>
+      <View
+        direction={'row'}
+        alignItems={'center'}
+        style={[
+          styles.violateWrap,
+          !isActiveCard && styles.violateWrapInactive,
+        ]}>
+        <View
+          style={[
+            styles.violateCircle,
+            !isActiveCard && styles.violateCircleInactive,
+          ]}>
+          <RNText
+            style={[
+              styles.violateX,
+              !isActiveCard && styles.violateXInactive,
+            ]}>
+            ×
+          </RNText>
         </View>
+        <RNText
+          style={[
+            styles.violateCount,
+            !isActiveCard && styles.violateCountInactive,
+          ]}>
+          {props.player.violate || 0}
+        </RNText>
       </View>
     </View>
   );
@@ -123,8 +209,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+  panelActive: {
+    opacity: 1,
+  },
+
+  panelInactive: {
+    opacity: 0.52,
+  },
+
   nameRow: {
-    minHeight: 44,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -132,30 +226,49 @@ const styles = StyleSheet.create({
   nameText: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '800',
+    fontSize: 42,
+    lineHeight: 48,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 
   nameInput: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 30,
-    lineHeight: 36,
-    fontWeight: '800',
+    fontSize: 42,
+    lineHeight: 48,
+    fontWeight: '900',
+    textAlign: 'center',
     paddingVertical: 0,
   },
 
+  nameTextInactive: {
+    opacity: 0.9,
+  },
+
   editButton: {
-    width: 28,
-    height: 28,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  editButtonInactive: {
+    opacity: 0.55,
   },
 
   editText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  editTextInactive: {
+    opacity: 0.9,
   },
 
   plusMinusRow: {
@@ -164,65 +277,95 @@ const styles = StyleSheet.create({
     gap: 14,
   },
 
+  controlsRowInactive: {
+    opacity: 0.7,
+  },
+
   stepButton: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 46,
     borderRadius: 999,
-    backgroundColor: '#E8DDF0',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   stepButtonText: {
-    color: '#ffffff',
-    fontSize: 22,
+    color: '#000000',
+    fontSize: 30,
+    lineHeight: 40,
     fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 
   statsRow: {
     marginTop: 18,
     justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+
+  statsRowInactive: {
+    opacity: 0.7,
   },
 
   statBlock: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statLabel: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 
   statValue: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: 4,
+    fontSize: 24,
+    fontWeight: '800',
+    marginTop: 6,
+    textAlign: 'center',
   },
 
   scoreWrap: {
     flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingLeft: 0,
+    paddingRight: 58,
+    marginTop: 6,
+    marginBottom: 6,
   },
 
   scoreText: {
+    width: '100%',
     color: '#FFFFFF',
-    fontSize: 248,
-    lineHeight: 248,
-    fontWeight: '800',
+    fontSize: 440,
+    lineHeight: 425,
+    fontWeight: '900',
     textAlign: 'center',
+    includeFontPadding: false,
   },
 
   addTimeStack: {
     position: 'absolute',
-    right: 16,
+    right: 25,
     top: '42%',
+    transform: [{translateY: -20}],
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
+    zIndex: 4,
+  },
+
+  addTimeStackInactive: {
+    opacity: 0.65,
   },
 
   addTimeButton: {
@@ -236,41 +379,78 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
 
-  addTimeText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 18,
+  addTimeButtonInactive: {
+    opacity: 0.8,
   },
 
-  footerRow: {
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+  addTimeText: {
+    color: '#FFFFFF',
+    fontSize: 25,
+    lineHeight: 30,
+    fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  addTimeTextInactive: {
+    opacity: 0.9,
   },
 
   playingBadge: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
     minWidth: 154,
     minHeight: 56,
     borderTopRightRadius: 22,
     borderTopLeftRadius: 22,
     borderBottomRightRadius: 0,
-    borderBottomLeftRadius: 22,
-    backgroundColor: '#24090B',
-    borderWidth: 1,
-    borderColor: '#6B1118',
+    borderBottomLeftRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
+    zIndex: 4,
+  },
+
+  playingBadgeActive: {
+    backgroundColor: '#24090B',
+    borderWidth: 1,
+    borderColor: '#6B1118',
+  },
+
+  playingBadgeInactive: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
   },
 
   playingText: {
-    color: '#FF3C3C',
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  playingTextActive: {
+    color: '#FF2A2A',
+  },
+
+  playingTextInactive: {
+    color: '#9C9C9C',
   },
 
   violateWrap: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 4,
+  },
+
+  violateWrapInactive: {
+    opacity: 0.72,
   },
 
   violateCircle: {
@@ -282,20 +462,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  violateCircleInactive: {
+    backgroundColor: '#7A1111',
+  },
+
   violateX: {
     color: '#FFFFFF',
-    fontSize: 34,
-    lineHeight: 34,
+    fontSize: 80,
+    lineHeight: 78,
     fontWeight: '900',
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
+
+  violateXInactive: {
+    opacity: 0.9,
+  },
+
+  scoreLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 175,
+    bottom: 125,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+
+  scoreLayerInactive: {
+    opacity: 0.7,
   },
 
   violateCount: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    marginLeft: 10,
-    minWidth: 24,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '700',
+    marginLeft: 8,
+    minWidth: 18,
     textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  violateCountInactive: {
+    opacity: 0.9,
   },
 });
 

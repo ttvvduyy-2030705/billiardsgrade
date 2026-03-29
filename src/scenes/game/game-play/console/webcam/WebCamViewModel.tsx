@@ -34,7 +34,6 @@ import {
 } from 'types/webcam';
 import {CAMERA_PLAYBACK_DURATION} from './constants';
 import {PlayBackWebcamViewModelProps} from 'scenes/playback/PlayBackViewModel';
-import {emitCycleCameraSource} from 'utils/cameraSourceSwitcher';
 
 export interface Props {
   innerControls?: boolean;
@@ -50,7 +49,76 @@ export interface Props {
   youtubeLivePreviewActive?: boolean;
 }
 
+type CameraSource = 'back' | 'front' | 'external';
+
 let interval: NodeJS.Timeout, cameraInterval: NodeJS.Timeout;
+
+const CAMERA_SOURCE_CYCLE: CameraSource[] = ['back', 'front', 'external'];
+
+const hasDetectedUvcSource = (): boolean => {
+  return (globalThis as any).__APLUS_UVC_PRESENT__ === true;
+};
+
+const getCurrentCameraSourceSnapshot = (): CameraSource => {
+  const value = (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__;
+  if (value === 'front' || value === 'external') {
+    return value;
+  }
+  return 'back';
+};
+
+const getAvailableCameraSources = (): CameraSource[] => {
+  const rawSources = (globalThis as any).__APLUS_AVAILABLE_CAMERA_SOURCES__;
+  const hasUvc = hasDetectedUvcSource();
+
+  const normalized = Array.isArray(rawSources)
+    ? Array.from(
+        new Set(
+          rawSources.filter(
+            (item: any): item is CameraSource =>
+              item === 'back' || item === 'front' || item === 'external',
+          ),
+        ),
+      )
+    : [];
+
+  const filtered = normalized.filter(source => {
+    if (source === 'external') {
+      return hasUvc;
+    }
+    return true;
+  });
+
+  if (filtered.length) {
+    return filtered;
+  }
+
+  return hasUvc ? ['back', 'front', 'external'] : ['back', 'front'];
+};
+
+const getNextCameraSource = (
+  current: CameraSource,
+  available: CameraSource[],
+): CameraSource => {
+  const validCycle = CAMERA_SOURCE_CYCLE.filter(item =>
+    available.includes(item),
+  );
+
+  if (!validCycle.length) {
+    return 'back';
+  }
+
+  const currentIndex = validCycle.indexOf(current);
+  if (currentIndex === -1) {
+    return validCycle[0];
+  }
+
+  return validCycle[(currentIndex + 1) % validCycle.length];
+};
+
+const sourceToWebcamType = (source: CameraSource): WebcamType => {
+  return source === 'external' ? WebcamType.webcam : WebcamType.camera;
+};
 
 const WebCamViewModel = (props: Props) => {
   const videoRef = useRef(null);
@@ -67,29 +135,163 @@ const WebCamViewModel = (props: Props) => {
   const [url, setUrl] = useState<string | undefined>();
   const [currentSeekPosition, setCurrentSeekPosition] = useState(0);
 
+  const clearPlaybackTimers = useCallback(() => {
+    clearInterval(cameraInterval);
+    clearInterval(interval);
+  }, []);
+
+  const resetConnectionState = useCallback(() => {
+    clearPlaybackTimers();
+    setUrl(undefined);
+    setAutoConnect(false);
+    setIsWebcamStarted(false);
+    setConnectCountdownTime(10);
+  }, [clearPlaybackTimers]);
+
+  const getCameraData = useCallback(() => {
+    AsyncStorage.multiGet(
+      [
+        keys.CAMERA_RTMP_URL,
+        keys.CAMERA_STREAM_KEY,
+        keys.OUTPUT_TYPE,
+        keys.CAMERA_RESOLUTION,
+        keys.CAMERA_FPS,
+        keys.CAMERA_BITRATE,
+      ],
+      (error, result) => {
+        if (error || !result) {
+          return;
+        }
+
+        const rtmpUrl = result[0][1];
+        const streamKey = result[1][1];
+        const outputType = result[2][1];
+        const resolution = result[3][1];
+        const fps = result[4][1];
+        const bitrate = result[5][1];
+
+        setLiveStream({
+          rtmpUrl: rtmpUrl || '',
+          streamKey: streamKey || '',
+          outputType: (outputType || OutputType.local) as OutputType,
+          resolution: (resolution || Resolution.FullHD) as Resolution,
+          fps: (fps || Fps.F30) as Fps,
+          bitrate: (bitrate || Bitrate.B9000) as Bitrate,
+        });
+
+        interval = setInterval(() => {
+          setConnectCountdownTime(prev => (prev - 1 > 0 ? prev - 1 : 0));
+        }, 1000);
+      },
+    );
+  }, []);
+
+  const getWebcamData = useCallback(() => {
+    if (!hasDetectedUvcSource()) {
+      getCameraData();
+      setWebcamType(WebcamType.camera);
+      return;
+    }
+
+    AsyncStorage.multiGet(
+      [
+        keys.WEBCAM_IP_ADDRESS,
+        keys.WEBCAM_USERNAME,
+        keys.WEBCAM_PASSWORD,
+        keys.WEBCAM_SCALE,
+        keys.WEBCAM_SYNC_TIME,
+        keys.WEBCAM_TRANSLATE_X,
+        keys.WEBCAM_TRANSLATE_Y,
+        keys.OUTPUT_TYPE,
+        keys.CAMERA_RTMP_URL,
+        keys.CAMERA_STREAM_KEY,
+        keys.CAMERA_RESOLUTION,
+        keys.CAMERA_FPS,
+        keys.CAMERA_BITRATE,
+      ],
+      (error, result) => {
+        if (error || !result) {
+          getCameraData();
+          setWebcamType(WebcamType.camera);
+          return;
+        }
+
+        const ip = result[0][1];
+        const username = result[1][1];
+        const password = result[2][1];
+        const scale = result[3][1];
+        const syncTime = result[4][1];
+        const translateX = result[5][1];
+        const translateY = result[6][1];
+        const outputType = result[7][1];
+        const rtmpUrl = result[8][1];
+        const streamKey = result[9][1];
+        const resolution = result[10][1];
+        const fps = result[11][1];
+        const bitrate = result[12][1];
+
+        if (!ip || !username || !password) {
+          getCameraData();
+          setWebcamType(WebcamType.camera);
+          return;
+        }
+
+        setWebcam({
+          webcamIP: ip,
+          username,
+          password,
+          scale: scale ? Number(scale) : 1,
+          syncTime: syncTime ? Number(syncTime) : 60,
+          translateX: translateX ? Number(translateX) : 0,
+          translateY: translateY ? Number(translateY) : 0,
+          outputType: (outputType || OutputType.local) as OutputType,
+        });
+
+        setLiveStream({
+          rtmpUrl: rtmpUrl || '',
+          streamKey: streamKey || '',
+          outputType: (outputType || OutputType.local) as OutputType,
+          resolution: (resolution || Resolution.FullHD) as Resolution,
+          fps: (fps || Fps.F30) as Fps,
+          bitrate: (bitrate || Bitrate.B9000) as Bitrate,
+        });
+
+        interval = setInterval(() => {
+          setConnectCountdownTime(prev => (prev - 1 > 0 ? prev - 1 : 0));
+        }, 1000);
+      },
+    );
+  }, [getCameraData]);
+
   useEffect(() => {
     AsyncStorage.getItem(keys.WEBCAM_TYPE, (error, result) => {
+      const hasUvc = hasDetectedUvcSource();
+
       if (error) {
         getCameraData();
         setWebcamType(WebcamType.camera);
+        (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__ = 'back';
         return;
       }
 
-      if (result === WebcamType.webcam) {
+      if (result === WebcamType.webcam && hasUvc) {
         getWebcamData();
         setWebcamType(WebcamType.webcam);
+        (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__ = 'external';
         return;
       }
 
       getCameraData();
       setWebcamType(WebcamType.camera);
+      if ((globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__ === 'external') {
+        (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__ = 'back';
+      }
     });
 
     return () => {
-      clearInterval(cameraInterval);
-      clearInterval(interval);
+      clearPlaybackTimers();
     };
-  }, [getCameraData, getWebcamData]);
+  }, [clearPlaybackTimers, getCameraData, getWebcamData]);
 
   useEffect(() => {
     const _countdownTime = (webcam?.syncTime || CAMERA_PLAYBACK_DURATION) * 2;
@@ -178,119 +380,6 @@ const WebCamViewModel = (props: Props) => {
     gameSettings,
   ]);
 
-  const getCameraData = useCallback(() => {
-    AsyncStorage.multiGet(
-      [
-        keys.CAMERA_RTMP_URL,
-        keys.CAMERA_STREAM_KEY,
-        keys.OUTPUT_TYPE,
-        keys.CAMERA_RESOLUTION,
-        keys.CAMERA_FPS,
-        keys.CAMERA_BITRATE,
-      ],
-      (error, result) => {
-        if (error || !result) {
-          return;
-        }
-
-        const rtmpUrl = result[0][1];
-        const streamKey = result[1][1];
-        const outputType = result[2][1];
-        const resolution = result[3][1];
-        const fps = result[4][1];
-        const bitrate = result[5][1];
-
-        setLiveStream({
-          rtmpUrl: rtmpUrl || '',
-          streamKey: streamKey || '',
-          outputType: (outputType || OutputType.local) as OutputType,
-          resolution: (resolution || Resolution.FullHD) as Resolution,
-          fps: (fps || Fps.F30) as Fps,
-          bitrate: (bitrate || Bitrate.B9000) as Bitrate,
-        });
-
-        interval = setInterval(() => {
-          setConnectCountdownTime(prev => (prev - 1 > 0 ? prev - 1 : 0));
-        }, 1000);
-      },
-    );
-  }, []);
-
-  const getWebcamData = useCallback(() => {
-    AsyncStorage.multiGet(
-      [
-        keys.WEBCAM_IP_ADDRESS,
-        keys.WEBCAM_USERNAME,
-        keys.WEBCAM_PASSWORD,
-        keys.WEBCAM_SCALE,
-        keys.WEBCAM_SYNC_TIME,
-        keys.WEBCAM_TRANSLATE_X,
-        keys.WEBCAM_TRANSLATE_Y,
-        keys.OUTPUT_TYPE,
-        keys.CAMERA_RTMP_URL,
-        keys.CAMERA_STREAM_KEY,
-        keys.CAMERA_RESOLUTION,
-        keys.CAMERA_FPS,
-        keys.CAMERA_BITRATE,
-      ],
-      (error, result) => {
-        if (error || !result) {
-          getCameraData();
-          setWebcamType(WebcamType.camera);
-          return;
-        }
-
-        const ip = result[0][1];
-        const username = result[1][1];
-        const password = result[2][1];
-        const scale = result[3][1];
-        const syncTime = result[4][1];
-        const translateX = result[5][1];
-        const translateY = result[6][1];
-        const outputType = result[7][1];
-        const rtmpUrl = result[8][1];
-        const streamKey = result[9][1];
-        const resolution = result[10][1];
-        const fps = result[11][1];
-        const bitrate = result[12][1];
-
-        if (!ip || !username || !password) {
-          getCameraData();
-          setWebcamType(WebcamType.camera);
-          return;
-        }
-
-        setWebcam({
-          webcamIP: ip,
-          username,
-          password,
-          scale: scale ? Number(scale) : 1,
-          syncTime: syncTime ? Number(syncTime) : 60,
-          translateX: translateX ? Number(translateX) : 0,
-          translateY: translateY ? Number(translateY) : 0,
-          outputType: (outputType || OutputType.local) as OutputType,
-        });
-
-        setLiveStream({
-          rtmpUrl: rtmpUrl || '',
-          streamKey: streamKey || '',
-          outputType: (outputType || OutputType.local) as OutputType,
-          resolution: (resolution || Resolution.FullHD) as Resolution,
-          fps: (fps || Fps.F30) as Fps,
-          bitrate: (bitrate || Bitrate.B9000) as Bitrate,
-        });
-
-        interval = setInterval(() => {
-          setConnectCountdownTime(prev => (prev - 1 > 0 ? prev - 1 : 0));
-        }, 1000);
-      },
-    );
-  }, [getCameraData]);
-
-  const canRefresh = useMemo(() => {
-    return !(props.isStarted && !props.isPaused);
-  }, [props.isStarted, props.isPaused]);
-
   const isActiveRecording = props.isStarted && !props.isPaused;
   const currentCameraSource =
     props.cameraRef?.current?.getZoomInfo?.()?.source || 'unknown';
@@ -315,7 +404,7 @@ const WebCamViewModel = (props: Props) => {
     }, 1000);
   }, [props, blockCrossBackendActions]);
 
-  const onSwitchCamera = useCallback(() => {
+  const onSwitchCamera = useCallback(async () => {
     if (blockCrossBackendActions) {
       console.log(
         '[WebCam] switch camera blocked: external webcam is recording',
@@ -323,8 +412,45 @@ const WebCamViewModel = (props: Props) => {
       return;
     }
 
-    emitCycleCameraSource();
-  }, [blockCrossBackendActions]);
+    const currentSource = getCurrentCameraSourceSnapshot();
+    const availableSources = getAvailableCameraSources();
+    const nextSource = getNextCameraSource(currentSource, availableSources);
+    const nextWebcamType = sourceToWebcamType(nextSource);
+
+    (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__ = nextSource;
+
+    console.log('[WebCam] switch source:', {
+      currentSource,
+      availableSources,
+      nextSource,
+      nextWebcamType,
+      hasUvc: hasDetectedUvcSource(),
+    });
+
+    props.setIsCameraReady(false);
+    setRefreshing(true);
+    resetConnectionState();
+
+    setWebcamType(nextWebcamType);
+    await AsyncStorage.setItem(keys.WEBCAM_TYPE, nextWebcamType);
+
+    if (nextWebcamType === WebcamType.webcam) {
+      getWebcamData();
+    } else {
+      getCameraData();
+    }
+
+    const timeout = setTimeout(() => {
+      setRefreshing(false);
+      clearTimeout(timeout);
+    }, 350);
+  }, [
+    blockCrossBackendActions,
+    props,
+    resetConnectionState,
+    getWebcamData,
+    getCameraData,
+  ]);
 
   const onDelay = useCallback(() => {}, []);
 
@@ -388,7 +514,7 @@ const WebCamViewModel = (props: Props) => {
       onWebcamError,
       onToggleInnerControls,
       canRefresh: !blockCrossBackendActions && !refreshing,
-  canSwitchCamera: !blockCrossBackendActions,
+      canSwitchCamera: !blockCrossBackendActions,
       currentSeekPosition,
     }),
     [
@@ -413,7 +539,6 @@ const WebCamViewModel = (props: Props) => {
       onEnd,
       onWebcamError,
       onToggleInnerControls,
-      canRefresh,
       currentSeekPosition,
     ],
   );

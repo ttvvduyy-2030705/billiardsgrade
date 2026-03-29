@@ -18,14 +18,15 @@ const PoolShotClock = ({
   onPress,
 }: Props) => {
   const safeOriginal = Math.max(1, originalCountdownTime || 40);
-  const safeCurrent = Math.max(0, Math.min(currentCountdownTime, safeOriginal));
+  const safeCurrent = Math.max(0, currentCountdownTime);
+  const progressMax = Math.max(safeOriginal, safeCurrent);
 
   const activeColor =
     safeCurrent <= 5 ? '#FF2D22' : safeCurrent <= 10 ? '#FFBE2F' : '#20E247';
 
   const litCount = useMemo(() => {
-    return Math.max(0, Math.ceil((safeCurrent / safeOriginal) * SEGMENTS));
-  }, [safeCurrent, safeOriginal]);
+    return Math.max(0, Math.ceil((safeCurrent / progressMax) * SEGMENTS));
+  }, [safeCurrent, progressMax]);
 
   return (
     <Button

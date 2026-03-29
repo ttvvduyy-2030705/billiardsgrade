@@ -1,10 +1,19 @@
-import React, {forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react';
+import React, {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {Platform} from 'react-native';
 import {
   ImageBackground,
+  Modal,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View as RNView,
 } from 'react-native';
 
@@ -59,15 +68,18 @@ const formatZoomLabel = (value: number) => {
   return `${value.toFixed(1)}x`;
 };
 
-
 const getYouTubeSourceLock = (): 'back' | 'front' | 'external' | null => {
   const value = (globalThis as any).__APLUS_YOUTUBE_SOURCE_LOCK__;
-  return value === 'back' || value === 'front' || value === 'external' ? value : null;
+  return value === 'back' || value === 'front' || value === 'external'
+    ? value
+    : null;
 };
 
 const getCurrentCameraSourceSnapshot = (): 'back' | 'front' | 'external' | null => {
   const value = (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__;
-  return value === 'back' || value === 'front' || value === 'external' ? value : null;
+  return value === 'back' || value === 'front' || value === 'external'
+    ? value
+    : null;
 };
 
 type WebCamComponentProps = Props & {
@@ -85,14 +97,16 @@ export type WebCamHandle = {
 
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
-  const {width: screenWidth, height: screenHeight} = useWindowDimensions();
 
   const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
   const [zoomSupported, setZoomSupported] = useState(false);
   const [zoomSteps, setZoomSteps] = useState<number[]>(BASE_ZOOM_STEPS);
   const [currentZoom, setCurrentZoom] = useState(1);
+
   const youtubeControllerRef = useRef<any>(null);
   const lastStableZoomInfoRef = useRef<CameraZoomInfo | null>(null);
+  const fullscreenSourceRef =
+    useRef<'back' | 'front' | 'external' | null>(null);
 
   useEffect(() => {
     return subscribeCameraFullscreen(setIsFullscreenLocal);
@@ -100,8 +114,24 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
 
   const liveSourceLock = getYouTubeSourceLock();
   const currentCameraSource = getCurrentCameraSourceSnapshot();
+
   const externalLiveLocked =
     props.youtubeLivePreviewActive && liveSourceLock === 'external';
+
+  const baseCameraSource =
+    (viewModel.webcamType as 'back' | 'front' | 'external' | undefined) ||
+    currentCameraSource ||
+    liveSourceLock ||
+    'back';
+
+  const effectiveCameraSource =
+    (isFullscreen ? fullscreenSourceRef.current : null) || baseCameraSource;
+
+  const effectiveCameraFacing =
+    effectiveCameraSource === 'front' ? 'front' : 'back';
+
+  const effectiveSourceType =
+    effectiveCameraSource === 'external' ? 'webcam' : 'phone';
 
   const canRewatch = useMemo(() => {
     return props.isStarted && props.isPaused && !props.youtubeLivePreviewActive;
@@ -121,8 +151,10 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     if (!info) {
       const fallback = lastStableZoomInfoRef.current;
       if (fallback) {
-        const minZoom = typeof fallback.minZoom === 'number' ? fallback.minZoom : 1;
-        const maxZoom = typeof fallback.maxZoom === 'number' ? fallback.maxZoom : 1;
+        const minZoom =
+          typeof fallback.minZoom === 'number' ? fallback.minZoom : 1;
+        const maxZoom =
+          typeof fallback.maxZoom === 'number' ? fallback.maxZoom : 1;
         const zoom = clamp(
           typeof fallback.zoom === 'number' ? fallback.zoom : 1,
           minZoom,
@@ -235,11 +267,17 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   }, [zoomSteps, currentZoom]);
 
   const openFullscreen = () => {
+    fullscreenSourceRef.current =
+      (viewModel.webcamType as 'back' | 'front' | 'external' | undefined) ||
+      currentCameraSource ||
+      liveSourceLock ||
+      'back';
     setCameraFullscreen(true);
   };
 
   const closeFullscreen = () => {
     setCameraFullscreen(false);
+    fullscreenSourceRef.current = null;
   };
 
   const zoomIn = () => {
@@ -270,7 +308,9 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
 
   const onSwitchCameraPress = () => {
     if (externalLiveLocked) {
-      console.log('[WebCam] block switch camera while external live lock is active');
+      console.log(
+        '[WebCam] block switch camera while external live lock is active',
+      );
       return;
     }
 
@@ -283,9 +323,13 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   };
 
   const useYouTubeNativePreview =
-    props.youtubeLivePreviewActive && Platform.OS === 'android' && !externalLiveLocked;
+    props.youtubeLivePreviewActive &&
+    Platform.OS === 'android' &&
+    !externalLiveLocked;
+
   const allowRefresh =
     !useYouTubeNativePreview && !externalLiveLocked && viewModel.canRefresh;
+
   const allowSwitchCamera = externalLiveLocked
     ? false
     : useYouTubeNativePreview
@@ -293,18 +337,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
       : viewModel.canSwitchCamera;
 
   const containerStyle = useMemo(() => {
-    if (isFullscreen) {
-      return [
-        styles.fullscreenRoot,
-        {
-          width: screenWidth,
-          height: screenHeight,
-        },
-      ];
-    }
-
-    const prefersLandscapeExternal =
-      liveSourceLock === 'external' || currentCameraSource === 'external';
+    const prefersLandscapeExternal = effectiveCameraSource === 'external';
     const embeddedAspectRatio = prefersLandscapeExternal
       ? 16 / 9
       : props.innerControls
@@ -312,20 +345,12 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         : 1.565;
 
     return [styles.embeddedRoot, {aspectRatio: embeddedAspectRatio}];
-  }, [
-    currentCameraSource,
-    isFullscreen,
-    liveSourceLock,
-    props.innerControls,
-    screenWidth,
-    screenHeight,
-  ]);
+  }, [effectiveCameraSource, props.innerControls]);
 
   const showBottomControls =
     (!props.innerControls || viewModel.innerControlsShow) &&
     !isFullscreen &&
     !props.hideBottomControls;
-
 
   useImperativeHandle(
     ref,
@@ -358,28 +383,49 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     ],
   );
 
-  const liveCamera = (
-    <RNView style={styles.videoClip}>
-      {!viewModel.refreshing || useYouTubeNativePreview ? (
-        <RNView
-          key={useYouTubeNativePreview ? 'youtube-native-preview' : 'legacy-video-preview'}
-          style={styles.videoScaleWrap}>
+  const fullLogoPlaceholder = (
+    <ImageBackground
+      source={images.logoSmall || images.logo}
+      style={styles.background}
+      resizeMode="contain">
+      <View
+        flex={'1'}
+        style={styles.fullWidth}
+        alignItems={'center'}
+        justify={'center'}>
+        <Loading isLoading size={'large'} showPlainLoading />
+      </View>
+    </ImageBackground>
+  );
+
+  const renderCameraContent = () => {
+    if (!viewModel.refreshing || useYouTubeNativePreview) {
+      const contentKey = [
+        isFullscreen ? 'fullscreen' : 'embedded',
+        effectiveCameraSource,
+        externalLiveLocked ? 'external-lock' : 'normal',
+      ].join('-');
+
+      return (
+        <RNView key={contentKey} style={styles.videoScaleWrap}>
           {useYouTubeNativePreview ? (
             <YouTubeAndroidLivePreview
               controllerRef={youtubeControllerRef}
               setIsCameraReady={props.setIsCameraReady}
-              sourceType={externalLiveLocked ? 'webcam' : 'phone'}
-              cameraFacing={liveSourceLock === 'front' ? 'front' : 'back'}
+              sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
+              cameraFacing={effectiveCameraFacing}
             />
           ) : (
             <Video
-              key={externalLiveLocked ? 'webcam-billiards-external-lock' : 'webcam-billiards'}
+              key={contentKey}
               gestureDisabled
               source={viewModel.source}
               initialScale={viewModel.webcam?.scale}
               initialTranslateX={viewModel.webcam?.translateX}
               initialTranslateY={viewModel.webcam?.translateY}
-              onFullscreenPlayerDidPresent={viewModel.onFullscreenPlayerDidPresent}
+              onFullscreenPlayerDidPresent={
+                viewModel.onFullscreenPlayerDidPresent
+              }
               onBuffer={viewModel.onBuffer}
               onSeek={viewModel.onSeek}
               onLoad={viewModel.onLoad}
@@ -391,153 +437,175 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
               isPaused={props.isPaused}
               isStarted={props.isStarted}
               videoUri={props.videoUri}
-              webcamType={viewModel.webcamType!}
+              webcamType={effectiveCameraSource as any}
               setIsCameraReady={props.setIsCameraReady}
             />
           )}
         </RNView>
-      ) : (
-        <ImageBackground
-          source={images.logoclb}
-          style={styles.background}
-          resizeMode="stretch">
-          <View
-            flex={'1'}
-            style={styles.fullWidth}
-            alignItems={'center'}
-            justify={'center'}>
-            <Loading isLoading size={'large'} showPlainLoading />
-          </View>
-        </ImageBackground>
-      )}
+      );
+    }
 
-      {!isFullscreen ? (
+    return fullLogoPlaceholder;
+  };
+
+  const renderCameraChrome = () => {
+    if (!isFullscreen) {
+      return (
         <Pressable style={styles.fullscreenFab} onPress={openFullscreen}>
           <Text color={colors.white} fontSize={20}>
             ⛶
           </Text>
         </Pressable>
-      ) : (
-        <>
-          <Pressable style={styles.closeButton} onPress={closeFullscreen}>
-            <Text color={colors.white} fontSize={16}>
-              Đóng
+      );
+    }
+
+    return (
+      <>
+        <Pressable style={styles.closeButton} onPress={closeFullscreen}>
+          <Text color={colors.white} fontSize={16}>
+            Đóng
+          </Text>
+        </Pressable>
+
+        <RNView style={styles.zoomRail}>
+          <Pressable
+            style={[
+              styles.zoomControlButton,
+              (!zoomSupported || activeZoomIndex === zoomSteps.length - 1) &&
+                styles.zoomControlDisabled,
+            ]}
+            onPress={zoomIn}>
+            <Text color={colors.white} fontSize={20}>
+              +
             </Text>
           </Pressable>
 
-          <RNView style={styles.zoomRail}>
-            <Pressable
-              style={[
-                styles.zoomControlButton,
-                (!zoomSupported || activeZoomIndex === zoomSteps.length - 1) &&
-                  styles.zoomControlDisabled,
-              ]}
-              onPress={zoomIn}>
-              <Text color={colors.white} fontSize={20}>
-                +
+          <RNView style={styles.zoomStepsWrap}>
+            <RNView style={styles.currentZoomBadge}>
+              <Text color={colors.white} fontSize={12}>
+                {formatZoomLabel(currentZoom)}
               </Text>
-            </Pressable>
-
-            <RNView style={styles.zoomStepsWrap}>
-              <RNView style={styles.currentZoomBadge}>
-                <Text color={colors.white} fontSize={12}>
-                  {formatZoomLabel(currentZoom)}
-                </Text>
-              </RNView>
-
-              {zoomSupported ? (
-                zoomSteps.map((item, index) => {
-                  const active = index === activeZoomIndex;
-                  return (
-                    <Pressable
-                      key={`zoom-${item}`}
-                      style={[
-                        styles.zoomStepButton,
-                        active && styles.zoomStepButtonActive,
-                      ]}
-                      onPress={() => selectZoom(index)}>
-                      <Text
-                        color={active ? colors.black : colors.white}
-                        fontSize={12}>
-                        {formatZoomLabel(item)}
-                      </Text>
-                    </Pressable>
-                  );
-                })
-              ) : (
-                <RNView style={styles.zoomUnsupportedBadge}>
-                  <Text color={colors.white} fontSize={11}>
-                    Không hỗ trợ zoom
-                  </Text>
-                </RNView>
-              )}
             </RNView>
 
-            <Pressable
-              style={[
-                styles.zoomControlButton,
-                (!zoomSupported || activeZoomIndex === 0) &&
-                  styles.zoomControlDisabled,
-              ]}
-              onPress={zoomOut}>
-              <Text color={colors.white} fontSize={20}>
-                −
-              </Text>
-            </Pressable>
+            {zoomSupported ? (
+              zoomSteps.map((item, index) => {
+                const active = index === activeZoomIndex;
+                return (
+                  <Pressable
+                    key={`zoom-${item}`}
+                    style={[
+                      styles.zoomStepButton,
+                      active && styles.zoomStepButtonActive,
+                    ]}
+                    onPress={() => selectZoom(index)}>
+                    <Text
+                      color={active ? colors.black : colors.white}
+                      fontSize={12}>
+                      {formatZoomLabel(item)}
+                    </Text>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <RNView style={styles.zoomUnsupportedBadge}>
+                <Text color={colors.white} fontSize={11}>
+                  Không hỗ trợ zoom
+                </Text>
+              </RNView>
+            )}
           </RNView>
-        </>
-      )}
+
+          <Pressable
+            style={[
+              styles.zoomControlButton,
+              (!zoomSupported || activeZoomIndex === 0) &&
+                styles.zoomControlDisabled,
+            ]}
+            onPress={zoomOut}>
+            <Text color={colors.white} fontSize={20}>
+              −
+            </Text>
+          </Pressable>
+        </RNView>
+      </>
+    );
+  };
+
+  const renderCameraView = (fullscreenMode: boolean) => (
+    <RNView
+      style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
+      {renderCameraContent()}
+      {renderCameraChrome()}
     </RNView>
   );
 
   return (
-    <RNView style={containerStyle} pointerEvents="box-none">
-      <RNView style={styles.videoHost}>{liveCamera}</RNView>
+    <>
+      {!isFullscreen ? (
+        <RNView style={containerStyle} pointerEvents="box-none">
+          <RNView style={styles.videoHost}>{renderCameraView(false)}</RNView>
 
-      {props.innerControls && !isFullscreen ? (
-        <Pressable
-          style={styles.overlayTouch}
-          onPress={viewModel.onToggleInnerControls}
-        />
-      ) : null}
+          {props.innerControls ? (
+            <Pressable
+              style={styles.overlayTouch}
+              onPress={viewModel.onToggleInnerControls}
+            />
+          ) : null}
 
-      {showBottomControls ? (
-        <RNView style={styles.bottomBar}>
-          <Pressable
-  disabled={!allowRefresh}
-  onPress={allowRefresh ? viewModel.onRefresh : undefined}
-  style={[
-    styles.actionButton,
-    !allowRefresh && styles.actionButtonDisabled,
-  ]}>
-  <Text>↻ Làm mới</Text>
-</Pressable>
+          {showBottomControls ? (
+            <RNView style={styles.bottomBar}>
+              <Pressable
+                disabled={!allowRefresh}
+                onPress={allowRefresh ? viewModel.onRefresh : undefined}
+                style={[
+                  styles.actionButton,
+                  !allowRefresh && styles.actionButtonDisabled,
+                ]}>
+                <Text>↻ Làm mới</Text>
+              </Pressable>
 
-          <Pressable
-  disabled={!allowSwitchCamera}
-  onPress={allowSwitchCamera ? onSwitchCameraPress : undefined}
-  style={[
-    styles.actionButton,
-    styles.switchButton,
-    !allowSwitchCamera && styles.actionButtonDisabled,
-  ]}>
-  <Text>⇄ Chuyển camera</Text>
-</Pressable>
+              <Pressable
+                disabled={!allowSwitchCamera}
+                onPress={allowSwitchCamera ? onSwitchCameraPress : undefined}
+                style={[
+                  styles.actionButton,
+                  styles.switchButton,
+                  !allowSwitchCamera && styles.actionButtonDisabled,
+                ]}>
+                <Text>⇄ Chuyển camera</Text>
+              </Pressable>
 
-          <Pressable
-            onPress={viewModel.onReWatch}
-            disabled={!canRewatch}
-            style={[
-              styles.actionButton,
-              !canRewatch && styles.actionButtonDisabled,
-            ]}>
-            <Text color={colors.white} fontSize={14}>
-              ▶ {i18n.t('reWatch')}
-            </Text>
-          </Pressable>
+              <Pressable
+                onPress={viewModel.onReWatch}
+                disabled={!canRewatch}
+                style={[
+                  styles.actionButton,
+                  !canRewatch && styles.actionButtonDisabled,
+                ]}>
+                <Text color={colors.white} fontSize={14}>
+                  ▶ {i18n.t('reWatch')}
+                </Text>
+              </Pressable>
+            </RNView>
+          ) : null}
         </RNView>
       ) : null}
-    </RNView>
+
+      <Modal
+        visible={isFullscreen}
+        transparent={false}
+        animationType="fade"
+        presentationStyle="fullScreen"
+        supportedOrientations={['portrait', 'landscape']}
+        statusBarTranslucent
+        onRequestClose={closeFullscreen}>
+        <RNView style={styles.fullscreenRoot}>
+          <RNView style={styles.fullscreenVideoHost}>
+            {renderCameraView(true)}
+          </RNView>
+        </RNView>
+      </Modal>
+    </>
   );
 });
 
@@ -550,9 +618,7 @@ const styles = StyleSheet.create({
   },
 
   fullscreenRoot: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 999999,
-    elevation: 999999,
+    flex: 1,
     backgroundColor: '#000',
   },
 
@@ -561,7 +627,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
 
+  fullscreenVideoHost: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+
   videoClip: {
+    flex: 1,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+
+  fullscreenVideoClip: {
     flex: 1,
     backgroundColor: '#000',
     overflow: 'hidden',

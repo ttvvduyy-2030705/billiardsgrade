@@ -130,6 +130,7 @@ const GamePlay = () => {
             onToggleRemote={setRemoteEnabled}
             proModeEnabled={viewModel.proModeEnabled}
             onToggleProMode={viewModel.onToggleProMode}
+            gameSettings={viewModel.gameSettings}
           />
         ) : null}
 

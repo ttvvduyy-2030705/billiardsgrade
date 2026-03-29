@@ -367,8 +367,8 @@ const GamePlayViewModel = () => {
   const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [proModeEnabled, setProModeEnabled] = useState(
-    gameSettings?.mode?.mode !== 'fast',
-  );
+  !isPoolGame(gameSettings?.category) && gameSettings?.mode?.mode !== 'fast',
+);
 
   // useEffect(() => {
   //      if(!hasPermission){
@@ -708,11 +708,17 @@ const GamePlayViewModel = () => {
     if (
       !playerSettings ||
       !isStarted ||
+      !gameSettings?.mode?.countdownTime ||
       (typeof playerSettings.playingPlayers[currentPlayerIndex].proMode
         ?.extraTimeTurns === 'number' &&
         playerSettings.playingPlayers[currentPlayerIndex].proMode
           ?.extraTimeTurns <= 0)
     ) {
+      return;
+    }
+
+    const extraTimeBonus = Number(gameSettings.mode?.extraTimeBonus || 0);
+    if (extraTimeBonus <= 0) {
       return;
     }
 
@@ -739,9 +745,17 @@ const GamePlayViewModel = () => {
       },
     );
 
-    _resetCountdown(undefined, true);
+    setCountdownTime(prev => prev + extraTimeBonus);
+    setIsMatchPaused(false);
     setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
-  }, [isStarted, playerSettings, currentPlayerIndex, _resetCountdown]);
+  }, [
+    isStarted,
+    playerSettings,
+    currentPlayerIndex,
+    gameSettings,
+    setCountdownTime,
+    setIsMatchPaused,
+  ]);
 
   const onViolate = useCallback(
     (playerIndex: number, reset?: boolean) => {
@@ -908,9 +922,7 @@ const GamePlayViewModel = () => {
     setSoundEnabled(prev => !prev);
   }, []);
 
-  const onToggleProMode = useCallback(() => {
-    setProModeEnabled(prev => !prev);
-  }, []);
+  const onToggleProMode = useCallback(() => {}, []);
 
   const onPoolBreak = useCallback(() => {
     if (
@@ -970,19 +982,26 @@ const GamePlayViewModel = () => {
       if (!gameSettings || !isStarted) {
         return;
       }
+
+      const totalPlayers = Math.max(
+        2,
+        playerSettings?.playingPlayers?.length ||
+          gameSettings.players?.playingPlayers?.length ||
+          0,
+      );
+
       let nextPlayerIndex = 0,
         newTotalTurns: number | null = null;
 
       switch (true) {
         case isPrevious && currentPlayerIndex - 1 < 0:
-          nextPlayerIndex = gameSettings.players.playerNumber - 1;
+          nextPlayerIndex = totalPlayers - 1;
           newTotalTurns = totalTurns + 1;
           break;
         case isPrevious:
           nextPlayerIndex = currentPlayerIndex - 1;
           break;
-        case !isPrevious &&
-          currentPlayerIndex + 1 > gameSettings.players.playerNumber - 1:
+        case !isPrevious && currentPlayerIndex + 1 > totalPlayers - 1:
           nextPlayerIndex = 0;
           newTotalTurns = totalTurns + 1;
           break;
@@ -1011,11 +1030,18 @@ const GamePlayViewModel = () => {
           } as PlayerSettings),
       );
 
-      if (newTotalTurns) {
+      if (newTotalTurns !== null) {
         setTotalTurns(newTotalTurns);
       }
     },
-    [isStarted, currentPlayerIndex, totalTurns, gameSettings, _resetCountdown],
+    [
+      isStarted,
+      currentPlayerIndex,
+      totalTurns,
+      gameSettings,
+      playerSettings,
+      _resetCountdown,
+    ],
   );
 
   const onResetTurn = useCallback(() => {
