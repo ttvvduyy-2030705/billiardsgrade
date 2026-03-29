@@ -5,7 +5,8 @@ import View from 'components/View';
 import Text from 'components/Text';
 import Button from 'components/Button';
 import i18n from 'i18n';
-import {isPoolGame} from 'utils/game';
+import {BallType, PoolBallType} from 'types/ball';
+import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 
@@ -21,6 +22,8 @@ const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
 const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
   const viewModel = PlayerViewModel(props);
   const isPoolMode = isPoolGame(props.gameSettings?.category);
+  const isPool15Mode = isPool15Game(props.gameSettings?.category);
+  const isPool15FreeMode = isPool15FreeGame(props.gameSettings?.category);
   const isActiveCard = !!props.isOnTurn;
 
   const extraTimeTurns = Math.max(
@@ -28,7 +31,7 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
     Number((props.player as any)?.proMode?.extraTimeTurns ?? 0),
   );
 
-  const showAddTime = extraTimeTurns > 0;
+  const showAddTime = extraTimeTurns > 0 && !isPool15Mode;
 
   const addTimeButtons = useMemo(() => {
     return Array.from({length: extraTimeTurns}, (_, index) => index);
@@ -117,10 +120,12 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
         style={[
           styles.scoreLayer,
           !isActiveCard && styles.scoreLayerInactive,
+          isPool15FreeMode && styles.scoreLayerWithScoredBalls,
         ]}
         pointerEvents="none">
         <RNText style={styles.scoreText}>{props.player.totalPoint}</RNText>
       </View>
+
 
       {showAddTime ? (
         <View
@@ -145,6 +150,47 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'}) => {
               </RNText>
             </Button>
           ))}
+        </View>
+      ) : null}
+
+      {isPool15FreeMode && (props.player.scoredBalls || []).length > 0 ? (
+        <View
+          style={[
+            styles.scoredBallStack,
+            !isActiveCard && styles.scoredBallStackInactive,
+          ]}>
+          {(props.player.scoredBalls || []).map((ball, index) => {
+            const isBlackBall = ball.number === BallType.B8;
+            const textColor = isBlackBall ? '#FFFFFF' : '#111111';
+
+            return (
+              <View
+                key={`player-scored-ball-${ball.number}-${index}`}
+                style={[
+                  styles.scoredBallItem,
+                  {
+                    backgroundColor: ball.cut ? '#FFFFFF' : ball.color,
+                    borderColor: ball.color,
+                  },
+                ]}>
+                {ball.cut ? (
+                  <View
+                    style={[
+                      styles.scoredBallStripe,
+                      {backgroundColor: ball.color},
+                    ]}
+                  />
+                ) : null}
+                <RNText
+                  style={[
+                    styles.scoredBallText,
+                    {color: ball.cut ? '#111111' : textColor},
+                  ]}>
+                  {ball.number}
+                </RNText>
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
@@ -202,7 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 1.4,
     borderColor: '#FF1818',
-    backgroundColor: '#090A0D',
+    backgroundColor: '#000000',
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 18,
@@ -353,6 +399,10 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
+  scoreLayerWithScoredBalls: {
+    right: 42,
+  },
+
   addTimeStack: {
     position: 'absolute',
     right: 25,
@@ -366,6 +416,47 @@ const styles = StyleSheet.create({
 
   addTimeStackInactive: {
     opacity: 0.65,
+  },
+
+  scoredBallStack: {
+    position: 'absolute',
+    right: 18,
+    top: '34%',
+    bottom: 92,
+    width: 38,
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 4,
+  },
+
+  scoredBallStackInactive: {
+    opacity: 0.72,
+  },
+
+  scoredBallItem: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  scoredBallStripe: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 12,
+    borderRadius: 6,
+  },
+
+  scoredBallText: {
+    fontSize: 13,
+    lineHeight: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 
   addTimeButton: {

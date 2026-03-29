@@ -42,6 +42,7 @@ export interface ConsoleViewModelProps {
   onDecreaseTotalTurns: () => void;
   onToggleSound: () => void;
   onToggleProMode: () => void;
+  onPool15OnlyScore?: (playerIndex: number) => void;
   onPoolScore: (ball: PoolBallType) => void;
   onSelectWinner: () => void;
   onClearWinner: () => void;

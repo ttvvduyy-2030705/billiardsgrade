@@ -29,6 +29,14 @@ const isPool15OnlyGame = (category?: BilliardCategory) => {
   return false;
 };
 
+const isPool15FreeGame = (category?: BilliardCategory) => {
+  if (category === '15-free-ball') {
+    return true;
+  }
+
+  return false;
+};
+
 const isPool9Game = (category?: BilliardCategory) => {
   if (category === '9-ball') {
     return true;
@@ -67,6 +75,7 @@ export {
   isPool10Game,
   isPool15Game,
   isPool15OnlyGame,
+  isPool15FreeGame,
   isCaromGame,
   isCarom3CGame,
 };

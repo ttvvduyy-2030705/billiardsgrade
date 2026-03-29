@@ -41,16 +41,24 @@ const GamePlay = () => {
   const shortestSide = Math.min(width, height);
   const isTablet = shortestSide >= 600;
 
-  const isPoolArenaLayout = useMemo(() => {
-    const category = viewModel.gameSettings?.category;
+  const category = viewModel.gameSettings?.category;
 
+  const isPoolArenaLayout = useMemo(() => {
     return (
       isPoolGame(category) &&
       !isPool15Game(category) &&
       !isPool15OnlyGame(category) &&
       (viewModel.playerSettings?.playingPlayers?.length ?? 0) === 2
     );
-  }, [viewModel.gameSettings?.category, viewModel.playerSettings]);
+  }, [category, viewModel.playerSettings]);
+
+  const useDarkPoolBackground = useMemo(() => {
+    return (
+      isPoolArenaLayout ||
+      isPool15Game(category) ||
+      isPool15OnlyGame(category)
+    );
+  }, [category, isPoolArenaLayout]);
 
   const title = useMemo(() => {
     return buildTitle(
@@ -119,7 +127,7 @@ const GamePlay = () => {
   return (
     <Container>
       <View
-        style={isPoolArenaLayout ? styles.poolArenaScreen : undefined}
+        style={useDarkPoolBackground ? styles.poolArenaScreen : undefined}
         flex={'1'}>
         {!isCameraFullscreen ? (
           <TopMatchHeader
@@ -200,6 +208,7 @@ const GamePlay = () => {
               onDecreaseTotalTurns={viewModel.onDecreaseTotalTurns}
               onToggleSound={viewModel.onToggleSound}
               onToggleProMode={viewModel.onToggleProMode}
+              onPool15OnlyScore={viewModel.onPool15OnlyScore}
               onPoolScore={viewModel.onPoolScore}
               renderLastPlayer={() => <View />}
               onSelectWinner={viewModel.onSelectWinner}

@@ -10,7 +10,14 @@ import {gameActions} from 'data/redux/actions/game';
 import i18n from 'i18n';
 import {Camera} from 'react-native-vision-camera';
 import {goBack} from 'utils/navigation';
-import {isPool10Game, isPool9Game, isPoolGame} from 'utils/game';
+import {
+  isPool10Game,
+  isPool15FreeGame,
+  isPool15Game,
+  isPool15OnlyGame,
+  isPool9Game,
+  isPoolGame,
+} from 'utils/game';
 import Sound from 'utils/sound';
 import RemoteControl from 'utils/remote';
 import {Player, PlayerSettings} from 'types/player';
@@ -472,6 +479,7 @@ const GamePlayViewModel = () => {
 
     if (
       isPoolGame(gameSettings?.category) &&
+      !isPool15Game(gameSettings?.category) &&
       gameSettings?.mode?.countdownTime
     ) {
       setPoolBreakEnabled(true);
@@ -785,19 +793,25 @@ const GamePlayViewModel = () => {
     [isStarted, gameSettings, playerSettings],
   );
 
-  const onSelectWinner = useCallback(() => {
-    setWinner(playerSettings?.playingPlayers[currentPlayerIndex]);
+  const onSelectWinnerByIndex = useCallback(
+    (playerIndex: number, addMatchPoint?: boolean) => {
+      if (!playerSettings?.playingPlayers?.[playerIndex]) {
+        return;
+      }
 
-    if (
-      isPool9Game(gameSettings?.category) ||
-      isPool10Game(gameSettings?.category)
-    ) {
+      const winnerPlayer = playerSettings.playingPlayers[playerIndex];
+      setWinner(winnerPlayer);
+
+      if (!addMatchPoint) {
+        return;
+      }
+
       setPlayerSettings(
         prev =>
           ({
             ...prev,
-            playingPlayers: prev?.playingPlayers.map((player, playerIndex) => {
-              if (currentPlayerIndex === playerIndex) {
+            playingPlayers: prev?.playingPlayers.map((player, currentIndex) => {
+              if (playerIndex === currentIndex) {
                 return {...player, totalPoint: player.totalPoint + 1};
               }
 
@@ -805,8 +819,16 @@ const GamePlayViewModel = () => {
             }),
           } as PlayerSettings),
       );
-    }
-  }, [currentPlayerIndex, playerSettings, gameSettings]);
+    },
+    [playerSettings],
+  );
+
+  const onSelectWinner = useCallback(() => {
+    onSelectWinnerByIndex(
+      currentPlayerIndex,
+      isPool9Game(gameSettings?.category) || isPool10Game(gameSettings?.category),
+    );
+  }, [currentPlayerIndex, gameSettings?.category, onSelectWinnerByIndex]);
 
   const onClearWinner = useCallback(() => {
     if (!playerSettings) {
@@ -821,12 +843,52 @@ const GamePlayViewModel = () => {
     setWinner(undefined);
   }, [playerSettings]);
 
+  const onPool15OnlyScore = useCallback(
+    (playerIndex: number) => {
+      if (
+        !isStarted ||
+        !playerSettings ||
+        !isPool15OnlyGame(gameSettings?.category) ||
+        winner
+      ) {
+        return;
+      }
+
+      const targetPlayer = playerSettings.playingPlayers[playerIndex];
+      if (!targetPlayer) {
+        return;
+      }
+
+      const nextPoint = Math.min(8, Number(targetPlayer.totalPoint || 0) + 1);
+      const newPlayingPlayers = playerSettings.playingPlayers.map(
+        (player, index) => {
+          if (index === playerIndex) {
+            return {
+              ...player,
+              totalPoint: nextPoint,
+            } as Player;
+          }
+
+          return player;
+        },
+      );
+
+      setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+
+      if (nextPoint >= 8) {
+        setWinner(newPlayingPlayers[playerIndex]);
+      }
+    },
+    [gameSettings?.category, isStarted, playerSettings, winner],
+  );
+
   const onPoolScore = useCallback(
     (ball: PoolBallType) => {
       if (
         !isStarted ||
         !playerSettings ||
-        !isPoolGame(gameSettings?.category)
+        !isPoolGame(gameSettings?.category) ||
+        winner
       ) {
         return;
       }
@@ -834,9 +896,13 @@ const GamePlayViewModel = () => {
       const newPlayingPlayers = playerSettings.playingPlayers.map(
         (player, index) => {
           if (currentPlayerIndex === index) {
+            const nextScoredBalls = [...(player.scoredBalls || []), ball];
             return {
               ...player,
-              scoredBalls: [...(player.scoredBalls || []), ball],
+              scoredBalls: nextScoredBalls,
+              totalPoint: isPool15FreeGame(gameSettings?.category)
+                ? nextScoredBalls.length
+                : player.totalPoint,
             } as Player;
           }
 
@@ -857,6 +923,23 @@ const GamePlayViewModel = () => {
             onSelectWinner();
           }
           break;
+        case isPool15FreeGame(gameSettings?.category): {
+          const totalScoredBalls = newPlayingPlayers.reduce(
+            (sum, player) => sum + (player.scoredBalls?.length || 0),
+            0,
+          );
+
+          if (totalScoredBalls >= 15) {
+            const [firstPlayer, secondPlayer] = newPlayingPlayers;
+            const winnerIndex =
+              Number(firstPlayer?.totalPoint || 0) >=
+              Number(secondPlayer?.totalPoint || 0)
+                ? 0
+                : 1;
+            setWinner(newPlayingPlayers[winnerIndex]);
+          }
+          break;
+        }
         default:
           break;
       }
@@ -865,8 +948,9 @@ const GamePlayViewModel = () => {
       currentPlayerIndex,
       gameSettings?.category,
       isStarted,
-      playerSettings,
       onSelectWinner,
+      playerSettings,
+      winner,
     ],
   );
 
@@ -1459,10 +1543,13 @@ const GamePlayViewModel = () => {
 ]);
 
   const onReset = useCallback(() => {
+    const shouldResetRackScore = isPool15Game(gameSettings?.category);
+
     const newPlayerSettings = {
       ...playerSettings,
       playingPlayers: playerSettings?.playingPlayers.map(player => ({
         ...player,
+        totalPoint: shouldResetRackScore ? 0 : player.totalPoint,
         violate: 0,
         scoredBalls: [],
         proMode: {
@@ -1475,6 +1562,7 @@ const GamePlayViewModel = () => {
     } as PlayerSettings;
 
     setPlayerSettings(newPlayerSettings);
+    setWinner(undefined);
 
     if (
       isPoolGame(gameSettings?.category) &&
@@ -1482,7 +1570,12 @@ const GamePlayViewModel = () => {
     ) {
       const extraTimeBonus = gameSettings.mode?.extraTimeBonus || 0;
       setCountdownTime(gameSettings.mode?.countdownTime! + extraTimeBonus);
-      setPoolBreakEnabled(true);
+      setPoolBreakEnabled(!isPool15Game(gameSettings?.category));
+    }
+
+    if (isPool15Game(gameSettings?.category)) {
+      setIsMatchPaused(false);
+      return;
     }
 
     onSwitchPoolBreakPlayerIndex(poolBreakPlayerIndex, playerIndex => {
@@ -1732,6 +1825,7 @@ const GamePlayViewModel = () => {
       onToggleSound,
       onToggleProMode,
       updateWebcamFolderName,
+      onPool15OnlyScore,
       onPoolScore,
       onSelectWinner,
       onClearWinner,
@@ -1796,6 +1890,7 @@ const GamePlayViewModel = () => {
     onToggleSound,
     onToggleProMode,
     updateWebcamFolderName,
+    onPool15OnlyScore,
     onPoolScore,
     onSelectWinner,
     onClearWinner,
