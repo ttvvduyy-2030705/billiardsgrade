@@ -1,0 +1,2690 @@
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Alert} from 'react-native';
+import {useSelector, useDispatch} from 'react-redux';
+import RNFS from 'react-native-fs';
+// import {captureRef} from 'react-native-view-shot';
+import {useRealm} from '@realm/react';
+import {RootState} from 'data/redux/reducers';
+import {gameActions} from 'data/redux/actions/game';
+import i18n from 'i18n';
+import {Camera} from 'react-native-vision-camera';
+import {goBack} from 'utils/navigation';
+import {
+  isPool10Game,
+  isPool15FreeGame,
+  isPool15Game,
+  isPool15OnlyGame,
+  isPool9Game,
+  isPoolGame,
+  isCaromGame,
+} from 'utils/game';
+import Sound from 'utils/sound';
+import RemoteControl from 'utils/remote';
+import {Player, PlayerSettings} from 'types/player';
+import {RemoteControlKeys} from 'types/bluetooth';
+import {BallType, PoolBallType} from 'types/ball';
+//import {MATCH_COUNTDOWN, WEBCAM_BASE_CAMERA_FOLDER} from 'constants/webcam';
+import {NativeModules} from 'react-native';
+import DeviceInfo from 'react-native-device-info';
+import {LIVESTREAM_ACCOUNT_STORAGE_KEY} from 'config/livestreamAuth';
+import {
+  RECORDING_SEGMENT_DURATION_MS,
+  MAX_REPLAY_STORAGE_BYTES,
+  buildReplayFolderPath,
+  ensureReplayFolder,
+  registerReplaySegment,
+  pruneReplayStorage,
+  listReplayFiles,
+} from 'services/replay/localReplay';
+import {burnLivestreamOverlaysIntoVideo} from 'services/replay/videoOverlay';
+import {appendReplayScoreboardTimelineEntry} from 'services/replay/replayTimeline';
+import {screens} from 'scenes/screens';
+import {navigate, push} from 'utils/navigation';
+import {
+  createYouTubeLiveSession,
+  getYouTubeLiveEligibility,
+  type YouTubeEligibilityCheck,
+  type YouTubeEligibilityResponse,
+} from 'services/youtubeLiveFlow';
+import {
+  startYouTubeNativeLive,
+  stopYouTubeNativeLive,
+  subscribeYouTubeNativeLiveState,
+} from 'services/youtubeNativeLive';
+
+let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
+const {CameraService} = NativeModules;
+
+type Visibility = 'public' | 'private' | 'unlisted';
+
+type StoredSetup = {
+  accountName?: string;
+  visibility?: Visibility;
+  accountId?: string;
+};
+
+type StorageShape = {
+  facebook?: StoredSetup;
+  youtube?: StoredSetup;
+  tiktok?: StoredSetup;
+};
+
+
+const DEBUG_MATCH_RESTORE = false;
+const debugMatchRestoreLog = (...args: any[]) => {
+  if (__DEV__ && DEBUG_MATCH_RESTORE) {
+    console.log(...args);
+  }
+};
+
+const setYouTubeNativeCameraLock = (locked: boolean) => {
+  (globalThis as any).__APLUS_YOUTUBE_NATIVE_LOCK__ = locked;
+};
+
+
+const getCurrentCameraSource = (): 'back' | 'front' | 'external' => {
+  const value = (globalThis as any).__APLUS_CURRENT_CAMERA_SOURCE__;
+  return value === 'front' || value === 'external' ? value : 'back';
+};
+
+const setYouTubeSourceLock = (source: 'back' | 'front' | 'external' | null) => {
+  (globalThis as any).__APLUS_YOUTUBE_SOURCE_LOCK__ = source;
+};
+
+const hasDetectedUvcSource = () => {
+  return (globalThis as any).__APLUS_UVC_PRESENT__ === true;
+};
+
+const getAvailableCameraSources = (): Array<'back' | 'front' | 'external'> => {
+  const sources = (globalThis as any).__APLUS_AVAILABLE_CAMERA_SOURCES__;
+  return Array.isArray(sources) ? sources : [];
+};
+
+const normalizeAvailableCameraSources = (
+  sources: Array<'back' | 'front' | 'external'>,
+): Array<'back' | 'front' | 'external'> => {
+  return Array.from(new Set(sources)).filter(
+    (source): source is 'back' | 'front' | 'external' =>
+      source === 'back' || source === 'front' || source === 'external',
+  );
+};
+
+const resolveLockedLiveSource = (
+  currentSource: 'back' | 'front' | 'external',
+  availableSources: Array<'back' | 'front' | 'external'>,
+): 'back' | 'front' | 'external' | null => {
+  const normalizedSources = normalizeAvailableCameraSources(availableSources);
+  const hasExternal =
+    hasDetectedUvcSource() && normalizedSources.includes('external');
+
+  if (currentSource === 'external') {
+    return hasExternal ? 'external' : null;
+  }
+
+  if (currentSource === 'back' && normalizedSources.includes('back')) {
+    return 'back';
+  }
+
+  if (currentSource === 'front' && normalizedSources.includes('front')) {
+    return 'front';
+  }
+
+  if (normalizedSources.includes('back')) {
+    return 'back';
+  }
+
+  if (normalizedSources.includes('front')) {
+    return 'front';
+  }
+
+  if (currentSource === 'front' || currentSource === 'back') {
+    return currentSource;
+  }
+
+  return null;
+};
+
+
+
+type ReplayResumeSnapshot = {
+  matchSessionId?: string;
+  webcamFolderName?: string;
+  currentPlayerIndex: number;
+  poolBreakPlayerIndex: number;
+  totalTurns: number;
+  totalTime: number;
+  countdownTime: number;
+  warmUpCount?: number;
+  warmUpCountdownTime?: number;
+  playerSettings?: PlayerSettings;
+  winner?: Player;
+  isStarted: boolean;
+  isPaused: boolean;
+  isMatchPaused: boolean;
+  gameBreakEnabled: boolean;
+  poolBreakEnabled: boolean;
+  soundEnabled: boolean;
+  proModeEnabled: boolean;
+  restoreOnNextFocus?: boolean;
+  savedAt?: number;
+};
+
+type ReplayReturnRequest = {
+  matchSessionId?: string;
+  webcamFolderName?: string;
+  requestedAt?: number;
+};
+
+const REPLAY_RESUME_SNAPSHOT_STORAGE_KEY =
+  '@APLUS_REPLAY_RESUME_SNAPSHOT_V3';
+
+const LIVE_MATCH_SNAPSHOT_STORAGE_KEY = '@APLUS_LIVE_MATCH_SNAPSHOT_V1';
+
+type LiveMatchSnapshot = ReplayResumeSnapshot & {
+  configSignature?: string;
+};
+
+const buildGameSettingsSignature = (settings: any) => {
+  try {
+    return JSON.stringify({
+      category: settings?.category ?? null,
+      mode: settings?.mode ?? null,
+      playerNumber: settings?.players?.playerNumber ?? null,
+      goal: settings?.players?.goal?.goal ?? null,
+    });
+  } catch (_error) {
+    return undefined;
+  }
+};
+
+const setLiveMatchSnapshotSync = (snapshot: LiveMatchSnapshot | null) => {
+  (globalThis as any).__APLUS_LIVE_MATCH_SNAPSHOT__ = snapshot
+    ? cloneReplayValue(snapshot)
+    : null;
+};
+
+const getLiveMatchSnapshotSync = (): LiveMatchSnapshot | null => {
+  const snapshot = (globalThis as any).__APLUS_LIVE_MATCH_SNAPSHOT__;
+  return snapshot ? cloneReplayValue(snapshot) : null;
+};
+
+const clearPersistedLiveMatchSnapshot = async () => {
+  try {
+    await AsyncStorage.removeItem(LIVE_MATCH_SNAPSHOT_STORAGE_KEY);
+  } catch (error) {
+    console.log('[Live Match] Failed to clear persisted snapshot:', error);
+  }
+};
+
+const setLiveMatchSnapshot = async (snapshot: LiveMatchSnapshot | null) => {
+  const normalizedSnapshot = snapshot ? cloneReplayValue(snapshot) : null;
+  setLiveMatchSnapshotSync(normalizedSnapshot);
+
+  if (!normalizedSnapshot) {
+    await clearPersistedLiveMatchSnapshot();
+  }
+};
+
+const getLiveMatchSnapshot = async (): Promise<LiveMatchSnapshot | null> => {
+  const runtimeSnapshot = getLiveMatchSnapshotSync();
+  return runtimeSnapshot ? cloneReplayValue(runtimeSnapshot) : null;
+};
+
+const isLiveMatchSnapshotUsable = (
+  snapshot: LiveMatchSnapshot | null,
+  expectedConfigSignature?: string,
+) => {
+  if (!snapshot?.playerSettings) {
+    return false;
+  }
+
+  if (snapshot.savedAt && Date.now() - snapshot.savedAt > 6 * 60 * 60 * 1000) {
+    return false;
+  }
+
+  if (
+    expectedConfigSignature &&
+    snapshot.configSignature &&
+    snapshot.configSignature !== expectedConfigSignature
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const cloneReplayValue = <T,>(value: T): T => {
+  if (value == null) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value)) as T;
+  } catch (_error) {
+    return value;
+  }
+};
+
+const setReplayResumeSnapshotSync = (snapshot: ReplayResumeSnapshot | null) => {
+  (globalThis as any).__APLUS_REPLAY_RESUME_SNAPSHOT__ = snapshot
+    ? cloneReplayValue(snapshot)
+    : null;
+};
+
+const getReplayResumeSnapshotSync = (): ReplayResumeSnapshot | null => {
+  const snapshot = (globalThis as any).__APLUS_REPLAY_RESUME_SNAPSHOT__;
+  return snapshot ? cloneReplayValue(snapshot) : null;
+};
+
+const setReplayReturnRequestSync = (
+  request: ReplayReturnRequest | null,
+) => {
+  (globalThis as any).__APLUS_REPLAY_RETURN_REQUEST__ = request
+    ? cloneReplayValue(request)
+    : null;
+};
+
+const getReplayReturnRequestSync = (): ReplayReturnRequest | null => {
+  const request = (globalThis as any).__APLUS_REPLAY_RETURN_REQUEST__;
+  return request ? cloneReplayValue(request) : null;
+};
+
+const setReplayResumeSnapshot = async (
+  snapshot: ReplayResumeSnapshot | null,
+) => {
+  const normalizedSnapshot = snapshot ? cloneReplayValue(snapshot) : null;
+  setReplayResumeSnapshotSync(normalizedSnapshot);
+
+  try {
+    if (normalizedSnapshot) {
+      await AsyncStorage.setItem(
+        REPLAY_RESUME_SNAPSHOT_STORAGE_KEY,
+        JSON.stringify(normalizedSnapshot),
+      );
+    } else {
+      await AsyncStorage.removeItem(REPLAY_RESUME_SNAPSHOT_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.log('[Replay] Failed to persist resume snapshot:', error);
+  }
+};
+
+const getReplayResumeSnapshot = async (): Promise<ReplayResumeSnapshot | null> => {
+  const runtimeSnapshot = getReplayResumeSnapshotSync();
+  if (runtimeSnapshot) {
+    return runtimeSnapshot;
+  }
+
+  try {
+    const rawSnapshot = await AsyncStorage.getItem(
+      REPLAY_RESUME_SNAPSHOT_STORAGE_KEY,
+    );
+
+    if (!rawSnapshot) {
+      return null;
+    }
+
+    const parsedSnapshot = JSON.parse(rawSnapshot) as ReplayResumeSnapshot;
+    setReplayResumeSnapshotSync(parsedSnapshot);
+    return cloneReplayValue(parsedSnapshot);
+  } catch (error) {
+    console.log('[Replay] Failed to load resume snapshot:', error);
+    return null;
+  }
+};
+
+const isReplayResumeSnapshotReusable = (
+  snapshot: ReplayResumeSnapshot | null,
+) => {
+  if (!snapshot?.webcamFolderName) {
+    return false;
+  }
+
+  if (!snapshot.isPaused) {
+    return false;
+  }
+
+  if (snapshot.savedAt && Date.now() - snapshot.savedAt > 30 * 60 * 1000) {
+    return false;
+  }
+
+  return true;
+};
+
+const isReplayResumeSnapshotMatch = (
+  snapshot: ReplayResumeSnapshot | null,
+  expectedFolderName?: string | null,
+  expectedMatchSessionId?: string | null,
+) => {
+  if (!isReplayResumeSnapshotReusable(snapshot)) {
+    return false;
+  }
+
+  if (
+    expectedMatchSessionId &&
+    snapshot?.matchSessionId &&
+    snapshot.matchSessionId === expectedMatchSessionId
+  ) {
+    return true;
+  }
+
+  if (!expectedFolderName) {
+    return true;
+  }
+
+  return expectedFolderName === snapshot.webcamFolderName;
+};
+
+const GamePlayViewModel = () => {
+  const realm = useRealm();
+  const dispatch = useDispatch();
+  const {updateGameSettings} = useSelector((state: RootState) => state.UI.game);
+  const {gameSettings} = useSelector((state: RootState) => state.game);
+  const selectedLivestreamPlatform =
+    ((updateGameSettings as any)?.livestreamPlatform ||
+      (gameSettings as any)?.livestreamPlatform ||
+      null) as 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
+  const saveToDeviceWhileStreaming = Boolean(
+    (updateGameSettings as any)?.saveToDeviceWhileStreaming ??
+      (gameSettings as any)?.saveToDeviceWhileStreaming ??
+      false,
+  );
+  const shouldUseYouTubeLive = selectedLivestreamPlatform === 'youtube';
+  const shouldUseLocalRecordingOnly = selectedLivestreamPlatform !== 'youtube';
+  const gameSettingsSignature = useMemo(() => {
+    return buildGameSettingsSignature(gameSettings);
+  }, [
+    gameSettings?.category,
+    gameSettings?.mode,
+    gameSettings?.players?.playerNumber,
+    gameSettings?.players?.goal?.goal,
+  ]);
+  const cameraRef = useRef<Camera>(null);
+  const matchCountdownRef = useRef(null);
+  const recordingRotateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingStartRetryRef = useRef<NodeJS.Timeout | null>(null);
+  const restartAfterStopRef = useRef(false);
+  const isRecordingRef = useRef(false);
+  const isStoppingRecordingRef = useRef(false);
+  const pendingStartRecordingRef = useRef(false);
+  const lastRecordedVideoPathRef = useRef<string | undefined>(undefined);
+  const replayCompletedSegmentsRef = useRef(0);
+  const currentReplaySegmentIndexRef = useRef(0);
+  const currentReplaySegmentStartTotalTimeRef = useRef(0);
+  const replayTimelineSignatureRef = useRef('');
+  const recordingFinishedResolverRef = useRef<((videoPath?: string) => void) | null>(null);
+  const recordingFinishedPromiseRef = useRef<Promise<string | undefined> | null>(null);
+  const shouldStartRecordingRef = useRef(false);
+  const pendingYouTubeNativeStartRef = useRef<{
+    url: string;
+    options: {
+      width: number;
+      height: number;
+      fps: number;
+      bitrate: number;
+      audioBitrate: number;
+      sampleRate: number;
+      isStereo: boolean;
+      cameraFacing: 'front' | 'back';
+      sourceType: 'phone' | 'webcam';
+    };
+  } | null>(null);
+  const isEndingGameRef = useRef(false);
+  const appliedReplayResumeSnapshotRef = useRef(false);
+  const initializedGameStateRef = useRef(false);
+  const matchSessionIdRef = useRef(
+    `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  );
+  const [isRecording, setIsRecording] = useState(false);
+  const [poolBreakPlayerIndex, setPoolBreakPlayerIndex] = useState<number>(0);
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+  const [totalTurns, setTotalTurns] = useState(1);
+  const [totalTime, setTotalTime] = useState(0);
+  const [countdownTime, setCountdownTime] = useState<number>(0);
+  const [warmUpCount, setWarmUpCount] = useState<number>();
+  const [warmUpCountdownTime, setWarmUpCountdownTime] = useState<number>();
+  const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
+  const [winner, setWinner] = useState<Player>();
+  const [isCameraReady, setIsCameraReady] = useState(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  const clearRecordingStartRetry = useCallback(() => {
+    if (recordingStartRetryRef.current) {
+      clearInterval(recordingStartRetryRef.current);
+      recordingStartRetryRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (recordingRotateTimeoutRef.current) {
+        clearTimeout(recordingRotateTimeoutRef.current);
+      }
+      clearRecordingStartRetry();
+    };
+  }, [clearRecordingStartRetry]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeYouTubeNativeLiveState(event => {
+      console.log('[YouTubeNativeLive]', event);
+      if (event?.type === 'error' && event?.message) {
+        if (
+          event.message.includes('cameraId was null') ||
+          event.message.includes('webcam USB') ||
+          event.message.includes('Không tìm thấy camera')
+        ) {
+          pendingYouTubeNativeStartRef.current = null;
+          shouldStartRecordingRef.current = false;
+          pendingStartRecordingRef.current = false;
+          setYoutubeLivePreparing(false);
+          setYoutubeLivePreviewActive(false);
+          setIsCameraReady(false);
+          setIsStarted(false);
+          setYouTubeNativeCameraLock(false);
+          setYouTubeSourceLock(null);
+        }
+        setYoutubeLiveOverlay({
+          visible: true,
+          title: 'Live YouTube lỗi',
+          message: event.message,
+          checks: [],
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      void stopYouTubeNativeLive();
+    };
+  }, []);
+
+
+
+  const readYouTubeVisibilityFromStorage = useCallback(
+    async (): Promise<Visibility> => {
+      try {
+        const raw = await AsyncStorage.getItem(LIVESTREAM_ACCOUNT_STORAGE_KEY);
+        if (!raw) {
+          return 'public';
+        }
+
+        const parsed = JSON.parse(raw) as StorageShape;
+        const visibility = parsed?.youtube?.visibility;
+
+        if (
+          visibility === 'public' ||
+          visibility === 'private' ||
+          visibility === 'unlisted'
+        ) {
+          return visibility;
+        }
+
+        return 'public';
+      } catch (_error) {
+        return 'public';
+      }
+    },
+    [],
+  );
+
+  const now =
+    gameSettings?.webcamFolderName != null
+      ? gameSettings?.webcamFolderName
+      : Date.now().toString();
+
+  const [webcamFolderName, setWebcamFolderName] = useState<string>(now);
+
+  useEffect(() => {
+    let mounted = true;
+
+    replayCompletedSegmentsRef.current = 0;
+    currentReplaySegmentIndexRef.current = 0;
+    currentReplaySegmentStartTotalTimeRef.current = 0;
+    replayTimelineSignatureRef.current = '';
+
+    if (!webcamFolderName) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    void (async () => {
+      try {
+        const existingFiles = await listReplayFiles(webcamFolderName);
+        if (!mounted) {
+          return;
+        }
+
+        replayCompletedSegmentsRef.current = existingFiles.length;
+        currentReplaySegmentIndexRef.current = existingFiles.length;
+      } catch (error) {
+        console.log('[ReplayTimeline] load existing segments failed:', error);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [webcamFolderName]);
+
+
+  const [isStarted, setIsStarted] = useState(
+    gameSettings?.mode?.mode === 'fast' ? true : false,
+  );
+
+  type YouTubeLiveOverlayState = {
+    visible: boolean;
+    title: string;
+    message: string;
+    checks: YouTubeEligibilityCheck[];
+  };
+
+  const [youtubeLiveOverlay, setYoutubeLiveOverlay] =
+    useState<YouTubeLiveOverlayState | null>(null);
+  const [youtubeLivePreviewActive, setYoutubeLivePreviewActive] =
+    useState(false);
+  const [youtubeLivePreparing, setYoutubeLivePreparing] = useState(false);
+  const [youtubeNativeStartNonce, setYoutubeNativeStartNonce] = useState(0);
+  const youtubeLiveNativeMode = youtubeLivePreviewActive || youtubeLivePreparing;
+
+  useEffect(() => {
+    setYouTubeNativeCameraLock(youtubeLiveNativeMode);
+
+    if (!youtubeLiveNativeMode) {
+      setYouTubeSourceLock(null);
+    }
+
+    return () => {
+      setYouTubeNativeCameraLock(false);
+      setYouTubeSourceLock(null);
+    };
+  }, [youtubeLiveNativeMode]);
+
+  useEffect(() => {
+    if (shouldUseYouTubeLive) {
+      return;
+    }
+
+    pendingYouTubeNativeStartRef.current = null;
+    setYoutubeLivePreparing(false);
+    setYoutubeLivePreviewActive(false);
+    setYouTubeNativeCameraLock(false);
+    setYouTubeSourceLock(null);
+  }, [shouldUseYouTubeLive]);
+
+  useEffect(() => {
+    if (!youtubeLiveNativeMode || !isCameraReady) {
+      return;
+    }
+
+    const pending = pendingYouTubeNativeStartRef.current;
+    if (!pending) {
+      return;
+    }
+
+    pendingYouTubeNativeStartRef.current = null;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const startNativeLive = async () => {
+        try {
+          if (cancelled) {
+            return;
+          }
+
+          console.log('[YouTube Live] native start requested');
+          await startYouTubeNativeLive(pending.url, pending.options);
+        } catch (error: any) {
+          console.log('[YouTube Live] native start failed:', error);
+          pendingYouTubeNativeStartRef.current = null;
+          setYoutubeLivePreparing(false);
+          setYoutubeLivePreviewActive(false);
+          setIsCameraReady(false);
+          setIsStarted(false);
+          setYouTubeNativeCameraLock(false);
+          setYouTubeSourceLock(null);
+          setYoutubeLiveOverlay({
+            visible: true,
+            title: 'Live YouTube lỗi',
+            message: error?.message || 'Không thể bắt đầu live YouTube.',
+            checks: [],
+          });
+        }
+      };
+
+      void startNativeLive();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isCameraReady, youtubeLiveNativeMode, youtubeNativeStartNonce]);
+
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [isMatchPaused, setIsMatchPaused] = useState<boolean>(false);
+  const [gameBreakEnabled, setGameBreakEnabled] = useState<boolean>(false);
+  const [poolBreakEnabled, setPoolBreakEnabled] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [proModeEnabled, setProModeEnabled] = useState(
+  !isPoolGame(gameSettings?.category) && gameSettings?.mode?.mode !== 'fast',
+);
+
+  const applyReplayResumeSnapshot = useCallback((snapshot: ReplayResumeSnapshot) => {
+    clearInterval(countdownInterval);
+    clearInterval(warmUpCountdownInterval);
+
+    setWebcamFolderName(snapshot.webcamFolderName || Date.now().toString());
+    setCurrentPlayerIndex(snapshot.currentPlayerIndex ?? 0);
+    setPoolBreakPlayerIndex(snapshot.poolBreakPlayerIndex ?? 0);
+    setTotalTurns(snapshot.totalTurns ?? 1);
+    setTotalTime(snapshot.totalTime ?? 0);
+    setCountdownTime(snapshot.countdownTime ?? 0);
+    setWarmUpCount(snapshot.warmUpCount);
+    setWarmUpCountdownTime(snapshot.warmUpCountdownTime);
+    setPlayerSettings(cloneReplayValue(snapshot.playerSettings));
+    setWinner(cloneReplayValue(snapshot.winner));
+    setIsStarted(!!snapshot.isStarted);
+    setIsPaused(!!snapshot.isPaused);
+    setIsMatchPaused(!!snapshot.isMatchPaused);
+    setGameBreakEnabled(!!snapshot.gameBreakEnabled);
+    setPoolBreakEnabled(!!snapshot.poolBreakEnabled);
+    setSoundEnabled(
+      snapshot.soundEnabled == null ? true : !!snapshot.soundEnabled,
+    );
+    setProModeEnabled(!!snapshot.proModeEnabled);
+
+    if (snapshot.matchSessionId) {
+      matchSessionIdRef.current = snapshot.matchSessionId;
+    }
+
+    appliedReplayResumeSnapshotRef.current = true;
+    initializedGameStateRef.current = true;
+  }, []);
+
+  const tryRestoreReplayResumeSnapshot = useCallback(async () => {
+    const snapshot = await getReplayResumeSnapshot();
+    const returnRequest = getReplayReturnRequestSync();
+    const expectedFolderName = webcamFolderName || gameSettings?.webcamFolderName;
+    const expectedMatchSessionId =
+      returnRequest?.matchSessionId || matchSessionIdRef.current;
+
+    const shouldForceRestore = Boolean(
+      returnRequest &&
+        snapshot &&
+        isReplayResumeSnapshotReusable(snapshot) &&
+        ((returnRequest.matchSessionId &&
+          snapshot.matchSessionId === returnRequest.matchSessionId) ||
+          (returnRequest.webcamFolderName &&
+            snapshot.webcamFolderName === returnRequest.webcamFolderName)),
+    );
+
+    if (
+      !shouldForceRestore &&
+      !snapshot?.restoreOnNextFocus
+    ) {
+      return false;
+    }
+
+    if (
+      !shouldForceRestore &&
+      !isReplayResumeSnapshotMatch(
+        snapshot,
+        expectedFolderName,
+        expectedMatchSessionId,
+      )
+    ) {
+      return false;
+    }
+
+    console.log(
+      '[Replay] Khôi phục trận đang tạm dừng:',
+      snapshot?.matchSessionId,
+      snapshot?.webcamFolderName,
+    );
+
+    applyReplayResumeSnapshot(snapshot!);
+    setReplayReturnRequestSync(null);
+
+    // Giữ lại snapshot nhưng tắt auto-restore để tránh focus lại là ghi đè state lần nữa.
+    await setReplayResumeSnapshot({
+      ...snapshot!,
+      restoreOnNextFocus: false,
+    });
+
+    return true;
+  }, [applyReplayResumeSnapshot, gameSettings?.webcamFolderName, webcamFolderName]);
+
+  const buildLiveMatchSnapshot = useCallback((): LiveMatchSnapshot | null => {
+    if (!playerSettings || !gameSettingsSignature) {
+      return null;
+    }
+
+    return {
+      matchSessionId: matchSessionIdRef.current,
+      webcamFolderName,
+      currentPlayerIndex,
+      poolBreakPlayerIndex,
+      totalTurns,
+      totalTime,
+      countdownTime,
+      warmUpCount,
+      warmUpCountdownTime,
+      playerSettings: cloneReplayValue(playerSettings),
+      winner: cloneReplayValue(winner),
+      isStarted,
+      isPaused,
+      isMatchPaused,
+      gameBreakEnabled,
+      poolBreakEnabled,
+      soundEnabled,
+      proModeEnabled,
+      savedAt: Date.now(),
+      configSignature: gameSettingsSignature,
+    };
+  }, [
+    countdownTime,
+    currentPlayerIndex,
+    gameBreakEnabled,
+    gameSettingsSignature,
+    isMatchPaused,
+    isPaused,
+    isStarted,
+    playerSettings,
+    poolBreakEnabled,
+    poolBreakPlayerIndex,
+    proModeEnabled,
+    soundEnabled,
+    totalTime,
+    totalTurns,
+    warmUpCount,
+    warmUpCountdownTime,
+    webcamFolderName,
+    winner,
+  ]);
+
+  const tryRestoreLiveMatchSnapshot = useCallback(async () => {
+    const snapshot = await getLiveMatchSnapshot();
+
+    if (!isLiveMatchSnapshotUsable(snapshot, gameSettingsSignature)) {
+      return false;
+    }
+
+    debugMatchRestoreLog(
+      '[Live Match] Restoring active match snapshot:',
+      snapshot?.matchSessionId,
+      snapshot?.webcamFolderName,
+    );
+
+    applyReplayResumeSnapshot(snapshot!);
+
+    const shouldResumeRecording = !!(
+      snapshot?.isStarted &&
+      !snapshot?.isPaused &&
+      !youtubeLiveNativeMode
+    );
+
+    shouldStartRecordingRef.current = shouldResumeRecording;
+    pendingStartRecordingRef.current = shouldResumeRecording;
+
+    return true;
+  }, [applyReplayResumeSnapshot, gameSettingsSignature, youtubeLiveNativeMode]);
+
+  useEffect(() => {
+    // Không cho build mới / mở app mới tự restore trận cũ từ storage.
+    // Luồng "Xem lại -> Quay lại" vẫn dùng replay snapshot riêng.
+    void clearPersistedLiveMatchSnapshot();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const restoreSnapshotsOnFocus = async () => {
+        const restoredFromReplay = await tryRestoreReplayResumeSnapshot();
+
+        if (!restoredFromReplay) {
+          await tryRestoreLiveMatchSnapshot();
+        }
+      };
+
+      void restoreSnapshotsOnFocus();
+
+      return () => {};
+    }, [tryRestoreLiveMatchSnapshot, tryRestoreReplayResumeSnapshot]),
+  );
+
+
+  useEffect(() => {
+    const snapshot = buildLiveMatchSnapshot();
+
+    if (!snapshot) {
+      return;
+    }
+
+    setLiveMatchSnapshotSync(snapshot);
+
+    const timeout = setTimeout(() => {
+      void setLiveMatchSnapshot(snapshot);
+    }, 300);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [buildLiveMatchSnapshot]);
+
+  // useEffect(() => {
+  //      if(!hasPermission){
+  //        requestPermission()
+  //      }
+  // }, [hasPermission]);
+
+  useEffect(() => {
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.START,
+    isStarted ? onPause : onStart,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.WARM_UP,
+    warmUpCountdownTime ? onEndWarmUp : onWarmUp,
+  );
+
+  // Stop chỉ dừng countdown lượt
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.STOP,
+    onToggleCountDown,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.BREAK,
+    onPoolBreak,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.EXTENSION,
+    onPressGiveMoreTime,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.TIMER,
+    onResetTurn,
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.NEW_GAME,
+    onReset,
+  );
+
+  // Lên / xuống = tăng giảm điểm
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.UP,
+    onChangePlayerPoint.bind(GamePlayViewModel, 1, currentPlayerIndex, 0),
+  );
+
+  RemoteControl.instance.registerKeyEvents(
+    RemoteControlKeys.DOWN,
+    onChangePlayerPoint.bind(GamePlayViewModel, -1, currentPlayerIndex, 0),
+  );
+
+  // Trái / phải = đổi lượt
+  RemoteControl.instance.registerKeyEvents(
+  RemoteControlKeys.LEFT,
+  onEndTurn,
+);
+
+RemoteControl.instance.registerKeyEvents(
+  RemoteControlKeys.RIGHT,
+  onEndTurn,
+);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [
+  isStarted,
+  isPaused,
+  currentPlayerIndex,
+  totalTurns,
+  gameSettings,
+  playerSettings,
+  warmUpCountdownTime,
+  warmUpCount,
+  poolBreakEnabled,
+  countdownTime,
+]);
+  useEffect(() => {
+    clearInterval(countdownInterval);
+    clearInterval(warmUpCountdownInterval);
+
+    if (!gameSettings) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const initializeGameState = async () => {
+      if (cancelled || initializedGameStateRef.current) {
+        return;
+      }
+
+      appliedReplayResumeSnapshotRef.current = false;
+      initializedGameStateRef.current = true;
+
+      setIsStarted(false);
+      setIsPaused(false);
+      setIsMatchPaused(false);
+      setGameBreakEnabled(false);
+      setWinner(undefined);
+      setTotalTurns(1);
+      setTotalTime(0);
+      setCurrentPlayerIndex(0);
+      setPoolBreakPlayerIndex(0);
+
+      setPlayerSettings(cloneReplayValue(gameSettings?.players));
+
+      if (gameSettings?.mode?.warmUpTime) {
+        setWarmUpCount(gameSettings.players.playingPlayers.length);
+      } else {
+        setWarmUpCount(undefined);
+        setWarmUpCountdownTime(undefined);
+      }
+
+      if (gameSettings?.mode?.countdownTime) {
+        setCountdownTime(gameSettings.mode?.countdownTime);
+      } else {
+        setCountdownTime(0);
+      }
+
+      if (gameSettings?.mode?.mode === 'fast') {
+        setCountdownTime(gameSettings?.mode?.countdownTime || 0);
+      }
+
+      if (
+        isPoolGame(gameSettings?.category) &&
+        !isPool15Game(gameSettings?.category) &&
+        gameSettings?.mode?.countdownTime
+      ) {
+        setPoolBreakEnabled(true);
+      }
+    };
+
+    void initializeGameState();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSettings, tryRestoreLiveMatchSnapshot, tryRestoreReplayResumeSnapshot]);
+
+  useEffect(() => {
+    if (!isStarted || isPaused || !isCameraReady) {
+      clearRecordingStartRetry();
+      return;
+    }
+
+    if (youtubeLiveNativeMode) {
+      clearRecordingStartRetry();
+      return;
+    }
+
+    if (!shouldStartRecordingRef.current && !pendingStartRecordingRef.current) {
+      return;
+    }
+
+    if (isRecordingRef.current || isStoppingRecordingRef.current) {
+      return;
+    }
+
+    if (recordingStartRetryRef.current) {
+      return;
+    }
+
+    console.log('[Replay] auto start recording after camera ready');
+
+    let attempts = 0;
+    recordingStartRetryRef.current = setInterval(() => {
+      attempts += 1;
+      console.log('[Replay] start retry attempt:', attempts);
+
+      const started = startVideoRecording();
+
+      if (started) {
+        shouldStartRecordingRef.current = false;
+        pendingStartRecordingRef.current = false;
+        clearRecordingStartRetry();
+        return;
+      }
+
+      if (attempts >= 12) {
+        console.log('[Replay] failed to start recording after retries');
+        shouldStartRecordingRef.current = false;
+        pendingStartRecordingRef.current = false;
+        clearRecordingStartRetry();
+      }
+    }, 500);
+
+    return () => {
+      clearRecordingStartRetry();
+    };
+  }, [
+    isStarted,
+    isPaused,
+    isCameraReady,
+    isRecording,
+    clearRecordingStartRetry,
+    webcamFolderName,
+    youtubeLivePreviewActive,
+  ]);
+
+  useEffect(() => {
+    if (!webcamFolderName || !isStarted || isPaused || !playerSettings) {
+      return;
+    }
+
+    if (
+      !isPool9Game(gameSettings?.category) &&
+      !isPool10Game(gameSettings?.category) &&
+      !isCaromGame(gameSettings?.category)
+    ) {
+      return;
+    }
+
+    const leftPlayer = playerSettings?.playingPlayers?.[0];
+    const rightPlayer = playerSettings?.playingPlayers?.[1];
+    const goal = Number(
+      gameSettings?.players?.goal?.goal ?? playerSettings?.goal?.goal ?? 0,
+    );
+    const baseCountdown = Number(gameSettings?.mode?.countdownTime ?? 0);
+    const segmentIndex = currentReplaySegmentIndexRef.current;
+    const segmentTime = Math.max(0, totalTime - currentReplaySegmentStartTotalTimeRef.current);
+
+    const signature = JSON.stringify({
+      webcamFolderName,
+      segmentIndex,
+      segmentTime,
+      currentPlayerIndex,
+      countdownTime,
+      goal,
+      baseCountdown,
+      leftName: leftPlayer?.name ?? '',
+      rightName: rightPlayer?.name ?? '',
+      leftScore: Number(leftPlayer?.totalPoint ?? 0),
+      rightScore: Number(rightPlayer?.totalPoint ?? 0),
+      totalTurns: Number(totalTurns || 1),
+      leftCurrentPoint: Number(leftPlayer?.proMode?.currentPoint ?? 0),
+      rightCurrentPoint: Number(rightPlayer?.proMode?.currentPoint ?? 0),
+    });
+
+    if (signature === replayTimelineSignatureRef.current) {
+      return;
+    }
+
+    replayTimelineSignatureRef.current = signature;
+
+    void appendReplayScoreboardTimelineEntry(webcamFolderName, {
+      segmentIndex,
+      segmentTime,
+      currentPlayerIndex,
+      countdownTime,
+      baseCountdown,
+      category: gameSettings?.category,
+      goal,
+      playerSettings: cloneReplayValue(playerSettings),
+      totalTurns: Number(totalTurns || 1),
+      savedAt: Date.now(),
+    });
+  }, [
+    webcamFolderName,
+    isStarted,
+    isPaused,
+    playerSettings,
+    gameSettings?.category,
+    gameSettings?.players?.goal?.goal,
+    gameSettings?.mode?.countdownTime,
+    totalTime,
+    currentPlayerIndex,
+    countdownTime,
+    totalTurns,
+  ]);
+
+  useEffect(() => {
+    if (!isStarted || isPaused) {
+      return;
+    }
+
+    countdownInterval = setInterval(() => {
+      setTotalTime(prev => prev + 1);
+
+      if (!isMatchPaused && !poolBreakEnabled) {
+        setCountdownTime(prev =>
+          typeof prev === 'number' && prev > 0 ? prev - 1 : 0,
+        );
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(countdownInterval);
+    };
+  }, [isStarted, isPaused, isMatchPaused, poolBreakEnabled]);
+
+  useEffect(() => {
+    if (!warmUpCountdownTime) {
+      return;
+    }
+
+    warmUpCountdownInterval = setInterval(() => {
+      if (gameBreakEnabled) {
+        setWarmUpCountdownTime(prev => (prev ? prev + 1 : 1));
+      } else {
+        setWarmUpCountdownTime(prev => (prev ? prev - 1 : 0));
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(warmUpCountdownInterval);
+    };
+  }, [warmUpCountdownTime, gameBreakEnabled]);
+
+  useEffect(() => {
+    if (!isStarted || !soundEnabled || !gameSettings?.mode?.countdownTime) {
+      return;
+    }
+
+    if (countdownTime > 0 && countdownTime <= 10) {
+      Sound.beep();
+    }
+  }, [isStarted, soundEnabled, countdownTime, gameSettings]);
+
+  // useEffect(() => {
+  //   if (!matchCountdownRef.current || isCaromGame(gameSettings?.category)) {
+  //     return;
+  //   }
+
+  //   captureRef(matchCountdownRef, {
+  //     format: 'png',
+  //     quality: 0.01,
+  //     width: 1242,
+  //   })
+  //     .then(
+  //       async uri => {
+  //         const matchCountdownImagePath = `${RNFS.DownloadDirectoryPath}/${WEBCAM_BASE_CAMERA_FOLDER}/${MATCH_COUNTDOWN}`;
+
+  //         console.log("matchCountdownImagePath" + matchCountdownImagePath)
+
+  //         const _path = uri.slice(7);
+  //         console.log("prh" + _path)
+
+  //         RNFS.copyFile(_path, matchCountdownImagePath);
+  //       },
+  //       error => console.log('Oops, match countdown failed', error),
+  //     )
+  //     .catch(e => {
+  //       if (__DEV__) {
+  //         console.log('Capture countdown error', e);
+  //       }
+  //     });
+  // }, [countdownTime, gameSettings]);
+
+  // useEffect(() => {
+  //   return () => {
+  //     cancelStreamWebcamToFile();
+  //   };
+  // }, []);
+
+  const updateWebcamFolderName = useCallback((name: string) => {
+    setWebcamFolderName(name);
+  }, []);
+
+  const _resetCountdown = useCallback(
+    (isResume?: boolean, cumulativeTime?: boolean) => {
+      if (!gameSettings || !gameSettings.mode?.countdownTime) {
+        return;
+      }
+
+      if (cumulativeTime) {
+        setCountdownTime(countdownTime + gameSettings!.mode?.countdownTime);
+      } else if (!isResume) {
+        setCountdownTime(gameSettings!.mode?.countdownTime);
+      }
+    },
+    [gameSettings, countdownTime],
+  );
+
+  const onEditPlayerName = useCallback((index: number, newName: string) => {
+    setPlayerSettings(
+      prev =>
+        ({
+          ...prev,
+          playingPlayers: prev?.playingPlayers.map((player, playerIndex) => {
+            if (index === playerIndex) {
+              return {...player, name: newName};
+            }
+
+            return player;
+          }),
+        } as PlayerSettings),
+    );
+  }, []);
+
+  const onChangePlayerPoint = useCallback(
+    (addedPoint: number, index: number, stepIndex: number) => {
+      if (!isStarted || stepIndex === 4 || !playerSettings || !gameSettings) {
+        return;
+      }
+
+      setPlayerSettings(
+        prev =>
+          ({
+            ...prev,
+            playingPlayers: prev?.playingPlayers.map((player, playerIndex) => {
+              if (index === playerIndex) {
+                return {
+                  ...player,
+                  totalPoint: player.totalPoint + addedPoint,
+                  proMode: {
+                    ...player.proMode,
+                    currentPoint:
+                      (player.proMode?.currentPoint || 0) + addedPoint,
+                  },
+                };
+              }
+
+              return player;
+            }),
+          } as PlayerSettings),
+      );
+
+      const player = playerSettings!.playingPlayers[index];
+      if (player.totalPoint + addedPoint >= gameSettings!.players.goal.goal) {
+        Alert.alert(
+          i18n.t('txtWin'),
+          i18n.t('msgWinner', {player: player.name}),
+          [{text: i18n.t('txtClose')}],
+        );
+        setIsPaused(true);
+      }
+
+      if (!isPoolGame(gameSettings.category)) {
+        _resetCountdown();
+        setIsMatchPaused(false);
+      }
+    },
+    [isStarted, gameSettings, playerSettings, _resetCountdown],
+  );
+
+  const onPressGiveMoreTime = useCallback(() => {
+    const baseCountdown = Number(gameSettings?.mode?.countdownTime || 0);
+    const configuredBonus = Number(gameSettings?.mode?.extraTimeBonus || 0);
+    const currentPlayer = playerSettings?.playingPlayers?.[currentPlayerIndex];
+    const remainingTurns = currentPlayer?.proMode?.extraTimeTurns;
+
+    console.log('[Extension] press', {
+      isStarted,
+      baseCountdown,
+      configuredBonus,
+      currentCountdown: countdownTime,
+      currentPlayerIndex,
+      remainingTurns,
+    });
+
+    if (!isStarted || !playerSettings || !baseCountdown) {
+      console.log('[Extension] blocked: invalid state');
+      return;
+    }
+
+    if (typeof remainingTurns === 'number' && remainingTurns <= 0) {
+      console.log('[Extension] blocked: no extra turns left');
+      return;
+    }
+
+    const appliedBonus =
+      configuredBonus > 0
+        ? configuredBonus
+        : baseCountdown > 0
+          ? baseCountdown
+          : 35;
+
+    setCountdownTime(prev => {
+      const safePrev = Number.isFinite(prev) ? prev : baseCountdown;
+      const next = safePrev + appliedBonus;
+      console.log('[Extension] countdown update', {safePrev, appliedBonus, next});
+      return next;
+    });
+
+    setIsMatchPaused(false);
+
+    setPlayerSettings(prev => {
+      if (!prev?.playingPlayers?.length) {
+        return prev;
+      }
+
+      const playingPlayers = prev.playingPlayers.map((player, index) => {
+        if (index !== currentPlayerIndex || !player.proMode) {
+          return player;
+        }
+
+        if (typeof player.proMode.extraTimeTurns !== 'number') {
+          return player;
+        }
+
+        return {
+          ...player,
+          proMode: {
+            ...player.proMode,
+            extraTimeTurns: Math.max(0, player.proMode.extraTimeTurns - 1),
+          },
+        } as Player;
+      });
+
+      return {
+        ...prev,
+        playingPlayers,
+      } as PlayerSettings;
+    });
+  }, [
+    countdownTime,
+    currentPlayerIndex,
+    gameSettings,
+    isStarted,
+    playerSettings,
+    setCountdownTime,
+    setIsMatchPaused,
+    setPlayerSettings,
+  ]);
+
+  const onViolate = useCallback(
+    (playerIndex: number, reset?: boolean) => {
+      if (
+        !isStarted ||
+        !playerSettings ||
+        !isPoolGame(gameSettings?.category)
+      ) {
+        return;
+      }
+
+      const newPlayingPlayers = playerSettings.playingPlayers.map(
+        (player, index) => {
+          if (playerIndex === index) {
+            return {
+              ...player,
+              violate: reset ? 0 : player.violate ? player.violate + 1 : 1,
+            } as Player;
+          }
+
+          return player;
+        },
+      );
+
+      setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+    },
+    [isStarted, gameSettings, playerSettings],
+  );
+
+  const onSelectWinnerByIndex = useCallback(
+    (playerIndex: number, addMatchPoint?: boolean) => {
+      if (!playerSettings?.playingPlayers?.[playerIndex]) {
+        return;
+      }
+
+      const winnerPlayer = playerSettings.playingPlayers[playerIndex];
+      setWinner(winnerPlayer);
+
+      if (!addMatchPoint) {
+        return;
+      }
+
+      setPlayerSettings(
+        prev =>
+          ({
+            ...prev,
+            playingPlayers: prev?.playingPlayers.map((player, currentIndex) => {
+              if (playerIndex === currentIndex) {
+                return {...player, totalPoint: player.totalPoint + 1};
+              }
+
+              return player;
+            }),
+          } as PlayerSettings),
+      );
+    },
+    [playerSettings],
+  );
+
+  const onSelectWinner = useCallback(() => {
+    onSelectWinnerByIndex(
+      currentPlayerIndex,
+      isPool9Game(gameSettings?.category) || isPool10Game(gameSettings?.category),
+    );
+  }, [currentPlayerIndex, gameSettings?.category, onSelectWinnerByIndex]);
+
+  const onClearWinner = useCallback(() => {
+    if (!playerSettings) {
+      return;
+    }
+
+    const newPlayingPlayers = playerSettings?.playingPlayers.map(player => {
+      return {...player, scoredBalls: undefined} as Player;
+    });
+
+    setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+    setWinner(undefined);
+  }, [playerSettings]);
+
+  const onPool15OnlyScore = useCallback(
+    (playerIndex: number) => {
+      if (
+        !isStarted ||
+        !playerSettings ||
+        !isPool15OnlyGame(gameSettings?.category) ||
+        winner
+      ) {
+        return;
+      }
+
+      const targetPlayer = playerSettings.playingPlayers[playerIndex];
+      if (!targetPlayer) {
+        return;
+      }
+
+      const nextPoint = Math.min(8, Number(targetPlayer.totalPoint || 0) + 1);
+      const newPlayingPlayers = playerSettings.playingPlayers.map(
+        (player, index) => {
+          if (index === playerIndex) {
+            return {
+              ...player,
+              totalPoint: nextPoint,
+            } as Player;
+          }
+
+          return player;
+        },
+      );
+
+      setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+
+      if (nextPoint >= 8) {
+        setWinner(newPlayingPlayers[playerIndex]);
+      }
+    },
+    [gameSettings?.category, isStarted, playerSettings, winner],
+  );
+
+  const onPoolScore = useCallback(
+    (ball: PoolBallType) => {
+      if (
+        !isStarted ||
+        !playerSettings ||
+        !isPoolGame(gameSettings?.category) ||
+        winner
+      ) {
+        return;
+      }
+
+      const newPlayingPlayers = playerSettings.playingPlayers.map(
+        (player, index) => {
+          if (currentPlayerIndex === index) {
+            const nextScoredBalls = [...(player.scoredBalls || []), ball];
+            return {
+              ...player,
+              scoredBalls: nextScoredBalls,
+              totalPoint: isPool15FreeGame(gameSettings?.category)
+                ? nextScoredBalls.length
+                : player.totalPoint,
+            } as Player;
+          }
+
+          return player;
+        },
+      );
+
+      setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+
+      switch (true) {
+        case isPool9Game(gameSettings?.category):
+          if (ball.number === BallType.B9) {
+            onSelectWinner();
+          }
+          break;
+        case isPool10Game(gameSettings?.category):
+          if (ball.number === BallType.B10) {
+            onSelectWinner();
+          }
+          break;
+        case isPool15FreeGame(gameSettings?.category): {
+          const totalScoredBalls = newPlayingPlayers.reduce(
+            (sum, player) => sum + (player.scoredBalls?.length || 0),
+            0,
+          );
+
+          if (totalScoredBalls >= 15) {
+            const [firstPlayer, secondPlayer] = newPlayingPlayers;
+            const winnerIndex =
+              Number(firstPlayer?.totalPoint || 0) >=
+              Number(secondPlayer?.totalPoint || 0)
+                ? 0
+                : 1;
+            setWinner(newPlayingPlayers[winnerIndex]);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [
+      currentPlayerIndex,
+      gameSettings?.category,
+      isStarted,
+      onSelectWinner,
+      playerSettings,
+      winner,
+    ],
+  );
+
+  const onSwitchTurn = useCallback(() => {
+    _resetCountdown();
+
+    const player0: Player = {
+      ...playerSettings?.playingPlayers[0],
+      color: playerSettings?.playingPlayers[1].color,
+    } as Player;
+    const player1: Player = {
+      ...playerSettings?.playingPlayers[1],
+      color: playerSettings?.playingPlayers[0].color,
+    } as Player;
+
+    setPlayerSettings({
+      ...playerSettings,
+      playingPlayers: [player0, player1],
+    } as PlayerSettings);
+  }, [_resetCountdown, playerSettings]);
+
+  const onSwitchPoolBreakPlayerIndex = useCallback(
+    (index: number, callback?: (playerIndex: number) => void) => {
+      if (!gameSettings) {
+        return;
+      }
+      let newPoolBreakPlayerIndex = 0;
+
+      if (index + 1 > gameSettings.players.playerNumber - 1) {
+        newPoolBreakPlayerIndex = 0;
+      } else {
+        newPoolBreakPlayerIndex = index + 1;
+      }
+
+      setPoolBreakPlayerIndex(newPoolBreakPlayerIndex);
+
+      if (callback) {
+        callback(newPoolBreakPlayerIndex);
+      }
+    },
+    [gameSettings],
+  );
+
+  const onIncreaseTotalTurns = useCallback(() => {
+    setTotalTurns(prev => prev + 1);
+  }, []);
+
+  const onDecreaseTotalTurns = useCallback(() => {
+    setTotalTurns(prev => (prev > 1 ? prev - 1 : 1));
+  }, []);
+
+  const onToggleSound = useCallback(() => {
+    setSoundEnabled(prev => !prev);
+  }, []);
+
+  const onToggleProMode = useCallback(() => {
+    if (isPoolGame(gameSettings?.category)) {
+      return;
+    }
+
+    setProModeEnabled(prev => !prev);
+  }, [gameSettings?.category]);
+
+  const onPoolBreak = useCallback(() => {
+    if (
+      !isStarted ||
+      isPaused ||
+      !poolBreakEnabled ||
+      !gameSettings ||
+      !gameSettings.mode?.countdownTime
+    ) {
+      return;
+    }
+    const extraTimeBonus = gameSettings.mode?.extraTimeBonus || 0;
+    setCountdownTime(gameSettings.mode?.countdownTime! + extraTimeBonus);
+    setPoolBreakEnabled(false);
+    setIsMatchPaused(false);
+    setIsStarted(true);
+  }, [gameSettings, isStarted, isPaused, poolBreakEnabled]);
+
+  const getWarmUpTimeString = useCallback(() => {
+    if (!warmUpCountdownTime) {
+      return '';
+    }
+
+    const minutes = Math.floor(warmUpCountdownTime / 60);
+    const seconds = Math.floor(warmUpCountdownTime % 60);
+
+    return `${minutes < 10 ? '0' : ''}${minutes}:${
+      seconds < 10 ? '0' : ''
+    }${seconds}`;
+  }, [warmUpCountdownTime]);
+
+  const onWarmUp = useCallback(() => {
+    if (
+      !gameSettings?.mode?.warmUpTime ||
+      (typeof warmUpCount === 'number' && warmUpCount <= 0)
+    ) {
+      return;
+    }
+
+    setWarmUpCount(prev => (prev ? prev - 1 : 0));
+    setWarmUpCountdownTime(gameSettings?.mode?.warmUpTime);
+  }, [gameSettings, warmUpCount]);
+
+  const onGameBreak = useCallback(() => {
+    setGameBreakEnabled(true);
+    setWarmUpCountdownTime(1);
+  }, []);
+
+  const onEndWarmUp = useCallback(() => {
+    setWarmUpCountdownTime(undefined);
+    setGameBreakEnabled(false);
+    clearInterval(warmUpCountdownInterval);
+  }, []);
+
+  const onEndTurn = useCallback(
+    (isPrevious?: boolean) => {
+      if (!gameSettings || !isStarted) {
+        return;
+      }
+
+      const totalPlayers = Math.max(
+        2,
+        playerSettings?.playingPlayers?.length ||
+          gameSettings.players?.playingPlayers?.length ||
+          0,
+      );
+
+      let nextPlayerIndex = 0,
+        newTotalTurns: number | null = null;
+
+      switch (true) {
+        case isPrevious && currentPlayerIndex - 1 < 0:
+          nextPlayerIndex = totalPlayers - 1;
+          newTotalTurns = totalTurns + 1;
+          break;
+        case isPrevious:
+          nextPlayerIndex = currentPlayerIndex - 1;
+          break;
+        case !isPrevious && currentPlayerIndex + 1 > totalPlayers - 1:
+          nextPlayerIndex = 0;
+          newTotalTurns = totalTurns + 1;
+          break;
+        default:
+          nextPlayerIndex = currentPlayerIndex + 1;
+          break;
+      }
+
+      const completedTurns = Math.max(1, totalTurns + 1);
+
+      setIsMatchPaused(false);
+      setCurrentPlayerIndex(nextPlayerIndex);
+      _resetCountdown();
+
+      setPlayerSettings(
+        prev =>
+          ({
+            ...prev,
+            playingPlayers: prev?.playingPlayers.map((player, playerIndex) => {
+              if (playerIndex === currentPlayerIndex) {
+                const currentPoint = Number(player.proMode?.currentPoint || 0);
+                const highestRate = Math.max(
+                  Number(player.proMode?.highestRate || 0),
+                  currentPoint,
+                );
+                const average = Number(
+                  (
+                    Number(player.totalPoint || 0) /
+                    completedTurns
+                  ).toFixed(2),
+                );
+
+                return {
+                  ...player,
+                  proMode: {
+                    ...player.proMode,
+                    highestRate,
+                    average,
+                    currentPoint: 0,
+                  },
+                };
+              }
+
+              return {
+                ...player,
+                proMode: {
+                  ...player.proMode,
+                  currentPoint: 0,
+                },
+              };
+            }),
+          } as PlayerSettings),
+      );
+
+      if (newTotalTurns !== null) {
+        setTotalTurns(newTotalTurns);
+      }
+    },
+    [
+      isStarted,
+      currentPlayerIndex,
+      totalTurns,
+      gameSettings,
+      playerSettings,
+      _resetCountdown,
+    ],
+  );
+
+  const onResetTurn = useCallback(() => {
+    if (!gameSettings || !isStarted) {
+      return;
+    }
+
+    _resetCountdown();
+
+    setTotalTurns(totalTurns + 1);
+    setIsMatchPaused(false);
+  }, [isStarted, gameSettings, totalTurns, _resetCountdown]);
+
+  const onSwapPlayers = useCallback(() => {
+    const player0: Player = {
+      ...playerSettings?.playingPlayers[0],
+      name: playerSettings?.playingPlayers[1].name,
+    } as Player;
+    const player1: Player = {
+      ...playerSettings?.playingPlayers[1],
+      name: playerSettings?.playingPlayers[0].name,
+    } as Player;
+
+    setPlayerSettings({
+      ...playerSettings,
+      playingPlayers: [player0, player1],
+    } as PlayerSettings);
+  }, [playerSettings]);
+
+  const dismissYouTubeLiveOverlay = useCallback(() => {
+    setYoutubeLiveOverlay(null);
+  }, []);
+
+  const openYouTubeLiveLogin = useCallback(() => {
+    setYoutubeLiveOverlay(null);
+    navigate(screens.livePlatformSetupYoutube);
+  }, []);
+
+  const buildYouTubeLiveOverlay = useCallback(
+    (
+      eligibility: YouTubeEligibilityResponse | null,
+      fallbackMessage?: string,
+    ): YouTubeLiveOverlayState => {
+      const subscriberCount = eligibility?.subscriberCount;
+      const hiddenSubscriberCount = Boolean(eligibility?.hiddenSubscriberCount);
+      const liveEnabled = eligibility?.liveEnabled;
+      const liveEnabledReason = eligibility?.liveEnabledReason || fallbackMessage || '';
+
+      const subscriberCheck: YouTubeEligibilityCheck = {
+        key: 'subscribers',
+        label: 'Tối thiểu 50 người đăng ký',
+        status:
+          typeof subscriberCount === 'number'
+            ? subscriberCount >= 50
+              ? 'pass'
+              : 'fail'
+            : hiddenSubscriberCount
+            ? 'unknown'
+            : 'unknown',
+        detail:
+          typeof subscriberCount === 'number'
+            ? `Kênh hiện có ${subscriberCount} người đăng ký.`
+            : hiddenSubscriberCount
+            ? 'Không đọc được số người đăng ký vì kênh đang ẩn số người đăng ký.'
+            : 'Không đọc được số người đăng ký của kênh.',
+      };
+
+      const liveEnabledCheck: YouTubeEligibilityCheck = {
+        key: 'liveEnabled',
+        label: 'Phát trực tiếp đã bật',
+        status:
+          liveEnabled === true ? 'pass' : liveEnabled === false ? 'fail' : 'unknown',
+        detail:
+          liveEnabled === true
+            ? 'Kênh hiện có thể dùng tính năng phát trực tiếp.'
+            : liveEnabled === false
+            ? liveEnabledReason || 'YouTube báo kênh hiện chưa được bật quyền livestream.'
+            : 'Chưa xác định được trạng thái phát trực tiếp từ YouTube.',
+      };
+
+      return {
+        visible: true,
+        title: 'Chưa thể live YouTube',
+        message:
+          fallbackMessage ||
+          eligibility?.message ||
+          'Để live YouTube, kênh cần từ 50 người đăng ký và tính năng Phát trực tiếp phải dùng được.',
+        checks: [subscriberCheck, liveEnabledCheck],
+      };
+    },
+    [],
+  );
+
+  const showYouTubeLiveFailure = useCallback(
+    (
+      eligibility: YouTubeEligibilityResponse | null,
+      fallbackMessage?: string,
+    ) => {
+      const overlayState = buildYouTubeLiveOverlay(eligibility, fallbackMessage);
+      setYoutubeLiveOverlay(overlayState);
+    },
+    [buildYouTubeLiveOverlay],
+  );
+
+
+  const onStart = useCallback(async () => {
+    if (isStarted) {
+      return;
+    }
+
+    const freeDisk =
+      (await DeviceInfo.getFreeDiskStorage()) / (1024 * 1024 * 1024);
+
+    console.log('Free disk storae ' + freeDisk);
+
+    if (freeDisk <= 10) {
+      Alert.alert(i18n.t('txtwarn'), i18n.t('msgOutOfMemory'), [
+        {
+          text: i18n.t('txtCancel'),
+          style: 'cancel',
+        },
+        {
+          text: i18n.t('btnHistory'),
+          onPress: () => {
+            navigate(screens.history);
+          },
+        },
+      ]);
+      return;
+    }
+
+    console.log('[Replay] onStart pressed');
+    console.log('[Live] selected platform:', selectedLivestreamPlatform, {
+      saveToDeviceWhileStreaming,
+      shouldUseYouTubeLive,
+      shouldUseLocalRecordingOnly,
+    });
+
+    const currentSource = getCurrentCameraSource();
+    const availableSources = normalizeAvailableCameraSources(
+      getAvailableCameraSources(),
+    );
+    const hasExternalSource =
+      hasDetectedUvcSource() && availableSources.includes('external');
+
+    const lockedLiveSource = resolveLockedLiveSource(
+      currentSource,
+      availableSources,
+    );
+
+    if (currentSource === 'external' && !hasExternalSource) {
+      Alert.alert(
+        'Chưa nhận được webcam USB',
+        'App chưa thấy webcam ngoài. Hãy kiểm tra OTG/nguồn và cắm lại webcam rồi thử lại.',
+      );
+      return;
+    }
+
+    if (!lockedLiveSource) {
+      Alert.alert(
+        'Không tìm thấy camera',
+        'Thiết bị hiện không có nguồn camera phù hợp để bắt đầu live.',
+      );
+      return;
+    }
+
+    const nativeSourceType =
+      lockedLiveSource === 'external' ? 'webcam' : 'phone';
+    const nativePhoneFacing = lockedLiveSource === 'front' ? 'front' : 'back';
+
+    if (!shouldUseYouTubeLive) {
+      console.log('[Live] local recording mode only:', {
+        selectedLivestreamPlatform,
+        currentSource,
+        availableSources,
+        lockedLiveSource,
+      });
+
+      pendingYouTubeNativeStartRef.current = null;
+      setYoutubeLiveOverlay(null);
+      setYoutubeLivePreparing(false);
+      setYoutubeLivePreviewActive(false);
+      setYouTubeNativeCameraLock(false);
+      setYouTubeSourceLock(null);
+      shouldStartRecordingRef.current = true;
+      pendingStartRecordingRef.current = true;
+      setIsStarted(true);
+      return;
+    }
+
+    setYouTubeSourceLock(lockedLiveSource);
+    console.log('[YouTube Live] source resolved:', {
+      currentSource,
+      availableSources,
+      lockedLiveSource,
+      nativeSourceType,
+      nativePhoneFacing,
+    });
+
+    shouldStartRecordingRef.current = false;
+    pendingStartRecordingRef.current = false;
+    pendingYouTubeNativeStartRef.current = null;
+    setYoutubeLiveOverlay(null);
+    setYoutubeLivePreparing(true);
+    setYoutubeLivePreviewActive(false);
+    setIsCameraReady(false);
+    setIsStarted(true);
+
+    const firstPlayerName =
+      playerSettings?.playingPlayers?.[0]?.name?.trim() || 'Player 1';
+    const secondPlayerName =
+      playerSettings?.playingPlayers?.[1]?.name?.trim() || 'Player 2';
+
+    const youtubeTitle = `${firstPlayerName} vs ${secondPlayerName} - ${new Date().toLocaleString()}`;
+
+    const prepareYouTubeLive = async () => {
+      try {
+        await stopYouTubeNativeLive();
+        await stopVideoRecording(false);
+
+        const selectedLiveVisibility =
+          await readYouTubeVisibilityFromStorage();
+
+        const liveResponse = await createYouTubeLiveSession({
+          title: youtubeTitle,
+          description: `Live score từ trận đấu ${firstPlayerName} vs ${secondPlayerName}`,
+          privacyStatus: selectedLiveVisibility,
+          enableAutoStart: true,
+          enableAutoStop: true,
+        });
+
+        console.log('[YouTube Live] created:', liveResponse?.session);
+
+        pendingYouTubeNativeStartRef.current = {
+          url: liveResponse.session.streamUrlWithKey,
+          options: {
+            width: 1280,
+            height: 720,
+            fps: 30,
+            bitrate: 4500 * 1024,
+            audioBitrate: 128 * 1024,
+            sampleRate: 44100,
+            isStereo: true,
+            cameraFacing: nativePhoneFacing,
+            sourceType: nativeSourceType,
+          },
+        };
+
+        setYoutubeLivePreviewActive(true);
+        setYoutubeLivePreparing(false);
+        setYoutubeNativeStartNonce(value => value + 1);
+      } catch (error: any) {
+        console.log('[YouTube Live] create failed:', error);
+
+        pendingYouTubeNativeStartRef.current = null;
+        setYoutubeLivePreparing(false);
+        setYoutubeLivePreviewActive(false);
+        setIsCameraReady(false);
+        setIsStarted(false);
+        setYouTubeSourceLock(null);
+
+        try {
+          await stopYouTubeNativeLive();
+        } catch {}
+
+        const payload = error?.payload as YouTubeEligibilityResponse | undefined;
+        const fallbackMessage =
+          payload?.message ||
+          error?.message ||
+          'Không thể khởi tạo live YouTube.';
+
+        try {
+          const eligibility =
+            payload?.checks?.length || payload?.subscriberCount !== undefined
+              ? payload
+              : await getYouTubeLiveEligibility();
+
+          showYouTubeLiveFailure(eligibility, fallbackMessage);
+        } catch (eligibilityError: any) {
+          console.log('[YouTube Live] eligibility failed:', eligibilityError);
+
+          showYouTubeLiveFailure(
+            null,
+            fallbackMessage ||
+              eligibilityError?.message ||
+              'Không thể kiểm tra điều kiện YouTube.',
+          );
+        }
+      }
+    };
+
+    void prepareYouTubeLive();
+  }, [
+    isStarted,
+    playerSettings,
+    readYouTubeVisibilityFromStorage,
+    saveToDeviceWhileStreaming,
+    selectedLivestreamPlatform,
+    shouldUseLocalRecordingOnly,
+    shouldUseYouTubeLive,
+    showYouTubeLiveFailure,
+  ]);
+
+  const onToggleCountDown = useCallback(() => {
+    if (!isStarted || isPaused) {
+      return;
+    }
+
+    setIsMatchPaused(prev => !prev);
+  }, [isStarted, isPaused]);
+
+  const onPause = useCallback(() => {
+    if (isPaused) {
+      void setReplayResumeSnapshot(null);
+      setReplayReturnRequestSync(null);
+      _resetCountdown(true);
+      setIsPaused(false);
+
+      if (!youtubeLiveNativeMode) {
+        shouldStartRecordingRef.current = true;
+        pendingStartRecordingRef.current = true;
+      }
+      return;
+    }
+
+    clearInterval(countdownInterval);
+    shouldStartRecordingRef.current = false;
+    pendingStartRecordingRef.current = false;
+    setIsPaused(true);
+
+    if (!youtubeLiveNativeMode) {
+      void stopVideoRecording(false).catch(error => {
+        console.log('[Replay] async stop on pause failed:', error);
+      });
+    }
+  }, [isPaused, _resetCountdown, youtubeLiveNativeMode]);
+
+  const onReplay = useCallback(async () => {
+    if (!isStarted || !isPaused || youtubeLivePreviewActive || !webcamFolderName) {
+      return;
+    }
+
+    await setReplayResumeSnapshot({
+      matchSessionId: matchSessionIdRef.current,
+      webcamFolderName,
+      currentPlayerIndex,
+      poolBreakPlayerIndex,
+      totalTurns,
+      totalTime,
+      countdownTime,
+      warmUpCount,
+      warmUpCountdownTime,
+      playerSettings: cloneReplayValue(playerSettings),
+      winner: cloneReplayValue(winner),
+      isStarted,
+      isPaused,
+      isMatchPaused,
+      gameBreakEnabled,
+      poolBreakEnabled,
+      soundEnabled,
+      proModeEnabled,
+      restoreOnNextFocus: true,
+      savedAt: Date.now(),
+    });
+
+    // Dùng push để luôn mở màn replay mới nằm trên đúng trận đang tạm dừng.
+    // Nếu dùng navigate, React Navigation có thể quay về một route playback cũ
+    // đang có sẵn trong stack, khiến nút quay lại không trở về đúng trận hiện tại.
+    push(screens.playback, {
+      webcamFolderName,
+      merged: false,
+      returnToMatch: true,
+      matchSessionId: matchSessionIdRef.current,
+    });
+  }, [
+    countdownTime,
+    currentPlayerIndex,
+    gameBreakEnabled,
+    isMatchPaused,
+    isPaused,
+    isStarted,
+    playerSettings,
+    poolBreakEnabled,
+    poolBreakPlayerIndex,
+    proModeEnabled,
+    soundEnabled,
+    totalTime,
+    totalTurns,
+    warmUpCount,
+    warmUpCountdownTime,
+    webcamFolderName,
+    winner,
+    youtubeLivePreviewActive,
+  ]);
+
+  const onStop = useCallback(async () => {
+  Alert.alert(i18n.t('stop'), i18n.t('msgStopGame'), [
+    {
+      text: i18n.t('txtCancel'),
+      style: 'cancel',
+    },
+    {
+      text: i18n.t('stop'),
+      onPress: async () => {
+        if (isEndingGameRef.current) {
+          return;
+        }
+
+        isEndingGameRef.current = true;
+
+        try {
+          void setReplayResumeSnapshot(null);
+          void setLiveMatchSnapshot(null);
+          setReplayReturnRequestSync(null);
+          shouldStartRecordingRef.current = false;
+          pendingStartRecordingRef.current = false;
+          pendingYouTubeNativeStartRef.current = null;
+          setYoutubeLivePreparing(false);
+          await stopYouTubeNativeLive();
+          setYoutubeLivePreviewActive(false);
+          setIsCameraReady(false);
+
+          const recordedPath =
+            (await stopVideoRecording(false)) ??
+            (await getLatestReplaySegmentPath());
+
+          console.log('[Replay] recorded path before endGame:', recordedPath);
+
+          if (!recordedPath) {
+            isEndingGameRef.current = false;
+
+            Alert.alert(
+              i18n.t('txtwarn'),
+              totalTime > 0
+                ? 'Video chưa khả dụng. Bạn có muốn thoát trận và không lưu video xem lại không?'
+                : 'Bạn chưa bắt đầu quay. Bạn có muốn thoát trận luôn không?',
+              [
+                {
+                  text: i18n.t('txtCancel'),
+                  style: 'cancel',
+                },
+                {
+                  text: 'Thoát không lưu',
+                  style: 'destructive',
+                  onPress: () => {
+                    goBack();
+                  },
+                },
+              ],
+            );
+
+            return;
+          }
+
+          dispatch(
+            gameActions.endGame({
+              realm,
+              gameSettings: {
+                ...gameSettings,
+                players: playerSettings,
+                totalTime,
+                webcamFolderName,
+                replayPath: recordedPath,
+              },
+            }),
+          );
+
+          goBack();
+        } catch (error) {
+          isEndingGameRef.current = false;
+          console.error(JSON.stringify(error));
+        }
+      },
+    },
+  ]);
+}, [
+  dispatch,
+  realm,
+  totalTime,
+  gameSettings,
+  playerSettings,
+  webcamFolderName,
+]);
+
+  const onReset = useCallback(() => {
+    void setReplayResumeSnapshot(null);
+    void setLiveMatchSnapshot(null);
+    setReplayReturnRequestSync(null);
+    const shouldResetRackScore = isPool15Game(gameSettings?.category);
+
+    const newPlayerSettings = {
+      ...playerSettings,
+      playingPlayers: playerSettings?.playingPlayers.map(player => ({
+        ...player,
+        totalPoint: shouldResetRackScore ? 0 : player.totalPoint,
+        violate: 0,
+        scoredBalls: [],
+        proMode: {
+          ...player.proMode,
+          highestRate: 0,
+          average: 0,
+          extraTimeTurns: gameSettings?.mode?.extraTimeTurns,
+        },
+      })),
+    } as PlayerSettings;
+
+    setPlayerSettings(newPlayerSettings);
+    setWinner(undefined);
+
+    if (
+      isPoolGame(gameSettings?.category) &&
+      gameSettings?.mode?.countdownTime
+    ) {
+      const extraTimeBonus = gameSettings.mode?.extraTimeBonus || 0;
+      setCountdownTime(gameSettings.mode?.countdownTime! + extraTimeBonus);
+      setPoolBreakEnabled(!isPool15Game(gameSettings?.category));
+    }
+
+    if (isPool15Game(gameSettings?.category)) {
+      setIsMatchPaused(false);
+      return;
+    }
+
+    onSwitchPoolBreakPlayerIndex(poolBreakPlayerIndex, playerIndex => {
+      setCurrentPlayerIndex(playerIndex);
+    });
+  }, [
+    poolBreakPlayerIndex,
+    gameSettings,
+    playerSettings,
+    onSwitchPoolBreakPlayerIndex,
+  ]);
+
+  const getLatestReplaySegmentPath = async () => {
+    try {
+      const folderPath = buildReplayFolderPath(webcamFolderName);
+      const folderExists = await RNFS.exists(folderPath);
+
+      if (!folderExists) {
+        return undefined;
+      }
+
+      const entries = await RNFS.readDir(folderPath);
+      const files = entries.filter(entry => entry.isFile());
+
+      if (!files.length) {
+        return undefined;
+      }
+
+      files.sort((a, b) => {
+        const aTime = a.mtime ? new Date(a.mtime).getTime() : 0;
+        const bTime = b.mtime ? new Date(b.mtime).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      return files[0].path;
+    } catch (error) {
+      console.log('[Replay] Failed to get latest replay segment:', error);
+      return undefined;
+    }
+  };
+
+  const startVideoRecording = () => {
+    if (!cameraRef.current) {
+      console.log('[Replay] skip start: cameraRef null');
+      return false;
+    }
+
+    if (isRecordingRef.current) {
+      console.log('[Replay] skip start: already recording');
+      return true;
+    }
+
+    if (isStoppingRecordingRef.current) {
+      console.log('[Replay] skip start: stopping in progress');
+      return false;
+    }
+
+    try {
+      restartAfterStopRef.current = false;
+      isStoppingRecordingRef.current = false;
+      lastRecordedVideoPathRef.current = undefined;
+      setIsRecording(true);
+
+      recordingFinishedPromiseRef.current = new Promise(resolve => {
+        recordingFinishedResolverRef.current = resolve;
+      });
+
+      if (recordingRotateTimeoutRef.current) {
+        clearTimeout(recordingRotateTimeoutRef.current);
+      }
+
+      currentReplaySegmentIndexRef.current = replayCompletedSegmentsRef.current;
+      currentReplaySegmentStartTotalTimeRef.current = totalTime;
+      replayTimelineSignatureRef.current = '';
+
+      console.log('Starting recording...');
+      cameraRef.current.startRecording({
+        fileType: 'mp4',
+        videoCodec: 'h264',
+        onRecordingFinished: async video => {
+          console.log('Recording finished:', video?.path);
+          setIsRecording(false);
+          isStoppingRecordingRef.current = false;
+
+          if (recordingRotateTimeoutRef.current) {
+            clearTimeout(recordingRotateTimeoutRef.current);
+            recordingRotateTimeoutRef.current = null;
+          }
+
+          let finalPath = video?.path;
+
+          try {
+            if (video?.path) {
+              const replayFolderPath = await ensureReplayFolder(webcamFolderName);
+              const segmentFileName = `segment_${Date.now()}.mp4`;
+              const targetPath = `${replayFolderPath}/${segmentFileName}`;
+
+              try {
+                await RNFS.moveFile(video.path, targetPath);
+                finalPath = targetPath;
+              } catch (moveError) {
+                console.log('[Replay] moveFile failed, trying copy:', moveError);
+                await RNFS.copyFile(video.path, targetPath);
+                finalPath = targetPath;
+              }
+
+              finalPath =
+                (await burnLivestreamOverlaysIntoVideo(finalPath)) || finalPath;
+
+              await registerReplaySegment(webcamFolderName, finalPath);
+              replayCompletedSegmentsRef.current = Math.max(
+                replayCompletedSegmentsRef.current,
+                currentReplaySegmentIndexRef.current + 1,
+              );
+              await pruneReplayStorage(MAX_REPLAY_STORAGE_BYTES, [webcamFolderName]);
+            }
+          } catch (segmentError) {
+            console.error('Failed to register replay segment:', segmentError);
+          } finally {
+            lastRecordedVideoPathRef.current = finalPath;
+            recordingFinishedResolverRef.current?.(finalPath);
+            recordingFinishedResolverRef.current = null;
+            recordingFinishedPromiseRef.current = null;
+          }
+
+          if (restartAfterStopRef.current) {
+            restartAfterStopRef.current = false;
+            pendingStartRecordingRef.current = true;
+          }
+        },
+        onRecordingError: error => {
+          console.error('Recording error:', error);
+          setIsRecording(false);
+          isStoppingRecordingRef.current = false;
+
+          if (recordingRotateTimeoutRef.current) {
+            clearTimeout(recordingRotateTimeoutRef.current);
+            recordingRotateTimeoutRef.current = null;
+          }
+
+          recordingFinishedResolverRef.current?.(undefined);
+          recordingFinishedResolverRef.current = null;
+          recordingFinishedPromiseRef.current = null;
+        },
+      });
+
+      recordingRotateTimeoutRef.current = setTimeout(async () => {
+        if (!isRecordingRef.current || isStoppingRecordingRef.current) {
+          return;
+        }
+
+        try {
+          pendingStartRecordingRef.current = true;
+          await stopVideoRecording(true);
+        } catch (rotationError) {
+          console.error('Failed to rotate recording:', rotationError);
+        }
+      }, RECORDING_SEGMENT_DURATION_MS);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      setIsRecording(false);
+      isStoppingRecordingRef.current = false;
+      recordingFinishedResolverRef.current?.(undefined);
+      recordingFinishedResolverRef.current = null;
+      recordingFinishedPromiseRef.current = null;
+      return false;
+    }
+  };
+
+  const stopVideoRecording = async (restartAfterStop = false) => {
+    if (recordingRotateTimeoutRef.current) {
+      clearTimeout(recordingRotateTimeoutRef.current);
+      recordingRotateTimeoutRef.current = null;
+    }
+
+    restartAfterStopRef.current = restartAfterStop;
+
+    if (isStoppingRecordingRef.current) {
+      console.log('[Replay] skip stop: already stopping');
+      return (
+        (await Promise.race([
+          recordingFinishedPromiseRef.current,
+          new Promise<string | undefined>(resolve =>
+            setTimeout(() => resolve(undefined), 2500),
+          ),
+        ])) ??
+        lastRecordedVideoPathRef.current ??
+        (await getLatestReplaySegmentPath())
+      );
+    }
+
+    if (!cameraRef.current || !isRecordingRef.current) {
+      console.log('[Replay] skip stop: not recording');
+      return lastRecordedVideoPathRef.current ?? (await getLatestReplaySegmentPath());
+    }
+
+    isStoppingRecordingRef.current = true;
+    console.log('Stopping recording...');
+
+    try {
+      const waitForFinish =
+        recordingFinishedPromiseRef.current ||
+        new Promise<string | undefined>(resolve => resolve(undefined));
+
+      await Promise.race([
+        cameraRef.current.stopRecording(),
+        new Promise(resolve => setTimeout(resolve, 2500)),
+      ]);
+
+      let recordedPath = await Promise.race([
+        waitForFinish,
+        new Promise<string | undefined>(resolve =>
+          setTimeout(() => resolve(undefined), 2500),
+        ),
+      ]);
+
+      if (!recordedPath) {
+        await new Promise(resolve => setTimeout(resolve, 700));
+        recordedPath =
+          lastRecordedVideoPathRef.current ?? (await getLatestReplaySegmentPath());
+      }
+
+      if (!recordedPath) {
+        console.log('[Replay] stop timeout fallback: release stopping flag');
+        setIsRecording(false);
+        isStoppingRecordingRef.current = false;
+        restartAfterStopRef.current = false;
+      }
+
+      console.log('[Replay] stopVideoRecording finished with path:', recordedPath);
+      return recordedPath;
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      setIsRecording(false);
+      isStoppingRecordingRef.current = false;
+      restartAfterStopRef.current = false;
+      return lastRecordedVideoPathRef.current ?? (await getLatestReplaySegmentPath());
+    }
+  };
+
+  return useMemo(() => {
+    return {
+      matchCountdownRef,
+      winner,
+      currentPlayerIndex,
+      poolBreakPlayerIndex,
+      totalTime,
+      totalTurns,
+      playerSettings,
+      gameSettings,
+      countdownTime,
+      warmUpCount,
+      warmUpCountdownTime,
+      updateGameSettings,
+      isStarted,
+      isPaused,
+      isMatchPaused,
+      soundEnabled,
+      gameBreakEnabled,
+      poolBreakEnabled,
+      proModeEnabled,
+      webcamFolderName,
+      onEditPlayerName,
+      onChangePlayerPoint,
+      onPressGiveMoreTime,
+      onViolate,
+      getWarmUpTimeString,
+      onGameBreak,
+      onWarmUp,
+      onEndWarmUp,
+      onSwitchTurn,
+      onSwitchPoolBreakPlayerIndex,
+      onSwapPlayers,
+      onIncreaseTotalTurns,
+      onDecreaseTotalTurns,
+      onToggleSound,
+      onToggleProMode,
+      updateWebcamFolderName,
+      onPool15OnlyScore,
+      onPoolScore,
+      onSelectWinner,
+      onClearWinner,
+      onPoolBreak,
+      onStart,
+      onEndTurn,
+      onToggleCountDown,
+      onPause,
+      onReplay,
+      onStop,
+      onReset,
+      onResetTurn,
+      youtubeLiveOverlay,
+      youtubeLivePreviewActive,
+      dismissYouTubeLiveOverlay,
+      openYouTubeLiveLogin,
+      cameraRef,
+      setIsCameraReady,
+      isCameraReady,
+      isRecording,
+      //isPreview,
+      //setIsPreview,
+      //pauseVideoRecording,
+      //resumeVideoRecording,
+      // stopVideoRecording,
+      // videoUri,
+      // setVideoUri
+    };
+  }, [
+    matchCountdownRef,
+    winner,
+    currentPlayerIndex,
+    poolBreakPlayerIndex,
+    totalTime,
+    totalTurns,
+    playerSettings,
+    gameSettings,
+    countdownTime,
+    warmUpCount,
+    warmUpCountdownTime,
+    updateGameSettings,
+    isStarted,
+    isPaused,
+    isMatchPaused,
+    soundEnabled,
+    gameBreakEnabled,
+    poolBreakEnabled,
+    proModeEnabled,
+    webcamFolderName,
+    onEditPlayerName,
+    onChangePlayerPoint,
+    onPressGiveMoreTime,
+    onViolate,
+    getWarmUpTimeString,
+    onGameBreak,
+    onWarmUp,
+    onEndWarmUp,
+    onSwitchTurn,
+    onSwitchPoolBreakPlayerIndex,
+    onSwapPlayers,
+    onIncreaseTotalTurns,
+    onDecreaseTotalTurns,
+    onToggleSound,
+    onToggleProMode,
+    updateWebcamFolderName,
+    onPool15OnlyScore,
+    onPoolScore,
+    onSelectWinner,
+    onClearWinner,
+    onPoolBreak,
+    onStart,
+    onEndTurn,
+    onToggleCountDown,
+    onPause,
+    onReplay,
+    onStop,
+    onReset,
+    onResetTurn,
+    youtubeLiveOverlay,
+    youtubeLivePreviewActive,
+    dismissYouTubeLiveOverlay,
+    openYouTubeLiveLogin,
+    cameraRef,
+    isPaused,
+    setIsCameraReady,
+    isCameraReady,
+    isRecording,
+    // isPreview,
+    // setIsPreview,
+    // videoUri,
+    // setVideoUri
+    //pauseVideoRecording,
+    // videoUri,
+    //resumeVideoRecording,
+    //stopVideoRecording,
+  ]);
+};
+
+export default GamePlayViewModel;

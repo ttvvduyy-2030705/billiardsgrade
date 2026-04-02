@@ -1,0 +1,105 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+apply plugin: "com.google.gms.google-services"
+apply plugin: "com.google.firebase.crashlytics"
+
+react {
+  autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = false
+
+def jscFlavor = 'org.webkit:android-jsc:+'
+
+def releaseKeystoreFile = file('./billiards.keystore')
+
+android {
+  namespace "com.aplus.score"
+  buildToolsVersion rootProject.ext.buildToolsVersion
+  compileSdkVersion rootProject.ext.compileSdkVersion
+  ndkVersion "25.2.9519653"
+
+  packagingOptions {
+    pickFirst "lib/arm64-v8a/libreact_nativemodule_core.so"
+    pickFirst "lib/armeabi-v7a/libreact_nativemodule_core.so"
+    pickFirst "lib/x86/libreact_nativemodule_core.so"
+    pickFirst "lib/x86_64/libreact_nativemodule_core.so"
+
+    exclude "META-INF/LICENSE*"
+    exclude "META-INF/NOTICE*"
+    exclude "META-INF/AL2.0"
+    exclude "META-INF/LGPL2.1"
+    exclude "META-INF/*.kotlin_module"
+  }
+
+  buildFeatures {
+    buildConfig true
+  }
+
+  defaultConfig {
+    applicationId "com.aplus.score"
+    minSdkVersion rootProject.ext.minSdkVersion
+    targetSdkVersion rootProject.ext.targetSdkVersion
+    versionCode 1
+    versionName "1.0.0"
+    missingDimensionStrategy 'react-native-camera', 'general'
+
+    // App của bạn hiện dùng chủ yếu tiếng Việt + tiếng Anh.
+    // Giữ lại 2 locale này để giảm bớt resource thừa trong APK.
+    resConfigs "en", "vi"
+  }
+
+  signingConfigs {
+    debug {
+      storeFile file('debug.keystore')
+      storePassword 'android'
+      keyAlias 'androiddebugkey'
+      keyPassword 'android'
+    }
+
+    release {
+      if (releaseKeystoreFile.exists()) {
+        storeFile releaseKeystoreFile
+        storePassword '123456'
+        keyAlias 'billiards'
+        keyPassword '123456'
+      } else {
+        // Fallback để bạn vẫn cài test release được khi máy local không có keystore riêng.
+        storeFile file('debug.keystore')
+        storePassword 'android'
+        keyAlias 'androiddebugkey'
+        keyPassword 'android'
+      }
+    }
+  }
+
+  buildTypes {
+    debug {
+      signingConfig signingConfigs.debug
+    }
+
+    release {
+      signingConfig signingConfigs.release
+      minifyEnabled enableProguardInReleaseBuilds
+      shrinkResources false
+      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+      firebaseCrashlytics {
+        nativeSymbolUploadEnabled false
+      }
+    }
+  }
+}
+
+dependencies {
+  implementation 'com.herohan:UVCAndroid:1.0.11'
+  implementation 'com.github.pedroSG94.RootEncoder:rtplibrary:2.2.6'
+  implementation("com.facebook.react:react-android")
+  implementation "org.nanohttpd:nanohttpd:2.3.1"
+
+  if (project.hasProperty("hermesEnabled") && hermesEnabled.toBoolean()) {
+    implementation("com.facebook.react:hermes-android")
+  } else {
+    implementation jscFlavor
+  }
+}
