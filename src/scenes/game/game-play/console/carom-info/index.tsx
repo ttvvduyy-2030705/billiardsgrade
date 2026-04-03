@@ -106,12 +106,16 @@ const CaromInfo = (props: Props) => {
           </View>
           <View flex={'1'} direction={'row'}>
             <Countdown
-              originalCountdownTime={props.gameSettings.mode?.countdownTime}
-              currentCountdownTime={props.countdownTime}
-              countdownWidth={dims.screenWidth * 0.28}
-              heightItem={27}
-              marginHorizontal={2}
-            />
+  originalCountdownTime={props.gameSettings.mode?.countdownTime}
+  currentCountdownTime={props.countdownTime}
+  countdownWidth={dims.screenWidth * 0.28}
+  heightItem={27}
+  marginHorizontal={2}
+  direction="right-to-left"
+  colorMode="threshold"
+  yellowThreshold={10}
+  redThreshold={5}
+/>
           </View>
         </View>
       </View>

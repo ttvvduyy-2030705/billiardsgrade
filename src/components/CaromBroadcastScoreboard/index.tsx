@@ -23,7 +23,7 @@ const getMetrics = (variant: Variant) => {
       return {
         left: 16,
         bottom: 18,
-        width: 520,
+        width: 400,
         scale: 0.64,
       };
     case 'playback':
@@ -34,13 +34,13 @@ const getMetrics = (variant: Variant) => {
         scale: 0.58,
       };
     case 'camera':
-    default:
-      return {
-        left: 10,
-        bottom: 12,
-        width: 410,
-        scale: 0.48,
-      };
+default:
+  return {
+    left: 4,
+    bottom: 4,
+    width: 270,
+    scale: 0.48,
+  };
   }
 };
 

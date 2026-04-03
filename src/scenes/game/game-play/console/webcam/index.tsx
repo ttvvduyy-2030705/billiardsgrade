@@ -604,7 +604,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
             gameSettings={caromScoreboardState.gameSettings}
             playerSettings={caromScoreboardState.playerSettings}
             variant={variant}
-            bottomOffset={fullscreenMode ? 18 : 12}
+            bottomOffset={fullscreenMode ? 18 : -32}
           />
         ) : null}
       </>
