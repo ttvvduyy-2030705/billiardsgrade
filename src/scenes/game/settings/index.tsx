@@ -130,6 +130,7 @@ const GameSettings = (props: Props) => {
                 onSelectPlayerGoal={viewModel.onSelectPlayerGoal}
                 onChangePlayerName={viewModel.onChangePlayerName}
                 onChangePlayerPoint={viewModel.onChangePlayerPoint}
+                onSelectPlayerCountry={viewModel.onSelectPlayerCountry}
               />
             </ScrollView>
 

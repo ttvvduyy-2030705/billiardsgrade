@@ -8,11 +8,17 @@ const DEFAULT_PLAYERS = () => [
     name: i18n.t('player1'),
     color: PLAYER_COLOR[1],
     totalPoint: 0,
+    countryCode: '',
+    countryName: '',
+    flag: '',
   },
   {
     name: i18n.t('player2'),
     color: PLAYER_COLOR[1],
     totalPoint: 0,
+    countryCode: '',
+    countryName: '',
+    flag: '',
   },
 ];
 

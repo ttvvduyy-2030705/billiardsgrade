@@ -1,5 +1,5 @@
 import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
-import {Pressable, Text, TextInput, View} from 'react-native';
+import {FlatList, Modal, Pressable, Text, TextInput, View} from 'react-native';
 
 import i18n from 'i18n';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
@@ -13,6 +13,7 @@ import {BilliardCategory} from 'types/category';
 import {Player, PlayerNumber, PlayerSettings} from 'types/player';
 import {GameMode} from 'types/settings';
 
+import {COUNTRIES, CountryItem, normalizeCountryName} from './countries';
 import styles from './styles';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
   onSelectPlayerGoal: (addedPoint: number, index: number) => void;
   onChangePlayerName: (newName: string, index: number) => void;
   onChangePlayerPoint: (addedPoint: number, index: number, type: number) => void;
+  onSelectPlayerCountry: (country: CountryItem, index: number) => void;
 }
 
 const getLocale = () => {
@@ -92,9 +94,15 @@ const PlayerSettingsComponent = ({
   onSelectPlayerGoal,
   onChangePlayerName,
   onChangePlayerPoint,
+  onSelectPlayerCountry,
 }: Props) => {
   const isPool = useMemo(() => isPoolGame(category), [category]);
   const isEnglish = getLocale().startsWith('en');
+  const [countryModalVisible, setCountryModalVisible] = useState(false);
+  const [countryKeyword, setCountryKeyword] = useState('');
+  const [countryPlayerIndex, setCountryPlayerIndex] = useState<number | null>(
+    null,
+  );
 
   const translate = useCallback(
     (lookup: string, vi: string, en: string) => {
@@ -122,6 +130,34 @@ const PlayerSettingsComponent = ({
   }, [category, gameMode, isPool]);
 
   const pointSteps = useMemo(() => Object.keys(PLAYER_POINT_STEPS), []);
+
+  const openCountryModal = useCallback((index: number) => {
+    setCountryPlayerIndex(index);
+    setCountryKeyword('');
+    setCountryModalVisible(true);
+  }, []);
+
+  const closeCountryModal = useCallback(() => {
+    setCountryModalVisible(false);
+    setCountryKeyword('');
+    setCountryPlayerIndex(null);
+  }, []);
+
+  const filteredCountries = useMemo(() => {
+    const keyword = normalizeCountryName(countryKeyword);
+
+    if (!keyword) {
+      return COUNTRIES;
+    }
+
+    return COUNTRIES.filter(item => {
+      return (
+        item.normalizedName.includes(keyword) ||
+        normalizeCountryName(item.name).includes(keyword) ||
+        item.code.toLowerCase().includes(keyword)
+      );
+    });
+  }, [countryKeyword]);
 
   const renderSelectorRow = useCallback(
     (
@@ -187,12 +223,24 @@ const PlayerSettingsComponent = ({
       true,
       true,
     );
-  }, [onSelectPlayerGoal, playerSettings.goal.goal, playerSettings.goal.pointSteps, renderSelectorRow, translate]);
+  }, [
+    onSelectPlayerGoal,
+    playerSettings.goal.goal,
+    playerSettings.goal.pointSteps,
+    renderSelectorRow,
+    translate,
+  ]);
 
   const renderPlayerItem = useCallback(
     (player: Player, index: number) => {
-      const playerName = player.name ?? '';
-      const playerInitial = playerName.trim().charAt(0) || `${index + 1}`;
+      const currentPlayer = player as Player & {
+        flag?: string;
+        countryCode?: string;
+        countryName?: string;
+      };
+      const playerName = currentPlayer.name ?? '';
+      const playerInitial = playerName.trim().charAt(0) || 'N';
+      const playerFlag = currentPlayer.flag || '';
       const isClassicDarkCard = !isPool && index >= 2;
 
       return (
@@ -200,70 +248,81 @@ const PlayerSettingsComponent = ({
           key={`player-card-${index}`}
           style={[
             styles.playerCard,
-            isPool ? styles.playerCardPool : {backgroundColor: player.color},
+            isPool ? styles.playerCardPool : {backgroundColor: currentPlayer.color},
           ]}>
-          <View style={styles.playerCardTop}>
-            <View
-              style={[
-                styles.avatar,
-                isClassicDarkCard && styles.avatarDark,
-                isPool && styles.avatarPool,
-              ]}>
-              <Text
-                style={[
-                  styles.avatarText,
-                  isClassicDarkCard && styles.avatarTextLight,
-                ]}>
-                {playerInitial}
-              </Text>
+          <Pressable
+            onPress={() => openCountryModal(index)}
+            style={({pressed}) => [
+              styles.avatar,
+              isClassicDarkCard && styles.avatarDark,
+              isPool && styles.avatarPool,
+              pressed && styles.selectorButtonPressed,
+            ]}>
+            <Text
+  style={[
+    styles.avatarText,
+    isClassicDarkCard && !playerFlag && styles.avatarTextLight,
+  ]}>
+  {playerFlag || playerInitial}
+</Text>
+          </Pressable>
+
+          <View style={styles.playerCardRight}>
+            <View style={styles.playerCardTop}>
+              <EditablePlayerNameInput
+                value={playerName}
+                index={index}
+                isPool={isPool}
+                onCommit={onChangePlayerName}
+                placeholder={translate(
+                  `player${index + 1}`,
+                  `Người chơi ${index + 1}`,
+                  `Player ${index + 1}`,
+                )}
+              />
             </View>
 
-            <EditablePlayerNameInput
-              value={playerName}
-              index={index}
-              isPool={isPool}
-              onCommit={onChangePlayerName}
-              placeholder={translate(
-                `player${index + 1}`,
-                `Người chơi ${index + 1}`,
-                `Player ${index + 1}`,
-              )}
-            />
-          </View>
+            <View style={[styles.scoreRow, isPool && styles.scoreRowPool]}>
+              {pointSteps.map((key, stepIndex) => {
+                const value = (PLAYER_POINT_STEPS as any)[key] as number;
+                const isCenter = stepIndex === 4;
 
-          <View style={[styles.scoreRow, isPool && styles.scoreRowPool]}>
-            {pointSteps.map((key, stepIndex) => {
-              const value = (PLAYER_POINT_STEPS as any)[key] as number;
-              const isCenter = stepIndex === 4;
-
-              return (
-                <Pressable
-                  key={`point-step-${index}-${key}`}
-                  onPress={() => onChangePlayerPoint(value, index, stepIndex)}
-                  disabled={isCenter}
-                  style={({pressed}) => [
-                    styles.scoreItem,
-                    isCenter && styles.scoreItemCenter,
-                    isPool && styles.scoreItemPool,
-                    isCenter && isPool && styles.scoreItemCenterPool,
-                    pressed && !isCenter && styles.selectorButtonPressed,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.scoreText,
-                      isCenter && styles.scoreTextCenter,
-                      isPool && styles.scoreTextPool,
+                return (
+                  <Pressable
+                    key={`point-step-${index}-${key}`}
+                    onPress={() => onChangePlayerPoint(value, index, stepIndex)}
+                    disabled={isCenter}
+                    style={({pressed}) => [
+                      styles.scoreItem,
+                      isCenter && styles.scoreItemCenter,
+                      isPool && styles.scoreItemPool,
+                      isCenter && isPool && styles.scoreItemCenterPool,
+                      pressed && !isCenter && styles.selectorButtonPressed,
                     ]}>
-                    {isCenter ? player.totalPoint : value}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.scoreText,
+                        isCenter && styles.scoreTextCenter,
+                        isPool && styles.scoreTextPool,
+                      ]}>
+                      {isCenter ? currentPlayer.totalPoint : value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
       );
     },
-    [isPool, onChangePlayerName, onChangePlayerPoint, pointSteps, translate],
+    [
+      isPool,
+      onChangePlayerName,
+      onChangePlayerPoint,
+      openCountryModal,
+      pointSteps,
+      translate,
+    ],
   );
 
   return (
@@ -286,6 +345,70 @@ const PlayerSettingsComponent = ({
       <View style={styles.playerList}>
         {playerSettings.playingPlayers.map(renderPlayerItem)}
       </View>
+
+      <Modal
+        visible={countryModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeCountryModal}>
+        <Pressable style={styles.countryModalOverlay} onPress={closeCountryModal}>
+          <Pressable style={styles.countryModalCard} onPress={() => {}}>
+            <Text style={styles.countryModalTitle}>
+              {isEnglish ? 'Select country' : 'Chọn quốc gia'}
+            </Text>
+
+            <TextInput
+              value={countryKeyword}
+              onChangeText={setCountryKeyword}
+              placeholder={isEnglish ? 'Search country...' : 'Tìm quốc gia...'}
+              placeholderTextColor="#8E8E8E"
+              autoCorrect={false}
+              autoCapitalize="words"
+              autoFocus={true}
+              style={styles.countrySearchInput}
+            />
+
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={item => item.code}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={styles.countryList}
+              renderItem={({item}) => {
+                const displayFlag = item.flag || '🏳️';
+
+                return (
+                  <Pressable
+                    style={({pressed}) => [
+                      styles.countryItem,
+                      pressed && styles.countryItemPressed,
+                    ]}
+                    onPress={() => {
+                      if (countryPlayerIndex !== null) {
+                        onSelectPlayerCountry(
+                          {
+                            ...item,
+                            flag: displayFlag,
+                          },
+                          countryPlayerIndex,
+                        );
+                      }
+                      closeCountryModal();
+                    }}>
+                    <Text style={styles.countryFlag}>{displayFlag}</Text>
+                    <Text style={styles.countryName}>{item.name}</Text>
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={styles.countryEmptyText}>
+                  {isEnglish ? 'No result found' : 'Không tìm thấy kết quả'}
+                </Text>
+              }
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };

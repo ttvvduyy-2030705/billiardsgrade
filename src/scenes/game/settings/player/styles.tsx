@@ -84,15 +84,22 @@ const styles = StyleSheet.create({
   },
   playerCard: {
     borderRadius: 14,
-    paddingHorizontal: pick(7, 8),
+    paddingHorizontal: pick(6, 8),
     paddingVertical: pick(6, 8),
     marginBottom: pick(6, 15),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'stretch',
   },
   playerCardPool: {
     backgroundColor: '#4A4A4A',
     borderColor: 'rgba(255,48,48,0.38)',
+  },
+  playerCardRight: {
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: pick(6, 8),
   },
   playerCardTop: {
     flexDirection: 'row',
@@ -100,13 +107,14 @@ const styles = StyleSheet.create({
     minHeight: pick(30, 34),
   },
   avatar: {
-    width: pick(24, 28),
-    height: pick(24, 28),
-    borderRadius: pick(12, 14),
+    width: pick(40, 52),
+    minHeight: pick(58, 72),
+    borderRadius: pick(10, 12),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F4ECD1',
-    marginRight: pick(6, 8),
+    overflow: 'hidden',
+    alignSelf: 'stretch',
   },
   avatarPool: {
     backgroundColor: '#D8D8D8',
@@ -115,10 +123,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
   },
   avatarText: {
-    color: '#1A1A1A',
-    fontSize: pick(12, 20),
-    fontWeight: '700',
-  },
+  color: '#1A1A1A',
+  fontSize: pick(40, 40),
+  lineHeight: pick(40, 40),
+  fontWeight: '700',
+  textAlign: 'center',
+  textAlignVertical: 'center',
+  includeFontPadding: false,
+},
   avatarTextLight: {
     color: colors.white,
   },
@@ -178,6 +190,71 @@ const styles = StyleSheet.create({
   scoreTextCenter: {
     fontWeight: '700',
   },
+
+  countryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  countryModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '72%',
+    backgroundColor: '#1F1F1F',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,0,0,0.28)',
+    padding: 14,
+  },
+  countryModalTitle: {
+    color: '#FFFFFF',
+    fontSize: pick(16, 18),
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  countrySearchInput: {
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#2B2B2B',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    color: '#FFFFFF',
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  countryList: {
+    flexGrow: 0,
+  },
+  countryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  countryItemPressed: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  countryFlag: {
+    width: 28,
+    fontSize: 20,
+    marginRight: 10,
+    textAlign: 'center',
+  },
+  countryName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    flex: 1,
+  },
+  countryEmptyText: {
+    color: '#B8B8B8',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+
 });
 
 export default styles;

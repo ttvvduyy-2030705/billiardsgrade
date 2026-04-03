@@ -19,6 +19,7 @@ import {
 import {isCarom3CGame, isCaromLikeGame, isPoolGame} from 'utils/game';
 import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
+import {CountryItem} from './player/countries';
 
 export interface Props extends Navigation {}
 
@@ -337,6 +338,9 @@ const onSelectGameMode = useCallback(
               ? PLAYER_COLOR[1]
               : (PLAYER_COLOR as any)[number],
             totalPoint: 0,
+            countryCode: '',
+            countryName: '',
+            flag: '',
           };
         }),
       } as PlayerSettings);
@@ -375,6 +379,28 @@ const onSelectGameMode = useCallback(
           playingPlayers: prev.playingPlayers.map((player, playerIndex) => {
             if (index === playerIndex) {
               return {...player, name: newName};
+            }
+
+            return player;
+          }),
+        } as PlayerSettings),
+    );
+  }, []);
+
+
+  const onSelectPlayerCountry = useCallback((country: CountryItem, index: number) => {
+    setPlayerSettings(
+      prev =>
+        ({
+          ...prev,
+          playingPlayers: prev.playingPlayers.map((player, playerIndex) => {
+            if (index === playerIndex) {
+              return {
+                ...player,
+                countryCode: country.code,
+                countryName: country.name,
+                flag: country.flag,
+              };
             }
 
             return player;
@@ -424,6 +450,7 @@ const onSelectGameMode = useCallback(
       onSelectPlayerGoal,
       onChangePlayerName,
       onChangePlayerPoint,
+      onSelectPlayerCountry,
       onStart,
       onCancel,
     };
@@ -441,6 +468,7 @@ const onSelectGameMode = useCallback(
     onSelectPlayerGoal,
     onChangePlayerName,
     onChangePlayerPoint,
+    onSelectPlayerCountry,
     onStart,
     onCancel,
   ]);
