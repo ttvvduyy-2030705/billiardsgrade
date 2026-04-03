@@ -139,6 +139,8 @@ const GamePlayer = (
     return Array.from({length: extraTimeTurns}, (_, index) => index);
   }, [extraTimeTurns]);
 
+  const playerFlag = String((props.player as any)?.flag || '').trim();
+
   return (
     <View
       style={[
@@ -148,6 +150,24 @@ const GamePlayer = (
         isActiveCard ? styles.panelActive : styles.panelInactive,
       ]}>
       <View style={[styles.nameRow, isCompactLayout && styles.nameRowCompact]}>
+        {playerFlag ? (
+          <View
+            style={[
+              styles.flagBadge,
+              isCompactLayout && styles.flagBadgeCompact,
+              isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
+            ]}>
+            <RNText
+              style={[
+                styles.flagText,
+                isCompactLayout && styles.flagTextCompact,
+                !isActiveCard && styles.flagTextInactive,
+              ]}>
+              {playerFlag}
+            </RNText>
+          </View>
+        ) : null}
+
         {viewModel.nameEditable ? (
           <TextInput
             value={viewModel.draftName}
@@ -158,6 +178,7 @@ const GamePlayer = (
             blurOnSubmit
             style={[
               styles.nameInput,
+              playerFlag && styles.nameInputWithFlag,
               isCompactLayout && styles.nameInputCompact,
               textColorStyle,
               !isActiveCard && styles.nameTextInactive,
@@ -168,6 +189,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.nameText,
+              playerFlag && styles.nameTextWithFlag,
               isCompactLayout && styles.nameTextCompact,
               textColorStyle,
               !isActiveCard && styles.nameTextInactive,
@@ -453,6 +475,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+
   panelActive: {
     opacity: 1,
   },
@@ -474,6 +497,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+
+  flagBadge: {
+    width: 90,
+    height: 60,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.65)',
+    overflow: 'hidden',
+  },
+
+  flagBadgeActive: {
+    opacity: 1,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+
+  flagBadgeInactive: {
+    opacity: 0.52,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+
+  flagText: {
+    fontSize: 70,
+    lineHeight: 70,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  flagTextInactive: {
+    opacity: 0.92,
+  },
+
   nameText: {
     flex: 1,
     color: '#FFFFFF',
@@ -481,6 +541,10 @@ const styles = StyleSheet.create({
     lineHeight: 48,
     fontWeight: '900',
     textAlign: 'center',
+  },
+
+  nameTextWithFlag: {
+    textAlign: 'left',
   },
 
   nameInput: {
@@ -491,6 +555,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textAlign: 'center',
     paddingVertical: 0,
+  },
+
+  nameInputWithFlag: {
+    textAlign: 'left',
   },
 
   nameTextInactive: {
@@ -807,6 +875,19 @@ const styles = StyleSheet.create({
 
   nameRowCompact: {
     minHeight: 40,
+  },
+
+
+  flagBadgeCompact: {
+    width: 38,
+    height: 28,
+    borderRadius: 7,
+    marginRight: 8,
+  },
+
+  flagTextCompact: {
+    fontSize: 16,
+    lineHeight: 18,
   },
 
   nameTextCompact: {

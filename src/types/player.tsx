@@ -21,6 +21,9 @@ export type Player = {
   name: string;
   color: string;
   totalPoint: number;
+  countryCode?: string;
+  countryName?: string;
+  flag?: string;
   proMode?: PlayerProMode;
   violate?: number;
   scoredBalls?: PoolBallType[];

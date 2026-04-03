@@ -25,6 +25,13 @@ export interface PoolBroadcastScoreboardProps {
   style?: StyleProp<ViewStyle>;
 }
 
+const LEFT_PANEL_COLORS = ['#FF5B57', '#CC1212'];
+const RIGHT_PANEL_COLORS = ['#CC1212', '#FF5B57'];
+const LEFT_FLAG_BG = '#FF5B57';
+const RIGHT_FLAG_BG = '#FF5B57';
+const LEFT_FLAG_BORDER = '#FF5B57';
+const RIGHT_FLAG_BORDER = '#FF5B57';
+
 const clamp = (value: number, min: number, max: number) => {
   return Math.max(min, Math.min(value, max));
 };
@@ -108,7 +115,7 @@ const PoolBroadcastScoreboard = ({
 }: PoolBroadcastScoreboardProps) => {
   const category = gameSettings?.category;
   const isSupportedCategory =
-  isPool9Game(category) || isPool10Game(category) || isPool15Game(category);
+    isPool9Game(category) || isPool10Game(category) || isPool15Game(category);
   const playingPlayers = playerSettings?.playingPlayers || [];
 
   if (!isSupportedCategory || playingPlayers.length < 2) {
@@ -127,6 +134,8 @@ const PoolBroadcastScoreboard = ({
   const timerColor = getTimerColor(normalizedCountdown);
   const leftPlayer = playingPlayers[0] || {};
   const rightPlayer = playingPlayers[1] || {};
+  const leftFlag = String((leftPlayer as any)?.flag || '').trim();
+  const rightFlag = String((rightPlayer as any)?.flag || '').trim();
 
   const bottomValue = bottomOffset ?? metrics.bottomGap;
 
@@ -161,12 +170,27 @@ const PoolBroadcastScoreboard = ({
         <View
           style={[
             styles.flagPlaceholder,
-            {width: metrics.flagWidth, minWidth: metrics.flagWidth},
-          ]}
-        />
+            styles.flagPlaceholderLeft,
+            currentPlayerIndex === 0 && styles.flagPlaceholderActive,
+            {
+              width: metrics.flagWidth,
+              minWidth: metrics.flagWidth,
+            },
+          ]}>
+          {leftFlag ? (
+            <Text
+              style={[
+                styles.flagText,
+                {fontSize: Math.max(14, metrics.flagWidth * 0.72)},
+                currentPlayerIndex !== 0 && styles.flagTextInactive,
+              ]}>
+              {leftFlag}
+            </Text>
+          ) : null}
+        </View>
 
         <LinearGradient
-          colors={['#FF5B57', '#CC1212']}
+          colors={LEFT_PANEL_COLORS}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 0}}
           style={[
@@ -185,14 +209,19 @@ const PoolBroadcastScoreboard = ({
               styles.scoreBox,
               {minWidth: metrics.scoreMinWidth},
             ]}>
-            <Text style={playerScoreStyle}>{safeNumber(leftPlayer?.totalPoint, 0)}</Text>
+            <Text style={playerScoreStyle}>
+              {safeNumber(leftPlayer?.totalPoint, 0)}
+            </Text>
           </View>
         </LinearGradient>
 
         <View
           style={[
             styles.centerPanelWrap,
-            {width: metrics.scoreMinWidth + 44, minWidth: metrics.scoreMinWidth + 44},
+            {
+              width: metrics.scoreMinWidth + 44,
+              minWidth: metrics.scoreMinWidth + 44,
+            },
           ]}>
           <LinearGradient
             colors={['#111111', '#272727']}
@@ -207,7 +236,7 @@ const PoolBroadcastScoreboard = ({
         </View>
 
         <LinearGradient
-          colors={['#CC1212', '#FF5B57']}
+          colors={RIGHT_PANEL_COLORS}
           start={{x: 0, y: 0}}
           end={{x: 1, y: 0}}
           style={[
@@ -221,7 +250,9 @@ const PoolBroadcastScoreboard = ({
               styles.scoreBox,
               {minWidth: metrics.scoreMinWidth},
             ]}>
-            <Text style={playerScoreStyle}>{safeNumber(rightPlayer?.totalPoint, 0)}</Text>
+            <Text style={playerScoreStyle}>
+              {safeNumber(rightPlayer?.totalPoint, 0)}
+            </Text>
           </View>
           <Text
             numberOfLines={1}
@@ -233,9 +264,24 @@ const PoolBroadcastScoreboard = ({
         <View
           style={[
             styles.flagPlaceholder,
-            {width: metrics.flagWidth, minWidth: metrics.flagWidth},
-          ]}
-        />
+            styles.flagPlaceholderRight,
+            currentPlayerIndex === 1 && styles.flagPlaceholderActive,
+            {
+              width: metrics.flagWidth,
+              minWidth: metrics.flagWidth,
+            },
+          ]}>
+          {rightFlag ? (
+            <Text
+              style={[
+                styles.flagText,
+                {fontSize: Math.max(14, metrics.flagWidth * 0.72)},
+                currentPlayerIndex !== 1 && styles.flagTextInactive,
+              ]}>
+              {rightFlag}
+            </Text>
+          ) : null}
+        </View>
       </View>
 
       <View
@@ -254,7 +300,7 @@ const PoolBroadcastScoreboard = ({
             },
           ]}
         />
-        <Text style={[styles.timerText, {fontSize: metrics.timerTextSize}]}>
+        <Text style={[styles.timerText, {fontSize: metrics.timerTextSize}]}> 
           {baseCountdown > 0 ? `${normalizedCountdown}s` : '--'}
         </Text>
       </View>
@@ -279,9 +325,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#161616',
   },
   flagPlaceholder: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flagPlaceholderLeft: {
+    backgroundColor: LEFT_FLAG_BG,
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.35)',
+    borderRightColor: LEFT_FLAG_BORDER,
+  },
+  flagPlaceholderRight: {
+    backgroundColor: RIGHT_FLAG_BG,
+    borderLeftWidth: 1,
+    borderLeftColor: RIGHT_FLAG_BORDER,
+  },
+  flagPlaceholderActive: {
+    backgroundColor: '#FF5B57',
+  },
+  flagText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  flagTextInactive: {
+    opacity: 0.55,
   },
   playerPanel: {
     flex: 1,
@@ -297,9 +364,9 @@ const styles = StyleSheet.create({
   },
   activePlayerPanel: {
     borderTopWidth: 2,
-    borderTopColor: '#FFFFFF',
+    borderTopColor: '#FF5B57',
     borderBottomWidth: 2,
-    borderBottomColor: '#FFFFFF',
+    borderBottomColor: '#FF5B57',
   },
   playerName: {
     flex: 1,
