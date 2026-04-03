@@ -585,7 +585,17 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     </ImageBackground>
   );
 
+  const hasThumbnailImages =
+    thumbnailOverlay.topLeft.length > 0 ||
+    thumbnailOverlay.topRight.length > 0 ||
+    thumbnailOverlay.bottomLeft.length > 0 ||
+    thumbnailOverlay.bottomRight.length > 0;
+
   const renderOverlay = () => {
+    if (thumbnailOverlay.enabled) {
+      return null;
+    }
+
     return (
       <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
         <LiveStreamImages
@@ -662,9 +672,35 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     );
   };
 
+  const renderFallbackThumbnail = (fullscreenMode: boolean) => {
+    const fallbackSource = images.logoSmall || images.logo;
+    if (!fallbackSource) {
+      return null;
+    }
+
+    return (
+      <RNView pointerEvents="none" style={styles.thumbnailOverlay}>
+        <RNView pointerEvents="none" style={[styles.thumbnailSlot, styles.thumbnailTopLeft]}>
+          <RNImage
+            source={fallbackSource}
+            style={[
+              styles.thumbnailImage,
+              fullscreenMode && styles.thumbnailImageFullscreen,
+            ]}
+            resizeMode="contain"
+          />
+        </RNView>
+      </RNView>
+    );
+  };
+
   const renderThumbnailOverlay = (fullscreenMode: boolean) => {
     if (!thumbnailOverlay.enabled) {
       return null;
+    }
+
+    if (!hasThumbnailImages) {
+      return renderFallbackThumbnail(fullscreenMode);
     }
 
     return (
