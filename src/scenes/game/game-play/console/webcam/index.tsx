@@ -200,30 +200,52 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         }
       };
 
+      const topLeft = parseImages(result?.[1]?.[1] ?? null);
+      const topRight = parseImages(result?.[2]?.[1] ?? null);
+      const bottomLeft = parseImages(result?.[3]?.[1] ?? null);
+      const bottomRight = parseImages(result?.[4]?.[1] ?? null);
+      const hasAnyOverlayImages =
+        topLeft.length > 0 ||
+        topRight.length > 0 ||
+        bottomLeft.length > 0 ||
+        bottomRight.length > 0;
+
       const enabledRaw = result?.[0]?.[1];
-      const enabled =
+      const enabledFromStorage =
         typeof enabledRaw === 'string'
           ? enabledRaw === '1' || enabledRaw.toLowerCase() === 'true'
           : enabledRaw == null
             ? true
             : !!enabledRaw;
 
+      const enabled = enabledFromStorage || hasAnyOverlayImages;
+
+      if (enabled && !enabledFromStorage) {
+        try {
+          await AsyncStorage.setItem(keys.SHOW_THUMBNAILS_ON_LIVESTREAM, '1');
+          console.log('[WebCam] repaired thumbnail overlay enabled flag');
+        } catch (persistError) {
+          console.log('[WebCam] failed to repair thumbnail overlay enabled flag', persistError);
+        }
+      }
+
       if (__DEV__) {
         console.log('[WebCam] thumbnail overlay loaded', {
           enabled,
-          topLeftCount: parseImages(result?.[1]?.[1] ?? null).length,
-          topRightCount: parseImages(result?.[2]?.[1] ?? null).length,
-          bottomLeftCount: parseImages(result?.[3]?.[1] ?? null).length,
-          bottomRightCount: parseImages(result?.[4]?.[1] ?? null).length,
+          enabledFromStorage,
+          topLeftCount: topLeft.length,
+          topRightCount: topRight.length,
+          bottomLeftCount: bottomLeft.length,
+          bottomRightCount: bottomRight.length,
         });
       }
 
       setThumbnailOverlay({
         enabled,
-        topLeft: enabled ? parseImages(result?.[1]?.[1] ?? null) : [],
-        topRight: enabled ? parseImages(result?.[2]?.[1] ?? null) : [],
-        bottomLeft: enabled ? parseImages(result?.[3]?.[1] ?? null) : [],
-        bottomRight: enabled ? parseImages(result?.[4]?.[1] ?? null) : [],
+        topLeft: enabled ? topLeft : [],
+        topRight: enabled ? topRight : [],
+        bottomLeft: enabled ? bottomLeft : [],
+        bottomRight: enabled ? bottomRight : [],
       });
     } catch (error) {
       console.log('[WebCam] load thumbnail overlay failed', error);

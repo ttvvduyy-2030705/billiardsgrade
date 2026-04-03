@@ -18,7 +18,7 @@ import {
 import {useIsFocused} from '@react-navigation/native';
 import RNFS from 'react-native-fs';
 import {Video as RNVideo} from 'react-native-video';
-import {Camera, useCameraDevice} from 'react-native-vision-camera';
+import {Camera, useCameraDevice, useCameraFormat} from 'react-native-vision-camera';
 
 import View from 'components/View';
 import VideoViewModel, {Props} from './VideoViewModel';
@@ -540,6 +540,11 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
 
     return backDevice ?? frontDevice ?? externalDevice ?? null;
   }, [usingUvc, resolvedSelectedSource, externalDevice, backDevice, frontDevice]);
+
+  const preferredFormat = useCameraFormat(device, [
+    {videoResolution: {width: 1920, height: 1080}},
+    {fps: 30},
+  ]);
 
   const minZoom = useMemo(() => device?.minZoom ?? 1, [device?.id]);
   const maxZoom = useMemo(() => {
@@ -1287,6 +1292,9 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       isActive={shouldActivatePhoneCamera}
       video={true}
       audio={microphonePermissionState === 'granted'}
+      format={preferredFormat}
+      fps={30}
+      videoBitRate={10_000_000}
       zoom={safeZoom}
       resizeMode="cover"
       androidPreviewViewType={Platform.OS === 'android' ? 'texture-view' : undefined}

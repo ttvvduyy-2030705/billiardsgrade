@@ -37,6 +37,7 @@ import {
   registerReplaySegment,
   pruneReplayStorage,
   listReplayFiles,
+  cleanupBrokenReplayFiles,
 } from 'services/replay/localReplay';
 import {burnLivestreamOverlaysIntoVideo} from 'services/replay/videoOverlay';
 import {appendReplayScoreboardTimelineEntry} from 'services/replay/replayTimeline';
@@ -555,6 +556,7 @@ const GamePlayViewModel = () => {
 
     void (async () => {
       try {
+        await cleanupBrokenReplayFiles(webcamFolderName);
         const existingFiles = await listReplayFiles(webcamFolderName);
         if (!mounted) {
           return;
@@ -2322,27 +2324,12 @@ RemoteControl.instance.registerKeyEvents(
 
   const getLatestReplaySegmentPath = async () => {
     try {
-      const folderPath = buildReplayFolderPath(webcamFolderName);
-      const folderExists = await RNFS.exists(folderPath);
-
-      if (!folderExists) {
+      const replayFiles = await listReplayFiles(webcamFolderName);
+      if (!replayFiles.length) {
         return undefined;
       }
 
-      const entries = await RNFS.readDir(folderPath);
-      const files = entries.filter(entry => entry.isFile());
-
-      if (!files.length) {
-        return undefined;
-      }
-
-      files.sort((a, b) => {
-        const aTime = a.mtime ? new Date(a.mtime).getTime() : 0;
-        const bTime = b.mtime ? new Date(b.mtime).getTime() : 0;
-        return bTime - aTime;
-      });
-
-      return files[0].path;
+      return replayFiles[replayFiles.length - 1]?.path;
     } catch (error) {
       console.log('[Replay] Failed to get latest replay segment:', error);
       return undefined;
@@ -2417,12 +2404,22 @@ RemoteControl.instance.registerKeyEvents(
               finalPath =
                 (await burnLivestreamOverlaysIntoVideo(finalPath)) || finalPath;
 
-              await registerReplaySegment(webcamFolderName, finalPath);
-              replayCompletedSegmentsRef.current = Math.max(
-                replayCompletedSegmentsRef.current,
-                currentReplaySegmentIndexRef.current + 1,
+              const registeredPath = await registerReplaySegment(
+                webcamFolderName,
+                finalPath,
               );
-              await pruneReplayStorage(MAX_REPLAY_STORAGE_BYTES, [webcamFolderName]);
+
+              if (!registeredPath) {
+                console.log('[Replay] invalid segment skipped:', finalPath);
+                finalPath = undefined;
+              } else {
+                finalPath = registeredPath;
+                replayCompletedSegmentsRef.current = Math.max(
+                  replayCompletedSegmentsRef.current,
+                  currentReplaySegmentIndexRef.current + 1,
+                );
+                await pruneReplayStorage(MAX_REPLAY_STORAGE_BYTES, [webcamFolderName]);
+              }
             }
           } catch (segmentError) {
             console.error('Failed to register replay segment:', segmentError);
