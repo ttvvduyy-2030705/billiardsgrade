@@ -54,13 +54,21 @@ const CaromInfo = (props: Props) => {
       const totalPointValue = Number(player.totalPoint || 0);
       const totalPointFont = getTotalPointFont(totalPointValue);
 
+      const playerFlag = String((player as any)?.flag || '').trim();
+
       return (
         <View
           style={{backgroundColor: player.color}}
           direction={'row'}
           alignItems={'center'}>
           <View direction={'row'} alignItems={'center'} paddingLeft={'10'}>
-            <View flex={'1'}>
+            {playerFlag ? (
+              <View style={styles.flagBadge}>
+                <Text style={styles.flagText}>{playerFlag}</Text>
+              </View>
+            ) : null}
+
+            <View flex={'1'} style={playerFlag ? styles.nameWithFlag : undefined}>
               <Text fontSize={22} fontWeight={'900'} numberOfLines={1}>
                 {player.name.toUpperCase()}
               </Text>

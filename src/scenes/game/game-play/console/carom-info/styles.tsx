@@ -19,8 +19,30 @@ const styles = StyleSheet.create({
     marginRight: responsiveDimension(4),
   },
 
-  turnImage: {
-    width: responsiveDimension(40),
+
+  flagBadge: {
+    width: responsiveDimension(34),
+    height: responsiveDimension(24),
+    borderRadius: responsiveDimension(4),
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: responsiveDimension(8),
+    overflow: 'hidden',
+  },
+
+  flagText: {
+    fontSize: responsiveDimension(16),
+    lineHeight: responsiveDimension(18),
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+
+  nameWithFlag: {
+    marginRight: responsiveDimension(6),
+  },
+
+  turnImage: {    width: responsiveDimension(40),
     height: responsiveDimension(40),
     tintColor: colors.red,
     marginLeft: responsiveDimension(10),
