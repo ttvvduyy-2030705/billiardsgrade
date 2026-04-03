@@ -199,7 +199,9 @@ const DualButton = ({
   poolCompact?: boolean;
 }) => {
   return (
-    <View direction={'row'} style={[styles.dualButtonRow, compact ? styles.caromDualButtonRow : undefined]}>
+    <View
+      direction={'row'}
+      style={[styles.dualButtonRow, compact ? styles.caromDualButtonRow : undefined]}>
       <Button
         onPress={onLeftPress}
         style={[
@@ -273,7 +275,9 @@ const TripleButton = ({
   poolCompact?: boolean;
 }) => {
   return (
-    <View direction={'row'} style={[styles.tripleButtonRow, compact ? styles.caromTripleButtonRow : undefined]}>
+    <View
+      direction={'row'}
+      style={[styles.tripleButtonRow, compact ? styles.caromTripleButtonRow : undefined]}>
       <Button
         onPress={onLeftPress}
         style={[
@@ -419,6 +423,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     props.gameSettings,
     props.playerSettings,
   ]);
+
   const webcamRef = useRef<WebCamHandle>(null);
   const {width, height} = useWindowDimensions();
   const shortestSide = Math.min(width, height);
@@ -435,6 +440,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isPool15Only = isPool15OnlyGame(category);
   const isPool15Free = isPool15FreeGame(category);
   const usePoolBroadcastLayout = isPool && !isPool15;
+  const usePool15CameraLayout = isPool15;
   const isFastMode = props.gameSettings?.mode?.mode === 'fast';
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
@@ -444,7 +450,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
   const leftBall = useMemo(() => {
     return getPoolBall(
-      LEFT_POOL_15_SEQUENCE[Math.min(leftScore, LEFT_POOL_15_SEQUENCE.length - 1)],
+      LEFT_POOL_15_SEQUENCE[
+        Math.min(leftScore, LEFT_POOL_15_SEQUENCE.length - 1)
+      ],
     );
   }, [leftScore]);
 
@@ -482,7 +490,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     return props.isPaused
-      ? `▷ ${tr(isCarom || isFastMode ? 'Bắt đầu' : 'Tiếp tục', isCarom || isFastMode ? 'Start' : 'Resume')}`
+      ? `▷ ${tr(
+          isCarom || isFastMode ? 'Bắt đầu' : 'Tiếp tục',
+          isCarom || isFastMode ? 'Start' : 'Resume',
+        )}`
       : `⏸ ${tr('Tạm dừng', 'Pause')}`;
   }, [props.isStarted, props.isPaused, props.warmUpCount, isCarom, isFastMode]);
 
@@ -498,6 +509,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     viewModel.onPause();
   };
+
+  const hideCaromCamera = isCarom && props.totalPlayers >= 5;
 
   const mainActionRow = useMemo(() => {
     if (isFastMode || isPool15) {
@@ -529,7 +542,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           centerTone={'amber'}
           rightTone={'muted'}
           compact={useResponsiveCompact}
-        poolCompact={usePoolBroadcastLayout}
+          poolCompact={usePoolBroadcastLayout}
           extraCompact={hideCaromCamera || useExtraCompact}
         />
       );
@@ -542,7 +555,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           tone={'green'}
           onPress={props.onPoolBreak}
           compact={useResponsiveCompact}
-        poolCompact={usePoolBroadcastLayout}
+          poolCompact={usePoolBroadcastLayout}
           extraCompact={useExtraCompact}
         />
       );
@@ -561,7 +574,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           centerTone={'amber'}
           rightTone={'muted'}
           compact={useResponsiveCompact}
-        poolCompact={usePoolBroadcastLayout}
+          poolCompact={usePoolBroadcastLayout}
           extraCompact={useExtraCompact}
         />
       );
@@ -578,6 +591,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       />
     );
   }, [
+    hideCaromCamera,
     isCarom,
     isFastMode,
     isPool,
@@ -591,9 +605,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     viewModel.onSwitchTurn,
     props.onIncreaseTotalTurns,
     props.onDecreaseTotalTurns,
+    useExtraCompact,
+    usePoolBroadcastLayout,
+    useResponsiveCompact,
   ]);
-
-  const hideCaromCamera = isCarom && props.totalPlayers >= 5;
 
   const cameraUtilityRows = isCarom ? (
     <DualButton
@@ -669,10 +684,14 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     );
   }, [
     handleBottomLeft,
+    hideCaromCamera,
     isCarom,
     isPool15,
     props.onGameBreak,
     startLabel,
+    useExtraCompact,
+    usePoolBroadcastLayout,
+    useResponsiveCompact,
     viewModel.onStop,
   ]);
 
@@ -692,7 +711,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             </RNText>
           </View>
           <Button style={styles.pool15RestartButton} onPress={viewModel.onRestart}>
-            <RNText style={styles.pool15RestartText}>{tr('Ván mới', 'New game')}</RNText>
+            <RNText style={styles.pool15RestartText}>
+              {tr('Ván mới', 'New game')}
+            </RNText>
           </Button>
         </View>
       );
@@ -751,15 +772,45 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
   if (isCarom) {
     return (
-      <View style={[styles.wrapper, styles.caromWrapper, useResponsiveCompact ? styles.phoneWrapper : undefined, hideCaromCamera ? styles.caromWrapperNoCamera : undefined]}>
-        <View style={[styles.timeWrap, styles.caromTimeWrap, useResponsiveCompact ? styles.phoneTimeWrap : undefined, hideCaromCamera ? styles.caromTimeWrapNoCamera : undefined]}>
-          <View style={[styles.timeCard, styles.caromTimeCard, useResponsiveCompact ? styles.phoneTimeCard : undefined]}>
-            <RNText style={[styles.timeText, styles.caromTimeText, useResponsiveCompact ? styles.phoneCaromTimeText : undefined, hideCaromCamera ? styles.caromTimeTextNoCamera : undefined]}>{totalTimeText}</RNText>
+      <View
+        style={[
+          styles.wrapper,
+          styles.caromWrapper,
+          useResponsiveCompact ? styles.phoneWrapper : undefined,
+          hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
+        ]}>
+        <View
+          style={[
+            styles.timeWrap,
+            styles.caromTimeWrap,
+            useResponsiveCompact ? styles.phoneTimeWrap : undefined,
+            hideCaromCamera ? styles.caromTimeWrapNoCamera : undefined,
+          ]}>
+          <View
+            style={[
+              styles.timeCard,
+              styles.caromTimeCard,
+              useResponsiveCompact ? styles.phoneTimeCard : undefined,
+            ]}>
+            <RNText
+              style={[
+                styles.timeText,
+                styles.caromTimeText,
+                useResponsiveCompact ? styles.phoneCaromTimeText : undefined,
+                hideCaromCamera ? styles.caromTimeTextNoCamera : undefined,
+              ]}>
+              {totalTimeText}
+            </RNText>
           </View>
         </View>
 
         {props.gameSettings?.mode?.countdownTime ? (
-          <View style={[styles.caromInfoWrap, styles.caromInfoWrapCompact, hideCaromCamera ? styles.caromInfoWrapNoCamera : undefined]}>
+          <View
+            style={[
+              styles.caromInfoWrap,
+              styles.caromInfoWrapCompact,
+              hideCaromCamera ? styles.caromInfoWrapNoCamera : undefined,
+            ]}>
             <CaromInfo
               isStarted={props.isStarted}
               isPaused={props.isPaused}
@@ -776,25 +827,25 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
         {!hideCaromCamera ? (
           <View
-  style={[
-    styles.cameraCard,
-    useResponsiveCompact ? styles.phoneCameraCard : undefined,
-    styles.caromCameraCard,
-    useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
-  ]}>
-  <Webcam
-    ref={webcamRef}
-    hideBottomControls
-    setIsCameraReady={props.setIsCameraReady}
-    isCameraReady={props.isCameraReady}
-    webcamFolderName={props.webcamFolderName}
-    updateWebcamFolderName={props.updateWebcamFolderName}
-    cameraRef={props.cameraRef}
-    isPaused={props.isPaused}
-    isStarted={props.isStarted}
-    youtubeLivePreviewActive={props.youtubeLivePreviewActive}
-  />
-</View>
+            style={[
+              styles.cameraCard,
+              useResponsiveCompact ? styles.phoneCameraCard : undefined,
+              styles.caromCameraCard,
+              useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
+            ]}>
+            <Webcam
+              ref={webcamRef}
+              hideBottomControls
+              setIsCameraReady={props.setIsCameraReady}
+              isCameraReady={props.isCameraReady}
+              webcamFolderName={props.webcamFolderName}
+              updateWebcamFolderName={props.updateWebcamFolderName}
+              cameraRef={props.cameraRef}
+              isPaused={props.isPaused}
+              isStarted={props.isStarted}
+              youtubeLivePreviewActive={props.youtubeLivePreviewActive}
+            />
+          </View>
         ) : null}
 
         <View
@@ -804,7 +855,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             useResponsiveCompact ? styles.phoneGoalCard : undefined,
             hideCaromCamera ? styles.caromGoalCardNoCamera : undefined,
             !hideCaromCamera ? styles.caromGoalCardInline : undefined,
-            isLargeDisplay && !useResponsiveCompact ? styles.caromGoalCardLargeDisplay : undefined,
+            isLargeDisplay && !useResponsiveCompact
+              ? styles.caromGoalCardLargeDisplay
+              : undefined,
           ]}>
           {!hideCaromCamera ? (
             <View
@@ -823,7 +876,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 color={'#FF2525'}
                 fontSize={30}
                 fontWeight={'900'}
-                style={[styles.metaValue, styles.metaValueNoLabel, styles.caromGoalInlineValue]}>
+                style={[
+                  styles.metaValue,
+                  styles.metaValueNoLabel,
+                  styles.caromGoalInlineValue,
+                ]}>
                 {props.goal}
               </Text>
             </View>
@@ -838,7 +895,13 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           )}
         </View>
 
-        <View style={[styles.actionStack, styles.caromActionStack, useResponsiveCompact ? styles.phoneActionStack : undefined, hideCaromCamera ? styles.caromActionStackNoCamera : undefined]}>
+        <View
+          style={[
+            styles.actionStack,
+            styles.caromActionStack,
+            useResponsiveCompact ? styles.phoneActionStack : undefined,
+            hideCaromCamera ? styles.caromActionStackNoCamera : undefined,
+          ]}>
           {cameraUtilityRows}
           {mainActionRow}
           {bottomControls}
@@ -848,10 +911,28 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   }
 
   return (
-    <View style={[styles.wrapper, useResponsiveCompact ? styles.phoneWrapper : undefined]}>
-      <View style={[styles.timeWrap, useResponsiveCompact ? styles.phoneTimeWrap : undefined]}>
-        <View style={[styles.timeCard, useResponsiveCompact ? styles.phoneTimeCard : undefined]}>
-          <RNText style={[styles.timeText, useResponsiveCompact ? styles.phoneTimeText : undefined]}>{totalTimeText}</RNText>
+    <View
+      style={[
+        styles.wrapper,
+        useResponsiveCompact ? styles.phoneWrapper : undefined,
+      ]}>
+      <View
+        style={[
+          styles.timeWrap,
+          useResponsiveCompact ? styles.phoneTimeWrap : undefined,
+        ]}>
+        <View
+          style={[
+            styles.timeCard,
+            useResponsiveCompact ? styles.phoneTimeCard : undefined,
+          ]}>
+          <RNText
+            style={[
+              styles.timeText,
+              useResponsiveCompact ? styles.phoneTimeText : undefined,
+            ]}>
+            {totalTimeText}
+          </RNText>
         </View>
       </View>
 
@@ -865,42 +946,67 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             leftTone={'amber'}
             rightTone={'red'}
             compact={useResponsiveCompact}
-        poolCompact={usePoolBroadcastLayout}
+            poolCompact={usePoolBroadcastLayout}
             extraCompact={useExtraCompact}
           />
         </View>
       ) : (
-        <View direction={'row'} style={[styles.metaRow, useResponsiveCompact ? styles.phoneMetaRow : undefined]}>
-          <View style={[styles.metaCard, useResponsiveCompact ? styles.phoneMetaCard : undefined]}>
+        <View
+          direction={'row'}
+          style={[
+            styles.metaRow,
+            useResponsiveCompact ? styles.phoneMetaRow : undefined,
+          ]}>
+          <View
+            style={[
+              styles.metaCard,
+              useResponsiveCompact ? styles.phoneMetaCard : undefined,
+            ]}>
             <Text
               color={'#FFFFFF'}
               fontSize={18}
               fontWeight={'800'}
-              style={[styles.metaLabel, useResponsiveCompact ? styles.phoneMetaLabel : undefined]}>
+              style={[
+                styles.metaLabel,
+                useResponsiveCompact ? styles.phoneMetaLabel : undefined,
+              ]}>
               {tr('Số lượt', 'Turns')}
             </Text>
             <Text
               color={'#FF2525'}
               fontSize={30}
               fontWeight={'900'}
-              style={[styles.metaValue, useResponsiveCompact ? styles.phoneMetaValue : undefined]}>
+              style={[
+                styles.metaValue,
+                useResponsiveCompact ? styles.phoneMetaValue : undefined,
+              ]}>
               {props.totalTurns}
             </Text>
           </View>
 
-          <View style={[styles.metaCard, useResponsiveCompact ? styles.phoneMetaCard : undefined]}>
+          <View
+            style={[
+              styles.metaCard,
+              useResponsiveCompact ? styles.phoneMetaCard : undefined,
+            ]}>
             <Text
               color={'#FFFFFF'}
               fontSize={18}
               fontWeight={'800'}
-              style={[styles.metaLabel, useResponsiveCompact ? styles.phoneMetaLabel : undefined]}>
+              style={[
+                styles.metaLabel,
+                useResponsiveCompact ? styles.phoneMetaLabel : undefined,
+              ]}>
               {tr('Mục tiêu', 'Goal')}
             </Text>
             <Text
               color={'#FF2525'}
               fontSize={30}
               fontWeight={'900'}
-              style={[styles.metaValue, useResponsiveCompact ? styles.phoneMetaValue : undefined]}>
+              style={[
+                styles.metaValue,
+                useResponsiveCompact ? styles.phoneMetaValue : undefined,
+              ]}>
               {props.goal}
             </Text>
           </View>
@@ -914,6 +1020,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           usePoolBroadcastLayout ? styles.poolCameraCard : undefined,
           useResponsiveCompact && usePoolBroadcastLayout
             ? styles.poolPhoneCameraCard
+            : undefined,
+          usePool15CameraLayout ? styles.pool15CameraCard : undefined,
+          useResponsiveCompact && usePool15CameraLayout
+            ? styles.pool15PhoneCameraCard
             : undefined,
         ]}>
         <Webcam
@@ -1067,6 +1177,16 @@ const styles = StyleSheet.create({
   poolPhoneCameraCard: {
     height: 272,
     marginBottom: 6,
+  },
+
+  pool15CameraCard: {
+    height: 400,
+    marginBottom: 8,
+  },
+
+  pool15PhoneCameraCard: {
+    height: 236,
+    marginBottom: 8,
   },
 
   poolActionStack: {
@@ -1235,13 +1355,13 @@ const styles = StyleSheet.create({
   },
 
   caromCameraCard: {
-  height: 360,
-  marginBottom: 4,
-},
+    height: 360,
+    marginBottom: 4,
+  },
 
-caromPhoneCameraCard: {
-  height: 220,
-},
+  caromPhoneCameraCard: {
+    height: 220,
+  },
 
   caromGoalCardFullWidth: {
     minHeight: 40,
@@ -1500,7 +1620,6 @@ caromPhoneCameraCard: {
     fontSize: 13,
     lineHeight: 14,
   },
-
 
   phoneWrapper: {
     paddingBottom: 4,

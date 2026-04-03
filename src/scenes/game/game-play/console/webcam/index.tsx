@@ -34,7 +34,7 @@ import YouTubeAndroidLivePreview from './YouTubeAndroidLivePreview';
 import LiveStreamImages from '../../livestream-images';
 import PoolBroadcastScoreboard from 'components/PoolBroadcastScoreboard';
 import CaromBroadcastScoreboard from 'components/CaromBroadcastScoreboard';
-import {isCaromGame, isPool10Game, isPool9Game} from 'utils/game';
+import {isCaromGame, isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
 import {
   EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
   subscribePoolCameraScoreboardState,
@@ -580,7 +580,10 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     const variant = fullscreenMode ? 'fullscreen' : 'camera';
     const poolCategory = poolScoreboardState.gameSettings?.category;
     const caromCategory = caromScoreboardState.gameSettings?.category;
-    const shouldShowPool = isPool9Game(poolCategory) || isPool10Game(poolCategory);
+    const shouldShowPool =
+  isPool9Game(poolCategory) ||
+  isPool10Game(poolCategory) ||
+  isPool15Game(poolCategory);
     const shouldShowCarom = isCaromGame(caromCategory);
 
     return (

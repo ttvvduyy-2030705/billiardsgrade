@@ -1,11 +1,14 @@
 import React, {memo, useMemo} from 'react';
-import {StyleSheet, TextInput, Text as RNText, useWindowDimensions} from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+  Text as RNText,
+  useWindowDimensions,
+} from 'react-native';
 
 import View from 'components/View';
-import Text from 'components/Text';
 import Button from 'components/Button';
 import i18n from 'i18n';
-import {BallType, PoolBallType} from 'types/ball';
 import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
@@ -19,7 +22,9 @@ const isEnglish = () => {
 
 const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
 
-const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean}) => {
+const GamePlayer = (
+  props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean},
+) => {
   const viewModel = PlayerViewModel(props);
   const isPoolMode = isPoolGame(props.gameSettings?.category);
   const isPool15Mode = isPool15Game(props.gameSettings?.category);
@@ -35,20 +40,28 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
     props.compact || useForcedCompact || (props.totalPlayers || 2) > 2,
   );
   const isCaromMode = !isPoolMode;
+  const isLibreMode = props.gameSettings?.category === 'libre';
+  const totalPointValue = Number(props.player.totalPoint || 0);
   const rawPlayerColor = String((props.player as any)?.color || '').trim();
   const useColoredPanel = Boolean(rawPlayerColor) && isCaromMode;
   const playerPanelColor = useColoredPanel ? rawPlayerColor : '#000000';
   const primaryTextColor = useColoredPanel ? '#111111' : '#FFFFFF';
-  const secondaryTextColor = useColoredPanel ? 'rgba(17,17,17,0.72)' : '#FFFFFF';
-  const inactiveTextColor = useColoredPanel ? 'rgba(17,17,17,0.52)' : '#8B8D95';
+  const secondaryTextColor = useColoredPanel
+    ? 'rgba(17,17,17,0.72)'
+    : '#FFFFFF';
+  const inactiveTextColor = useColoredPanel
+    ? 'rgba(17,17,17,0.52)'
+    : '#8B8D95';
   const panelDynamicStyle = useColoredPanel
     ? {backgroundColor: playerPanelColor, borderColor: 'rgba(17,17,17,0.28)'}
     : {backgroundColor: '#000000', borderColor: '#FF1818'};
   const textColorStyle = {color: primaryTextColor};
   const inactivePlaceholderColor = inactiveTextColor;
-  const isPhoneLandscapeTwoPlayer = isPhoneLandscape && (props.totalPlayers || 2) <= 2;
+  const isPhoneLandscapeTwoPlayer =
+    isPhoneLandscape && (props.totalPlayers || 2) <= 2;
   const isExtraCompactLayout =
     (props.totalPlayers || 2) >= 4 || (!isTablet && shortestSide <= 430);
+
   const scoreLayerDynamicStyle = isCaromMode
     ? isPhoneLandscapeTwoPlayer
       ? styles.scoreLayerCaromPhoneLandscape
@@ -64,6 +77,7 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
     : isCompactLayout
     ? styles.scoreLayerCompact
     : undefined;
+
   const scoreTextDynamicStyle = isCaromMode
     ? isPhoneLandscapeTwoPlayer
       ? styles.scoreTextCaromPhoneLandscape
@@ -79,6 +93,40 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
     : isCompactLayout
     ? styles.scoreTextCompact
     : undefined;
+
+  const libreScoreTextStyle = useMemo(() => {
+    if (!isLibreMode || totalPointValue < 100) {
+      return undefined;
+    }
+
+    if (isPhoneLandscapeTwoPlayer) {
+      return totalPointValue >= 1000
+        ? styles.scoreTextLibre4DigitsPhoneLandscape
+        : styles.scoreTextLibre3DigitsPhoneLandscape;
+    }
+
+    if (isExtraCompactLayout) {
+      return totalPointValue >= 1000
+        ? styles.scoreTextLibre4DigitsExtraCompact
+        : styles.scoreTextLibre3DigitsExtraCompact;
+    }
+
+    if (isCompactLayout) {
+      return totalPointValue >= 1000
+        ? styles.scoreTextLibre4DigitsCompact
+        : styles.scoreTextLibre3DigitsCompact;
+    }
+
+    return totalPointValue >= 1000
+      ? styles.scoreTextLibre4Digits
+      : styles.scoreTextLibre3Digits;
+  }, [
+    isLibreMode,
+    totalPointValue,
+    isPhoneLandscapeTwoPlayer,
+    isExtraCompactLayout,
+    isCompactLayout,
+  ]);
 
   const extraTimeTurns = Math.max(
     0,
@@ -154,12 +202,28 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
           isCompactLayout && styles.plusMinusRowCompact,
           !isActiveCard && styles.controlsRowInactive,
         ]}>
-        <Button style={[styles.stepButton, isCompactLayout && styles.stepButtonCompact]} onPress={viewModel.onDecreasePoint}>
-          <RNText style={[styles.stepButtonText, isCompactLayout && styles.stepButtonTextCompact]}>−</RNText>
+        <Button
+          style={[styles.stepButton, isCompactLayout && styles.stepButtonCompact]}
+          onPress={viewModel.onDecreasePoint}>
+          <RNText
+            style={[
+              styles.stepButtonText,
+              isCompactLayout && styles.stepButtonTextCompact,
+            ]}>
+            −
+          </RNText>
         </Button>
 
-        <Button style={[styles.stepButton, isCompactLayout && styles.stepButtonCompact]} onPress={viewModel.onIncreasePoint}>
-          <RNText style={[styles.stepButtonText, isCompactLayout && styles.stepButtonTextCompact]}>＋</RNText>
+        <Button
+          style={[styles.stepButton, isCompactLayout && styles.stepButtonCompact]}
+          onPress={viewModel.onIncreasePoint}>
+          <RNText
+            style={[
+              styles.stepButtonText,
+              isCompactLayout && styles.stepButtonTextCompact,
+            ]}>
+            ＋
+          </RNText>
         </Button>
       </View>
 
@@ -172,13 +236,41 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
             !isActiveCard && styles.statsRowInactive,
           ]}>
           <View style={styles.statBlock}>
-            <RNText style={[styles.statLabel, isCompactLayout && styles.statLabelCompact, {color: secondaryTextColor}]}>High run</RNText>
-            <RNText style={[styles.statValue, isCompactLayout && styles.statValueCompact, textColorStyle]}>{viewModel.highestRate}</RNText>
+            <RNText
+              style={[
+                styles.statLabel,
+                isCompactLayout && styles.statLabelCompact,
+                {color: secondaryTextColor},
+              ]}>
+              High run
+            </RNText>
+            <RNText
+              style={[
+                styles.statValue,
+                isCompactLayout && styles.statValueCompact,
+                textColorStyle,
+              ]}>
+              {viewModel.highestRate}
+            </RNText>
           </View>
 
           <View style={styles.statBlock}>
-            <RNText style={[styles.statLabel, isCompactLayout && styles.statLabelCompact, {color: secondaryTextColor}]}>Average</RNText>
-            <RNText style={[styles.statValue, isCompactLayout && styles.statValueCompact, textColorStyle]}>{viewModel.averagePoint}</RNText>
+            <RNText
+              style={[
+                styles.statLabel,
+                isCompactLayout && styles.statLabelCompact,
+                {color: secondaryTextColor},
+              ]}>
+              Average
+            </RNText>
+            <RNText
+              style={[
+                styles.statValue,
+                isCompactLayout && styles.statValueCompact,
+                textColorStyle,
+              ]}>
+              {viewModel.averagePoint}
+            </RNText>
           </View>
         </View>
       ) : null}
@@ -191,9 +283,19 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
           isPool15FreeMode && styles.scoreLayerWithScoredBalls,
         ]}
         pointerEvents="none">
-        <RNText style={[styles.scoreText, scoreTextDynamicStyle, textColorStyle]}>{props.player.totalPoint}</RNText>
+        <RNText
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.55}
+          style={[
+            styles.scoreText,
+            scoreTextDynamicStyle,
+            libreScoreTextStyle,
+            textColorStyle,
+          ]}>
+          {totalPointValue}
+        </RNText>
       </View>
-
 
       {showAddTime ? (
         <View
@@ -232,7 +334,7 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
             !isActiveCard && styles.scoredBallStackInactive,
           ]}>
           {(props.player.scoredBalls || []).map((ball, index) => {
-            const isBlackBall = ball.number === BallType.B8;
+            const isBlackBall = ball.number === 8;
             const textColor = isBlackBall ? '#FFFFFF' : '#111111';
 
             return (
@@ -269,18 +371,33 @@ const GamePlayer = (props: Props & {layout?: 'default' | 'poolArena'; compact?: 
       {isActiveCard ? (
         <Button
           onPress={() => viewModel.onEndTurn()}
-          style={[styles.playingBadge,
-          isCompactLayout && styles.playingBadgeCompact, styles.playingBadgeActive]}>
-          <RNText style={[styles.playingText,
-            isCompactLayout && styles.playingTextCompact, styles.playingTextActive]}>
+          style={[
+            styles.playingBadge,
+            isCompactLayout && styles.playingBadgeCompact,
+            styles.playingBadgeActive,
+          ]}>
+          <RNText
+            style={[
+              styles.playingText,
+              isCompactLayout && styles.playingTextCompact,
+              styles.playingTextActive,
+            ]}>
             {tr('Đang đánh', 'Playing')}
           </RNText>
         </Button>
       ) : (
-        <View style={[styles.playingBadge,
-          isCompactLayout && styles.playingBadgeCompact, styles.playingBadgeInactive]}>
-          <RNText style={[styles.playingText,
-            isCompactLayout && styles.playingTextCompact, styles.playingTextInactive]}>
+        <View
+          style={[
+            styles.playingBadge,
+            isCompactLayout && styles.playingBadgeCompact,
+            styles.playingBadgeInactive,
+          ]}>
+          <RNText
+            style={[
+              styles.playingText,
+              isCompactLayout && styles.playingTextCompact,
+              styles.playingTextInactive,
+            ]}>
             {tr('Đang đánh', 'Playing')}
           </RNText>
         </View>
@@ -761,33 +878,63 @@ const styles = StyleSheet.create({
   },
 
   scoreLayerCarom: {
-  top: 200,
-  bottom: 40,
-},
+    top: 200,
+    bottom: 40,
+  },
 
   scoreTextCarom: {
     fontSize: 450,
     lineHeight: 460,
   },
 
+  scoreTextLibre3Digits: {
+    fontSize: 300,
+    lineHeight: 300,
+  },
+
+  scoreTextLibre4Digits: {
+    fontSize: 220,
+    lineHeight: 220,
+  },
+
   scoreLayerCaromCompact: {
-  top: 108,
-  bottom: 64,
-},
+    top: 108,
+    bottom: 64,
+  },
 
   scoreTextCaromCompact: {
     fontSize: 138,
     lineHeight: 130,
   },
 
+  scoreTextLibre3DigitsCompact: {
+    fontSize: 100,
+    lineHeight: 100,
+  },
+
+  scoreTextLibre4DigitsCompact: {
+    fontSize: 78,
+    lineHeight: 80,
+  },
+
   scoreLayerCaromPhoneLandscape: {
-  top: 100,
-  bottom: 58,
-},
+    top: 100,
+    bottom: 58,
+  },
 
   scoreTextCaromPhoneLandscape: {
     fontSize: 126,
     lineHeight: 118,
+  },
+
+  scoreTextLibre3DigitsPhoneLandscape: {
+    fontSize: 96,
+    lineHeight: 96,
+  },
+
+  scoreTextLibre4DigitsPhoneLandscape: {
+    fontSize: 76,
+    lineHeight: 78,
   },
 
   scoreLayerExtraCompact: {
@@ -808,6 +955,16 @@ const styles = StyleSheet.create({
   scoreTextCaromExtraCompact: {
     fontSize: 108,
     lineHeight: 100,
+  },
+
+  scoreTextLibre3DigitsExtraCompact: {
+    fontSize: 84,
+    lineHeight: 84,
+  },
+
+  scoreTextLibre4DigitsExtraCompact: {
+    fontSize: 68,
+    lineHeight: 70,
   },
 
   addTimeStackCompact: {
@@ -868,7 +1025,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginLeft: 6,
   },
-
 });
 
 export default memo(GamePlayer);

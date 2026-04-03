@@ -16,7 +16,7 @@ import {
   GameSettingsMode,
   GameWarmUpTime,
 } from 'types/settings';
-import {isCarom3CGame, isPoolGame} from 'utils/game';
+import {isCarom3CGame, isCaromLikeGame, isPoolGame} from 'utils/game';
 import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
 
@@ -199,78 +199,91 @@ const GameSettingsViewModel = (props: Props) => {
   }, [dispatch, _resetData, props, category, gameSettingsMode, playerSettings]);
 
   const onSelectCategory = useCallback(
-    (selectedCategory: BilliardCategory) => {
-      setCategory(selectedCategory);
-      setPlayerSettings({
-        playerNumber: 2,
-        playingPlayers: DEFAULT_PLAYERS().map((item, index) => ({
-          ...item,
-          color: isPoolGame(selectedCategory)
-            ? PLAYER_COLOR[1]
-            : (PLAYER_COLOR as any)[index],
-        })),
-        goal: {
-          ...playerSettings.goal,
-          goal: isPoolGame(selectedCategory)
-            ? 9
-            : isCarom3CGame(selectedCategory)
-            ? 30
-            : 40,
-        },
+  (selectedCategory: BilliardCategory) => {
+    const isCaromLike = isCaromLikeGame(selectedCategory);
+    const isThreeCushion = isCarom3CGame(selectedCategory);
+    const defaultGoal = isPoolGame(selectedCategory)
+      ? 9
+      : isThreeCushion
+      ? 30
+      : selectedCategory === 'libre'
+      ? 40
+      : 40;
+
+    setCategory(selectedCategory);
+
+    setPlayerSettings({
+      playerNumber: 2,
+      playingPlayers: DEFAULT_PLAYERS().map((item, index) => ({
+        ...item,
+        color: isPoolGame(selectedCategory)
+          ? PLAYER_COLOR[1]
+          : (PLAYER_COLOR as any)[index],
+      })),
+      goal: {
+        ...playerSettings.goal,
+        goal: defaultGoal,
+      },
+    });
+
+    if (isCaromLike) {
+      setGameSettingsMode({
+        mode: 'pro',
+        extraTimeTurns: 2,
+        countdownTime: 40,
+        warmUpTime: 300,
       });
+    } else {
+      setGameSettingsMode({
+        mode: 'fast',
+      });
+    }
+  },
+  [playerSettings],
+);
 
-      if (isCarom3CGame(selectedCategory)) {
+const onSelectGameMode = useCallback(
+  (selectedGameMode: GameMode) => {
+    const isCaromLike = isCaromLikeGame(category);
+
+    switch (selectedGameMode) {
+      case 'fast':
+        setGameSettingsMode({mode: selectedGameMode});
+        break;
+
+      case 'time':
         setGameSettingsMode({
-          mode: 'pro',
-          extraTimeTurns: isCarom3CGame(selectedCategory) ? 2 : 1,
-          countdownTime: isCarom3CGame(selectedCategory) ? 40 : 35,
+          mode: selectedGameMode,
+          extraTimeTurns: isCaromLike ? 2 : 1,
+          countdownTime: isCaromLike ? 40 : 35,
+        });
+        break;
+
+      case 'eliminate':
+        setGameSettingsMode({
+          mode: selectedGameMode,
+          countdownTime: isCaromLike ? 40 : 35,
+        });
+        break;
+
+      case 'pro':
+        setGameSettingsMode({
+          mode: selectedGameMode,
+          extraTimeTurns: isCaromLike ? 2 : 1,
+          countdownTime: isCaromLike ? 40 : 35,
           warmUpTime: 300,
+          extraTimeBonus: isPoolGame(category)
+            ? GAME_EXTRA_TIME_BONUS.s0
+            : undefined,
         });
-      } else {
-        setGameSettingsMode({
-          mode: 'fast',
-        });
-      }
-    },
-    [playerSettings],
-  );
+        break;
 
-  const onSelectGameMode = useCallback(
-    (selectedGameMode: GameMode) => {
-      switch (selectedGameMode) {
-        case 'fast':
-          setGameSettingsMode({mode: selectedGameMode});
-          break;
-        case 'time':
-          setGameSettingsMode({
-            mode: selectedGameMode,
-            extraTimeTurns: 1,
-            countdownTime: 35,
-          });
-          break;
-        case 'eliminate':
-          setGameSettingsMode({
-            mode: selectedGameMode,
-            countdownTime: 35,
-          });
-          break;
-        case 'pro':
-          setGameSettingsMode({
-            mode: selectedGameMode,
-            extraTimeTurns: isCarom3CGame(category) ? 2 : 1,
-            countdownTime: isCarom3CGame(category) ? 40 : 35,
-            warmUpTime: 300,
-            extraTimeBonus: isPoolGame(category)
-              ? GAME_EXTRA_TIME_BONUS.s0
-              : undefined,
-          });
-          break;
-        default:
-          break;
-      }
-    },
-    [category],
-  );
+      default:
+        break;
+    }
+  },
+  [category],
+);
 
   const onSelectExtraTimeBonus = useCallback(
     (extraTimeBonus: GameExtraTimeBonus) => {

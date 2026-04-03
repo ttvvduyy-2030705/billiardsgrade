@@ -57,10 +57,14 @@ const styles = StyleSheet.create({
 
   currentTotalPoint: {
     marginBottom: responsiveDimension(3),
+    minWidth: responsiveDimension(44),
+    alignItems: 'center',
   },
 
   totalPointWrapper: {
     backgroundColor: colors.black,
+    minWidth: responsiveDimension(74),
+    alignItems: 'center',
   },
 
   totalPointText0: {

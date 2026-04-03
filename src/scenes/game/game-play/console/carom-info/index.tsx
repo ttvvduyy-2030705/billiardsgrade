@@ -14,9 +14,46 @@ import styles from './styles';
 
 const CaromInfo = (props: Props) => {
   const viewModel = CaromInfoViewModel(props);
+  const isLibre = props.gameSettings?.category === 'libre';
+
+  const getTotalPointFont = useCallback(
+    (point: number) => {
+      const value = Number(point || 0);
+
+      if (!isLibre) {
+        return {
+          fontSize: 40,
+          lineHeight: 46,
+        };
+      }
+
+      if (value >= 1000) {
+        return {
+          fontSize: 22,
+          lineHeight: 26,
+        };
+      }
+
+      if (value >= 100) {
+        return {
+          fontSize: 30,
+          lineHeight: 34,
+        };
+      }
+
+      return {
+        fontSize: 40,
+        lineHeight: 46,
+      };
+    },
+    [isLibre],
+  );
 
   const renderPlayer = useCallback(
     (player: Player, index: number, totalPointStyle: TextStyle) => {
+      const totalPointValue = Number(player.totalPoint || 0);
+      const totalPointFont = getTotalPointFont(totalPointValue);
+
       return (
         <View
           style={{backgroundColor: player.color}}
@@ -28,22 +65,26 @@ const CaromInfo = (props: Props) => {
                 {player.name.toUpperCase()}
               </Text>
             </View>
+
             {props.currentPlayerIndex === index ? (
               <Image source={images.game.turn} style={styles.turnImage} />
             ) : (
               <View style={styles.empty} />
             )}
+
             <View direction={'row'} alignItems={'end'}>
               <View style={styles.totalPointWrapper} paddingHorizontal={'10'}>
                 <Text
                   style={totalPointStyle}
-                  fontSize={40}
-                  lineHeight={46}
+                  fontSize={totalPointFont.fontSize}
+                  lineHeight={totalPointFont.lineHeight}
                   fontWeight={'bold'}
-                  color={colors.white}>
-                  {player.totalPoint || 0}
+                  color={colors.white}
+                  numberOfLines={1}>
+                  {totalPointValue}
                 </Text>
               </View>
+
               <View style={styles.currentTotalPoint} paddingHorizontal={'10'}>
                 <Text
                   style={styles.currentPointText}
@@ -58,7 +99,7 @@ const CaromInfo = (props: Props) => {
         </View>
       );
     },
-    [props.currentPlayerIndex],
+    [props.currentPlayerIndex, getTotalPointFont],
   );
 
   if (!props.gameSettings.mode?.countdownTime) {
@@ -69,7 +110,6 @@ const CaromInfo = (props: Props) => {
     <View style={styles.container} direction={'row'} marginTop={'10'}>
       <View flex={'1'}>
         <View
-          //ref={viewModel.matchRef}
           collapsable={false}
           style={styles.countdownContainer}
           direction={'row'}>
@@ -84,6 +124,7 @@ const CaromInfo = (props: Props) => {
               </Text>
             </View>
           </View>
+
           <View flex={'1'}>
             {renderPlayer(viewModel.player0, 0, styles.totalPointText0)}
             {renderPlayer(viewModel.player1, 1, styles.totalPointText1)}
@@ -91,7 +132,6 @@ const CaromInfo = (props: Props) => {
         </View>
 
         <View
-          //ref={viewModel.matchCountdownRef}
           collapsable={false}
           style={styles.countdownContainer}
           direction={'row'}
@@ -104,18 +144,19 @@ const CaromInfo = (props: Props) => {
               {props.countdownTime}
             </Text>
           </View>
+
           <View flex={'1'} direction={'row'}>
             <Countdown
-  originalCountdownTime={props.gameSettings.mode?.countdownTime}
-  currentCountdownTime={props.countdownTime}
-  countdownWidth={dims.screenWidth * 0.28}
-  heightItem={27}
-  marginHorizontal={2}
-  direction="right-to-left"
-  colorMode="threshold"
-  yellowThreshold={10}
-  redThreshold={5}
-/>
+              originalCountdownTime={props.gameSettings.mode?.countdownTime}
+              currentCountdownTime={props.countdownTime}
+              countdownWidth={dims.screenWidth * 0.28}
+              heightItem={27}
+              marginHorizontal={2}
+              direction="right-to-left"
+              colorMode="threshold"
+              yellowThreshold={10}
+              redThreshold={5}
+            />
           </View>
         </View>
       </View>

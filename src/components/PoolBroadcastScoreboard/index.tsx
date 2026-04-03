@@ -11,7 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 
 import {PlayerSettings} from 'types/player';
 import {GameSettings} from 'types/settings';
-import {isPool10Game, isPool9Game} from 'utils/game';
+import {isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
 
 type Variant = 'camera' | 'fullscreen' | 'playback';
 
@@ -107,7 +107,8 @@ const PoolBroadcastScoreboard = ({
   style,
 }: PoolBroadcastScoreboardProps) => {
   const category = gameSettings?.category;
-  const isSupportedCategory = isPool9Game(category) || isPool10Game(category);
+  const isSupportedCategory =
+  isPool9Game(category) || isPool10Game(category) || isPool15Game(category);
   const playingPlayers = playerSettings?.playingPlayers || [];
 
   if (!isSupportedCategory || playingPlayers.length < 2) {

@@ -46,7 +46,7 @@ import {
   type ReplayScoreboardTimelineEntry,
 } from 'services/replay/replayTimeline';
 import {goBack} from 'utils/navigation';
-import {isCaromGame, isPool10Game, isPool9Game} from 'utils/game';
+import {isCaromGame, isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
 
 import PlayBackWebcamViewModel, {
   PlayBackWebcamViewModelProps,
@@ -546,7 +546,11 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
     const category = playbackScoreboardProps.category;
 
-    if (isPool9Game(category) || isPool10Game(category)) {
+    if (
+  isPool9Game(category) ||
+  isPool10Game(category) ||
+  isPool15Game(category)
+) {
       return (
         <PoolBroadcastScoreboard
           gameSettings={playbackScoreboardProps.gameSettings}
