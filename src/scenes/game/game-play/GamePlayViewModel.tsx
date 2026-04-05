@@ -39,8 +39,7 @@ import {
   listReplayFiles,
   cleanupBrokenReplayFiles,
 } from 'services/replay/localReplay';
-import {burnLivestreamOverlaysIntoVideo} from 'services/replay/videoOverlay';
-import {appendReplayScoreboardTimelineEntry} from 'services/replay/replayTimeline';
+import {appendReplayScoreboardTimelineEntry, flushReplayScoreboardTimeline} from 'services/replay/replayTimeline';
 import {screens} from 'scenes/screens';
 import {navigate, push} from 'utils/navigation';
 import {
@@ -148,6 +147,11 @@ const resolveLockedLiveSource = (
 };
 
 
+const LIVE_SNAPSHOT_SYNC_MIN_MS = 5000;
+const REPLAY_TIMELINE_TIME_BUCKET_SECONDS = 3;
+const REPLAY_TIMELINE_COUNTDOWN_BUCKET_SECONDS = 3;
+const REPLAY_PRUNE_EVERY_N_SEGMENTS = 3;
+const ENABLE_SEGMENT_OVERLAY_BURN = false;
 
 type ReplayResumeSnapshot = {
   matchSessionId?: string;
@@ -182,9 +186,6 @@ const REPLAY_RESUME_SNAPSHOT_STORAGE_KEY =
   '@APLUS_REPLAY_RESUME_SNAPSHOT_V3';
 
 const LIVE_MATCH_SNAPSHOT_STORAGE_KEY = '@APLUS_LIVE_MATCH_SNAPSHOT_V1';
-const LIVE_MATCH_RUNTIME_SYNC_INTERVAL_MS = 2000;
-const REPLAY_STORAGE_PRUNE_INTERVAL_MS = 30 * 60 * 1000;
-const REPLAY_STORAGE_PRUNE_DELAY_MS = 12 * 1000;
 
 type LiveMatchSnapshot = ReplayResumeSnapshot & {
   configSignature?: string;
@@ -204,8 +205,9 @@ const buildGameSettingsSignature = (settings: any) => {
 };
 
 const setLiveMatchSnapshotSync = (snapshot: LiveMatchSnapshot | null) => {
-  // Giữ snapshot runtime ở dạng thô để tránh deep-clone lớn lặp lại mỗi giây.
-  (globalThis as any).__APLUS_LIVE_MATCH_SNAPSHOT__ = snapshot ?? null;
+  (globalThis as any).__APLUS_LIVE_MATCH_SNAPSHOT__ = snapshot
+    ? cloneReplayValue(snapshot)
+    : null;
 };
 
 const getLiveMatchSnapshotSync = (): LiveMatchSnapshot | null => {
@@ -408,8 +410,6 @@ const GamePlayViewModel = () => {
   const matchCountdownRef = useRef(null);
   const recordingRotateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recordingStartRetryRef = useRef<NodeJS.Timeout | null>(null);
-  const replayPruneTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastReplayPruneAtRef = useRef(0);
   const restartAfterStopRef = useRef(false);
   const isRecordingRef = useRef(false);
   const isStoppingRecordingRef = useRef(false);
@@ -419,6 +419,23 @@ const GamePlayViewModel = () => {
   const currentReplaySegmentIndexRef = useRef(0);
   const currentReplaySegmentStartTotalTimeRef = useRef(0);
   const replayTimelineSignatureRef = useRef('');
+  const lastLiveSnapshotSignatureRef = useRef('');
+  const lastLiveSnapshotSyncAtRef = useRef(0);
+  const lastReplayTimelineWriteSignatureRef = useRef('');
+  const lastPruneCompletedSegmentsRef = useRef(0);
+  const remoteHandlersRef = useRef({
+    start: () => {},
+    warmUp: () => {},
+    stop: () => {},
+    gameBreak: () => {},
+    extension: () => {},
+    timer: () => {},
+    newGame: () => {},
+    up: () => {},
+    down: () => {},
+    left: () => {},
+    right: () => {},
+  });
   const recordingFinishedResolverRef = useRef<((videoPath?: string) => void) | null>(null);
   const recordingFinishedPromiseRef = useRef<Promise<string | undefined> | null>(null);
   const shouldStartRecordingRef = useRef(false);
@@ -469,10 +486,6 @@ const GamePlayViewModel = () => {
     return () => {
       if (recordingRotateTimeoutRef.current) {
         clearTimeout(recordingRotateTimeoutRef.current);
-      }
-      if (replayPruneTimeoutRef.current) {
-        clearTimeout(replayPruneTimeoutRef.current);
-        replayPruneTimeoutRef.current = null;
       }
       clearRecordingStartRetry();
     };
@@ -555,6 +568,7 @@ const GamePlayViewModel = () => {
     currentReplaySegmentIndexRef.current = 0;
     currentReplaySegmentStartTotalTimeRef.current = 0;
     replayTimelineSignatureRef.current = '';
+    lastPruneCompletedSegmentsRef.current = 0;
 
     if (!webcamFolderName) {
       return () => {
@@ -785,8 +799,8 @@ const GamePlayViewModel = () => {
       countdownTime,
       warmUpCount,
       warmUpCountdownTime,
-      playerSettings,
-      winner,
+      playerSettings: cloneReplayValue(playerSettings),
+      winner: cloneReplayValue(winner),
       isStarted,
       isPaused,
       isMatchPaused,
@@ -868,11 +882,6 @@ const GamePlayViewModel = () => {
   );
 
 
-  const liveMatchRuntimeSyncRef = useRef({
-    lastSyncedAt: 0,
-    lastSignature: '',
-  });
-
   useEffect(() => {
     const snapshot = buildLiveMatchSnapshot();
 
@@ -880,14 +889,24 @@ const GamePlayViewModel = () => {
       return;
     }
 
+    const leftPlayer = snapshot.playerSettings?.playingPlayers?.[0];
+    const rightPlayer = snapshot.playerSettings?.playingPlayers?.[1];
     const signature = JSON.stringify({
+      webcamFolderName: snapshot.webcamFolderName,
       currentPlayerIndex: snapshot.currentPlayerIndex,
       poolBreakPlayerIndex: snapshot.poolBreakPlayerIndex,
       totalTurns: snapshot.totalTurns,
-      totalTime: snapshot.totalTime,
-      countdownTime: snapshot.countdownTime,
-      warmUpCount: snapshot.warmUpCount,
-      warmUpCountdownTime: snapshot.warmUpCountdownTime,
+      totalTimeBucket: Math.floor(Number(snapshot.totalTime || 0) / 5),
+      countdownBucket: Math.floor(Number(snapshot.countdownTime || 0) / 5),
+      warmUpBucket:
+        snapshot.warmUpCountdownTime == null
+          ? null
+          : Math.floor(Number(snapshot.warmUpCountdownTime) / 5),
+      leftScore: Number(leftPlayer?.totalPoint ?? 0),
+      rightScore: Number(rightPlayer?.totalPoint ?? 0),
+      leftCurrentPoint: Number(leftPlayer?.proMode?.currentPoint ?? 0),
+      rightCurrentPoint: Number(rightPlayer?.proMode?.currentPoint ?? 0),
+      winnerName: snapshot.winner?.name ?? null,
       isStarted: snapshot.isStarted,
       isPaused: snapshot.isPaused,
       isMatchPaused: snapshot.isMatchPaused,
@@ -895,34 +914,18 @@ const GamePlayViewModel = () => {
       poolBreakEnabled: snapshot.poolBreakEnabled,
       soundEnabled: snapshot.soundEnabled,
       proModeEnabled: snapshot.proModeEnabled,
-      winnerName: snapshot.winner?.name ?? '',
-      goal: snapshot.playerSettings?.goal?.goal ?? 0,
-      players:
-        snapshot.playerSettings?.playingPlayers?.map(player => ({
-          name: player?.name ?? '',
-          totalPoint: Number(player?.totalPoint ?? 0),
-          currentPoint: Number(player?.proMode?.currentPoint ?? 0),
-          extraTimeTurns: Number(player?.proMode?.extraTimeTurns ?? 0),
-          violate: Number(player?.violate ?? 0),
-          scoredBalls: Number(player?.scoredBalls?.length ?? 0),
-        })) ?? [],
     });
 
     const now = Date.now();
-    const shouldSyncNow =
-      signature !== liveMatchRuntimeSyncRef.current.lastSignature ||
-      now - liveMatchRuntimeSyncRef.current.lastSyncedAt >=
-        LIVE_MATCH_RUNTIME_SYNC_INTERVAL_MS;
-
-    if (!shouldSyncNow) {
+    if (
+      signature === lastLiveSnapshotSignatureRef.current &&
+      now - lastLiveSnapshotSyncAtRef.current < LIVE_SNAPSHOT_SYNC_MIN_MS
+    ) {
       return;
     }
 
-    liveMatchRuntimeSyncRef.current = {
-      lastSyncedAt: now,
-      lastSignature: signature,
-    };
-
+    lastLiveSnapshotSignatureRef.current = signature;
+    lastLiveSnapshotSyncAtRef.current = now;
     setLiveMatchSnapshotSync(snapshot);
   }, [buildLiveMatchSnapshot]);
 
@@ -932,6 +935,83 @@ const GamePlayViewModel = () => {
   //      }
   // }, [hasPermission]);
 
+  useEffect(() => {
+    remoteHandlersRef.current = {
+      start: isStarted ? onPause : onStart,
+      warmUp: warmUpCountdownTime ? onEndWarmUp : onWarmUp,
+      stop: onToggleCountDown,
+      gameBreak: onPoolBreak,
+      extension: onPressGiveMoreTime,
+      timer: onResetTurn,
+      newGame: onReset,
+      up: () => onChangePlayerPoint(1, currentPlayerIndex, 0),
+      down: () => onChangePlayerPoint(-1, currentPlayerIndex, 0),
+      left: onEndTurn,
+      right: onEndTurn,
+    };
+  }, [
+    isStarted,
+    warmUpCountdownTime,
+    onPause,
+    onStart,
+    onEndWarmUp,
+    onWarmUp,
+    onToggleCountDown,
+    onPoolBreak,
+    onPressGiveMoreTime,
+    onResetTurn,
+    onReset,
+    onChangePlayerPoint,
+    currentPlayerIndex,
+    onEndTurn,
+  ]);
+
+  useEffect(() => {
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.START,
+      () => remoteHandlersRef.current.start(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.WARM_UP,
+      () => remoteHandlersRef.current.warmUp(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.STOP,
+      () => remoteHandlersRef.current.stop(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.BREAK,
+      () => remoteHandlersRef.current.gameBreak(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.EXTENSION,
+      () => remoteHandlersRef.current.extension(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.TIMER,
+      () => remoteHandlersRef.current.timer(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.NEW_GAME,
+      () => remoteHandlersRef.current.newGame(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.UP,
+      () => remoteHandlersRef.current.up(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.DOWN,
+      () => remoteHandlersRef.current.down(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.LEFT,
+      () => remoteHandlersRef.current.left(),
+    );
+    RemoteControl.instance.registerKeyEvents(
+      RemoteControlKeys.RIGHT,
+      () => remoteHandlersRef.current.right(),
+    );
+  }, []);
   useEffect(() => {
     clearInterval(countdownInterval);
     clearInterval(warmUpCountdownInterval);
@@ -1076,18 +1156,21 @@ const GamePlayViewModel = () => {
     );
     const baseCountdown = Number(gameSettings?.mode?.countdownTime ?? 0);
     const segmentIndex = currentReplaySegmentIndexRef.current;
-    const segmentTime = Math.max(0, totalTime - currentReplaySegmentStartTotalTimeRef.current);
+    const segmentTime = Math.max(
+      0,
+      totalTime - currentReplaySegmentStartTotalTimeRef.current,
+    );
+    const segmentTimeBucket = Math.floor(segmentTime / REPLAY_TIMELINE_TIME_BUCKET_SECONDS);
+    const countdownBucket = Math.floor(Number(countdownTime || 0) / REPLAY_TIMELINE_COUNTDOWN_BUCKET_SECONDS);
 
     const signature = JSON.stringify({
       webcamFolderName,
       segmentIndex,
-      segmentTime,
+      segmentTimeBucket,
+      countdownBucket,
       currentPlayerIndex,
-      countdownTime,
       goal,
       baseCountdown,
-      leftName: leftPlayer?.name ?? '',
-      rightName: rightPlayer?.name ?? '',
       leftScore: Number(leftPlayer?.totalPoint ?? 0),
       rightScore: Number(rightPlayer?.totalPoint ?? 0),
       totalTurns: Number(totalTurns || 1),
@@ -1095,10 +1178,11 @@ const GamePlayViewModel = () => {
       rightCurrentPoint: Number(rightPlayer?.proMode?.currentPoint ?? 0),
     });
 
-    if (signature === replayTimelineSignatureRef.current) {
+    if (signature === lastReplayTimelineWriteSignatureRef.current) {
       return;
     }
 
+    lastReplayTimelineWriteSignatureRef.current = signature;
     replayTimelineSignatureRef.current = signature;
 
     void appendReplayScoreboardTimelineEntry(webcamFolderName, {
@@ -1148,22 +1232,28 @@ const GamePlayViewModel = () => {
   }, [isStarted, isPaused, isMatchPaused, poolBreakEnabled]);
 
   useEffect(() => {
-    if (!warmUpCountdownTime) {
+    if (typeof warmUpCountdownTime !== 'number') {
       return;
     }
 
     warmUpCountdownInterval = setInterval(() => {
-      if (gameBreakEnabled) {
-        setWarmUpCountdownTime(prev => (prev ? prev + 1 : 1));
-      } else {
-        setWarmUpCountdownTime(prev => (prev ? prev - 1 : 0));
-      }
+      setWarmUpCountdownTime(prev => {
+        if (typeof prev !== 'number') {
+          return prev;
+        }
+
+        if (gameBreakEnabled) {
+          return prev + 1;
+        }
+
+        return prev > 0 ? prev - 1 : 0;
+      });
     }, 1000);
 
     return () => {
       clearInterval(warmUpCountdownInterval);
     };
-  }, [warmUpCountdownTime, gameBreakEnabled]);
+  }, [typeof warmUpCountdownTime === 'number', gameBreakEnabled]);
 
   useEffect(() => {
     if (!isStarted || !soundEnabled || !gameSettings?.mode?.countdownTime) {
@@ -2107,6 +2197,8 @@ const GamePlayViewModel = () => {
       return;
     }
 
+    await flushReplayScoreboardTimeline(webcamFolderName);
+
     await setReplayResumeSnapshot({
       matchSessionId: matchSessionIdRef.current,
       webcamFolderName,
@@ -2312,32 +2404,6 @@ const GamePlayViewModel = () => {
     }
   };
 
-  const scheduleReplayStoragePrune = useCallback(() => {
-    if (!webcamFolderName) {
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastReplayPruneAtRef.current < REPLAY_STORAGE_PRUNE_INTERVAL_MS) {
-      return;
-    }
-
-    lastReplayPruneAtRef.current = now;
-
-    if (replayPruneTimeoutRef.current) {
-      clearTimeout(replayPruneTimeoutRef.current);
-    }
-
-    replayPruneTimeoutRef.current = setTimeout(() => {
-      replayPruneTimeoutRef.current = null;
-      void pruneReplayStorage(MAX_REPLAY_STORAGE_BYTES, [webcamFolderName]).catch(
-        error => {
-          console.log('[Replay] delayed prune failed:', error);
-        },
-      );
-    }, REPLAY_STORAGE_PRUNE_DELAY_MS);
-  }, [webcamFolderName]);
-
   const startVideoRecording = () => {
     if (!cameraRef.current) {
       console.log('[Replay] skip start: cameraRef null');
@@ -2371,6 +2437,7 @@ const GamePlayViewModel = () => {
       currentReplaySegmentIndexRef.current = replayCompletedSegmentsRef.current;
       currentReplaySegmentStartTotalTimeRef.current = totalTime;
       replayTimelineSignatureRef.current = '';
+      lastReplayTimelineWriteSignatureRef.current = '';
 
       console.log('Starting recording...');
       cameraRef.current.startRecording({
@@ -2403,8 +2470,10 @@ const GamePlayViewModel = () => {
                 finalPath = targetPath;
               }
 
-              finalPath =
-                (await burnLivestreamOverlaysIntoVideo(finalPath)) || finalPath;
+              if (ENABLE_SEGMENT_OVERLAY_BURN && finalPath) {
+                // Bật lại chỉ khi thực sự cần file replay có overlay cứng trong video.
+                // Mặc định tắt để ưu tiên độ mượt và tránh spike FFmpeg sau mỗi segment.
+              }
 
               const registeredPath = await registerReplaySegment(
                 webcamFolderName,
@@ -2420,7 +2489,21 @@ const GamePlayViewModel = () => {
                   replayCompletedSegmentsRef.current,
                   currentReplaySegmentIndexRef.current + 1,
                 );
-                scheduleReplayStoragePrune();
+
+                const completedSegments = replayCompletedSegmentsRef.current;
+                if (
+                  completedSegments - lastPruneCompletedSegmentsRef.current >=
+                  REPLAY_PRUNE_EVERY_N_SEGMENTS
+                ) {
+                  lastPruneCompletedSegmentsRef.current = completedSegments;
+                  setTimeout(() => {
+                    void pruneReplayStorage(MAX_REPLAY_STORAGE_BYTES, [webcamFolderName]).catch(
+                      error => {
+                        console.log('[Replay] deferred prune failed:', error);
+                      },
+                    );
+                  }, 1500);
+                }
               }
             }
           } catch (segmentError) {
@@ -2548,138 +2631,6 @@ const GamePlayViewModel = () => {
       return lastRecordedVideoPathRef.current ?? (await getLatestReplaySegmentPath());
     }
   };
-
-
-  const onStartRef = useRef(onStart);
-  const onPauseRef = useRef(onPause);
-  const onWarmUpRef = useRef(onWarmUp);
-  const onEndWarmUpRef = useRef(onEndWarmUp);
-  const onToggleCountDownRef = useRef(onToggleCountDown);
-  const onPoolBreakRef = useRef(onPoolBreak);
-  const onPressGiveMoreTimeRef = useRef(onPressGiveMoreTime);
-  const onResetTurnRef = useRef(onResetTurn);
-  const onResetRef = useRef(onReset);
-  const onChangePlayerPointRef = useRef(onChangePlayerPoint);
-  const onEndTurnRef = useRef(onEndTurn);
-  const isStartedRef = useRef(isStarted);
-  const warmUpCountdownTimeRef = useRef(warmUpCountdownTime);
-  const currentPlayerIndexRef = useRef(currentPlayerIndex);
-
-  useEffect(() => {
-    onStartRef.current = onStart;
-  }, [onStart]);
-
-  useEffect(() => {
-    onPauseRef.current = onPause;
-  }, [onPause]);
-
-  useEffect(() => {
-    onWarmUpRef.current = onWarmUp;
-  }, [onWarmUp]);
-
-  useEffect(() => {
-    onEndWarmUpRef.current = onEndWarmUp;
-  }, [onEndWarmUp]);
-
-  useEffect(() => {
-    onToggleCountDownRef.current = onToggleCountDown;
-  }, [onToggleCountDown]);
-
-  useEffect(() => {
-    onPoolBreakRef.current = onPoolBreak;
-  }, [onPoolBreak]);
-
-  useEffect(() => {
-    onPressGiveMoreTimeRef.current = onPressGiveMoreTime;
-  }, [onPressGiveMoreTime]);
-
-  useEffect(() => {
-    onResetTurnRef.current = onResetTurn;
-  }, [onResetTurn]);
-
-  useEffect(() => {
-    onResetRef.current = onReset;
-  }, [onReset]);
-
-  useEffect(() => {
-    onChangePlayerPointRef.current = onChangePlayerPoint;
-  }, [onChangePlayerPoint]);
-
-  useEffect(() => {
-    onEndTurnRef.current = onEndTurn;
-  }, [onEndTurn]);
-
-  useEffect(() => {
-    isStartedRef.current = isStarted;
-  }, [isStarted]);
-
-  useEffect(() => {
-    warmUpCountdownTimeRef.current = warmUpCountdownTime;
-  }, [warmUpCountdownTime]);
-
-  useEffect(() => {
-    currentPlayerIndexRef.current = currentPlayerIndex;
-  }, [currentPlayerIndex]);
-
-  useEffect(() => {
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.START, () => {
-      if (isStartedRef.current) {
-        onPauseRef.current();
-      } else {
-        void onStartRef.current();
-      }
-    });
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.WARM_UP, () => {
-      if (warmUpCountdownTimeRef.current) {
-        onEndWarmUpRef.current();
-      } else {
-        onWarmUpRef.current();
-      }
-    });
-
-    // Stop chỉ dừng countdown lượt
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.STOP, () => {
-      onToggleCountDownRef.current();
-    });
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.BREAK, () => {
-      onPoolBreakRef.current();
-    });
-
-    RemoteControl.instance.registerKeyEvents(
-      RemoteControlKeys.EXTENSION,
-      () => {
-        onPressGiveMoreTimeRef.current();
-      },
-    );
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.TIMER, () => {
-      onResetTurnRef.current();
-    });
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.NEW_GAME, () => {
-      onResetRef.current();
-    });
-
-    // Lên / xuống = tăng giảm điểm
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.UP, () => {
-      onChangePlayerPointRef.current(1, currentPlayerIndexRef.current, 0);
-    });
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.DOWN, () => {
-      onChangePlayerPointRef.current(-1, currentPlayerIndexRef.current, 0);
-    });
-
-    // Trái / phải = đổi lượt
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.LEFT, () => {
-      onEndTurnRef.current();
-    });
-
-    RemoteControl.instance.registerKeyEvents(RemoteControlKeys.RIGHT, () => {
-      onEndTurnRef.current();
-    });
-  }, []);
 
   return useMemo(() => {
     return {

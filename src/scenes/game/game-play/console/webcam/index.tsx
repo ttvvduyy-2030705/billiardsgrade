@@ -157,6 +157,85 @@ export type WebCamHandle = {
   canRewatch: () => boolean;
 };
 
+const LiveStreamImagesOverlay = memo(() => {
+  const [state, setState] = useState<PoolCameraScoreboardState>(
+    EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
+  );
+
+  useEffect(() => {
+    return subscribePoolCameraScoreboardState(setState);
+  }, []);
+
+  return (
+    <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <LiveStreamImages
+        currentPlayerIndex={state.currentPlayerIndex}
+        countdownTime={state.countdownTime}
+        gameSettings={state.gameSettings}
+        playerSettings={state.playerSettings}
+      />
+    </RNView>
+  );
+});
+
+const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
+  const [state, setState] = useState<PoolCameraScoreboardState>(
+    EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
+  );
+
+  useEffect(() => {
+    return subscribePoolCameraScoreboardState(setState);
+  }, []);
+
+  const poolCategory = state.gameSettings?.category;
+  const shouldShowPool =
+    isPool9Game(poolCategory) ||
+    isPool10Game(poolCategory) ||
+    isPool15Game(poolCategory);
+
+  if (!shouldShowPool) {
+    return null;
+  }
+
+  return (
+    <PoolBroadcastScoreboard
+      currentPlayerIndex={state.currentPlayerIndex}
+      countdownTime={state.countdownTime}
+      gameSettings={state.gameSettings}
+      playerSettings={state.playerSettings}
+      variant={fullscreenMode ? 'fullscreen' : 'camera'}
+      bottomOffset={fullscreenMode ? 18 : 12}
+    />
+  );
+});
+
+const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
+  const [state, setState] = useState<CaromCameraScoreboardState>(
+    EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
+  );
+
+  useEffect(() => {
+    return subscribeCaromCameraScoreboardState(setState);
+  }, []);
+
+  const shouldShowCarom = isCaromGame(state.gameSettings?.category);
+  if (!shouldShowCarom) {
+    return null;
+  }
+
+  return (
+    <CaromBroadcastScoreboard
+      currentPlayerIndex={state.currentPlayerIndex}
+      countdownTime={state.countdownTime}
+      totalTurns={state.totalTurns}
+      gameSettings={state.gameSettings}
+      playerSettings={state.playerSettings}
+      variant={fullscreenMode ? 'fullscreen' : 'camera'}
+      bottomOffset={fullscreenMode ? 18 : -32}
+    />
+  );
+});
+
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
 
@@ -166,11 +245,6 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const [currentZoom, setCurrentZoom] = useState(1);
   const [thumbnailOverlay, setThumbnailOverlay] =
     useState<ThumbnailOverlayData>(EMPTY_THUMBNAILS);
-  const [poolScoreboardState, setPoolScoreboardState] = useState<PoolCameraScoreboardState>(
-    EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
-  );
-  const [caromScoreboardState, setCaromScoreboardState] =
-    useState<CaromCameraScoreboardState>(EMPTY_CAROM_CAMERA_SCOREBOARD_STATE);
 
   const youtubeControllerRef = useRef<any>(null);
   const lastStableZoomInfoRef = useRef<CameraZoomInfo | null>(null);
@@ -255,14 +329,6 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
 
   useEffect(() => {
     return subscribeCameraFullscreen(setIsFullscreenLocal);
-  }, []);
-
-  useEffect(() => {
-    return subscribePoolCameraScoreboardState(setPoolScoreboardState);
-  }, []);
-
-  useEffect(() => {
-    return subscribeCaromCameraScoreboardState(setCaromScoreboardState);
   }, []);
 
   useEffect(() => {
@@ -596,52 +662,14 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
       return null;
     }
 
-    return (
-      <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <LiveStreamImages
-          currentPlayerIndex={poolScoreboardState.currentPlayerIndex}
-          countdownTime={poolScoreboardState.countdownTime}
-          gameSettings={poolScoreboardState.gameSettings}
-          playerSettings={poolScoreboardState.playerSettings}
-        />
-      </RNView>
-    );
+    return <LiveStreamImagesOverlay />;
   };
 
   const renderScoreboardOverlay = (fullscreenMode = false) => {
-    const variant = fullscreenMode ? 'fullscreen' : 'camera';
-    const poolCategory = poolScoreboardState.gameSettings?.category;
-    const caromCategory = caromScoreboardState.gameSettings?.category;
-    const shouldShowPool =
-  isPool9Game(poolCategory) ||
-  isPool10Game(poolCategory) ||
-  isPool15Game(poolCategory);
-    const shouldShowCarom = isCaromGame(caromCategory);
-
     return (
       <>
-        {shouldShowPool ? (
-          <PoolBroadcastScoreboard
-            currentPlayerIndex={poolScoreboardState.currentPlayerIndex}
-            countdownTime={poolScoreboardState.countdownTime}
-            gameSettings={poolScoreboardState.gameSettings}
-            playerSettings={poolScoreboardState.playerSettings}
-            variant={variant}
-            bottomOffset={fullscreenMode ? 18 : 12}
-          />
-        ) : null}
-
-        {shouldShowCarom ? (
-          <CaromBroadcastScoreboard
-            currentPlayerIndex={caromScoreboardState.currentPlayerIndex}
-            countdownTime={caromScoreboardState.countdownTime}
-            totalTurns={caromScoreboardState.totalTurns}
-            gameSettings={caromScoreboardState.gameSettings}
-            playerSettings={caromScoreboardState.playerSettings}
-            variant={variant}
-            bottomOffset={fullscreenMode ? 18 : -32}
-          />
-        ) : null}
+        <PoolScoreboardOverlay fullscreenMode={fullscreenMode} />
+        <CaromScoreboardOverlay fullscreenMode={fullscreenMode} />
       </>
     );
   };

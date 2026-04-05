@@ -1,5 +1,4 @@
 import RNFS from 'react-native-fs';
-
 import {
   ensureReplayFolder,
   resolveReplayFolder,
@@ -26,8 +25,13 @@ export type ReplayScoreboardTimelineFile = {
 };
 
 const TIMELINE_FILE_NAME = 'scoreboard_timeline.json';
+const MAX_TIMELINE_ENTRIES = 2400;
+const REPLACE_DELTA_SECONDS = 0.8;
+const FLUSH_DEBOUNCE_MS = 5000;
+
 const timelineCache = new Map<string, ReplayScoreboardTimelineFile>();
-const writeQueue = new Map<string, Promise<void>>();
+const flushTimeouts = new Map<string, NodeJS.Timeout>();
+const flushQueues = new Map<string, Promise<void>>();
 
 const clone = <T,>(value: T): T => {
   if (value == null) {
@@ -35,7 +39,7 @@ const clone = <T,>(value: T): T => {
   }
 
   try {
-    return JSON.parse(JSON.stringify(value));
+    return JSON.parse(JSON.stringify(value)) as T;
   } catch (_error) {
     return value;
   }
@@ -45,7 +49,6 @@ const getTimelinePath = async (webcamFolderName: string) => {
   const folderPath =
     (await resolveReplayFolder(webcamFolderName)) ||
     (await ensureReplayFolder(webcamFolderName));
-
   return `${folderPath}/${TIMELINE_FILE_NAME}`;
 };
 
@@ -73,7 +76,6 @@ const normalizeTimeline = (
           if (a.segmentIndex !== b.segmentIndex) {
             return a.segmentIndex - b.segmentIndex;
           }
-
           return a.segmentTime - b.segmentTime;
         })
     : [];
@@ -100,7 +102,6 @@ export const loadReplayScoreboardTimeline = async (
 
   try {
     const timelinePath = await getTimelinePath(webcamFolderName);
-
     if (!(await RNFS.exists(timelinePath))) {
       const emptyTimeline = normalizeTimeline(webcamFolderName, null);
       timelineCache.set(webcamFolderName, emptyTimeline);
@@ -114,7 +115,9 @@ export const loadReplayScoreboardTimeline = async (
     return clone(normalized);
   } catch (error) {
     console.log('[ReplayTimeline] load failed:', error);
-    return normalizeTimeline(webcamFolderName, null);
+    const fallback = normalizeTimeline(webcamFolderName, null);
+    timelineCache.set(webcamFolderName, fallback);
+    return clone(fallback);
   }
 };
 
@@ -126,6 +129,57 @@ const persistReplayScoreboardTimeline = async (
   await RNFS.writeFile(timelinePath, JSON.stringify(timeline), 'utf8');
 };
 
+const queueTimelineFlush = (webcamFolderName: string) => {
+  const existing = flushQueues.get(webcamFolderName) || Promise.resolve();
+  const next = existing
+    .catch(() => undefined)
+    .then(async () => {
+      const timeline = timelineCache.get(webcamFolderName);
+      if (!timeline) {
+        return;
+      }
+
+      await persistReplayScoreboardTimeline(webcamFolderName, timeline);
+    });
+
+  flushQueues.set(
+    webcamFolderName,
+    next.catch(error => {
+      console.log('[ReplayTimeline] persist failed:', error);
+    }),
+  );
+
+  return next;
+};
+
+const scheduleReplayScoreboardTimelineFlush = (webcamFolderName: string) => {
+  const existingTimeout = flushTimeouts.get(webcamFolderName);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+  }
+
+  const timeout = setTimeout(() => {
+    flushTimeouts.delete(webcamFolderName);
+    void queueTimelineFlush(webcamFolderName);
+  }, FLUSH_DEBOUNCE_MS);
+
+  flushTimeouts.set(webcamFolderName, timeout);
+};
+
+export const flushReplayScoreboardTimeline = async (webcamFolderName?: string) => {
+  if (!webcamFolderName) {
+    return;
+  }
+
+  const existingTimeout = flushTimeouts.get(webcamFolderName);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+    flushTimeouts.delete(webcamFolderName);
+  }
+
+  await queueTimelineFlush(webcamFolderName);
+};
+
 export const appendReplayScoreboardTimelineEntry = async (
   webcamFolderName?: string,
   entry?: ReplayScoreboardTimelineEntry | null,
@@ -134,60 +188,51 @@ export const appendReplayScoreboardTimelineEntry = async (
     return;
   }
 
-  const queued = writeQueue.get(webcamFolderName) || Promise.resolve();
-  const nextTask = queued.then(async () => {
-    const existingTimeline =
-      (await loadReplayScoreboardTimeline(webcamFolderName)) ||
-      normalizeTimeline(webcamFolderName, null);
+  const existingTimeline =
+    timelineCache.get(webcamFolderName) ||
+    (await loadReplayScoreboardTimeline(webcamFolderName)) ||
+    normalizeTimeline(webcamFolderName, null);
 
-    const normalizedEntry: ReplayScoreboardTimelineEntry = {
-      segmentIndex: Number(entry.segmentIndex || 0),
-      segmentTime: Number(entry.segmentTime || 0),
-      currentPlayerIndex: Number(entry.currentPlayerIndex || 0),
-      countdownTime: Number(entry.countdownTime || 0),
-      baseCountdown:
-        entry.baseCountdown == null ? undefined : Number(entry.baseCountdown),
-      category: entry.category,
-      goal: entry.goal == null ? undefined : Number(entry.goal),
-      playerSettings: clone(entry.playerSettings),
-      totalTurns: entry.totalTurns == null ? undefined : Number(entry.totalTurns),
-      savedAt: entry.savedAt == null ? Date.now() : Number(entry.savedAt),
-    };
+  const normalizedEntry: ReplayScoreboardTimelineEntry = {
+    segmentIndex: Number(entry.segmentIndex || 0),
+    segmentTime: Number(entry.segmentTime || 0),
+    currentPlayerIndex: Number(entry.currentPlayerIndex || 0),
+    countdownTime: Number(entry.countdownTime || 0),
+    baseCountdown:
+      entry.baseCountdown == null ? undefined : Number(entry.baseCountdown),
+    category: entry.category,
+    goal: entry.goal == null ? undefined : Number(entry.goal),
+    playerSettings: clone(entry.playerSettings),
+    totalTurns: entry.totalTurns == null ? undefined : Number(entry.totalTurns),
+    savedAt: entry.savedAt == null ? Date.now() : Number(entry.savedAt),
+  };
 
-    const entries = [...existingTimeline.entries];
-    const lastEntry = entries[entries.length - 1];
+  const entries = [...existingTimeline.entries];
+  const lastEntry = entries[entries.length - 1];
+  const shouldReplaceLast =
+    !!lastEntry &&
+    lastEntry.segmentIndex === normalizedEntry.segmentIndex &&
+    Math.abs(lastEntry.segmentTime - normalizedEntry.segmentTime) <
+      REPLACE_DELTA_SECONDS;
 
-    const shouldReplaceLast =
-      !!lastEntry &&
-      lastEntry.segmentIndex === normalizedEntry.segmentIndex &&
-      Math.abs(lastEntry.segmentTime - normalizedEntry.segmentTime) < 0.25;
+  if (shouldReplaceLast) {
+    entries[entries.length - 1] = normalizedEntry;
+  } else {
+    entries.push(normalizedEntry);
+  }
 
-    if (shouldReplaceLast) {
-      entries[entries.length - 1] = normalizedEntry;
-    } else {
-      entries.push(normalizedEntry);
-    }
+  const compactedEntries =
+    entries.length > MAX_TIMELINE_ENTRIES
+      ? entries.slice(entries.length - MAX_TIMELINE_ENTRIES)
+      : entries;
 
-    const compactedEntries =
-      entries.length > 7200 ? entries.slice(entries.length - 7200) : entries;
-
-    const nextTimeline = normalizeTimeline(webcamFolderName, {
-      version: 1,
-      webcamFolderName,
-      updatedAt: Date.now(),
-      entries: compactedEntries,
-    });
-
-    timelineCache.set(webcamFolderName, nextTimeline);
-    await persistReplayScoreboardTimeline(webcamFolderName, nextTimeline);
+  const nextTimeline = normalizeTimeline(webcamFolderName, {
+    version: 1,
+    webcamFolderName,
+    updatedAt: Date.now(),
+    entries: compactedEntries,
   });
 
-  writeQueue.set(
-    webcamFolderName,
-    nextTask.catch(error => {
-      console.log('[ReplayTimeline] append failed:', error);
-    }),
-  );
-
-  await nextTask;
+  timelineCache.set(webcamFolderName, nextTimeline);
+  scheduleReplayScoreboardTimelineFlush(webcamFolderName);
 };
