@@ -464,9 +464,39 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     [thumbnailOverlay.enabled],
   );
 
+  const hasThumbnailImages =
+    thumbnailOverlay.topLeft.length > 0 ||
+    thumbnailOverlay.topRight.length > 0 ||
+    thumbnailOverlay.bottomLeft.length > 0 ||
+    thumbnailOverlay.bottomRight.length > 0;
+
+  const renderFallbackPlaybackLogo = useCallback(() => {
+    const fallbackSource = images.logoSmall || images.logo;
+
+    if (!thumbnailOverlay.enabled || hasThumbnailImages || !fallbackSource) {
+      return null;
+    }
+
+    return (
+      <View pointerEvents={'none'} style={overlayStyles.overlayRoot}>
+        <View pointerEvents={'none'} style={[overlayStyles.slot, overlayStyles.topLeft]}>
+          <RNImage
+            source={fallbackSource}
+            style={overlayStyles.image}
+            resizeMode={'contain'}
+          />
+        </View>
+      </View>
+    );
+  }, [hasThumbnailImages, thumbnailOverlay.enabled]);
+
   const renderPlaybackLogoOverlay = useCallback(() => {
     if (!thumbnailOverlay.enabled) {
       return null;
+    }
+
+    if (!hasThumbnailImages) {
+      return renderFallbackPlaybackLogo();
     }
 
     return (
@@ -480,7 +510,12 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
         )}
       </View>
     );
-  }, [renderOverlaySlot, thumbnailOverlay]);
+  }, [
+    hasThumbnailImages,
+    renderFallbackPlaybackLogo,
+    renderOverlaySlot,
+    thumbnailOverlay,
+  ]);
 
   const playbackScoreboardProps = useMemo(() => {
     const timelineEntry = findTimelineEntryForPlayback();
@@ -746,7 +781,8 @@ const overlayStyles = StyleSheet.create({
   slot: {
     position: 'absolute',
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    maxWidth: '42%',
   },
   topLeft: {
     top: 10,
@@ -767,6 +803,7 @@ const overlayStyles = StyleSheet.create({
   image: {
     width: 120,
     height: 70,
+    marginRight: 8,
   },
 });
 
