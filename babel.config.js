@@ -1,3 +1,6 @@
+const isProduction =
+  (process.env.BABEL_ENV || process.env.NODE_ENV || 'development') === 'production';
+
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
   plugins: [
@@ -12,8 +15,20 @@ module.exports = {
         },
       },
     ],
+
+    ...(isProduction
+      ? [
+          [
+            'transform-remove-console',
+            {
+              exclude: ['error', 'warn'],
+            },
+          ],
+        ]
+      : []),
+
+    ['react-native-worklets-core/plugin'],
     ['react-native-reanimated/plugin'],
-    ['react-native-worklets-core/plugin']
   ],
-  sourceMaps: true,
+  sourceMaps: !isProduction,
 };

@@ -1,6 +1,7 @@
 import RNFS from 'react-native-fs';
 
-export const RECORDING_SEGMENT_DURATION_MS = 3 * 60 * 1000;
+// Tăng thời lượng mỗi segment để giảm tần suất xoay file/restart recording trên thiết bị yếu.
+export const RECORDING_SEGMENT_DURATION_MS = 5 * 60 * 1000;
 export const MAX_REPLAY_STORAGE_BYTES = 20 * 1024 * 1024 * 1024;
 
 const APP_MEDIA_ROOT = `${RNFS.DownloadDirectoryPath}/Aplus Billiards`;
