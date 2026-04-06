@@ -19,7 +19,7 @@ import {
 import {isCarom3CGame, isCaromLikeGame, isPoolGame} from 'utils/game';
 import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
-import {CountryItem} from './player/countries';
+import {COUNTRIES, CountryItem} from './player/countries';
 
 export interface Props extends Navigation {}
 
@@ -101,6 +101,40 @@ const clearSettingsDraft = () => {
 };
 
 
+const isRemoteUri = (value?: string) => /^https?:\/\//i.test(String(value || '').trim());
+
+const findCountryByCode = (code?: string) => {
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  return COUNTRIES.find(item => item.code.toUpperCase() === normalizedCode);
+};
+
+const sanitizePlayerSettings = (value: PlayerSettings): PlayerSettings => {
+  const safeValue = cloneSettingsValue(value) as PlayerSettings;
+
+  return {
+    ...safeValue,
+    playingPlayers: (safeValue.playingPlayers || []).map(player => {
+      const fallbackCountry = findCountryByCode((player as any)?.countryCode);
+      const rawFlag = String((player as any)?.flag || '').trim();
+      const safeFlag = isRemoteUri(rawFlag)
+        ? fallbackCountry?.flag || ''
+        : rawFlag || fallbackCountry?.flag || '';
+
+      return {
+        ...player,
+        countryCode: String((player as any)?.countryCode || fallbackCountry?.code || ''),
+        countryName: String((player as any)?.countryName || fallbackCountry?.name || ''),
+        flag: safeFlag,
+      };
+    }),
+  } as PlayerSettings;
+};
+
+
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
   const restoredDraftRef = useRef(false);
@@ -114,7 +148,9 @@ const GameSettingsViewModel = (props: Props) => {
       runtimeDraft?.gameSettingsMode ?? GAME_SETTINGS,
     );
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>(
-    runtimeDraft?.playerSettings ?? PLAYER_SETTINGS(),
+    runtimeDraft?.playerSettings
+      ? sanitizePlayerSettings(runtimeDraft.playerSettings)
+      : PLAYER_SETTINGS(),
   );
 
   const _resetData = useCallback(() => {
@@ -148,7 +184,7 @@ const GameSettingsViewModel = (props: Props) => {
       restoredDraftRef.current = true;
       setCategory(persistedDraft.category);
       setGameSettingsMode(persistedDraft.gameSettingsMode);
-      setPlayerSettings(persistedDraft.playerSettings);
+      setPlayerSettings(sanitizePlayerSettings(persistedDraft.playerSettings));
     })();
 
     return () => {

@@ -9,11 +9,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
-import QRCode from 'react-native-qrcode-svg';
 import RNFS from 'react-native-fs';
 import {showEditor, listFiles, deleteFile} from 'react-native-video-trim';
 import Video from 'react-native-video';
-import {NetworkInfo} from 'react-native-network-info';
 import {useSelector} from 'react-redux';
 
 import images from 'assets';
@@ -56,7 +54,6 @@ const setReplayReturnRequestSync = (
     : null;
 };
 
-const {HttpServer} = NativeModules;
 const REPLAY_RESUME_SNAPSHOT_STORAGE_KEY = '@APLUS_REPLAY_RESUME_SNAPSHOT_V3';
 
 type PlaybackThumbnailOverlayState = {
@@ -127,8 +124,6 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     buildReplayFolderPath(props.webcamFolderName),
   );
   const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [ip, setIp] = useState('');
-  const [fileUrl, setFileUrl] = useState<string>();
   const [thumbnailOverlay, setThumbnailOverlay] =
     useState<PlaybackThumbnailOverlayState>(EMPTY_THUMBNAIL_OVERLAY);
   const [replaySnapshot, setReplaySnapshot] =
@@ -224,14 +219,6 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   }, [viewModel.currentIndex]);
 
   useEffect(() => {
-    NetworkInfo.getIPAddress().then(ipAddress => {
-      if (ipAddress) {
-        setIp(ipAddress);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
     resolveReplayFolder(props.webcamFolderName).then(path => {
       if (path) {
         setFolder(path);
@@ -248,41 +235,18 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   }, [loadReplaySnapshot]);
 
   useEffect(() => {
-    const currentPath =
-      viewModel.videoFiles.length > 0
-        ? viewModel.videoFiles[viewModel.currentIndex]?.path
-        : undefined;
-
-    if (!ip || !currentPath) {
-      return;
-    }
-
-    startServer(currentPath);
-  }, [ip, viewModel.currentIndex, viewModel.videoFiles]);
-
-  const startServer = async (filePath: string) => {
-    try {
-      await stopServer();
-      await HttpServer.startServer(filePath);
-      setFileUrl(`http://${ip}:8000${filePath}`);
-    } catch (_error) {
-      // bỏ qua lỗi server preview nội bộ
-    }
-  };
-
-  const stopServer = async () => {
-    try {
-      await HttpServer.stopServer();
-      setFileUrl('');
-    } catch (_error) {
-      // bỏ qua lỗi stop server
-    }
-  };
+    return () => {
+      try {
+        viewModel.videoRef.current?.pause?.();
+      } catch (_error) {
+        // ignore cleanup errors
+      }
+    };
+  }, [viewModel.videoRef]);
 
   const onBackToMatch = async () => {
     try {
       viewModel.videoRef.current?.pause?.();
-      await stopServer();
     } catch (_error) {
       // bỏ qua lỗi dọn dẹp playback
     }
@@ -310,11 +274,10 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     );
   }, []);
 
-  const onPress = async (index: number, path: string) => {
+  const onPress = (index: number, _path: string) => {
     setPlaybackCurrentTime(0);
     setIsPaused(false);
     viewModel.setCurrentIndex(index);
-    await startServer(path);
   };
 
   const currentVideoPath =
@@ -646,7 +609,6 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
               <Text lineHeight={15}>No video!</Text>
             )}
 
-            {fileUrl ? <QRCode value={fileUrl} size={100} /> : ''}
 
             <Text style={styles.label}>
               {i18n.t('txtTocDoXem')}: {playbackRate.toFixed(2)}x

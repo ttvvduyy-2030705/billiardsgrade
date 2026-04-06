@@ -11,6 +11,7 @@ const DEFAULT_PLAYERS = () => [
     countryCode: '',
     countryName: '',
     flag: '',
+    flagImage: '',
   },
   {
     name: i18n.t('player2'),
@@ -19,6 +20,7 @@ const DEFAULT_PLAYERS = () => [
     countryCode: '',
     countryName: '',
     flag: '',
+    flagImage: '',
   },
 ];
 

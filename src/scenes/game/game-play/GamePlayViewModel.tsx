@@ -38,6 +38,7 @@ import {
   pruneReplayStorage,
   listReplayFiles,
   cleanupBrokenReplayFiles,
+  waitForReplayFiles,
 } from 'services/replay/localReplay';
 import {appendReplayScoreboardTimelineEntry, flushReplayScoreboardTimeline} from 'services/replay/replayTimeline';
 import {screens} from 'scenes/screens';
@@ -2197,40 +2198,55 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    await flushReplayScoreboardTimeline(webcamFolderName);
+    try {
+      shouldStartRecordingRef.current = false;
+      pendingStartRecordingRef.current = false;
 
-    await setReplayResumeSnapshot({
-      matchSessionId: matchSessionIdRef.current,
-      webcamFolderName,
-      currentPlayerIndex,
-      poolBreakPlayerIndex,
-      totalTurns,
-      totalTime,
-      countdownTime,
-      warmUpCount,
-      warmUpCountdownTime,
-      playerSettings: cloneReplayValue(playerSettings),
-      winner: cloneReplayValue(winner),
-      isStarted,
-      isPaused,
-      isMatchPaused,
-      gameBreakEnabled,
-      poolBreakEnabled,
-      soundEnabled,
-      proModeEnabled,
-      restoreOnNextFocus: true,
-      savedAt: Date.now(),
-    });
+      await flushReplayScoreboardTimeline(webcamFolderName);
 
-    // Dùng push để luôn mở màn replay mới nằm trên đúng trận đang tạm dừng.
-    // Nếu dùng navigate, React Navigation có thể quay về một route playback cũ
-    // đang có sẵn trong stack, khiến nút quay lại không trở về đúng trận hiện tại.
-    push(screens.playback, {
-      webcamFolderName,
-      merged: false,
-      returnToMatch: true,
-      matchSessionId: matchSessionIdRef.current,
-    });
+      // Chỉ mở replay khi clip gần nhất đã finalize xong.
+      // Đây là chỗ dễ gây crash/blank replay nhất nếu bấm replay quá nhanh ngay sau khi pause.
+      const recordedPath = await stopVideoRecording(false);
+      const replayFiles = await waitForReplayFiles(webcamFolderName, 1, 8000);
+
+      if (!recordedPath && replayFiles.length === 0) {
+        Alert.alert(i18n.t('txtwarn'), 'Video xem lại chưa sẵn sàng. Hãy chờ 1 chút rồi mở lại.');
+        return;
+      }
+
+      await setReplayResumeSnapshot({
+        matchSessionId: matchSessionIdRef.current,
+        webcamFolderName,
+        currentPlayerIndex,
+        poolBreakPlayerIndex,
+        totalTurns,
+        totalTime,
+        countdownTime,
+        warmUpCount,
+        warmUpCountdownTime,
+        playerSettings: cloneReplayValue(playerSettings),
+        winner: cloneReplayValue(winner),
+        isStarted,
+        isPaused,
+        isMatchPaused,
+        gameBreakEnabled,
+        poolBreakEnabled,
+        soundEnabled,
+        proModeEnabled,
+        restoreOnNextFocus: true,
+        savedAt: Date.now(),
+      });
+
+      push(screens.playback, {
+        webcamFolderName,
+        merged: false,
+        returnToMatch: true,
+        matchSessionId: matchSessionIdRef.current,
+      });
+    } catch (error) {
+      console.log('[Replay] open replay failed:', error);
+      Alert.alert(i18n.t('txtError'), 'Không mở được replay. Hãy thử lại sau vài giây.');
+    }
   }, [
     countdownTime,
     currentPlayerIndex,

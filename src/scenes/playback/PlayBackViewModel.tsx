@@ -4,7 +4,7 @@ import {OnVideoErrorData, VideoRef} from 'react-native-video';
 import RNFS from 'react-native-fs';
 
 import i18n from 'i18n';
-import {listReplayFiles, resolveReplayFolder} from 'services/replay/localReplay';
+import {listReplayFiles, resolveReplayFolder, waitForReplayFiles} from 'services/replay/localReplay';
 
 export interface PlayBackWebcamViewModelProps {
   webcamFolderName: string;
@@ -60,46 +60,56 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
     [endTime, isPlaying],
   );
 
+  const loadRequestIdRef = useRef(0);
+
   const loadFiles = useCallback(async () => {
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
     setIsLoading(true);
 
-    const folder = await resolveReplayFolder(props.webcamFolderName);
-    setResolvedFolder(folder);
-
-    if (!folder) {
-      setVideoFiles([]);
-      setTotalFiles(0);
-      setCurrentIndex(0);
-      setIsPlaying(false);
-      setIsLoading(false);
-      console.log('[Replay] Folder does not exist:', props.webcamFolderName);
-      return;
-    }
-
-    let files: RNFS.ReadDirItem[] = [];
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      files = await listReplayFiles(props.webcamFolderName);
-      if (files.length > 0) {
-        break;
+    try {
+      const folder = await resolveReplayFolder(props.webcamFolderName);
+      if (loadRequestIdRef.current !== requestId) {
+        return;
       }
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
+      setResolvedFolder(folder);
 
-    setVideoFiles(files);
-    setTotalFiles(files.length);
+      if (!folder) {
+        setVideoFiles([]);
+        setTotalFiles(0);
+        setCurrentIndex(0);
+        setIsPlaying(false);
+        console.log('[Replay] Folder does not exist:', props.webcamFolderName);
+        return;
+      }
 
-    const initialIndex = files.length > 0 ? Math.max(0, files.length - 1) : 0;
-    setCurrentIndex(initialIndex);
-    setIsPlaying(files.length > 0);
-    setIsLoading(false);
+      const waitedFiles = await waitForReplayFiles(props.webcamFolderName, 1, 8000);
+      const files = waitedFiles.length > 0 ? waitedFiles : await listReplayFiles(props.webcamFolderName);
+      if (loadRequestIdRef.current !== requestId) {
+        return;
+      }
 
-    if (files.length === 0) {
-      console.log('[Replay] No files found after retry:', props.webcamFolderName);
+      setVideoFiles(files);
+      setTotalFiles(files.length);
+      setCurrentIndex(prev => (files.length === 0 ? 0 : Math.min(prev, files.length - 1)));
+      setIsPlaying(files.length > 0);
+
+      if (files.length === 0) {
+        console.log('[Replay] No files found after extended retry:', props.webcamFolderName);
+      }
+    } finally {
+      if (loadRequestIdRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   }, [props.webcamFolderName]);
 
   useEffect(() => {
     loadFiles();
+
+    return () => {
+      loadRequestIdRef.current += 1;
+    };
   }, [loadFiles]);
 
   const onSelectMinuteForWebcam = useCallback(

@@ -281,3 +281,14 @@ export const COUNTRIES: CountryItem[] = [
 ];
 
 export const normalizeCountryName = normalize;
+
+
+export const getCountryFlagImageUri = (code?: string, width: number = 80) => {
+  const normalizedCode = String(code || '').trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(normalizedCode)) {
+    return '';
+  }
+
+  const safeWidth = Number.isFinite(width) && width > 0 ? Math.round(width) : 80;
+  return `https://flagcdn.com/w${safeWidth}/${normalizedCode}.png`;
+};

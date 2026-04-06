@@ -1,5 +1,5 @@
 import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
-import {FlatList, Modal, Pressable, Text, TextInput, View} from 'react-native';
+import {FlatList, Image, Modal, Pressable, Text, TextInput, View} from 'react-native';
 
 import i18n from 'i18n';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
@@ -13,7 +13,12 @@ import {BilliardCategory} from 'types/category';
 import {Player, PlayerNumber, PlayerSettings} from 'types/player';
 import {GameMode} from 'types/settings';
 
-import {COUNTRIES, CountryItem, normalizeCountryName} from './countries';
+import {
+  COUNTRIES,
+  CountryItem,
+  getCountryFlagImageUri,
+  normalizeCountryName,
+} from './countries';
 import styles from './styles';
 
 interface Props {
@@ -35,6 +40,23 @@ const getLocale = () => {
       : '';
 
   return String((i18n as any)?.locale ?? maybeCurrentLocale ?? '').toLowerCase();
+};
+
+const isRemoteUri = (value?: string) => /^https?:\/\//i.test(String(value || '').trim());
+
+const getPlayerFlagImageUri = (player?: {countryCode?: string; flag?: string}) => {
+  const fromCode = getCountryFlagImageUri(player?.countryCode, 160);
+  if (fromCode) {
+    return fromCode;
+  }
+
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? rawFlag : '';
+};
+
+const getPlayerFlagText = (player?: {flag?: string}) => {
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? '' : rawFlag;
 };
 
 const EditablePlayerNameInput = memo(
@@ -240,8 +262,35 @@ const PlayerSettingsComponent = ({
       };
       const playerName = currentPlayer.name ?? '';
       const playerInitial = playerName.trim().charAt(0) || 'N';
-      const playerFlag = currentPlayer.flag || '';
+      const playerFlagImage = getPlayerFlagImageUri(currentPlayer);
+      const playerFlagText = getPlayerFlagText(currentPlayer);
       const isClassicDarkCard = !isPool && index >= 2;
+
+      const avatarShellStyle = {
+        width: isPool ? 48 : 44,
+        height: isPool ? 48 : 44,
+        minHeight: 0,
+        borderRadius: 10,
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+        overflow: 'hidden' as const,
+        alignSelf: 'center' as const,
+        backgroundColor: isClassicDarkCard
+          ? 'rgba(255,255,255,0.14)'
+          : isPool
+          ? '#D8D8D8'
+          : '#F4ECD1',
+      };
+
+      const flagFrameStyle = {
+        width: isPool ? 36 : 34,
+        height: isPool ? 24 : 22,
+        borderRadius: 4,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.55)',
+        overflow: 'hidden' as const,
+      };
 
       return (
         <View
@@ -253,18 +302,27 @@ const PlayerSettingsComponent = ({
           <Pressable
             onPress={() => openCountryModal(index)}
             style={({pressed}) => [
-              styles.avatar,
-              isClassicDarkCard && styles.avatarDark,
-              isPool && styles.avatarPool,
+              avatarShellStyle,
               pressed && styles.selectorButtonPressed,
             ]}>
-            <Text
-  style={[
-    styles.avatarText,
-    isClassicDarkCard && !playerFlag && styles.avatarTextLight,
-  ]}>
-  {playerFlag || playerInitial}
-</Text>
+            {playerFlagImage ? (
+              <View style={flagFrameStyle}>
+                <Image
+                  source={{uri: playerFlagImage}}
+                  resizeMode="cover"
+                  fadeDuration={0}
+                  style={{width: '100%', height: '100%', backgroundColor: '#FFFFFF'}}
+                />
+              </View>
+            ) : (
+              <Text
+                style={[
+                  styles.avatarText,
+                  isClassicDarkCard && !playerFlagText && styles.avatarTextLight,
+                ]}>
+                {playerFlagText || playerInitial}
+              </Text>
+            )}
           </Pressable>
 
           <View style={styles.playerCardRight}>
@@ -376,6 +434,7 @@ const PlayerSettingsComponent = ({
               style={styles.countryList}
               renderItem={({item}) => {
                 const displayFlag = item.flag || '🏳️';
+                const displayFlagImage = getCountryFlagImageUri(item.code, 80);
 
                 return (
                   <Pressable
@@ -395,7 +454,28 @@ const PlayerSettingsComponent = ({
                       }
                       closeCountryModal();
                     }}>
-                    <Text style={styles.countryFlag}>{displayFlag}</Text>
+                    {displayFlagImage ? (
+                      <View
+                        style={{
+                          width: 42,
+                          height: 28,
+                          marginRight: 12,
+                          borderRadius: 4,
+                          backgroundColor: '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.55)',
+                          overflow: 'hidden',
+                        }}>
+                        <Image
+                          source={{uri: displayFlagImage}}
+                          resizeMode="cover"
+                          fadeDuration={0}
+                          style={{width: '100%', height: '100%'}}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={styles.countryFlag}>{displayFlag}</Text>
+                    )}
                     <Text style={styles.countryName}>{item.name}</Text>
                   </Pressable>
                 );

@@ -3,6 +3,7 @@ import {
   StyleSheet,
   TextInput,
   Text as RNText,
+  Image as RNImage,
   useWindowDimensions,
 } from 'react-native';
 
@@ -12,6 +13,7 @@ import i18n from 'i18n';
 import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
+import {getCountryFlagImageUri} from '../../settings/player/countries';
 
 const isEnglish = () => {
   const locale = String(
@@ -21,6 +23,24 @@ const isEnglish = () => {
 };
 
 const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
+
+
+const isRemoteUri = (value?: string) => /^https?:\/\//i.test(String(value || '').trim());
+
+const getPlayerFlagImageUri = (player?: {countryCode?: string; flag?: string}) => {
+  const fromCode = getCountryFlagImageUri(player?.countryCode, 160);
+  if (fromCode) {
+    return fromCode;
+  }
+
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? rawFlag : '';
+};
+
+const getPlayerFlagText = (player?: {flag?: string}) => {
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? '' : rawFlag;
+};
 
 const GamePlayer = (
   props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean},
@@ -139,7 +159,8 @@ const GamePlayer = (
     return Array.from({length: extraTimeTurns}, (_, index) => index);
   }, [extraTimeTurns]);
 
-  const playerFlag = String((props.player as any)?.flag || '').trim();
+  const playerFlag = getPlayerFlagText(props.player as any);
+  const playerFlagImage = getPlayerFlagImageUri(props.player as any);
 
   return (
     <View
@@ -150,21 +171,30 @@ const GamePlayer = (
         isActiveCard ? styles.panelActive : styles.panelInactive,
       ]}>
       <View style={[styles.nameRow, isCompactLayout && styles.nameRowCompact]}>
-        {playerFlag ? (
+        {playerFlagImage || playerFlag ? (
           <View
             style={[
               styles.flagBadge,
               isCompactLayout && styles.flagBadgeCompact,
               isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
             ]}>
-            <RNText
-              style={[
-                styles.flagText,
-                isCompactLayout && styles.flagTextCompact,
-                !isActiveCard && styles.flagTextInactive,
-              ]}>
-              {playerFlag}
-            </RNText>
+            {playerFlagImage ? (
+              <RNImage
+                source={{uri: playerFlagImage}}
+                resizeMode="cover"
+                fadeDuration={0}
+                style={{width: '100%', height: '100%', backgroundColor: '#FFFFFF'}}
+              />
+            ) : (
+              <RNText
+                style={[
+                  styles.flagText,
+                  isCompactLayout && styles.flagTextCompact,
+                  !isActiveCard && styles.flagTextInactive,
+                ]}>
+                {playerFlag}
+              </RNText>
+            )}
           </View>
         ) : null}
 

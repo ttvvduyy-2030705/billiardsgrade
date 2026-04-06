@@ -1,10 +1,10 @@
 import RNFS from 'react-native-fs';
 
 // Replay VAR trong trận:
-// - giữ đúng 30 phút gần nhất
+// - chỉ giữ đúng 5 phút gần nhất
 // - chia 5 phút / 1 clip
-// - tối đa 6 clip trong thư mục replay
-// - đủ 6 clip thì xóa clip cũ nhất để nhường chỗ cho clip mới
+// - tối đa 1 clip trong thư mục replay
+// - khi có clip mới thì xóa thẳng clip cũ để luôn giữ khoảnh khắc gần nhất
 //
 // Lưu trữ trên máy:
 // - vẫn copy đầy đủ từng clip sang kho archive
@@ -20,9 +20,9 @@ const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.m4v', '.ts'];
 
 const MIN_VALID_VIDEO_BYTES = 1 * 1024 * 1024; // 1MB
 const FILE_SETTLE_MS = 1500;
-const MAX_REPLAY_WINDOW_MINUTES = 30;
+const MAX_REPLAY_WINDOW_MINUTES = 5;
 const REPLAY_SEGMENT_MINUTES = 5;
-const MAX_REPLAY_SEGMENTS = Math.floor(MAX_REPLAY_WINDOW_MINUTES / REPLAY_SEGMENT_MINUTES); // 6 clip
+const MAX_REPLAY_SEGMENTS = Math.floor(MAX_REPLAY_WINDOW_MINUTES / REPLAY_SEGMENT_MINUTES); // 1 clip
 const PRUNE_MIN_INTERVAL_MS = 15 * 60 * 1000;
 
 let lastPruneRunAt = 0;
@@ -197,8 +197,25 @@ export const listReplayFiles = async (webcamFolderName: string) => {
   const settled = files.filter(item => !isSettlingVideo(item));
   const visible = settled.length > 0 ? settled : files;
 
-  // Chỉ trả về tối đa 6 clip mới nhất cho playback, tránh load quá nhiều file.
+  // Chỉ trả về clip mới nhất cho playback, đảm bảo VAR luôn bám sát khoảnh khắc vừa xảy ra.
   return visible.slice(-MAX_REPLAY_SEGMENTS);
+};
+
+
+export const waitForReplayFiles = async (
+  webcamFolderName: string,
+  minCount = 1,
+  timeoutMs = 8000,
+) => {
+  const startedAt = Date.now();
+  let files = await listReplayFiles(webcamFolderName);
+
+  while (files.length < minCount && Date.now() - startedAt < timeoutMs) {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    files = await listReplayFiles(webcamFolderName);
+  }
+
+  return files;
 };
 
 export const registerReplaySegment = async (
@@ -241,7 +258,7 @@ export const registerReplaySegment = async (
       }
     }
 
-    // Giữ đúng 6 clip mới nhất trong thư mục replay.
+    // Giữ đúng 1 clip mới nhất trong thư mục replay.
     await enforceReplayWindow(webcamFolderName);
   } catch (error) {
     console.log('[Replay] stat/register failed:', error);

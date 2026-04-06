@@ -1,5 +1,5 @@
 import React, {memo, useCallback} from 'react';
-import {TextStyle} from 'react-native';
+import {Image as RNImage, TextStyle} from 'react-native';
 import View from 'components/View';
 import Text from 'components/Text';
 import Image from 'components/Image';
@@ -11,6 +11,25 @@ import {dims} from 'configuration';
 import images from 'assets';
 import CaromInfoViewModel, {Props} from './CaromInfoViewModel';
 import styles from './styles';
+import {getCountryFlagImageUri} from '../../../settings/player/countries';
+
+
+const isRemoteUri = (value?: string) => /^https?:\/\//i.test(String(value || '').trim());
+
+const getPlayerFlagImageUri = (player?: {countryCode?: string; flag?: string}) => {
+  const fromCode = getCountryFlagImageUri(player?.countryCode, 80);
+  if (fromCode) {
+    return fromCode;
+  }
+
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? rawFlag : '';
+};
+
+const getPlayerFlagText = (player?: {flag?: string}) => {
+  const rawFlag = String(player?.flag || '').trim();
+  return isRemoteUri(rawFlag) ? '' : rawFlag;
+};
 
 const CaromInfo = (props: Props) => {
   const viewModel = CaromInfoViewModel(props);
@@ -54,7 +73,8 @@ const CaromInfo = (props: Props) => {
       const totalPointValue = Number(player.totalPoint || 0);
       const totalPointFont = getTotalPointFont(totalPointValue);
 
-      const playerFlag = String((player as any)?.flag || '').trim();
+      const playerFlag = getPlayerFlagText(player as any);
+      const playerFlagImage = getPlayerFlagImageUri(player as any);
 
       return (
         <View
@@ -62,9 +82,18 @@ const CaromInfo = (props: Props) => {
           direction={'row'}
           alignItems={'center'}>
           <View direction={'row'} alignItems={'center'} paddingLeft={'10'}>
-            {playerFlag ? (
+            {playerFlagImage || playerFlag ? (
               <View style={styles.flagBadge}>
-                <Text style={styles.flagText}>{playerFlag}</Text>
+                {playerFlagImage ? (
+                  <RNImage
+                    source={{uri: playerFlagImage}}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                    style={{width: '100%', height: '100%', backgroundColor: '#FFFFFF'}}
+                  />
+                ) : (
+                  <Text style={styles.flagText}>{playerFlag}</Text>
+                )}
               </View>
             ) : null}
 
