@@ -1,26 +1,18 @@
 import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
 import {
   DeviceEventEmitter,
-  Dimensions,
   Image as RNImage,
   NativeEventEmitter,
   NativeModules,
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
-import {ReactNativeZoomableView} from '@openspacelabs/react-native-zoomable-view';
 import QRCode from 'react-native-qrcode-svg';
 import RNFS from 'react-native-fs';
 import {showEditor, listFiles, deleteFile} from 'react-native-video-trim';
 import Video from 'react-native-video';
-import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {NetworkInfo} from 'react-native-network-info';
 import {useSelector} from 'react-redux';
 
@@ -144,6 +136,8 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   const [scoreboardTimeline, setScoreboardTimeline] =
     useState<ReplayScoreboardTimelineEntry[]>([]);
   const [playbackCurrentTime, setPlaybackCurrentTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
 
   const loadThumbnailOverlay = useCallback(async () => {
     try {
@@ -223,11 +217,6 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   useEffect(() => {
     loadScoreboardTimeline();
-    const interval = setInterval(loadScoreboardTimeline, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [loadScoreboardTimeline]);
 
   useEffect(() => {
@@ -252,27 +241,24 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   useEffect(() => {
     loadThumbnailOverlay();
-    const interval = setInterval(loadThumbnailOverlay, 1500);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [loadThumbnailOverlay]);
 
   useEffect(() => {
     loadReplaySnapshot();
-    const interval = setInterval(loadReplaySnapshot, 500);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [loadReplaySnapshot]);
 
   useEffect(() => {
-    if (viewModel.videoFiles.length > 0) {
-      startServer(viewModel.videoFiles[0].path);
+    const currentPath =
+      viewModel.videoFiles.length > 0
+        ? viewModel.videoFiles[viewModel.currentIndex]?.path
+        : undefined;
+
+    if (!ip || !currentPath) {
+      return;
     }
-  }, [viewModel.videoFiles]);
+
+    startServer(currentPath);
+  }, [ip, viewModel.currentIndex, viewModel.videoFiles]);
 
   const startServer = async (filePath: string) => {
     try {
@@ -326,32 +312,40 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   const onPress = async (index: number, path: string) => {
     setPlaybackCurrentTime(0);
+    setIsPaused(false);
     viewModel.setCurrentIndex(index);
     await startServer(path);
   };
+
+  const currentVideoPath =
+    viewModel.videoFiles?.[viewModel.currentIndex]?.path || '';
+
+  const currentVideoDuration =
+    viewModel.videoDurations[currentVideoPath] || 0;
+
+  const safeSeekTo = useCallback((time: number) => {
+    const boundedDuration = Math.max(0, Number(currentVideoDuration || 0));
+    const nextTime = Math.max(0, Math.min(Number(time || 0), boundedDuration > 0 ? boundedDuration - 0.05 : Number(time || 0)));
+    try {
+      viewModel.videoRef.current?.seek?.(nextTime);
+      setPlaybackCurrentTime(nextTime);
+    } catch (_error) {
+      // ignore seek errors to keep replay stable
+    }
+  }, [currentVideoDuration, viewModel.videoRef]);
+
+  const seekBy = useCallback((deltaSeconds: number) => {
+    safeSeekTo(Math.max(0, Number(playbackCurrentTime || 0) + deltaSeconds));
+  }, [playbackCurrentTime, safeSeekTo]);
+
+  const togglePaused = useCallback(() => {
+    setIsPaused(prev => !prev);
+  }, []);
 
   const getFileName = (filePath: string) => {
     return filePath.split('/').pop();
   };
 
-  const scale = useSharedValue(1);
-  const doubleTapZoom = 2;
-  const maxZoom = 128;
-  const minZoom = 1;
-
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate(event => {
-      scale.value = Math.max(minZoom, Math.min(event.scale, maxZoom));
-    })
-    .onEnd(() => {
-      if (scale.value < minZoom) {
-        scale.value = withSpring(minZoom);
-      }
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
 
   useEffect(() => {
     const videoTrimModule = NativeModules.VideoTrim;
@@ -402,45 +396,51 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     };
   }, [folder, viewModel.loadFiles]);
 
-  const {width} = Dimensions.get('window');
 
-  const getVideoWidth = () => {
-    return Math.floor(width);
-  };
+  useEffect(() => {
+    setIsPaused(false);
+    setIsScrubbing(false);
+  }, [viewModel.currentIndex, currentVideoPath]);
 
-  const getVideoHeight = () => {
-    return Math.floor((9 * Math.floor(width)) / 16);
-  };
+  const timelineBySegment = useMemo(() => {
+    const grouped = new Map<number, ReplayScoreboardTimelineEntry[]>();
 
-  const currentVideoPath =
-    viewModel.videoFiles?.[viewModel.currentIndex]?.path || '';
-
-  const findTimelineEntryForPlayback = useCallback(() => {
-    if (!scoreboardTimeline.length) {
-      return null;
+    for (const entry of scoreboardTimeline) {
+      const list = grouped.get(entry.segmentIndex) || [];
+      list.push(entry);
+      grouped.set(entry.segmentIndex, list);
     }
 
-    const currentSegmentEntries = scoreboardTimeline.filter(
-      item => item.segmentIndex === viewModel.currentIndex,
-    );
+    return grouped;
+  }, [scoreboardTimeline]);
+
+  const findTimelineEntryForPlayback = useCallback(() => {
+    const currentSegmentEntries =
+      timelineBySegment.get(viewModel.currentIndex) || [];
 
     if (!currentSegmentEntries.length) {
       return null;
     }
 
     const safeCurrentTime = Math.max(0, Number(playbackCurrentTime || 0));
-    let selectedEntry = currentSegmentEntries[0];
+    let left = 0;
+    let right = currentSegmentEntries.length - 1;
+    let matchedIndex = 0;
 
-    for (const entry of currentSegmentEntries) {
-      if (entry.segmentTime <= safeCurrentTime + 0.15) {
-        selectedEntry = entry;
+    while (left <= right) {
+      const middle = Math.floor((left + right) / 2);
+      const middleTime = Number(currentSegmentEntries[middle]?.segmentTime || 0);
+
+      if (middleTime <= safeCurrentTime + 0.15) {
+        matchedIndex = middle;
+        left = middle + 1;
       } else {
-        break;
+        right = middle - 1;
       }
     }
 
-    return selectedEntry;
-  }, [playbackCurrentTime, scoreboardTimeline, viewModel.currentIndex]);
+    return currentSegmentEntries[matchedIndex] || null;
+  }, [playbackCurrentTime, timelineBySegment, viewModel.currentIndex]);
 
   const renderOverlaySlot = useCallback(
     (imageList: string[], positionStyle: any) => {
@@ -676,61 +676,88 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
           {viewModel.isLoading ? (
             <View style={styles.webcam}>{WEBCAM_LOADER}</View>
           ) : viewModel.videoFiles.length > 0 ? (
-            <GestureDetector gesture={pinchGesture}>
-              <Animated.View style={[styles.webcam, animatedStyle]}>
-                <ReactNativeZoomableView
-                  maxZoom={40}
-                  minZoom={1}
-                  zoomStep={0.5}
-                  initialZoom={1}
-                  bindToBorders={true}
-                  doubleTapZoomToCenter={true}
-                  disablePanOnInitialZoom={true}
-                  panBoundaryPadding={0}
-                  movementSensibility={3}
-                  contentHeight={getVideoHeight()}
-                  contentWidth={getVideoWidth()}>
-                  <Video
-                    resizeMode="contain"
-                    id={'webcam-billiards-playback'}
-                    ref={viewModel.videoRef}
-                    style={[styles.webcam]}
-                    controls={true}
-                    source={{
-                      uri:
-                        viewModel.videoFiles.length > 0
-                          ? viewModel.videoFiles[viewModel.currentIndex].path
-                          : '',
-                    }}
-                    selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
-                    onError={viewModel.onWebcamError}
-                    renderLoader={WEBCAM_LOADER}
-                    rate={playbackRate}
-                    onLoad={data => {
-                      viewModel.handleVideoLoad(currentVideoPath, data?.duration || 0);
-                      setPlaybackCurrentTime(0);
-                      viewModel.handleLoad();
-                    }}
-                    onProgress={data => {
-                      setPlaybackCurrentTime(data?.currentTime || 0);
-                      viewModel.handleProgress(data);
-                    }}
-                    onEnd={viewModel.handleNext}
-                    controlsStyles={{
-                      hideNext: true,
-                      hidePrevious: true,
-                      hideForward: true,
-                      hideRewind: true,
-                      hideDuration: false,
-                      hideSettingButton: false,
-                      hidePosition: false,
+            <View style={styles.webcam} collapsable={false}>
+              <Video
+                resizeMode="contain"
+                id={'webcam-billiards-playback'}
+                ref={viewModel.videoRef}
+                style={styles.webcam}
+                controls={false}
+                paused={isPaused || isScrubbing}
+                source={{
+                  uri:
+                    viewModel.videoFiles.length > 0
+                      ? viewModel.videoFiles[viewModel.currentIndex].path
+                      : '',
+                }}
+                selectedVideoTrack={WEBCAM_SELECTED_VIDEO_TRACK}
+                onError={viewModel.onWebcamError}
+                renderLoader={WEBCAM_LOADER}
+                rate={playbackRate}
+                progressUpdateInterval={500}
+                onLoad={data => {
+                  viewModel.handleVideoLoad(currentVideoPath, data?.duration || 0);
+                  setPlaybackCurrentTime(0);
+                  viewModel.handleLoad();
+                }}
+                onProgress={data => {
+                  if (!isScrubbing) {
+                    setPlaybackCurrentTime(data?.currentTime || 0);
+                  }
+                  viewModel.handleProgress(data);
+                }}
+                onEnd={viewModel.handleNext}
+              />
+              <View
+                style={overlayStyles.touchBlocker}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+              />
+              {renderPlaybackLogoOverlay()}
+              {renderPlaybackScoreboard()}
+              <View style={overlayStyles.transportBar} pointerEvents={'box-none'}>
+                <View style={overlayStyles.transportButtons}>
+                  <Button style={overlayStyles.transportButton} onPress={viewModel.handlePrevious}>
+                    <Text lineHeight={15}>{'Prev'}</Text>
+                  </Button>
+                  <Button style={overlayStyles.transportButton} onPress={() => seekBy(-10)}>
+                    <Text lineHeight={15}>{'-10s'}</Text>
+                  </Button>
+                  <Button style={overlayStyles.transportButtonPrimary} onPress={togglePaused}>
+                    <Text lineHeight={15}>{isPaused ? 'Play' : 'Pause'}</Text>
+                  </Button>
+                  <Button style={overlayStyles.transportButton} onPress={() => seekBy(10)}>
+                    <Text lineHeight={15}>{'+10s'}</Text>
+                  </Button>
+                  <Button style={overlayStyles.transportButton} onPress={viewModel.handleNext}>
+                    <Text lineHeight={15}>{'Next'}</Text>
+                  </Button>
+                </View>
+                <View style={overlayStyles.scrubberRow}>
+                  <Text style={overlayStyles.timeLabel}>
+                    {Math.floor(playbackCurrentTime / 60)}:{String(Math.floor(playbackCurrentTime % 60)).padStart(2, '0')}
+                  </Text>
+                  <Slider
+                    style={overlayStyles.scrubber}
+                    minimumValue={0}
+                    maximumValue={Math.max(currentVideoDuration, 1)}
+                    value={Math.min(playbackCurrentTime, Math.max(currentVideoDuration, 1))}
+                    minimumTrackTintColor={'#ffffff'}
+                    maximumTrackTintColor={'rgba(255,255,255,0.35)'}
+                    thumbTintColor={'#ffffff'}
+                    onSlidingStart={() => setIsScrubbing(true)}
+                    onValueChange={value => setPlaybackCurrentTime(Number(value || 0))}
+                    onSlidingComplete={value => {
+                      safeSeekTo(Number(value || 0));
+                      setIsScrubbing(false);
                     }}
                   />
-                </ReactNativeZoomableView>
-                {renderPlaybackLogoOverlay()}
-                {renderPlaybackScoreboard()}
-              </Animated.View>
-            </GestureDetector>
+                  <Text style={overlayStyles.timeLabel}>
+                    {Math.floor(currentVideoDuration / 60)}:{String(Math.floor(currentVideoDuration % 60)).padStart(2, '0')}
+                  </Text>
+                </View>
+              </View>
+            </View>
           ) : (
             <View style={styles.webcam} />
           )}
@@ -799,6 +826,57 @@ const overlayStyles = StyleSheet.create({
   bottomRight: {
     bottom: 10,
     right: 10,
+  },
+  touchBlocker: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9,
+  },
+  transportBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 8,
+    zIndex: 20,
+    elevation: 20,
+  },
+  transportButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  transportButton: {
+    minWidth: 70,
+    marginHorizontal: 4,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 8,
+  },
+  transportButtonPrimary: {
+    minWidth: 82,
+    marginHorizontal: 4,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(170,0,0,0.78)',
+    borderRadius: 8,
+  },
+  scrubberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  scrubber: {
+    flex: 1,
+    height: 28,
+    marginHorizontal: 8,
+  },
+  timeLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    minWidth: 38,
+    textAlign: 'center',
   },
   image: {
     width: 120,
