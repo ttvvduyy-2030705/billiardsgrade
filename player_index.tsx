@@ -43,43 +43,6 @@ const getPlayerFlagText = (player?: {flag?: string}) => {
   return isRemoteUri(rawFlag) ? '' : rawFlag;
 };
 
-const isLightColor = (value?: string) => {
-  const raw = String(value || '').trim().toLowerCase();
-
-  if (!raw) {
-    return false;
-  }
-
-  if (raw === 'white' || raw === '#fff' || raw === '#ffffff') {
-    return true;
-  }
-
-  const hex = raw.replace('#', '');
-  if (/^[0-9a-f]{3}$/i.test(hex)) {
-    const r = parseInt(hex[0] + hex[0], 16);
-    const g = parseInt(hex[1] + hex[1], 16);
-    const b = parseInt(hex[2] + hex[2], 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  if (/^[0-9a-f]{6}$/i.test(hex)) {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  const rgbMatch = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-  if (rgbMatch) {
-    const r = Number(rgbMatch[1]);
-    const g = Number(rgbMatch[2]);
-    const b = Number(rgbMatch[3]);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  return false;
-};
-
 const GamePlayer = (
   props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean},
 ) => {
@@ -112,13 +75,6 @@ const GamePlayer = (
     (props.totalPlayers || 2) <= 2 &&
     shortestSide < 650;
 
-  const isHandheldLandscape =
-    isLandscape &&
-    !isLargeDisplay &&
-    (props.totalPlayers || 2) <= 2 &&
-    width <= 1400 &&
-    height <= 900;
-
   const isExtraCompactLayout =
     (props.totalPlayers || 2) >= 4 || (!isLargeDisplay && shortestSide <= 430);
 
@@ -128,14 +84,8 @@ const GamePlayer = (
     }
 
     const base = Math.max(0.72, Math.min(1, shortestSide / 900));
-    const normalized = base / Math.min(fontScale || 1, 1.15);
-
-    if (isHandheldLandscape) {
-      return Math.max(0.62, Math.min(0.78, normalized * 0.86));
-    }
-
-    return Math.max(0.7, Math.min(1, normalized));
-  }, [fontScale, isHandheldLandscape, isLargeDisplay, shortestSide]);
+    return Math.max(0.7, Math.min(1, base / Math.min(fontScale || 1, 1.15)));
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const isCaromMode = !isPoolMode;
   const isLibreMode = props.gameSettings?.category === 'libre';
@@ -155,32 +105,17 @@ const GamePlayer = (
     ? {backgroundColor: playerPanelColor, borderColor: 'rgba(17,17,17,0.28)'}
     : {backgroundColor: '#000000', borderColor: '#FF1818'};
 
-  const isLightPlayerPanel = useColoredPanel && isLightColor(playerPanelColor);
-  const addTimeButtonDynamicStyle = isLightPlayerPanel
-    ? {
-        borderColor: 'rgba(17,17,17,0.5)',
-        backgroundColor: 'rgba(17,17,17,0.08)',
-      }
-    : undefined;
-  const addTimeTextDynamicStyle = isLightPlayerPanel
-    ? {color: '#111111'}
-    : undefined;
-
   const textColorStyle = {color: primaryTextColor};
   const inactivePlaceholderColor = inactiveTextColor;
 
   const scoreLayerDynamicStyle = isCaromMode
-    ? isHandheldLandscape
-      ? styles.scoreLayerCaromHandheld
-      : isPhoneLandscapeTwoPlayer
+    ? isPhoneLandscapeTwoPlayer
       ? styles.scoreLayerCaromPhoneLandscape
       : isExtraCompactLayout
       ? styles.scoreLayerCaromExtraCompact
       : isCompactLayout
       ? styles.scoreLayerCaromCompact
       : styles.scoreLayerCarom
-    : isHandheldLandscape
-    ? styles.scoreLayerHandheld
     : isPhoneLandscapeTwoPlayer
     ? styles.scoreLayerPhoneLandscape
     : isExtraCompactLayout
@@ -190,17 +125,13 @@ const GamePlayer = (
     : undefined;
 
   const scoreTextDynamicStyle = isCaromMode
-    ? isHandheldLandscape
-      ? styles.scoreTextCaromHandheld
-      : isPhoneLandscapeTwoPlayer
+    ? isPhoneLandscapeTwoPlayer
       ? styles.scoreTextCaromPhoneLandscape
       : isExtraCompactLayout
       ? styles.scoreTextCaromExtraCompact
       : isCompactLayout
       ? styles.scoreTextCaromCompact
       : styles.scoreTextCarom
-    : isHandheldLandscape
-    ? styles.scoreTextHandheld
     : isPhoneLandscapeTwoPlayer
     ? styles.scoreTextPhoneLandscape
     : isExtraCompactLayout
@@ -318,7 +249,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameInput,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameInputMedium : undefined,
               isCompactLayout && styles.nameInputCompact,
@@ -336,7 +267,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameText,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameTextMedium : undefined,
               isCompactLayout && styles.nameTextCompact,
@@ -386,7 +317,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -404,7 +335,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -413,97 +344,111 @@ const GamePlayer = (
         </Button>
       </View>
 
-      {viewModel.showProMode ? (
-        <View
-          direction={'row'}
-          style={[
-            styles.statsRow,
-            isMediumResponsiveLayout ? styles.statsRowMedium : undefined,
-            isCompactLayout && styles.statsRowCompact,
-            !isActiveCard && styles.statsRowInactive,
-          ]}>
-          <View style={styles.statBlock}>
-            <RNText
-              style={[
-                styles.statLabel,
-                isMediumResponsiveLayout ? styles.statLabelMedium : undefined,
-                isCompactLayout && styles.statLabelCompact,
-                {color: secondaryTextColor},
-              ]}
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}>
-              High run
-            </RNText>
-            <RNText
-              style={[
-                styles.statValue,
-                isMediumResponsiveLayout ? styles.statValueMedium : undefined,
-                isCompactLayout && styles.statValueCompact,
-                textColorStyle,
-              ]}
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}>
-              {viewModel.highestRate}
-            </RNText>
-          </View>
-
-          <View style={styles.statBlock}>
-            <RNText
-              style={[
-                styles.statLabel,
-                isMediumResponsiveLayout ? styles.statLabelMedium : undefined,
-                isCompactLayout && styles.statLabelCompact,
-                {color: secondaryTextColor},
-              ]}
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}>
-              Average
-            </RNText>
-            <RNText
-              style={[
-                styles.statValue,
-                isMediumResponsiveLayout ? styles.statValueMedium : undefined,
-                isCompactLayout && styles.statValueCompact,
-                textColorStyle,
-              ]}
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}>
-              {viewModel.averagePoint}
-            </RNText>
-          </View>
-        </View>
-      ) : null}
-
       <View
         style={[
-          styles.scoreLayer,
-          isMediumResponsiveLayout ? styles.scoreLayerMedium : undefined,
-          scoreLayerDynamicStyle,
-          !isActiveCard && styles.scoreLayerInactive,
-          isPool15FreeMode && styles.scoreLayerWithScoredBalls,
-        ]}
-        pointerEvents="none">
+          styles.statsScoreSection,
+          isMediumResponsiveLayout ? styles.statsScoreSectionMedium : undefined,
+          isCompactLayout && styles.statsScoreSectionCompact,
+        ]}>
+        {viewModel.showProMode ? (
+          <View
+            direction={'row'}
+            style={[
+              styles.statsRow,
+              isMediumResponsiveLayout ? styles.statsRowMedium : undefined,
+              isCompactLayout && styles.statsRowCompact,
+              !isActiveCard && styles.statsRowInactive,
+            ]}>
+            <View style={styles.statBlock}>
+              <RNText
+                style={[
+                  styles.statLabel,
+                  isMediumResponsiveLayout ? styles.statLabelMedium : undefined,
+                  isCompactLayout && styles.statLabelCompact,
+                  {color: secondaryTextColor},
+                ]}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}>
+                High run
+              </RNText>
+              <RNText
+                style={[
+                  styles.statValue,
+                  isMediumResponsiveLayout ? styles.statValueMedium : undefined,
+                  isCompactLayout && styles.statValueCompact,
+                  textColorStyle,
+                ]}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}>
+                {viewModel.highestRate}
+              </RNText>
+            </View>
+
+            <View style={styles.statBlock}>
+              <RNText
+                style={[
+                  styles.statLabel,
+                  isMediumResponsiveLayout ? styles.statLabelMedium : undefined,
+                  isCompactLayout && styles.statLabelCompact,
+                  {color: secondaryTextColor},
+                ]}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}>
+                Average
+              </RNText>
+              <RNText
+                style={[
+                  styles.statValue,
+                  isMediumResponsiveLayout ? styles.statValueMedium : undefined,
+                  isCompactLayout && styles.statValueCompact,
+                  textColorStyle,
+                ]}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}>
+                {viewModel.averagePoint}
+              </RNText>
+            </View>
+          </View>
+        ) : null}
+
         <View
           style={[
-            styles.scoreTextBox,
-            isMediumResponsiveLayout ? styles.scoreTextBoxMedium : undefined,
-            isCompactLayout && styles.scoreTextBoxCompact,
-          ]}>
-          <RNText
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.5}
+            styles.scoreLayer,
+            viewModel.showProMode
+              ? styles.scoreLayerUnderStats
+              : styles.scoreLayerWithoutStats,
+            isMediumResponsiveLayout ? styles.scoreLayerMedium : undefined,
+            scoreLayerDynamicStyle,
+            !isActiveCard && styles.scoreLayerInactive,
+            isPool15FreeMode && styles.scoreLayerWithScoredBalls,
+          ]}
+          pointerEvents="none">
+          <View
             style={[
-              styles.scoreText,
-              isMediumResponsiveLayout ? styles.scoreTextMedium : undefined,
-              scoreTextDynamicStyle,
-              libreScoreTextStyle,
-              textColorStyle,
-            ]}
-            allowFontScaling={false}
-            maxFontSizeMultiplier={1}>
-            {totalPointValue}
-          </RNText>
+              styles.scoreTextWrap,
+              viewModel.showProMode
+                ? styles.scoreTextWrapUnderStats
+                : styles.scoreTextWrapWithoutStats,
+              isLibreMode ? styles.scoreTextWrapLibre : undefined,
+              isMediumResponsiveLayout ? styles.scoreTextWrapMedium : undefined,
+              isCompactLayout && styles.scoreTextWrapCompact,
+            ]}>
+            <RNText
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              style={[
+                styles.scoreText,
+                isMediumResponsiveLayout ? styles.scoreTextMedium : undefined,
+                scoreTextDynamicStyle,
+                libreScoreTextStyle,
+                textColorStyle,
+              ]}
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}>
+              {totalPointValue}
+            </RNText>
+          </View>
         </View>
       </View>
 
@@ -523,7 +468,6 @@ const GamePlayer = (
                 styles.addTimeButton,
                 isMediumResponsiveLayout ? styles.addTimeButtonMedium : undefined,
                 isCompactLayout && styles.addTimeButtonCompact,
-                addTimeButtonDynamicStyle,
                 !isActiveCard && styles.addTimeButtonInactive,
               ]}>
               <RNText
@@ -531,7 +475,6 @@ const GamePlayer = (
                   styles.addTimeText,
                   isMediumResponsiveLayout ? styles.addTimeTextMedium : undefined,
                   isCompactLayout && styles.addTimeTextCompact,
-                  addTimeTextDynamicStyle,
                   !isActiveCard && styles.addTimeTextInactive,
                 ]}
                 allowFontScaling={false}
@@ -921,76 +864,89 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 18,
   },
+  statsScoreSection: {
+    flex: 1.12,
+    width: '100%',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    minHeight: 0,
+  },
+  statsScoreSectionMedium: {
+    flex: 1.08,
+  },
+  statsScoreSectionCompact: {
+    flex: 1.02,
+  },
   scoreLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 172,
-    bottom: 104,
+    flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
+    minHeight: 0,
+  },
+  scoreLayerUnderStats: {
+    marginTop: 6,
+  },
+  scoreLayerWithoutStats: {
+    marginTop: 0,
   },
   scoreLayerMedium: {
-    top: 146,
-    bottom: 88,
+    paddingVertical: 4,
   },
   scoreLayerCompact: {
-    top: 122,
-    bottom: 70,
+    paddingVertical: 2,
   },
   scoreLayerExtraCompact: {
-    top: 112,
-    bottom: 62,
+    paddingVertical: 2,
   },
   scoreLayerPhoneLandscape: {
-    top: 118,
-    bottom: 64,
-  },
-  scoreLayerHandheld: {
-    top: 136,
-    bottom: 90,
+    paddingVertical: 0,
   },
   scoreLayerCarom: {
-    top: 172,
-    bottom: 104,
+    paddingVertical: 4,
   },
   scoreLayerCaromCompact: {
-    top: 122,
-    bottom: 70,
+    paddingVertical: 2,
   },
   scoreLayerCaromExtraCompact: {
-    top: 112,
-    bottom: 62,
+    paddingVertical: 0,
   },
   scoreLayerCaromPhoneLandscape: {
-    top: 118,
-    bottom: 64,
-  },
-  scoreLayerCaromHandheld: {
-    top: 138,
-    bottom: 94,
+    paddingVertical: 0,
   },
   scoreLayerInactive: {
     opacity: 0.88,
   },
   scoreLayerWithScoredBalls: {
-    right: 44,
+    paddingRight: 44,
   },
-  scoreTextBox: {
-    width: '100%',
+  scoreTextWrap: {
+    width: '72%',
+    flex: 1,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
   },
-  scoreTextBoxMedium: {
-    paddingHorizontal: 8,
+  scoreTextWrapUnderStats: {
+    width: '72%',
   },
-  scoreTextBoxCompact: {
-    paddingHorizontal: 6,
+  scoreTextWrapWithoutStats: {
+    width: '82%',
+  },
+  scoreTextWrapLibre: {
+    width: '80%',
+  },
+  scoreTextWrapMedium: {
+    width: '74%',
+  },
+  scoreTextWrapCompact: {
+    width: '76%',
   },
   scoreText: {
-    width: '90%',
+    width: '100%',
+    alignSelf: 'center',
     color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 230,
@@ -1015,10 +971,6 @@ const styles = StyleSheet.create({
     fontSize: 150,
     lineHeight: 150,
   },
-  scoreTextHandheld: {
-    fontSize: 118,
-    lineHeight: 118,
-  },
   scoreTextCarom: {
     fontSize: 230,
     lineHeight: 230,
@@ -1034,10 +986,6 @@ const styles = StyleSheet.create({
   scoreTextCaromPhoneLandscape: {
     fontSize: 150,
     lineHeight: 150,
-  },
-  scoreTextCaromHandheld: {
-    fontSize: 114,
-    lineHeight: 114,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,
@@ -1064,12 +1012,12 @@ const styles = StyleSheet.create({
     lineHeight: 104,
   },
   scoreTextLibre3DigitsPhoneLandscape: {
-    fontSize: 120,
-    lineHeight: 120,
+    fontSize: 132,
+    lineHeight: 132,
   },
   scoreTextLibre4DigitsPhoneLandscape: {
-    fontSize: 96,
-    lineHeight: 96,
+    fontSize: 106,
+    lineHeight: 106,
   },
   scoreTextSingleDigit: {},
   scoreTextSingleDigitMedium: {},
@@ -1176,37 +1124,22 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   playingBadge: {
-    position: 'absolute',
-    left: 0,
-    bottom: 0,
-    width: '38%',
-    minWidth: 180,
+    marginTop: 8,
     minHeight: 50,
-    borderTopRightRadius: 16,
-    borderTopLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderBottomLeftRadius: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    zIndex: 4,
     backgroundColor: '#1C1C20',
   },
   playingBadgeMedium: {
-    width: '36%',
-    minWidth: 150,
     minHeight: 40,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 14,
-    paddingHorizontal: 10,
+    marginTop: 8,
+    borderRadius: 14,
   },
   playingBadgeCompact: {
-    width: '34%',
-    minWidth: 118,
     minHeight: 34,
-    borderTopRightRadius: 12,
-    borderBottomLeftRadius: 12,
-    paddingHorizontal: 8,
+    marginTop: 6,
+    borderRadius: 12,
   },
   playingBadgeActive: {
     backgroundColor: '#1A1416',

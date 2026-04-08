@@ -18,7 +18,13 @@ import {
   getCameraFullscreen,
   subscribeCameraFullscreen,
 } from './cameraFullscreenStore';
-import {isCaromGame, isPool15Game, isPool15OnlyGame, isPoolGame} from 'utils/game';
+import {
+  isCaromGame,
+  isPool15Game,
+  isPool15OnlyGame,
+  isPoolGame,
+} from 'utils/game';
+import {getGameplayScreenProfile, clamp} from './screenProfile';
 
 const buildTitle = (category?: string, mode?: string) => {
   return `${i18n.t(category || '').toUpperCase()} - ${i18n
@@ -31,6 +37,9 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
+  splitColumnCompact: {
+    gap: 8,
+  },
   splitSlot: {
     flex: 1,
     minHeight: 0,
@@ -39,9 +48,8 @@ const localStyles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  topBottomRow: {
-    flex: 1,
-    gap: 12,
+  topBottomBoardCompact: {
+    gap: 8,
   },
   topBottomRowTop: {
     flex: 1.12,
@@ -50,6 +58,9 @@ const localStyles = StyleSheet.create({
   topBottomRowBottom: {
     flex: 0.88,
     gap: 12,
+  },
+  topBottomRowCompact: {
+    gap: 8,
   },
   lightScreen: {
     backgroundColor: '#000000',
@@ -62,19 +73,37 @@ const localStyles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  phonePlayerSlot: {
+  tabletPlayerSlot: {
+    flex: 0.92,
+    minWidth: 0,
+  },
+  tabletConsoleSlot: {
+    flex: 1.12,
+    minWidth: 0,
+  },
+  shortLandscapePlayerSlot: {
     flex: 0.86,
     minWidth: 0,
   },
-  phoneConsoleSlot: {
+  shortLandscapeConsoleSlot: {
     flex: 1.18,
     minWidth: 0,
+  },
+  compactMainArea: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    gap: 6,
+  },
+  ultraCompactMainArea: {
+    paddingHorizontal: 3,
+    paddingVertical: 3,
+    gap: 4,
   },
 });
 
 const GamePlay = () => {
   const viewModel = GamePlayViewModel();
-  const {width, height} = useWindowDimensions();
+  const {width, height, fontScale} = useWindowDimensions();
   const [isCameraFullscreen, setIsCameraFullscreen] = useState(
     getCameraFullscreen(),
   );
@@ -84,10 +113,23 @@ const GamePlay = () => {
     return subscribeCameraFullscreen(setIsCameraFullscreen);
   }, []);
 
-  const shortestSide = Math.min(width, height);
-  const isTablet = shortestSide >= 600;
-  const isPhoneLandscape = !isTablet && width > height;
-  const useCompactTwoPlayerLayout = isPhoneLandscape || shortestSide < 480;
+  const profile = getGameplayScreenProfile(width, height, fontScale);
+  const {
+    shortestSide,
+    longestSide,
+    isLandscape,
+    isLargeDisplay,
+    isMediumDisplay,
+    isHandheldLandscape,
+    isUltraCompactLandscape,
+  } = profile;
+  const isMediumLandscape = isLandscape && isMediumDisplay;
+  const isCompactLandscape = isHandheldLandscape;
+  const isShortLandscapeDisplay = isLandscape && profile.scale <= 0.82;
+  const isVeryShortLandscapeDisplay = isLandscape && profile.scale <= 0.72;
+  const isHandheldLandscapeDisplay = isHandheldLandscape;
+  const useCompactTwoPlayerLayout = isCompactLandscape || shortestSide < 430;
+  const useTightTwoPlayerLayout = isMediumLandscape || useCompactTwoPlayerLayout;
 
   const category = viewModel.gameSettings?.category;
   const players = viewModel.playerSettings?.playingPlayers || [];
@@ -123,14 +165,38 @@ const GamePlay = () => {
   const useCompactResponsiveLayout =
     useMultiPlayerLayout || (!isCameraFullscreen && useCompactTwoPlayerLayout);
 
-  const responsivePlayerSlotStyle =
-    !isCameraFullscreen && useCompactTwoPlayerLayout
-      ? localStyles.phonePlayerSlot
-      : undefined;
-  const responsiveConsoleSlotStyle =
-    !isCameraFullscreen && useCompactTwoPlayerLayout
-      ? localStyles.phoneConsoleSlot
-      : undefined;
+  const responsivePlayerSlotStyle = !isCameraFullscreen
+    ? isHandheldLandscapeDisplay
+      ? localStyles.shortLandscapePlayerSlot
+      : useTightTwoPlayerLayout
+      ? localStyles.tabletPlayerSlot
+      : undefined
+    : undefined;
+
+  const responsiveConsoleSlotStyle = !isCameraFullscreen
+    ? isHandheldLandscapeDisplay
+      ? localStyles.shortLandscapeConsoleSlot
+      : useTightTwoPlayerLayout
+      ? localStyles.tabletConsoleSlot
+      : undefined
+    : undefined;
+
+  const compactMainAreaStyle = !isCameraFullscreen
+    ? isHandheldLandscapeDisplay || isVeryShortLandscapeDisplay
+      ? localStyles.ultraCompactMainArea
+      : useTightTwoPlayerLayout
+      ? localStyles.compactMainArea
+      : undefined
+    : undefined;
+
+  const uiScale = useMemo(() => {
+    if (isLargeDisplay) {
+      return 1;
+    }
+    return isHandheldLandscapeDisplay
+      ? clamp(profile.scale * 0.92, 0.62, 0.82)
+      : clamp(profile.scale, 0.78, 1);
+  }, [isHandheldLandscapeDisplay, isLargeDisplay, profile.scale]);
 
   const title = useMemo(() => {
     return buildTitle(
@@ -139,15 +205,16 @@ const GamePlay = () => {
     );
   }, [viewModel.gameSettings?.category, viewModel.gameSettings?.mode?.mode]);
 
-  const warmTitleSize = isTablet ? 64 : 42;
-  const warmTimerSize = isTablet ? 256 : 144;
+  const warmTitleSize = Math.round((isLargeDisplay ? 64 : 52) * uiScale);
+  const warmTimerSize = Math.round((isLargeDisplay ? 256 : 190) * uiScale);
   const warmTimerLineHeight = Math.round(warmTimerSize * 1.03);
-  const warmButtonTextSize = isTablet ? 32 : 22;
+  const warmButtonTextSize = Math.round((isLargeDisplay ? 32 : 24) * uiScale);
+
   const pauseOverlayButtonStyle = {
-    minWidth: isTablet ? 360 : 230,
+    minWidth: isLargeDisplay ? 360 : 230,
     alignItems: 'center' as const,
-    paddingHorizontal: isTablet ? '10%' : '8%',
-    paddingVertical: isTablet ? 15 : 10,
+    paddingHorizontal: isLargeDisplay ? '10%' : '8%',
+    paddingVertical: isLargeDisplay ? 15 : 10,
   };
 
   if (
@@ -257,9 +324,16 @@ const GamePlay = () => {
           direction={'row'}
           style={[
             styles.poolArenaBoard,
-            !isCameraFullscreen ? styles.mainArea : styles.mainAreaFullscreen,
+            styles.mainAreaFullscreen,
+            compactMainAreaStyle,
           ]}>
-          <View style={[styles.poolArenaConsoleWrapper, responsiveConsoleSlotStyle]}>{renderConsole()}</View>
+          <View
+            style={[
+              styles.poolArenaConsoleWrapper,
+              responsiveConsoleSlotStyle,
+            ]}>
+            {renderConsole()}
+          </View>
         </View>
       );
     }
@@ -272,17 +346,50 @@ const GamePlay = () => {
             styles.poolArenaBoard,
             styles.mainArea,
             localStyles.topBottomBoard,
+            useCompactResponsiveLayout && localStyles.topBottomBoardCompact,
+            compactMainAreaStyle,
           ]}>
-          <View direction={'row'} style={localStyles.topBottomRowTop}>
-            <View style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>{renderPlayer(0)}</View>
-            <View style={[localStyles.centerCompactCell, responsiveConsoleSlotStyle]}>{renderConsole()}</View>
-            <View style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>{renderPlayer(1)}</View>
+          <View
+            direction={'row'}
+            style={[
+              localStyles.topBottomRowTop,
+              useCompactResponsiveLayout && localStyles.topBottomRowCompact,
+            ]}>
+            <View
+              style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>
+              {renderPlayer(0)}
+            </View>
+            <View
+              style={[
+                localStyles.centerCompactCell,
+                responsiveConsoleSlotStyle,
+              ]}>
+              {renderConsole()}
+            </View>
+            <View
+              style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>
+              {renderPlayer(1)}
+            </View>
           </View>
 
-          <View direction={'row'} style={localStyles.topBottomRowBottom}>
-            <View style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>{renderPlayer(2)}</View>
-            <View style={[localStyles.centerCompactCell, responsivePlayerSlotStyle]}>{renderPlayer(4)}</View>
-            <View style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>{renderPlayer(3)}</View>
+          <View
+            direction={'row'}
+            style={[
+              localStyles.topBottomRowBottom,
+              useCompactResponsiveLayout && localStyles.topBottomRowCompact,
+            ]}>
+            <View
+              style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>
+              {renderPlayer(2)}
+            </View>
+            <View
+              style={[localStyles.centerCompactCell, responsivePlayerSlotStyle]}>
+              {renderPlayer(4)}
+            </View>
+            <View
+              style={[localStyles.sideCompactCell, responsivePlayerSlotStyle]}>
+              {renderPlayer(3)}
+            </View>
           </View>
         </View>
       );
@@ -293,18 +400,37 @@ const GamePlay = () => {
         <View
           flex={'1'}
           direction={'row'}
-          style={[styles.poolArenaBoard, styles.mainArea]}>
-          <View style={[localStyles.splitColumn, responsivePlayerSlotStyle]}>
+          style={[styles.poolArenaBoard, styles.mainArea, compactMainAreaStyle]}>
+          <View
+            style={[
+              localStyles.splitColumn,
+              useCompactResponsiveLayout && localStyles.splitColumnCompact,
+              responsivePlayerSlotStyle,
+            ]}>
             <View style={localStyles.splitSlot}>{renderPlayer(0)}</View>
             <View style={localStyles.splitSlot}>{renderPlayer(2)}</View>
           </View>
 
-          <View style={[styles.poolArenaConsoleWrapper, responsiveConsoleSlotStyle]}>{renderConsole()}</View>
+          <View
+            style={[
+              styles.poolArenaConsoleWrapper,
+              responsiveConsoleSlotStyle,
+            ]}>
+            {renderConsole()}
+          </View>
 
           {useThreePlayerLayout ? (
-            <View style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>{renderPlayer(1)}</View>
+            <View
+              style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>
+              {renderPlayer(1)}
+            </View>
           ) : (
-            <View style={[localStyles.splitColumn, responsivePlayerSlotStyle]}>
+            <View
+              style={[
+                localStyles.splitColumn,
+                useCompactResponsiveLayout && localStyles.splitColumnCompact,
+                responsivePlayerSlotStyle,
+              ]}>
               <View style={localStyles.splitSlot}>{renderPlayer(1)}</View>
               <View style={localStyles.splitSlot}>{renderPlayer(3)}</View>
             </View>
@@ -317,10 +443,17 @@ const GamePlay = () => {
       <View
         flex={'1'}
         direction={'row'}
-        style={[styles.poolArenaBoard, styles.mainArea]}>
-        <View style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>{renderPlayer(0)}</View>
-        <View style={[styles.poolArenaConsoleWrapper, responsiveConsoleSlotStyle]}>{renderConsole()}</View>
-        <View style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>{renderPlayer(1)}</View>
+        style={[styles.poolArenaBoard, styles.mainArea, compactMainAreaStyle]}>
+        <View style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>
+          {renderPlayer(0)}
+        </View>
+        <View
+          style={[styles.poolArenaConsoleWrapper, responsiveConsoleSlotStyle]}>
+          {renderConsole()}
+        </View>
+        <View style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>
+          {renderPlayer(1)}
+        </View>
       </View>
     );
   };
@@ -333,7 +466,7 @@ const GamePlay = () => {
         {viewModel.gameBreakEnabled ? i18n.t('gameBreak') : i18n.t('warmUp')}
       </Text>
 
-      <View marginVertical={isTablet ? '15' : '8'}>
+      <View marginVertical={isLargeDisplay ? '15' : '8'}>
         <Text
           color={colors.white}
           fontSize={warmTimerSize}
@@ -346,9 +479,9 @@ const GamePlay = () => {
         style={[
           styles.buttonEndWarmUp,
           {
-            paddingHorizontal: isTablet ? '10%' : '8%',
-            paddingVertical: isTablet ? 15 : 10,
-            marginTop: isTablet ? 30 : 18,
+            paddingHorizontal: isLargeDisplay ? '10%' : '8%',
+            paddingVertical: isLargeDisplay ? 15 : 10,
+            marginTop: isLargeDisplay ? 30 : 18,
           },
         ]}
         onPress={viewModel.onEndWarmUp}>
@@ -365,6 +498,9 @@ const GamePlay = () => {
         style={[
           useDarkPoolBackground ? styles.poolArenaScreen : undefined,
           isCaromMode ? localStyles.lightScreen : undefined,
+          isHandheldLandscapeDisplay
+            ? {paddingHorizontal: 8, paddingTop: 6, paddingBottom: 0}
+            : undefined,
         ]}
         flex={'1'}>
         {!isCameraFullscreen ? (
@@ -383,22 +519,22 @@ const GamePlay = () => {
         {renderMainBoard()}
 
         {!isCameraFullscreen &&
-  (isPoolGame(category) || isCaromGame(category)) &&
-  viewModel.gameSettings?.mode?.mode !== 'fast' &&
-  viewModel.gameSettings?.mode?.countdownTime ? (
-  <View
-    ref={viewModel.matchCountdownRef}
-    collapsable={false}
-    style={styles.countdownContainer}>
-    <PoolShotClock
-      originalCountdownTime={
-        viewModel.gameSettings?.mode?.countdownTime || 40
-      }
-      currentCountdownTime={viewModel.countdownTime || 0}
-      onPress={viewModel.onToggleCountDown}
-    />
-  </View>
-) : null}
+        (isPoolGame(category) || isCaromGame(category)) &&
+        viewModel.gameSettings?.mode?.mode !== 'fast' &&
+        viewModel.gameSettings?.mode?.countdownTime ? (
+          <View
+            ref={viewModel.matchCountdownRef}
+            collapsable={false}
+            style={[styles.countdownContainer, isHandheldLandscapeDisplay ? {marginTop: -4, paddingHorizontal: 1} : undefined]}>
+            <PoolShotClock
+              originalCountdownTime={
+                viewModel.gameSettings?.mode?.countdownTime || 40
+              }
+              currentCountdownTime={viewModel.countdownTime || 0}
+              onPress={viewModel.onToggleCountDown}
+            />
+          </View>
+        ) : null}
 
         {showPauseOverlay ? (
           <View style={styles.warmUpContainer}>
@@ -411,7 +547,7 @@ const GamePlay = () => {
                 styles.buttonEndWarmUp,
                 pauseOverlayButtonStyle,
                 {
-                  marginTop: isTablet ? 30 : 18,
+                  marginTop: isLargeDisplay ? 30 : 18,
                 },
               ]}
               onPress={viewModel.onPause}>
@@ -425,7 +561,7 @@ const GamePlay = () => {
                 styles.buttonEndWarmUp,
                 pauseOverlayButtonStyle,
                 {
-                  marginTop: isTablet ? 18 : 12,
+                  marginTop: isLargeDisplay ? 18 : 12,
                 },
               ]}
               onPress={viewModel.onReplay}>

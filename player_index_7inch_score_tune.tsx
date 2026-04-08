@@ -128,14 +128,8 @@ const GamePlayer = (
     }
 
     const base = Math.max(0.72, Math.min(1, shortestSide / 900));
-    const normalized = base / Math.min(fontScale || 1, 1.15);
-
-    if (isHandheldLandscape) {
-      return Math.max(0.62, Math.min(0.78, normalized * 0.86));
-    }
-
-    return Math.max(0.7, Math.min(1, normalized));
-  }, [fontScale, isHandheldLandscape, isLargeDisplay, shortestSide]);
+    return Math.max(0.7, Math.min(1, base / Math.min(fontScale || 1, 1.15)));
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const isCaromMode = !isPoolMode;
   const isLibreMode = props.gameSettings?.category === 'libre';
@@ -318,7 +312,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameInput,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameInputMedium : undefined,
               isCompactLayout && styles.nameInputCompact,
@@ -336,7 +330,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameText,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameTextMedium : undefined,
               isCompactLayout && styles.nameTextCompact,
@@ -386,7 +380,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -404,7 +398,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -948,8 +942,8 @@ const styles = StyleSheet.create({
     bottom: 64,
   },
   scoreLayerHandheld: {
-    top: 136,
-    bottom: 90,
+    top: 128,
+    bottom: 82,
   },
   scoreLayerCarom: {
     top: 172,
@@ -968,8 +962,8 @@ const styles = StyleSheet.create({
     bottom: 64,
   },
   scoreLayerCaromHandheld: {
-    top: 138,
-    bottom: 94,
+    top: 132,
+    bottom: 88,
   },
   scoreLayerInactive: {
     opacity: 0.88,
@@ -1016,8 +1010,8 @@ const styles = StyleSheet.create({
     lineHeight: 150,
   },
   scoreTextHandheld: {
-    fontSize: 118,
-    lineHeight: 118,
+    fontSize: 132,
+    lineHeight: 132,
   },
   scoreTextCarom: {
     fontSize: 230,
@@ -1036,8 +1030,8 @@ const styles = StyleSheet.create({
     lineHeight: 150,
   },
   scoreTextCaromHandheld: {
-    fontSize: 114,
-    lineHeight: 114,
+    fontSize: 138,
+    lineHeight: 138,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,
@@ -1064,12 +1058,12 @@ const styles = StyleSheet.create({
     lineHeight: 104,
   },
   scoreTextLibre3DigitsPhoneLandscape: {
-    fontSize: 120,
-    lineHeight: 120,
+    fontSize: 132,
+    lineHeight: 132,
   },
   scoreTextLibre4DigitsPhoneLandscape: {
-    fontSize: 96,
-    lineHeight: 96,
+    fontSize: 106,
+    lineHeight: 106,
   },
   scoreTextSingleDigit: {},
   scoreTextSingleDigitMedium: {},

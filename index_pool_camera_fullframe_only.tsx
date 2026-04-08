@@ -23,7 +23,6 @@ import {
   isPoolGame,
 } from 'utils/game';
 import i18n from 'i18n';
-import {getGameplayScreenProfile, clamp} from '../screenProfile';
 
 type ActionButtonTone = 'dark' | 'amber' | 'red' | 'green' | 'muted';
 type PoolBallButtonSize = 'large' | 'small';
@@ -61,6 +60,9 @@ const BALL_BY_NUMBER = BALLS_15.reduce<Record<string, PoolBallType>>(
 const getPoolBall = (number: BallType) => {
   return BALL_BY_NUMBER[String(number)] || BALLS_15[0];
 };
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
 
 const isEnglish = () => {
   const locale = String(
@@ -437,32 +439,30 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
   const webcamRef = useRef<WebCamHandle>(null);
   const {width, height, fontScale} = useWindowDimensions();
-  const profile = getGameplayScreenProfile(width, height, fontScale);
-  const {shortestSide, longestSide, isLandscape, isLargeDisplay, isHandheldLandscape} = profile;
-  const isMediumLandscape = isLandscape && profile.isMediumDisplay;
-  const isCompactLandscape = isHandheldLandscape;
-  const isShortLandscape = isLandscape && profile.scale <= 0.84;
-  const isVeryShortLandscape = isLandscape && profile.scale <= 0.72;
-  const useCaromCondensedLayout =
-    isLandscape && isCaromGame(props.gameSettings?.category) && !isLargeDisplay &&
-    (profile.scale <= 0.92 || height <= 940);
-  const useCaromUltraCondensed =
-    useCaromCondensedLayout && (profile.scale <= 0.74 || height <= 820);
+  const shortestSide = Math.min(width, height);
+  const longestSide = Math.max(width, height);
+  const isLandscape = width > height;
+  const isLargeDisplay = longestSide >= 1600 || shortestSide >= 900;
+  const isMediumLandscape =
+    isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
+  const isCompactLandscape =
+    isLandscape && !isLargeDisplay && shortestSide < 650;
+  const isShortLandscape = isLandscape && height <= 820;
+  const isVeryShortLandscape = isLandscape && height <= 700;
   const useResponsiveCompact =
-    isCompactLandscape || shortestSide <= 430 || isShortLandscape || useCaromUltraCondensed;
+    isCompactLandscape || shortestSide <= 430 || isShortLandscape;
   const useTightLandscapeLayout = isMediumLandscape || useResponsiveCompact;
   const useExtraCompact =
-    shortestSide <= 430 || isVeryShortLandscape || isHandheldLandscape || useCaromUltraCondensed;
+    shortestSide <= 430 || shortestSide < 560 || isVeryShortLandscape;
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
       return 1;
     }
-    if (isHandheldLandscape) {
-      return profile.consoleScale;
-    }
-    return clamp(profile.scale, 0.74, 1);
-  }, [isHandheldLandscape, isLargeDisplay, profile.consoleScale, profile.scale]);
+
+    const base = clamp(shortestSide / 900, 0.74, 1);
+    return clamp(base / Math.min(fontScale || 1, 1.15), 0.72, 1);
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const category = props.gameSettings?.category;
   const isPool = isPoolGame(category);
@@ -472,8 +472,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isPool15Free = isPool15FreeGame(category);
   const usePoolBroadcastLayout = isPool && !isPool15;
   const isFastMode = props.gameSettings?.mode?.mode === 'fast';
-  const forceCompactActionButtons = useCaromCondensedLayout;
-  const forceExtraCompactActionButtons = useCaromUltraCondensed;
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
   const hideCaromCamera = isCarom && (props.totalPlayers || 0) >= 5;
@@ -557,8 +555,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             label={`↗ ${tr('Đổi người', 'Switch player')}`}
             tone={'amber'}
             onPress={viewModel.onSwitchTurn}
-            compact={useResponsiveCompact || forceCompactActionButtons}
-            extraCompact={hideCaromCamera || useExtraCompact || forceExtraCompactActionButtons}
+            compact={useResponsiveCompact}
+            extraCompact={hideCaromCamera || useExtraCompact}
           />
         );
       }
@@ -574,8 +572,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           leftTone={'green'}
           centerTone={'amber'}
           rightTone={'muted'}
-          compact={useResponsiveCompact || forceCompactActionButtons}
-          extraCompact={hideCaromCamera || useExtraCompact || forceExtraCompactActionButtons}
+          compact={useResponsiveCompact}
+          extraCompact={hideCaromCamera || useExtraCompact}
         />
       );
     }
@@ -640,8 +638,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useExtraCompact,
     usePoolBroadcastLayout,
     useResponsiveCompact,
-    forceCompactActionButtons,
-    forceExtraCompactActionButtons,
   ]);
 
   const cameraUtilityRows = isCarom ? (
@@ -652,8 +648,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       onRightPress={() => webcamRef.current?.switchCamera()}
       leftTone={'dark'}
       rightTone={'dark'}
-      compact={useResponsiveCompact || forceCompactActionButtons}
-      extraCompact={hideCaromCamera || useExtraCompact || forceExtraCompactActionButtons}
+      compact={useResponsiveCompact}
+      extraCompact={hideCaromCamera || useExtraCompact}
     />
   ) : (
     <>
@@ -697,8 +693,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           leftTone={'amber'}
           centerTone={'dark'}
           rightTone={'red'}
-          compact={useResponsiveCompact || forceCompactActionButtons}
-          extraCompact={hideCaromCamera || useExtraCompact || forceExtraCompactActionButtons}
+          compact={useResponsiveCompact}
+          extraCompact={hideCaromCamera || useExtraCompact}
         />
       );
     }
@@ -819,15 +815,14 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     viewModel.onRestart,
   ]);
 
-  const caromTimeScale = useCaromUltraCondensed ? 0.58 : useCaromCondensedLayout ? 0.72 : 1;
   const timeTextStyle = {
-    fontSize: Math.round((isCarom ? 56 * caromTimeScale : 64) * uiScale),
-    lineHeight: Math.round((isCarom ? 60 * caromTimeScale : 68) * uiScale),
+    fontSize: Math.round((isCarom ? 56 : 64) * uiScale),
+    lineHeight: Math.round((isCarom ? 60 : 68) * uiScale),
   };
 
   const metaValueStyle = {
-    fontSize: Math.round((isHandheldLandscape ? 24 : 30) * uiScale),
-    lineHeight: Math.round((isHandheldLandscape ? 28 : 34) * uiScale),
+    fontSize: Math.round(30 * uiScale),
+    lineHeight: Math.round(34 * uiScale),
   };
 
   const cameraMinHeight = useMemo(() => {
@@ -844,20 +839,12 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     if (isCarom) {
-      if (useCaromUltraCondensed) {
-        return 86;
-      }
-
-      if (useCaromCondensedLayout) {
-        return 104;
-      }
-
       if (useExtraCompact) {
-        return 112;
+        return 145;
       }
 
       if (useResponsiveCompact) {
-        return 126;
+        return 155;
       }
 
       if (useTightLandscapeLayout) {
@@ -868,11 +855,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     if (useExtraCompact) {
-      return 110;
+      return 160;
     }
 
     if (useResponsiveCompact) {
-      return 126;
+      return 175;
     }
 
     if (useTightLandscapeLayout) {
@@ -889,6 +876,25 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useTightLandscapeLayout,
   ]);
 
+  const poolCameraFrameStyle = useMemo(() => {
+    if (!usePoolBroadcastLayout) {
+      return null;
+    }
+
+    const maxHeight = clamp(
+      height * (useResponsiveCompact || useTightLandscapeLayout ? 0.34 : 0.38),
+      280,
+      420,
+    );
+
+    return {maxHeight};
+  }, [
+    height,
+    usePoolBroadcastLayout,
+    useResponsiveCompact,
+    useTightLandscapeLayout,
+  ]);
+
   if (isCarom) {
     return (
       <View
@@ -898,10 +904,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             ? styles.mediumWrapper
             : undefined,
           styles.caromWrapper,
-          useCaromCondensedLayout ? styles.caromCondensedWrapper : undefined,
-          useCaromUltraCondensed ? styles.caromUltraCondensedWrapper : undefined,
           useResponsiveCompact ? styles.phoneWrapper : undefined,
-          isHandheldLandscape ? styles.handheldWrapper : undefined,
           hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
         ]}>
         <View
@@ -915,8 +918,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             style={[
               styles.timeCard,
               styles.caromTimeCard,
-              useCaromCondensedLayout ? styles.caromCondensedTimeCard : undefined,
-              useCaromUltraCondensed ? styles.caromUltraCondensedTimeCard : undefined,
               useResponsiveCompact ? styles.phoneTimeCard : undefined,
             ]}>
             <RNText
@@ -940,9 +941,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             style={[
               styles.caromInfoWrap,
               styles.caromInfoWrapCompact,
-              useCaromCondensedLayout ? styles.caromCondensedInfoWrap : undefined,
-              useCaromUltraCondensed ? styles.caromUltraCondensedInfoWrap : undefined,
-              isHandheldLandscape ? styles.handheldCaromInfoWrap : undefined,
               hideCaromCamera ? styles.caromInfoWrapNoCamera : undefined,
             ]}>
             <CaromInfo
@@ -968,10 +966,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 : undefined,
               useResponsiveCompact ? styles.phoneCameraCard : undefined,
               styles.caromCameraCard,
-              useCaromCondensedLayout ? styles.caromCondensedCameraCard : undefined,
-              useCaromUltraCondensed ? styles.caromUltraCondensedCameraCard : undefined,
               useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
-              isHandheldLandscape ? styles.handheldCameraCard : undefined,
               {minHeight: cameraMinHeight},
             ]}>
             <Webcam
@@ -996,10 +991,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               ? styles.mediumGoalCard
               : undefined,
             styles.caromGoalCardFullWidth,
-            useCaromCondensedLayout ? styles.caromCondensedGoalCard : undefined,
-            useCaromUltraCondensed ? styles.caromUltraCondensedGoalCard : undefined,
             useResponsiveCompact ? styles.phoneGoalCard : undefined,
-            isHandheldLandscape ? styles.handheldGoalCard : undefined,
             hideCaromCamera ? styles.caromGoalCardNoCamera : undefined,
             !hideCaromCamera ? styles.caromGoalCardInline : undefined,
             isLargeDisplay && !useResponsiveCompact
@@ -1050,13 +1042,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           style={[
             styles.actionStack,
             styles.caromActionStack,
-            useCaromCondensedLayout ? styles.caromCondensedActionStack : undefined,
-            useCaromUltraCondensed ? styles.caromUltraCondensedActionStack : undefined,
             useTightLandscapeLayout && !useResponsiveCompact
               ? styles.mediumActionStack
               : undefined,
             useResponsiveCompact ? styles.phoneActionStack : undefined,
-            isHandheldLandscape ? styles.handheldActionStack : undefined,
             hideCaromCamera ? styles.caromActionStackNoCamera : undefined,
           ]}>
           {cameraUtilityRows}
@@ -1075,11 +1064,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           ? styles.mediumWrapper
           : undefined,
         useResponsiveCompact ? styles.phoneWrapper : undefined,
-        isHandheldLandscape ? styles.handheldWrapper : undefined,
-        usePoolBroadcastLayout ? styles.poolWrapper : undefined,
-        isHandheldLandscape && usePoolBroadcastLayout
-          ? styles.handheldPoolWrapper
-          : undefined,
       ]}>
       <View
         style={[
@@ -1096,8 +1080,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               ? styles.mediumTimeCard
               : undefined,
             useResponsiveCompact ? styles.phoneTimeCard : undefined,
-            isHandheldLandscape ? styles.handheldTimeCard : undefined,
-            usePoolBroadcastLayout ? styles.poolTimeCard : undefined,
           ]}>
           <RNText
             adjustsFontSizeToFit
@@ -1138,11 +1120,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               ? styles.mediumMetaRow
               : undefined,
             useResponsiveCompact ? styles.phoneMetaRow : undefined,
-            isHandheldLandscape ? styles.handheldMetaRow : undefined,
-            usePoolBroadcastLayout ? styles.poolMetaRow : undefined,
-            isHandheldLandscape && usePoolBroadcastLayout
-              ? styles.handheldPoolMetaRow
-              : undefined,
           ]}>
           <View
             style={[
@@ -1151,11 +1128,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 ? styles.mediumMetaCard
                 : undefined,
               useResponsiveCompact ? styles.phoneMetaCard : undefined,
-              isHandheldLandscape ? styles.handheldMetaCard : undefined,
-              usePoolBroadcastLayout ? styles.poolMetaCard : undefined,
-              isHandheldLandscape && usePoolBroadcastLayout
-                ? styles.handheldPoolMetaCard
-                : undefined,
             ]}>
             <Text
               color={'#FFFFFF'}
@@ -1186,11 +1158,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 ? styles.mediumMetaCard
                 : undefined,
               useResponsiveCompact ? styles.phoneMetaCard : undefined,
-              isHandheldLandscape ? styles.handheldMetaCard : undefined,
-              usePoolBroadcastLayout ? styles.poolMetaCard : undefined,
-              isHandheldLandscape && usePoolBroadcastLayout
-                ? styles.handheldPoolMetaCard
-                : undefined,
             ]}>
             <Text
               color={'#FFFFFF'}
@@ -1223,13 +1190,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             ? styles.mediumCameraCard
             : undefined,
           useResponsiveCompact ? styles.phoneCameraCard : undefined,
-          isHandheldLandscape ? styles.handheldCameraCard : undefined,
           isPool15 ? styles.pool15CameraCard : undefined,
-          usePoolBroadcastLayout ? styles.poolCameraCard : undefined,
-          isHandheldLandscape && usePoolBroadcastLayout
-            ? styles.handheldPoolCameraCard
-            : undefined,
-          {minHeight: cameraMinHeight},
+          usePoolBroadcastLayout ? styles.poolBroadcastCameraCard : undefined,
+          usePoolBroadcastLayout ? poolCameraFrameStyle : {minHeight: cameraMinHeight},
         ]}>
         <Webcam
           ref={webcamRef}
@@ -1250,14 +1213,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           style={[
             styles.actionStack,
             useTightLandscapeLayout && !useResponsiveCompact
-              ? styles.mediumActionStack
-              : undefined,
-            useResponsiveCompact ? styles.phoneActionStack : undefined,
-            isHandheldLandscape ? styles.handheldActionStack : undefined,
-            usePoolBroadcastLayout ? styles.poolActionStack : undefined,
-            isHandheldLandscape && usePoolBroadcastLayout
-              ? styles.handheldPoolActionStack
-              : undefined,
+            ? styles.mediumActionStack
+            : undefined,
+          useResponsiveCompact ? styles.phoneActionStack : undefined,
           ]}>
           {cameraUtilityRows}
           {mainActionRow}
@@ -1295,18 +1253,6 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     gap: 4,
   },
-  handheldWrapper: {
-    paddingHorizontal: 3,
-    paddingTop: 3,
-    paddingBottom: 3,
-    gap: 2,
-  },
-  poolWrapper: {
-    paddingHorizontal: 6,
-    paddingTop: 6,
-    paddingBottom: 4,
-    gap: 4,
-  },
   caromWrapper: {
     backgroundColor: '#111216',
   },
@@ -1332,29 +1278,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   phoneTimeCard: {
-    minHeight: 44,
-    borderRadius: 11,
-    paddingHorizontal: 7,
+    minHeight: 50,
+    borderRadius: 12,
+    paddingHorizontal: 8,
   },
   mediumTimeCard: {
     minHeight: 56,
     borderRadius: 14,
     paddingHorizontal: 10,
-  },
-  handheldTimeCard: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-  },
-  poolTimeCard: {
-    minHeight: 52,
-    borderRadius: 14,
-    paddingHorizontal: 8,
-  },
-  handheldPoolTimeCard: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingHorizontal: 5,
   },
   caromTimeCard: {
     backgroundColor: '#1A1315',
@@ -1381,19 +1312,6 @@ const styles = StyleSheet.create({
   mediumMetaRow: {
     gap: 6,
   },
-  poolMetaRow: {
-    gap: 6,
-  },
-  handheldPoolMetaRow: {
-    width: '82%',
-    alignSelf: 'center',
-    gap: 3,
-  },
-  handheldMetaRow: {
-    gap: 3,
-    width: '80%',
-    alignSelf: 'center',
-  },
   metaCard: {
     flex: 1,
     minHeight: 62,
@@ -1407,34 +1325,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   phoneMetaCard: {
-    minHeight: 44,
-    borderRadius: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    minHeight: 50,
+    borderRadius: 11,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
   },
   mediumMetaCard: {
     minHeight: 52,
     borderRadius: 13,
     paddingVertical: 6,
     paddingHorizontal: 8,
-  },
-  poolMetaCard: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-  },
-  handheldPoolMetaCard: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  handheldMetaCard: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
   },
   metaLabel: {
     textAlign: 'center',
@@ -1474,42 +1374,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#141518',
   },
   phoneCameraCard: {
-    minHeight: 160,
-    borderRadius: 14,
-    borderWidth: 4,
+    minHeight: 190,
+    borderRadius: 16,
   },
   mediumCameraCard: {
     minHeight: 205,
     borderRadius: 18,
     borderWidth: 4,
   },
+  poolBroadcastCameraCard: {
+    width: '100%',
+    flex: 0,
+    minHeight: 0,
+    aspectRatio: 16 / 9,
+    alignSelf: 'stretch',
+    borderRadius: 18,
+    borderWidth: 4,
+  },
   caromCameraCard: {},
   caromPhoneCameraCard: {
-    minHeight: 148,
-  },
-  handheldCameraCard: {
-    width: '76%',
-    alignSelf: 'center',
-    flex: 0.52,
-    minHeight: 88,
-    maxHeight: 112,
-    borderRadius: 10,
-    borderWidth: 3,
-  },
-  poolCameraCard: {
-    flex: 1.22,
-    borderRadius: 16,
-    borderWidth: 4,
-    minHeight: 210,
-  },
-  handheldPoolCameraCard: {
-    width: '80%',
-    alignSelf: 'center',
-    flex: 0.56,
-    minHeight: 94,
-    maxHeight: 122,
-    borderRadius: 10,
-    borderWidth: 3,
+    minHeight: 176,
   },
   pool15CameraCard: {
     flex: 1,
@@ -1524,84 +1408,13 @@ const styles = StyleSheet.create({
   phoneActionStack: {
     gap: 4,
   },
-  handheldActionStack: {
-    width: '78%',
-    alignSelf: 'center',
-    gap: 2,
-  },
   mediumActionStack: {
     gap: 4,
-  },
-  poolActionStack: {
-    gap: 3,
-  },
-  handheldPoolActionStack: {
-    width: '80%',
-    alignSelf: 'center',
-    gap: 2,
   },
   caromActionStack: {},
   caromActionStackNoCamera: {
     flex: 1,
     justifyContent: 'flex-end',
-  },
-  caromCondensedWrapper: {
-    paddingHorizontal: 6,
-    paddingTop: 5,
-    paddingBottom: 5,
-    gap: 4,
-  },
-  caromUltraCondensedWrapper: {
-    paddingHorizontal: 5,
-    paddingTop: 4,
-    paddingBottom: 4,
-    gap: 3,
-  },
-  caromCondensedTimeCard: {
-    minHeight: 40,
-    borderRadius: 12,
-    paddingHorizontal: 7,
-  },
-  caromUltraCondensedTimeCard: {
-    minHeight: 32,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-  },
-  caromCondensedInfoWrap: {
-    marginTop: -2,
-  },
-  caromUltraCondensedInfoWrap: {
-    marginTop: -4,
-  },
-  caromCondensedCameraCard: {
-    flex: 0.58,
-    maxHeight: 130,
-    borderWidth: 3,
-    borderRadius: 13,
-  },
-  caromUltraCondensedCameraCard: {
-    flex: 0.48,
-    maxHeight: 108,
-    borderWidth: 3,
-    borderRadius: 12,
-  },
-  caromCondensedGoalCard: {
-    minHeight: 34,
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
-  caromUltraCondensedGoalCard: {
-    minHeight: 28,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-  },
-  caromCondensedActionStack: {
-    gap: 3,
-  },
-  caromUltraCondensedActionStack: {
-    gap: 2,
   },
   topButtonRowWrap: {
     width: '100%',
@@ -1616,20 +1429,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   compactSmallActionButton: {
-    minHeight: 26,
-    borderRadius: 9,
-    paddingHorizontal: 6,
+    minHeight: 30,
+    borderRadius: 10,
+    paddingHorizontal: 8,
   },
   extraCompactSmallActionButton: {
-    minHeight: 20,
-    borderRadius: 7,
-    paddingHorizontal: 4,
-  },
-  poolSmallActionButton: {
     minHeight: 28,
     borderRadius: 9,
     paddingHorizontal: 6,
   },
+  poolSmallActionButton: {},
   smallActionText: {
     color: '#FFFFFF',
     fontSize: 12,
@@ -1637,14 +1446,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactSmallActionText: {
-    fontSize: 9,
+    fontSize: 11,
   },
   extraCompactSmallActionText: {
-    fontSize: 7,
+    fontSize: 9,
   },
-  poolSmallActionText: {
-    fontSize: 10,
-  },
+  poolSmallActionText: {},
   wideButton: {
     width: '100%',
     minHeight: 40,
@@ -1655,20 +1462,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   compactWideButton: {
-    minHeight: 28,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  extraCompactWideButton: {
+    minHeight: 30,
     borderRadius: 9,
     paddingHorizontal: 8,
   },
-  extraCompactWideButton: {
-    minHeight: 21,
-    borderRadius: 7,
-    paddingHorizontal: 5,
-  },
-  poolWideButton: {
-    minHeight: 32,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-  },
+  poolWideButton: {},
   wideButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
@@ -1676,14 +1479,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactWideButtonText: {
-    fontSize: 11,
+    fontSize: 12,
   },
   extraCompactWideButtonText: {
-    fontSize: 10,
-  },
-  poolWideButtonText: {
     fontSize: 11,
   },
+  poolWideButtonText: {},
   dualButtonRow: {
     width: '100%',
     gap: 6,
@@ -1701,20 +1502,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   compactDualButton: {
-    minHeight: 28,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  extraCompactDualButton: {
+    minHeight: 30,
     borderRadius: 9,
     paddingHorizontal: 8,
   },
-  extraCompactDualButton: {
-    minHeight: 21,
-    borderRadius: 7,
-    paddingHorizontal: 5,
-  },
-  poolDualButton: {
-    minHeight: 32,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-  },
+  poolDualButton: {},
   tripleButtonRow: {
     width: '100%',
     gap: 6,
@@ -1732,20 +1529,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   compactTripleButton: {
-    minHeight: 28,
+    minHeight: 34,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+  },
+  extraCompactTripleButton: {
+    minHeight: 30,
     borderRadius: 9,
     paddingHorizontal: 6,
   },
-  extraCompactTripleButton: {
-    minHeight: 21,
-    borderRadius: 7,
-    paddingHorizontal: 4,
-  },
-  poolTripleButton: {
-    minHeight: 32,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-  },
+  poolTripleButton: {},
   tripleButtonText: {
     color: '#FFFFFF',
     fontSize: 13,
@@ -1753,14 +1546,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactTripleButtonText: {
-    fontSize: 10,
+    fontSize: 11,
   },
   extraCompactTripleButtonText: {
-    fontSize: 7,
+    fontSize: 9,
   },
-  poolTripleButtonText: {
-    fontSize: 10,
-  },
+  poolTripleButtonText: {},
   disabledButton: {
     opacity: 0.5,
   },
@@ -1783,14 +1574,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
   },
-  handheldGoalCard: {
-    width: '78%',
-    alignSelf: 'center',
-    minHeight: 28,
-    borderRadius: 9,
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-  },
   mediumGoalCard: {
     minHeight: 50,
     borderRadius: 13,
@@ -1804,9 +1587,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   caromInfoWrapCompact: {},
-  handheldCaromInfoWrap: {
-    marginTop: -4,
-  },
   caromInfoWrapNoCamera: {},
   poolBallButton: {
     borderWidth: 1.2,

@@ -4,6 +4,7 @@ import {useWindowDimensions} from 'react-native';
 import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
+import {getGameplayScreenProfile} from './screenProfile';
 
 interface Props {
   originalCountdownTime?: number;
@@ -18,13 +19,18 @@ const PoolShotClock = ({
   currentCountdownTime,
   onPress,
 }: Props) => {
-  const {width, height} = useWindowDimensions();
-  const shortestSide = Math.min(width, height);
-  const isLargeDisplay = width >= 1600 || shortestSide >= 900;
-  const segmentHeight = isLargeDisplay ? 92 : 28;
-  const segmentWrapMinHeight = isLargeDisplay ? 98 : 32;
-  const secondsFontSize = isLargeDisplay ? 58 : 20;
-  const secondsMarginLeft = isLargeDisplay ? '16' : '10';
+  const {width, height, fontScale} = useWindowDimensions();
+  const profile = getGameplayScreenProfile(width, height, fontScale);
+
+  const baseScale = profile.isHandheldLandscape
+    ? profile.shotClockScale
+    : profile.isMediumDisplay
+    ? 0.84
+    : 1;
+
+  const segmentHeight = Math.round(22 * baseScale);
+  const segmentWrapMinHeight = Math.round(26 * baseScale);
+  const secondsFontSize = Math.round(18 * baseScale);
 
   const safeOriginal = Math.max(1, originalCountdownTime || 40);
   const safeCurrent = Math.max(0, currentCountdownTime);
@@ -38,13 +44,7 @@ const PoolShotClock = ({
   }, [safeCurrent, progressMax]);
 
   return (
-    <Button
-      onPress={onPress}
-      style={{
-        width: '100%',
-        paddingTop: isLargeDisplay ? 0 : 0,
-        paddingBottom: isLargeDisplay ? 0 : 0,
-      }}>
+    <Button onPress={onPress} style={{width: '100%', paddingTop: 0, paddingBottom: 0}}>
       <View
         style={{width: '100%'}}
         direction={'row'}
@@ -64,8 +64,8 @@ const PoolShotClock = ({
                 style={{
                   flex: 1,
                   height: segmentHeight,
-                  marginHorizontal: 2,
-                  borderRadius: isLargeDisplay ? 8 : 4,
+                  marginHorizontal: profile.isHandheldLandscape ? 0.8 : 1.5,
+                  borderRadius: profile.isHandheldLandscape ? 2 : 4,
                   backgroundColor: isLit ? activeColor : '#2A2B31',
                   opacity: isLit ? 1 : 0.98,
                 }}
@@ -78,7 +78,7 @@ const PoolShotClock = ({
           color={activeColor}
           fontSize={secondsFontSize}
           fontWeight={'bold'}
-          marginLeft={secondsMarginLeft}>
+          marginLeft={profile.isHandheldLandscape ? '2' : '4'}>
           {`${safeCurrent}s`}
         </Text>
       </View>

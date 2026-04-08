@@ -153,6 +153,7 @@ const REPLAY_TIMELINE_TIME_BUCKET_SECONDS = 3;
 const REPLAY_TIMELINE_COUNTDOWN_BUCKET_SECONDS = 3;
 const REPLAY_PRUNE_EVERY_N_SEGMENTS = 3;
 const ENABLE_SEGMENT_OVERLAY_BURN = false;
+const REPLAY_RETURN_CAMERA_STABILIZE_MS = 900;
 
 type ReplayResumeSnapshot = {
   matchSessionId?: string;
@@ -471,6 +472,8 @@ const GamePlayViewModel = () => {
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>();
   const [winner, setWinner] = useState<Player>();
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraSessionNonce, setCameraSessionNonce] = useState(0);
+  const replayReturnAtRef = useRef(0);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -775,6 +778,12 @@ const GamePlayViewModel = () => {
 
     applyReplayResumeSnapshot(snapshot!);
     setReplayReturnRequestSync(null);
+
+    // Force camera preview remount after coming back from replay.
+    // This avoids a stale surface/player instance causing jittery preview.
+    setIsCameraReady(false);
+    replayReturnAtRef.current = Date.now();
+    setCameraSessionNonce(value => value + 1);
 
     // Giữ lại snapshot nhưng tắt auto-restore để tránh focus lại là ghi đè state lần nữa.
     await setReplayResumeSnapshot({
@@ -1100,10 +1109,17 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    console.log('[Replay] auto start recording after camera ready');
+    const replayReturnAge = Date.now() - replayReturnAtRef.current;
+    const startDelay =
+      replayReturnAge >= 0 && replayReturnAge < 4000
+        ? REPLAY_RETURN_CAMERA_STABILIZE_MS
+        : 0;
+
+    console.log('[Replay] auto start recording after camera ready', {startDelay});
 
     let attempts = 0;
-    recordingStartRetryRef.current = setInterval(() => {
+    const beginRetryLoop = () => {
+      recordingStartRetryRef.current = setInterval(() => {
       attempts += 1;
       console.log('[Replay] start retry attempt:', attempts);
 
@@ -1116,15 +1132,19 @@ const GamePlayViewModel = () => {
         return;
       }
 
-      if (attempts >= 12) {
-        console.log('[Replay] failed to start recording after retries');
-        shouldStartRecordingRef.current = false;
-        pendingStartRecordingRef.current = false;
-        clearRecordingStartRetry();
-      }
-    }, 500);
+        if (attempts >= 12) {
+          console.log('[Replay] failed to start recording after retries');
+          shouldStartRecordingRef.current = false;
+          pendingStartRecordingRef.current = false;
+          clearRecordingStartRetry();
+        }
+      }, 500);
+    };
+
+    const startDelayTimer = setTimeout(beginRetryLoop, startDelay);
 
     return () => {
+      clearTimeout(startDelayTimer);
       clearRecordingStartRetry();
     };
   }, [
@@ -2707,6 +2727,7 @@ const GamePlayViewModel = () => {
       setIsCameraReady,
       isCameraReady,
       isRecording,
+      cameraSessionNonce,
       //isPreview,
       //setIsPreview,
       //pauseVideoRecording,
@@ -2774,6 +2795,7 @@ const GamePlayViewModel = () => {
     setIsCameraReady,
     isCameraReady,
     isRecording,
+    cameraSessionNonce,
     // isPreview,
     // setIsPreview,
     // videoUri,

@@ -1,5 +1,5 @@
 import React, {memo} from 'react';
-import {StyleSheet, Text as RNText} from 'react-native';
+import {StyleSheet, Text as RNText, useWindowDimensions} from 'react-native';
 
 import View from 'components/View';
 import Button from 'components/Button';
@@ -16,6 +16,7 @@ import {
   isPool15Game,
   isPool15OnlyGame,
 } from 'utils/game';
+import {getGameplayScreenProfile, clamp} from './screenProfile';
 
 interface Props {
   title: string;
@@ -52,25 +53,127 @@ const TopMatchHeader = ({
     isPool15Game(gameSettings?.category) ||
     isPool15OnlyGame(gameSettings?.category);
 
+  const {width, height, fontScale} = useWindowDimensions();
+  const profile = getGameplayScreenProfile(width, height, fontScale);
+  const compactScale = profile.headerScale;
+  const isCompact = compactScale < 1;
+
+  const headerHeight = profile.isHandheldLandscape
+    ? Math.round(52 * compactScale)
+    : profile.isMediumDisplay
+    ? 50
+    : 68;
+  const horizontalPadding = profile.isHandheldLandscape
+    ? Math.round(10 * compactScale)
+    : isCompact
+    ? 8
+    : 16;
+  const verticalPadding = profile.isHandheldLandscape
+    ? Math.max(1, Math.round(4 * compactScale))
+    : isCompact
+    ? 4
+    : 8;
+  const logoSlotWidth = profile.isHandheldLandscape
+    ? Math.round(100 * compactScale)
+    : isCompact
+    ? 98
+    : 148;
+  const logoWidth = profile.isHandheldLandscape
+    ? Math.round(68 * compactScale)
+    : isCompact
+    ? 68
+    : 90;
+  const logoHeight = profile.isHandheldLandscape
+    ? Math.round(26 * compactScale)
+    : isCompact
+    ? 28
+    : 36;
+  const titleFontSize = profile.isHandheldLandscape
+    ? Math.round(24 * compactScale)
+    : isCompact
+    ? 20
+    : 31;
+  const titleLineHeight = Math.round(titleFontSize * 1.08);
+  const rightSlotWidth = profile.isHandheldLandscape
+    ? Math.round(180 * compactScale)
+    : isCompact
+    ? 136
+    : 188;
+  const switchGroupWidth = profile.isHandheldLandscape
+    ? Math.round((isAnyPoolMode ? 110 : 130) * compactScale)
+    : isCompact
+    ? 108
+    : 146;
+  const switchRowHeight = profile.isHandheldLandscape
+    ? Math.max(16, Math.round(24 * compactScale))
+    : isCompact
+    ? 20
+    : 26;
+  const labelFontSize = profile.isHandheldLandscape
+    ? clamp(Math.round(11 * compactScale), 8, 10)
+    : isCompact
+    ? 10
+    : 12;
+  const soundButtonSize = profile.isHandheldLandscape
+    ? Math.max(18, Math.round(28 * compactScale))
+    : isCompact
+    ? 24
+    : 30;
+  const soundIconSize = profile.isHandheldLandscape
+    ? Math.max(11, Math.round(16 * compactScale))
+    : isCompact
+    ? 14
+    : 18;
+
   return (
-    <View style={styles.header}>
-      <View style={styles.logoSlot}>
+    <View
+      style={[
+        styles.header,
+        {
+          minHeight: headerHeight,
+          borderRadius: Math.round(headerHeight * 0.34),
+          paddingHorizontal: horizontalPadding,
+          paddingVertical: verticalPadding,
+        },
+      ]}>
+      <View style={[styles.logoSlot, {width: logoSlotWidth}]}>
         <Image
           source={images.logoSmall || images.logo}
           resizeMode="contain"
-          style={styles.logo}
+          style={{width: logoWidth, height: logoHeight}}
         />
       </View>
 
       <View style={styles.titleSlot}>
-        <RNText style={styles.titleText}>{title}</RNText>
+        <RNText
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+          allowFontScaling={false}
+          maxFontSizeMultiplier={1}
+          style={[
+            styles.titleText,
+            {
+              fontSize: titleFontSize,
+              lineHeight: titleLineHeight,
+              transform: [{translateX: profile.isHandheldLandscape ? 0 : isCompact ? 0 : 30}],
+            },
+          ]}>
+          {title}
+        </RNText>
       </View>
 
-      <View style={styles.rightSlot}>
-        <View style={styles.switchGroup}>
+      <View style={[styles.rightSlot, {width: rightSlotWidth}]}>
+        <View style={[styles.switchGroup, {width: switchGroupWidth}]}> 
           {!isAnyPoolMode ? (
-            <View style={styles.switchRow}>
-              <RNText style={styles.switchLabel}>Pro Mode</RNText>
+            <View style={[styles.switchRow, {minHeight: switchRowHeight}]}> 
+              <RNText
+                numberOfLines={1}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[styles.switchLabel, {fontSize: labelFontSize}]}> 
+                Pro Mode
+              </RNText>
               <Switch
                 defaultValue={proModeEnabled}
                 onChange={value => onToggleProMode?.(value)}
@@ -78,8 +181,12 @@ const TopMatchHeader = ({
             </View>
           ) : null}
 
-          <View style={styles.switchRow}>
-            <RNText style={styles.switchLabel}>
+          <View style={[styles.switchRow, {minHeight: switchRowHeight}]}> 
+            <RNText
+              numberOfLines={1}
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.switchLabel, {fontSize: labelFontSize}]}> 
               {localeText('Điều khiển', 'Remote')}
             </RNText>
             <Switch
@@ -89,13 +196,23 @@ const TopMatchHeader = ({
           </View>
         </View>
 
-        <Button onPress={onToggleSound} style={styles.soundButton}>
+        <Button
+          onPress={onToggleSound}
+          style={[
+            styles.soundButton,
+            {
+              width: soundButtonSize,
+              height: soundButtonSize,
+              marginLeft: profile.isHandheldLandscape ? 3 : isCompact ? 4 : 8,
+            },
+          ]}>
           <Image
             source={soundEnabled ? images.game.soundOn : images.game.soundOff}
-            style={[
-              styles.soundIcon,
-              {tintColor: soundEnabled ? '#FFFFFF' : '#7A7A7A'},
-            ]}
+            style={{
+              width: soundIconSize,
+              height: soundIconSize,
+              tintColor: soundEnabled ? '#FFFFFF' : '#7A7A7A',
+            }}
             resizeMode={'contain'}
           />
         </Button>
@@ -106,86 +223,53 @@ const TopMatchHeader = ({
 
 const styles = StyleSheet.create({
   header: {
-    minHeight: 74,
-    borderRadius: 24,
     borderWidth: 1.2,
     borderColor: 'rgba(255, 32, 32, 0.55)',
     backgroundColor: '#0A0B0E',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
     shadowColor: '#ff1f1f',
     shadowOpacity: 0.18,
     shadowRadius: 14,
     shadowOffset: {width: 0, height: 0},
     elevation: 10,
   },
-
   logoSlot: {
-    width: 170,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
-
-  logo: {
-    width: 98,
-    height: 40,
-  },
-
   titleSlot: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 0,
+    paddingHorizontal: 4,
   },
-
   titleText: {
     color: '#FFFFFF',
-    fontSize: 35,
-    lineHeight: 40,
     fontWeight: '900',
     textAlign: 'center',
     includeFontPadding: false,
     width: '100%',
-    transform: [{translateX: 30}],
   },
-
   rightSlot: {
-    width: 224,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-
-  switchGroup: {
-    width: 172,
-  },
-
+  switchGroup: {},
   switchRow: {
-    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-
   switchLabel: {
     color: colors.white,
-    fontSize: 14,
     fontWeight: '600',
   },
-
   soundButton: {
-    width: 36,
-    height: 36,
-    marginLeft: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  soundIcon: {
-    width: 22,
-    height: 22,
-    tintColor: '#FFFFFF',
   },
 });
 

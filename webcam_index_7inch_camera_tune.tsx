@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
   },
 
   embeddedRootHandheld: {
-    width: '92%',
+    width: '84%',
     marginTop: 0,
   },
 
@@ -1060,8 +1060,8 @@ const styles = StyleSheet.create({
   },
 
   logoOnlyImage: {
-    width: '90%',
-    height: '82%',
+    width: '84%',
+    height: '84%',
     opacity: 0.96,
   },
 

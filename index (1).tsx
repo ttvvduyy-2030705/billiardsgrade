@@ -1,9 +1,9 @@
 import React, {memo, useMemo} from 'react';
 import {
+  Image,
   StyleSheet,
   TextInput,
   Text as RNText,
-  Image as RNImage,
   useWindowDimensions,
 } from 'react-native';
 
@@ -13,7 +13,6 @@ import i18n from 'i18n';
 import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
-import {getCountryFlagImageUri} from '../../settings/player/countries';
 
 const isEnglish = () => {
   const locale = String(
@@ -24,61 +23,8 @@ const isEnglish = () => {
 
 const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
 
-const isRemoteUri = (value?: string) =>
-  /^https?:\/\//i.test(String(value || '').trim()) ||
-  /^file:\/\//i.test(String(value || '').trim());
-
-const getPlayerFlagImageUri = (player?: {countryCode?: string; flag?: string}) => {
-  const fromCode = getCountryFlagImageUri(player?.countryCode, 160);
-  if (fromCode) {
-    return fromCode;
-  }
-
-  const rawFlag = String(player?.flag || '').trim();
-  return isRemoteUri(rawFlag) ? rawFlag : '';
-};
-
-const getPlayerFlagText = (player?: {flag?: string}) => {
-  const rawFlag = String(player?.flag || '').trim();
-  return isRemoteUri(rawFlag) ? '' : rawFlag;
-};
-
-const isLightColor = (value?: string) => {
-  const raw = String(value || '').trim().toLowerCase();
-
-  if (!raw) {
-    return false;
-  }
-
-  if (raw === 'white' || raw === '#fff' || raw === '#ffffff') {
-    return true;
-  }
-
-  const hex = raw.replace('#', '');
-  if (/^[0-9a-f]{3}$/i.test(hex)) {
-    const r = parseInt(hex[0] + hex[0], 16);
-    const g = parseInt(hex[1] + hex[1], 16);
-    const b = parseInt(hex[2] + hex[2], 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  if (/^[0-9a-f]{6}$/i.test(hex)) {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  const rgbMatch = raw.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-  if (rgbMatch) {
-    const r = Number(rgbMatch[1]);
-    const g = Number(rgbMatch[2]);
-    const b = Number(rgbMatch[3]);
-    return (r * 299 + g * 587 + b * 114) / 1000 >= 186;
-  }
-
-  return false;
-};
+const isRemoteUri = (value: string) =>
+  /^https?:\/\//i.test(value) || /^file:\/\//i.test(value);
 
 const GamePlayer = (
   props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean},
@@ -112,13 +58,6 @@ const GamePlayer = (
     (props.totalPlayers || 2) <= 2 &&
     shortestSide < 650;
 
-  const isHandheldLandscape =
-    isLandscape &&
-    !isLargeDisplay &&
-    (props.totalPlayers || 2) <= 2 &&
-    width <= 1400 &&
-    height <= 900;
-
   const isExtraCompactLayout =
     (props.totalPlayers || 2) >= 4 || (!isLargeDisplay && shortestSide <= 430);
 
@@ -128,14 +67,8 @@ const GamePlayer = (
     }
 
     const base = Math.max(0.72, Math.min(1, shortestSide / 900));
-    const normalized = base / Math.min(fontScale || 1, 1.15);
-
-    if (isHandheldLandscape) {
-      return Math.max(0.62, Math.min(0.78, normalized * 0.86));
-    }
-
-    return Math.max(0.7, Math.min(1, normalized));
-  }, [fontScale, isHandheldLandscape, isLargeDisplay, shortestSide]);
+    return Math.max(0.7, Math.min(1, base / Math.min(fontScale || 1, 1.15)));
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const isCaromMode = !isPoolMode;
   const isLibreMode = props.gameSettings?.category === 'libre';
@@ -155,32 +88,17 @@ const GamePlayer = (
     ? {backgroundColor: playerPanelColor, borderColor: 'rgba(17,17,17,0.28)'}
     : {backgroundColor: '#000000', borderColor: '#FF1818'};
 
-  const isLightPlayerPanel = useColoredPanel && isLightColor(playerPanelColor);
-  const addTimeButtonDynamicStyle = isLightPlayerPanel
-    ? {
-        borderColor: 'rgba(17,17,17,0.5)',
-        backgroundColor: 'rgba(17,17,17,0.08)',
-      }
-    : undefined;
-  const addTimeTextDynamicStyle = isLightPlayerPanel
-    ? {color: '#111111'}
-    : undefined;
-
   const textColorStyle = {color: primaryTextColor};
   const inactivePlaceholderColor = inactiveTextColor;
 
   const scoreLayerDynamicStyle = isCaromMode
-    ? isHandheldLandscape
-      ? styles.scoreLayerCaromHandheld
-      : isPhoneLandscapeTwoPlayer
+    ? isPhoneLandscapeTwoPlayer
       ? styles.scoreLayerCaromPhoneLandscape
       : isExtraCompactLayout
       ? styles.scoreLayerCaromExtraCompact
       : isCompactLayout
       ? styles.scoreLayerCaromCompact
       : styles.scoreLayerCarom
-    : isHandheldLandscape
-    ? styles.scoreLayerHandheld
     : isPhoneLandscapeTwoPlayer
     ? styles.scoreLayerPhoneLandscape
     : isExtraCompactLayout
@@ -190,17 +108,13 @@ const GamePlayer = (
     : undefined;
 
   const scoreTextDynamicStyle = isCaromMode
-    ? isHandheldLandscape
-      ? styles.scoreTextCaromHandheld
-      : isPhoneLandscapeTwoPlayer
+    ? isPhoneLandscapeTwoPlayer
       ? styles.scoreTextCaromPhoneLandscape
       : isExtraCompactLayout
       ? styles.scoreTextCaromExtraCompact
       : isCompactLayout
       ? styles.scoreTextCaromCompact
       : styles.scoreTextCarom
-    : isHandheldLandscape
-    ? styles.scoreTextHandheld
     : isPhoneLandscapeTwoPlayer
     ? styles.scoreTextPhoneLandscape
     : isExtraCompactLayout
@@ -250,13 +164,57 @@ const GamePlayer = (
 
   const showAddTime = extraTimeTurns > 0 && !isPool15Mode;
 
+  const scoreTextOpticalCenterStyle = useMemo(() => {
+    const digits = String(Math.abs(totalPointValue)).length;
+
+    if (digits <= 1) {
+      if (isPhoneLandscapeTwoPlayer) {
+        return styles.scoreTextSingleDigitPhoneLandscape;
+      }
+      if (isExtraCompactLayout) {
+        return styles.scoreTextSingleDigitExtraCompact;
+      }
+      if (isCompactLayout) {
+        return styles.scoreTextSingleDigitCompact;
+      }
+      if (isMediumResponsiveLayout) {
+        return styles.scoreTextSingleDigitMedium;
+      }
+      return styles.scoreTextSingleDigit;
+    }
+
+    if (digits === 2) {
+      if (isPhoneLandscapeTwoPlayer) {
+        return styles.scoreTextDoubleDigitPhoneLandscape;
+      }
+      if (isExtraCompactLayout) {
+        return styles.scoreTextDoubleDigitExtraCompact;
+      }
+      if (isCompactLayout) {
+        return styles.scoreTextDoubleDigitCompact;
+      }
+      if (isMediumResponsiveLayout) {
+        return styles.scoreTextDoubleDigitMedium;
+      }
+      return styles.scoreTextDoubleDigit;
+    }
+
+    return undefined;
+  }, [
+    totalPointValue,
+    isPhoneLandscapeTwoPlayer,
+    isExtraCompactLayout,
+    isCompactLayout,
+    isMediumResponsiveLayout,
+  ]);
 
   const addTimeButtons = useMemo(() => {
     return Array.from({length: extraTimeTurns}, (_, index) => index);
   }, [extraTimeTurns]);
 
-  const playerFlag = getPlayerFlagText(props.player as any);
-  const playerFlagImage = getPlayerFlagImageUri(props.player as any);
+  const rawFlag = String((props.player as any)?.flag || '').trim();
+  const playerFlagUri = isRemoteUri(rawFlag) ? rawFlag : '';
+  const playerFlagText = playerFlagUri ? '' : rawFlag;
 
   return (
     <View
@@ -274,7 +232,7 @@ const GamePlayer = (
           isMediumResponsiveLayout ? styles.nameRowMedium : undefined,
           isCompactLayout && styles.nameRowCompact,
         ]}>
-        {playerFlagImage || playerFlag ? (
+        {playerFlagUri ? (
           <View
             style={[
               styles.flagBadge,
@@ -282,26 +240,29 @@ const GamePlayer = (
               isCompactLayout && styles.flagBadgeCompact,
               isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
             ]}>
-            {playerFlagImage ? (
-              <RNImage
-                source={{uri: playerFlagImage}}
-                resizeMode="cover"
-                fadeDuration={0}
-                style={styles.flagImage}
-              />
-            ) : (
-              <RNText
-                style={[
-                  styles.flagText,
-                  isMediumResponsiveLayout ? styles.flagTextMedium : undefined,
-                  isCompactLayout && styles.flagTextCompact,
-                  !isActiveCard && styles.flagTextInactive,
-                ]}
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}>
-                {playerFlag}
-              </RNText>
-            )}
+            <Image
+              source={{uri: playerFlagUri}}
+              style={styles.flagImage}
+              resizeMode="contain"
+            />
+          </View>
+        ) : playerFlagText ? (
+          <View
+            style={[
+              styles.flagBadge,
+              isMediumResponsiveLayout ? styles.flagBadgeMedium : undefined,
+              isCompactLayout && styles.flagBadgeCompact,
+              isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
+            ]}>
+            <RNText
+              style={[
+                styles.flagText,
+                isMediumResponsiveLayout ? styles.flagTextMedium : undefined,
+                isCompactLayout && styles.flagTextCompact,
+                !isActiveCard && styles.flagTextInactive,
+              ]}>
+              {playerFlagText}
+            </RNText>
           </View>
         ) : null}
 
@@ -318,8 +279,8 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameInput,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
-              (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
+              (playerFlagUri || playerFlagText) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameInputMedium : undefined,
               isCompactLayout && styles.nameInputCompact,
               textColorStyle,
@@ -336,8 +297,8 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameText,
-              {fontSize: Math.round((isHandheldLandscape ? 36 : 42) * uiScale), lineHeight: Math.round((isHandheldLandscape ? 40 : 48) * uiScale)},
-              (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
+              (playerFlagUri || playerFlagText) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameTextMedium : undefined,
               isCompactLayout && styles.nameTextCompact,
               textColorStyle,
@@ -386,7 +347,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -404,7 +365,7 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isHandheldLandscape ? 24 : isCompactLayout ? 26 : 30) * uiScale)},
+              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
             ]}>
@@ -485,9 +446,9 @@ const GamePlayer = (
         pointerEvents="none">
         <View
           style={[
-            styles.scoreTextBox,
-            isMediumResponsiveLayout ? styles.scoreTextBoxMedium : undefined,
-            isCompactLayout && styles.scoreTextBoxCompact,
+            styles.scoreTextWrap,
+            isMediumResponsiveLayout ? styles.scoreTextWrapMedium : undefined,
+            isCompactLayout && styles.scoreTextWrapCompact,
           ]}>
           <RNText
             numberOfLines={1}
@@ -498,6 +459,7 @@ const GamePlayer = (
               isMediumResponsiveLayout ? styles.scoreTextMedium : undefined,
               scoreTextDynamicStyle,
               libreScoreTextStyle,
+              scoreTextOpticalCenterStyle,
               textColorStyle,
             ]}
             allowFontScaling={false}
@@ -523,7 +485,6 @@ const GamePlayer = (
                 styles.addTimeButton,
                 isMediumResponsiveLayout ? styles.addTimeButtonMedium : undefined,
                 isCompactLayout && styles.addTimeButtonCompact,
-                addTimeButtonDynamicStyle,
                 !isActiveCard && styles.addTimeButtonInactive,
               ]}>
               <RNText
@@ -531,7 +492,6 @@ const GamePlayer = (
                   styles.addTimeText,
                   isMediumResponsiveLayout ? styles.addTimeTextMedium : undefined,
                   isCompactLayout && styles.addTimeTextCompact,
-                  addTimeTextDynamicStyle,
                   !isActiveCard && styles.addTimeTextInactive,
                 ]}
                 allowFontScaling={false}
@@ -755,7 +715,6 @@ const styles = StyleSheet.create({
   flagImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#FFFFFF',
   },
   flagText: {
     width: '100%',
@@ -922,77 +881,61 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   scoreLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 172,
-    bottom: 104,
+    flex: 1.12,
+    width: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
+    minHeight: 0,
   },
   scoreLayerMedium: {
-    top: 146,
-    bottom: 88,
+    paddingVertical: 4,
   },
   scoreLayerCompact: {
-    top: 122,
-    bottom: 70,
+    paddingVertical: 2,
   },
   scoreLayerExtraCompact: {
-    top: 112,
-    bottom: 62,
+    paddingVertical: 2,
   },
   scoreLayerPhoneLandscape: {
-    top: 118,
-    bottom: 64,
-  },
-  scoreLayerHandheld: {
-    top: 136,
-    bottom: 90,
+    paddingVertical: 0,
   },
   scoreLayerCarom: {
-    top: 172,
-    bottom: 104,
+    paddingVertical: 4,
   },
   scoreLayerCaromCompact: {
-    top: 122,
-    bottom: 70,
+    paddingVertical: 2,
   },
   scoreLayerCaromExtraCompact: {
-    top: 112,
-    bottom: 62,
+    paddingVertical: 0,
   },
   scoreLayerCaromPhoneLandscape: {
-    top: 118,
-    bottom: 64,
-  },
-  scoreLayerCaromHandheld: {
-    top: 138,
-    bottom: 94,
+    paddingVertical: 0,
   },
   scoreLayerInactive: {
     opacity: 0.88,
   },
   scoreLayerWithScoredBalls: {
-    right: 44,
+    paddingRight: 44,
   },
-  scoreTextBox: {
-    width: '100%',
+  scoreTextWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
   },
-  scoreTextBoxMedium: {
-    paddingHorizontal: 8,
-  },
-  scoreTextBoxCompact: {
-    paddingHorizontal: 6,
-  },
+  scoreTextWrapMedium: {},
+  scoreTextWrapCompact: {},
   scoreText: {
-    width: '90%',
+    width: '92%',
+    alignSelf: 'center',
     color: '#FFFFFF',
     fontWeight: '900',
+    fontVariant: ['tabular-nums'],
     fontSize: 230,
     lineHeight: 230,
     textAlign: 'center',
@@ -1015,10 +958,6 @@ const styles = StyleSheet.create({
     fontSize: 150,
     lineHeight: 150,
   },
-  scoreTextHandheld: {
-    fontSize: 118,
-    lineHeight: 118,
-  },
   scoreTextCarom: {
     fontSize: 230,
     lineHeight: 230,
@@ -1034,10 +973,6 @@ const styles = StyleSheet.create({
   scoreTextCaromPhoneLandscape: {
     fontSize: 150,
     lineHeight: 150,
-  },
-  scoreTextCaromHandheld: {
-    fontSize: 114,
-    lineHeight: 114,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,
@@ -1064,23 +999,43 @@ const styles = StyleSheet.create({
     lineHeight: 104,
   },
   scoreTextLibre3DigitsPhoneLandscape: {
-    fontSize: 120,
-    lineHeight: 120,
+    fontSize: 132,
+    lineHeight: 132,
   },
   scoreTextLibre4DigitsPhoneLandscape: {
-    fontSize: 96,
-    lineHeight: 96,
+    fontSize: 106,
+    lineHeight: 106,
   },
-  scoreTextSingleDigit: {},
-  scoreTextSingleDigitMedium: {},
-  scoreTextSingleDigitCompact: {},
-  scoreTextSingleDigitExtraCompact: {},
-  scoreTextSingleDigitPhoneLandscape: {},
-  scoreTextDoubleDigit: {},
-  scoreTextDoubleDigitMedium: {},
-  scoreTextDoubleDigitCompact: {},
-  scoreTextDoubleDigitExtraCompact: {},
-  scoreTextDoubleDigitPhoneLandscape: {},
+  scoreTextSingleDigit: {
+    transform: [{translateX: 18}],
+  },
+  scoreTextSingleDigitMedium: {
+    transform: [{translateX: 14}],
+  },
+  scoreTextSingleDigitCompact: {
+    transform: [{translateX: 10}],
+  },
+  scoreTextSingleDigitExtraCompact: {
+    transform: [{translateX: 8}],
+  },
+  scoreTextSingleDigitPhoneLandscape: {
+    transform: [{translateX: 10}],
+  },
+  scoreTextDoubleDigit: {
+    transform: [{translateX: 8}],
+  },
+  scoreTextDoubleDigitMedium: {
+    transform: [{translateX: 6}],
+  },
+  scoreTextDoubleDigitCompact: {
+    transform: [{translateX: 4}],
+  },
+  scoreTextDoubleDigitExtraCompact: {
+    transform: [{translateX: 3}],
+  },
+  scoreTextDoubleDigitPhoneLandscape: {
+    transform: [{translateX: 4}],
+  },
   addTimeStack: {
     position: 'absolute',
     right: 12,
@@ -1176,37 +1131,22 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   playingBadge: {
-    position: 'absolute',
-    left: 0,
-    bottom: 0,
-    width: '38%',
-    minWidth: 180,
+    marginTop: 8,
     minHeight: 50,
-    borderTopRightRadius: 16,
-    borderTopLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderBottomLeftRadius: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    zIndex: 4,
     backgroundColor: '#1C1C20',
   },
   playingBadgeMedium: {
-    width: '36%',
-    minWidth: 150,
     minHeight: 40,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 14,
-    paddingHorizontal: 10,
+    marginTop: 8,
+    borderRadius: 14,
   },
   playingBadgeCompact: {
-    width: '34%',
-    minWidth: 118,
     minHeight: 34,
-    borderTopRightRadius: 12,
-    borderBottomLeftRadius: 12,
-    paddingHorizontal: 8,
+    marginTop: 6,
+    borderRadius: 12,
   },
   playingBadgeActive: {
     backgroundColor: '#1A1416',
