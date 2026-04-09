@@ -24,13 +24,15 @@ import {
   isPool15OnlyGame,
   isPoolGame,
 } from 'utils/game';
-import {getGameplayScreenProfile, clamp} from './screenProfile';
 
 const buildTitle = (category?: string, mode?: string) => {
   return `${i18n.t(category || '').toUpperCase()} - ${i18n
     .t(mode || '')
     .toUpperCase()}`;
 };
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
 
 const localStyles = StyleSheet.create({
   splitColumn: {
@@ -81,23 +83,10 @@ const localStyles = StyleSheet.create({
     flex: 1.12,
     minWidth: 0,
   },
-  shortLandscapePlayerSlot: {
-    flex: 0.86,
-    minWidth: 0,
-  },
-  shortLandscapeConsoleSlot: {
-    flex: 1.18,
-    minWidth: 0,
-  },
   compactMainArea: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    gap: 6,
-  },
-  ultraCompactMainArea: {
-    paddingHorizontal: 3,
-    paddingVertical: 3,
-    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 8,
   },
 });
 
@@ -113,21 +102,14 @@ const GamePlay = () => {
     return subscribeCameraFullscreen(setIsCameraFullscreen);
   }, []);
 
-  const profile = getGameplayScreenProfile(width, height, fontScale);
-  const {
-    shortestSide,
-    longestSide,
-    isLandscape,
-    isLargeDisplay,
-    isMediumDisplay,
-    isHandheldLandscape,
-    isUltraCompactLandscape,
-  } = profile;
-  const isMediumLandscape = isLandscape && isMediumDisplay;
-  const isCompactLandscape = isHandheldLandscape;
-  const isShortLandscapeDisplay = isLandscape && profile.scale <= 0.82;
-  const isVeryShortLandscapeDisplay = isLandscape && profile.scale <= 0.72;
-  const isHandheldLandscapeDisplay = isHandheldLandscape;
+  const shortestSide = Math.min(width, height);
+  const longestSide = Math.max(width, height);
+  const isLandscape = width > height;
+  const isLargeDisplay = longestSide >= 1600 || shortestSide >= 900;
+  const isMediumLandscape =
+    isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
+  const isCompactLandscape =
+    isLandscape && !isLargeDisplay && shortestSide < 650;
   const useCompactTwoPlayerLayout = isCompactLandscape || shortestSide < 430;
   const useTightTwoPlayerLayout = isMediumLandscape || useCompactTwoPlayerLayout;
 
@@ -165,38 +147,29 @@ const GamePlay = () => {
   const useCompactResponsiveLayout =
     useMultiPlayerLayout || (!isCameraFullscreen && useCompactTwoPlayerLayout);
 
-  const responsivePlayerSlotStyle = !isCameraFullscreen
-    ? isHandheldLandscapeDisplay
-      ? localStyles.shortLandscapePlayerSlot
-      : useTightTwoPlayerLayout
+  const responsivePlayerSlotStyle =
+    !isCameraFullscreen && useTightTwoPlayerLayout
       ? localStyles.tabletPlayerSlot
-      : undefined
-    : undefined;
+      : undefined;
 
-  const responsiveConsoleSlotStyle = !isCameraFullscreen
-    ? isHandheldLandscapeDisplay
-      ? localStyles.shortLandscapeConsoleSlot
-      : useTightTwoPlayerLayout
+  const responsiveConsoleSlotStyle =
+    !isCameraFullscreen && useTightTwoPlayerLayout
       ? localStyles.tabletConsoleSlot
-      : undefined
-    : undefined;
+      : undefined;
 
-  const compactMainAreaStyle = !isCameraFullscreen
-    ? isHandheldLandscapeDisplay || isVeryShortLandscapeDisplay
-      ? localStyles.ultraCompactMainArea
-      : useTightTwoPlayerLayout
+  const compactMainAreaStyle =
+    !isCameraFullscreen && useTightTwoPlayerLayout
       ? localStyles.compactMainArea
-      : undefined
-    : undefined;
+      : undefined;
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
       return 1;
     }
-    return isHandheldLandscapeDisplay
-      ? clamp(profile.scale * 0.92, 0.62, 0.82)
-      : clamp(profile.scale, 0.78, 1);
-  }, [isHandheldLandscapeDisplay, isLargeDisplay, profile.scale]);
+
+    const target = clamp(shortestSide / 900, 0.78, 1);
+    return clamp(target / Math.min(fontScale || 1, 1.15), 0.74, 1);
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const title = useMemo(() => {
     return buildTitle(
@@ -498,9 +471,6 @@ const GamePlay = () => {
         style={[
           useDarkPoolBackground ? styles.poolArenaScreen : undefined,
           isCaromMode ? localStyles.lightScreen : undefined,
-          isHandheldLandscapeDisplay
-            ? {paddingHorizontal: 8, paddingTop: 6, paddingBottom: 0}
-            : undefined,
         ]}
         flex={'1'}>
         {!isCameraFullscreen ? (
@@ -525,7 +495,7 @@ const GamePlay = () => {
           <View
             ref={viewModel.matchCountdownRef}
             collapsable={false}
-            style={[styles.countdownContainer, isHandheldLandscapeDisplay ? {marginTop: -4, paddingHorizontal: 1} : undefined]}>
+            style={styles.countdownContainer}>
             <PoolShotClock
               originalCountdownTime={
                 viewModel.gameSettings?.mode?.countdownTime || 40

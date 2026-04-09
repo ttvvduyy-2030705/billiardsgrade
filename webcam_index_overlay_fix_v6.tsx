@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Platform} from 'react-native';
+import {Platform, useWindowDimensions} from 'react-native';
 import {
   Image as RNImage,
   ImageBackground,
@@ -160,87 +160,144 @@ export type WebCamHandle = {
   canRewatch: () => boolean;
 };
 
-const LiveStreamImagesOverlay = memo(() => {
-  const [state, setState] = useState<PoolCameraScoreboardState>(
-    EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
-  );
+const LiveStreamImagesOverlay = memo(
+  ({
+    fullscreenMode = false,
+    compactMode = false,
+  }: {
+    fullscreenMode?: boolean;
+    compactMode?: boolean;
+  }) => {
+    const [state, setState] = useState<PoolCameraScoreboardState>(
+      EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
+    );
 
-  useEffect(() => {
-    return subscribePoolCameraScoreboardState(setState);
-  }, []);
+    useEffect(() => {
+      return subscribePoolCameraScoreboardState(setState);
+    }, []);
 
-  return (
-    <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <LiveStreamImages
+    return (
+      <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <LiveStreamImages
+          currentPlayerIndex={state.currentPlayerIndex}
+          countdownTime={state.countdownTime}
+          gameSettings={state.gameSettings}
+          playerSettings={state.playerSettings}
+          variant={fullscreenMode ? 'fullscreen' : 'embedded'}
+          compact={compactMode}
+        />
+      </RNView>
+    );
+  },
+);
+
+const PoolScoreboardOverlay = memo(
+  ({
+    fullscreenMode = false,
+    compactMode = false,
+  }: {
+    fullscreenMode?: boolean;
+    compactMode?: boolean;
+  }) => {
+    const [state, setState] = useState<PoolCameraScoreboardState>(
+      EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
+    );
+
+    useEffect(() => {
+      return subscribePoolCameraScoreboardState(setState);
+    }, []);
+
+    const poolCategory = state.gameSettings?.category;
+    const shouldShowPool =
+      isPool9Game(poolCategory) ||
+      isPool10Game(poolCategory) ||
+      isPool15Game(poolCategory);
+
+    if (!shouldShowPool) {
+      return null;
+    }
+
+    const scoreboard = (
+      <PoolBroadcastScoreboard
         currentPlayerIndex={state.currentPlayerIndex}
         countdownTime={state.countdownTime}
         gameSettings={state.gameSettings}
         playerSettings={state.playerSettings}
+        variant={fullscreenMode ? 'fullscreen' : 'camera'}
+        bottomOffset={fullscreenMode ? 18 : compactMode ? 8 : 12}
       />
-    </RNView>
-  );
-});
+    );
 
-const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
-  const [state, setState] = useState<PoolCameraScoreboardState>(
-    EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
-  );
+    if (!compactMode || fullscreenMode) {
+      return scoreboard;
+    }
 
-  useEffect(() => {
-    return subscribePoolCameraScoreboardState(setState);
-  }, []);
+    return (
+      <RNView pointerEvents="none" style={styles.poolScoreboardCompactOverlay}>
+        <RNView style={styles.poolScoreboardCompactScale}>{scoreboard}</RNView>
+      </RNView>
+    );
+  },
+);
 
-  const poolCategory = state.gameSettings?.category;
-  const shouldShowPool =
-    isPool9Game(poolCategory) ||
-    isPool10Game(poolCategory) ||
-    isPool15Game(poolCategory);
+const CaromScoreboardOverlay = memo(
+  ({
+    fullscreenMode = false,
+    compactMode = false,
+  }: {
+    fullscreenMode?: boolean;
+    compactMode?: boolean;
+  }) => {
+    const [state, setState] = useState<CaromCameraScoreboardState>(
+      EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
+    );
 
-  if (!shouldShowPool) {
-    return null;
-  }
+    useEffect(() => {
+      return subscribeCaromCameraScoreboardState(setState);
+    }, []);
 
-  return (
-    <PoolBroadcastScoreboard
-      currentPlayerIndex={state.currentPlayerIndex}
-      countdownTime={state.countdownTime}
-      gameSettings={state.gameSettings}
-      playerSettings={state.playerSettings}
-      variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={fullscreenMode ? 18 : 12}
-    />
-  );
-});
+    const shouldShowCarom = isCaromGame(state.gameSettings?.category);
+    if (!shouldShowCarom) {
+      return null;
+    }
 
-const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
-  const [state, setState] = useState<CaromCameraScoreboardState>(
-    EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
-  );
+    const scoreboard = (
+      <CaromBroadcastScoreboard
+        currentPlayerIndex={state.currentPlayerIndex}
+        countdownTime={state.countdownTime}
+        totalTurns={state.totalTurns}
+        gameSettings={state.gameSettings}
+        playerSettings={state.playerSettings}
+        variant={fullscreenMode ? 'fullscreen' : 'camera'}
+        bottomOffset={fullscreenMode ? 6 : compactMode ? -56 : -32}
+      />
+    );
 
-  useEffect(() => {
-    return subscribeCaromCameraScoreboardState(setState);
-  }, []);
+    if (!compactMode && !fullscreenMode) {
+      return scoreboard;
+    }
 
-  const shouldShowCarom = isCaromGame(state.gameSettings?.category);
-  if (!shouldShowCarom) {
-    return null;
-  }
+    if (fullscreenMode) {
+      return (
+        <RNView pointerEvents="none" style={styles.caromScoreboardFullscreenOverlay}>
+          <RNView style={styles.caromScoreboardFullscreenScale}>{scoreboard}</RNView>
+        </RNView>
+      );
+    }
 
-  return (
-    <CaromBroadcastScoreboard
-      currentPlayerIndex={state.currentPlayerIndex}
-      countdownTime={state.countdownTime}
-      totalTurns={state.totalTurns}
-      gameSettings={state.gameSettings}
-      playerSettings={state.playerSettings}
-      variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={fullscreenMode ? 18 : -32}
-    />
-  );
-});
+    return (
+      <RNView pointerEvents="none" style={styles.caromScoreboardCompactOverlay}>
+        <RNView style={styles.caromScoreboardCompactScale}>{scoreboard}</RNView>
+      </RNView>
+    );
+  },
+);
 
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
+  const {width, height} = useWindowDimensions();
+  const isHandheldLandscape =
+    width > height && Math.max(width, height) <= 1400 && Math.min(width, height) <= 900;
 
   const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
   const [zoomSupported, setZoomSupported] = useState(false);
@@ -346,10 +403,17 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     recordingInfo?.isRecording === true &&
     (recordingInfo?.source === 'external' || liveSourceLock === 'external');
 
+  const hasExternalWebcam = hasDetectedExternalWebcam();
+
   const baseCameraSource = currentCameraSource || liveSourceLock || 'back';
 
-  const effectiveCameraSource =
+  const requestedCameraSource =
     (isFullscreen ? fullscreenSourceRef.current : null) || baseCameraSource;
+
+  const effectiveCameraSource =
+    requestedCameraSource === 'external' && !hasExternalWebcam
+      ? 'back'
+      : requestedCameraSource;
 
   const effectiveCameraFacing =
     effectiveCameraSource === 'front' ? 'front' : 'back';
@@ -357,7 +421,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const effectiveSourceType =
     effectiveCameraSource === 'external' ? 'webcam' : 'phone';
 
-  const showLogoOnly = !hasDetectedExternalWebcam();
+  const showLogoOnly = false;
 
   const canRewatch = useMemo(() => {
     return props.isStarted && props.isPaused && !props.youtubeLivePreviewActive;
@@ -602,8 +666,12 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         ? 2
         : 1.565;
 
-    return [styles.embeddedRoot, {aspectRatio: embeddedAspectRatio}];
-  }, [effectiveCameraSource, props.innerControls]);
+    return [
+      styles.embeddedRoot,
+      isHandheldLandscape ? styles.embeddedRootHandheld : undefined,
+      {aspectRatio: embeddedAspectRatio},
+    ];
+  }, [effectiveCameraSource, isHandheldLandscape, props.innerControls]);
 
   const showBottomControls =
     (!props.innerControls || viewModel.innerControlsShow) &&
@@ -657,19 +725,34 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     thumbnailOverlay.bottomLeft.length > 0 ||
     thumbnailOverlay.bottomRight.length > 0;
 
-  const renderOverlay = () => {
+  const renderOverlay = (fullscreenMode = false) => {
     if (thumbnailOverlay.enabled) {
       return null;
     }
 
-    return <LiveStreamImagesOverlay />;
+    const compactMode = !fullscreenMode;
+
+    return (
+      <LiveStreamImagesOverlay
+        fullscreenMode={fullscreenMode}
+        compactMode={compactMode}
+      />
+    );
   };
 
   const renderScoreboardOverlay = (fullscreenMode = false) => {
+    const compactMode = !fullscreenMode;
+
     return (
       <>
-        <PoolScoreboardOverlay fullscreenMode={fullscreenMode} />
-        <CaromScoreboardOverlay fullscreenMode={fullscreenMode} />
+        <PoolScoreboardOverlay
+          fullscreenMode={fullscreenMode}
+          compactMode={compactMode}
+        />
+        <CaromScoreboardOverlay
+          fullscreenMode={fullscreenMode}
+          compactMode={compactMode}
+        />
       </>
     );
   };
@@ -691,6 +774,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
             source={{uri}}
             style={[
               styles.thumbnailImage,
+              !fullscreenMode && styles.thumbnailImageCompact,
               fullscreenMode && styles.thumbnailImageFullscreen,
             ]}
             resizeMode="contain"
@@ -713,6 +797,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
             source={fallbackSource}
             style={[
               styles.thumbnailImage,
+              !fullscreenMode && styles.thumbnailImageCompact,
               fullscreenMode && styles.thumbnailImageFullscreen,
             ]}
             resizeMode="contain"
@@ -804,12 +889,12 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
               setIsCameraReady={props.setIsCameraReady}
               overlayContent={
                 effectiveCameraSource === 'external'
-                  ? renderOverlay()
+                  ? renderOverlay(isFullscreen)
                   : undefined
               }
             />
           )}
-          {effectiveCameraSource !== 'external' ? renderOverlay() : null}
+          {effectiveCameraSource !== 'external' ? renderOverlay(isFullscreen) : null}
         </RNView>
       );
     }
@@ -999,6 +1084,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
   },
 
+  embeddedRootHandheld: {
+    width: '92%',
+    marginTop: 0,
+  },
+
   fullscreenRoot: {
     flex: 1,
     backgroundColor: '#000',
@@ -1048,8 +1138,8 @@ const styles = StyleSheet.create({
   },
 
   logoOnlyImage: {
-    width: '84%',
-    height: '84%',
+    width: '90%',
+    height: '82%',
     opacity: 0.96,
   },
 
@@ -1096,6 +1186,61 @@ const styles = StyleSheet.create({
     width: 92,
     height: 52,
     marginRight: 8,
+  },
+
+  thumbnailImageCompact: {
+    width: 72,
+    height: 40,
+    marginRight: 6,
+  },
+
+  scoreboardCompactOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    zIndex: 14,
+    elevation: 14,
+  },
+
+  poolScoreboardCompactOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 0,
+    zIndex: 14,
+    elevation: 14,
+  },
+
+  caromScoreboardCompactOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    paddingLeft: 4,
+    paddingBottom: 2,
+    zIndex: 14,
+    elevation: 14,
+  },
+
+  caromScoreboardFullscreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    paddingLeft: 10,
+    paddingBottom: 10,
+    zIndex: 14,
+    elevation: 14,
+  },
+
+  poolScoreboardCompactScale: {
+    transform: [{scaleX: 0.86}, {scaleY: 0.48}],
+  },
+
+  caromScoreboardCompactScale: {
+    transform: [{scaleX: 0.48}, {scaleY: 0.4}],
+  },
+
+  caromScoreboardFullscreenScale: {
+    transform: [{scaleX: 0.58}, {scaleY: 0.54}],
   },
 
   thumbnailImageFullscreen: {

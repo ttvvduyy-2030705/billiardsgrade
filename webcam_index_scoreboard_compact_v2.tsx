@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Platform} from 'react-native';
+import {Platform, useWindowDimensions} from 'react-native';
 import {
   Image as RNImage,
   ImageBackground,
@@ -208,6 +208,7 @@ const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: 
       playerSettings={state.playerSettings}
       variant={fullscreenMode ? 'fullscreen' : 'camera'}
       bottomOffset={fullscreenMode ? 18 : 12}
+      style={!fullscreenMode ? styles.poolScoreboardCompact : undefined}
     />
   );
 });
@@ -235,12 +236,16 @@ const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?:
       playerSettings={state.playerSettings}
       variant={fullscreenMode ? 'fullscreen' : 'camera'}
       bottomOffset={fullscreenMode ? 18 : -32}
+      style={!fullscreenMode ? styles.caromScoreboardCompact : undefined}
     />
   );
 });
 
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
+  const {width, height} = useWindowDimensions();
+  const isHandheldLandscape =
+    width > height && Math.max(width, height) <= 1400 && Math.min(width, height) <= 900;
 
   const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
   const [zoomSupported, setZoomSupported] = useState(false);
@@ -602,8 +607,12 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         ? 2
         : 1.565;
 
-    return [styles.embeddedRoot, {aspectRatio: embeddedAspectRatio}];
-  }, [effectiveCameraSource, props.innerControls]);
+    return [
+      styles.embeddedRoot,
+      isHandheldLandscape ? styles.embeddedRootHandheld : undefined,
+      {aspectRatio: embeddedAspectRatio},
+    ];
+  }, [effectiveCameraSource, isHandheldLandscape, props.innerControls]);
 
   const showBottomControls =
     (!props.innerControls || viewModel.innerControlsShow) &&
@@ -999,6 +1008,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
   },
 
+  embeddedRootHandheld: {
+    width: '92%',
+    marginTop: 0,
+  },
+
   fullscreenRoot: {
     flex: 1,
     backgroundColor: '#000',
@@ -1048,8 +1062,8 @@ const styles = StyleSheet.create({
   },
 
   logoOnlyImage: {
-    width: '84%',
-    height: '84%',
+    width: '90%',
+    height: '82%',
     opacity: 0.96,
   },
 
@@ -1102,6 +1116,15 @@ const styles = StyleSheet.create({
     width: 150,
     height: 84,
     marginRight: 10,
+  },
+
+
+  poolScoreboardCompact: {
+    transform: [{scale: 0.62}],
+  },
+
+  caromScoreboardCompact: {
+    transform: [{scale: 0.62}],
   },
 
   fullscreenFab: {

@@ -98,29 +98,22 @@ const GamePlayer = (
     isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
   const isCompactLandscape =
     isLandscape && !isLargeDisplay && shortestSide < 650;
-  const isShortLandscapeDisplay = isLandscape && height <= 820;
-  const isVeryShortLandscapeDisplay = isLandscape && height <= 720;
-  const useForcedCompact =
-    isCompactLandscape || shortestSide < 430 || isShortLandscapeDisplay;
+  const useForcedCompact = isCompactLandscape || shortestSide < 430;
 
   const isCompactLayout = Boolean(
     props.compact || useForcedCompact || (props.totalPlayers || 2) > 2,
   );
   const isMediumResponsiveLayout =
-    !isCompactLayout &&
-    isMediumLandscape &&
-    !isShortLandscapeDisplay &&
-    (props.totalPlayers || 2) <= 2;
+    !isCompactLayout && isMediumLandscape && (props.totalPlayers || 2) <= 2;
 
   const isPhoneLandscapeTwoPlayer =
     isLandscape &&
     !isLargeDisplay &&
     (props.totalPlayers || 2) <= 2 &&
-    (shortestSide < 650 || isShortLandscapeDisplay);
+    shortestSide < 650;
 
   const isExtraCompactLayout =
-    (props.totalPlayers || 2) >= 4 ||
-    (!isLargeDisplay && (shortestSide <= 430 || isVeryShortLandscapeDisplay));
+    (props.totalPlayers || 2) >= 4 || (!isLargeDisplay && shortestSide <= 430);
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
@@ -128,26 +121,8 @@ const GamePlayer = (
     }
 
     const base = Math.max(0.72, Math.min(1, shortestSide / 900));
-    const landscapeFactor = isVeryShortLandscapeDisplay
-      ? 0.86
-      : isShortLandscapeDisplay
-      ? 0.92
-      : 1;
-    return Math.max(
-      0.64,
-      Math.min(1, (base * landscapeFactor) / Math.min(fontScale || 1, 1.15)),
-    );
-  }, [
-    fontScale,
-    isLargeDisplay,
-    isShortLandscapeDisplay,
-    isVeryShortLandscapeDisplay,
-    shortestSide,
-  ]);
-
-  const nameFontSize = Math.round((isPhoneLandscapeTwoPlayer ? 34 : 42) * uiScale);
-  const nameLineHeight = Math.round((isPhoneLandscapeTwoPlayer ? 38 : 48) * uiScale);
-  const nameMinimumScale = isPhoneLandscapeTwoPlayer ? 0.5 : 0.72;
+    return Math.max(0.7, Math.min(1, base / Math.min(fontScale || 1, 1.15)));
+  }, [fontScale, isLargeDisplay, shortestSide]);
 
   const isCaromMode = !isPoolMode;
   const isLibreMode = props.gameSettings?.category === 'libre';
@@ -284,7 +259,6 @@ const GamePlayer = (
               styles.flagBadge,
               isMediumResponsiveLayout ? styles.flagBadgeMedium : undefined,
               isCompactLayout && styles.flagBadgeCompact,
-              isPhoneLandscapeTwoPlayer ? styles.flagBadgePhoneLandscape : undefined,
               isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
             ]}>
             {playerFlagImage ? (
@@ -323,11 +297,10 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameInput,
-              {fontSize: nameFontSize, lineHeight: nameLineHeight},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameInputMedium : undefined,
               isCompactLayout && styles.nameInputCompact,
-              isPhoneLandscapeTwoPlayer ? styles.nameInputPhoneLandscape : undefined,
               textColorStyle,
               !isActiveCard && styles.nameTextInactive,
             ]}
@@ -337,16 +310,15 @@ const GamePlayer = (
           <RNText
             numberOfLines={1}
             adjustsFontSizeToFit
-            minimumFontScale={nameMinimumScale}
+            minimumFontScale={0.72}
             allowFontScaling={false}
             maxFontSizeMultiplier={1}
             style={[
               styles.nameText,
-              {fontSize: nameFontSize, lineHeight: nameLineHeight},
+              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameTextMedium : undefined,
               isCompactLayout && styles.nameTextCompact,
-              isPhoneLandscapeTwoPlayer ? styles.nameTextPhoneLandscape : undefined,
               textColorStyle,
               !isActiveCard && styles.nameTextInactive,
             ]}>
@@ -360,7 +332,6 @@ const GamePlayer = (
             styles.editButton,
             isMediumResponsiveLayout ? styles.editButtonMedium : undefined,
             isCompactLayout && styles.editButtonCompact,
-            isPhoneLandscapeTwoPlayer ? styles.editButtonPhoneLandscape : undefined,
             !isActiveCard && styles.editButtonInactive,
           ]}>
           <RNText
@@ -368,7 +339,6 @@ const GamePlayer = (
               styles.editText,
               isMediumResponsiveLayout ? styles.editTextMedium : undefined,
               isCompactLayout && styles.editTextCompact,
-              isPhoneLandscapeTwoPlayer ? styles.editTextPhoneLandscape : undefined,
               textColorStyle,
               !isActiveCard && styles.editTextInactive,
             ]}>
@@ -715,12 +685,6 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderRadius: 18,
   },
-  panelVeryShortLandscape: {
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderRadius: 16,
-  },
   panelMedium: {
     paddingHorizontal: 14,
     paddingTop: 14,
@@ -760,11 +724,6 @@ const styles = StyleSheet.create({
     width: 76,
     height: 50,
     marginRight: 10,
-  },
-  flagBadgePhoneLandscape: {
-    width: 64,
-    height: 44,
-    marginRight: 8,
   },
   flagBadgeActive: {
     opacity: 1,
@@ -806,9 +765,6 @@ const styles = StyleSheet.create({
   },
   nameTextMedium: {},
   nameTextCompact: {},
-  nameTextPhoneLandscape: {
-    letterSpacing: -0.4,
-  },
   nameInput: {
     flex: 1,
     color: '#FFFFFF',
@@ -818,9 +774,6 @@ const styles = StyleSheet.create({
   },
   nameInputMedium: {},
   nameInputCompact: {},
-  nameInputPhoneLandscape: {
-    letterSpacing: -0.4,
-  },
   nameTextInactive: {
     opacity: 0.9,
   },
@@ -838,11 +791,6 @@ const styles = StyleSheet.create({
   editButtonCompact: {
     width: 28,
     height: 28,
-  },
-  editButtonPhoneLandscape: {
-    width: 24,
-    height: 24,
-    marginLeft: 4,
   },
   editButtonInactive: {
     opacity: 0.55,
@@ -862,10 +810,6 @@ const styles = StyleSheet.create({
   editTextCompact: {
     fontSize: 16,
     lineHeight: 16,
-  },
-  editTextPhoneLandscape: {
-    fontSize: 14,
-    lineHeight: 14,
   },
   editTextInactive: {
     opacity: 0.9,
@@ -995,8 +939,8 @@ const styles = StyleSheet.create({
     bottom: 62,
   },
   scoreLayerCaromPhoneLandscape: {
-    top: 122,
-    bottom: 76,
+    top: 118,
+    bottom: 64,
   },
   scoreLayerInactive: {
     opacity: 0.88,
@@ -1055,8 +999,8 @@ const styles = StyleSheet.create({
     lineHeight: 140,
   },
   scoreTextCaromPhoneLandscape: {
-    fontSize: 118,
-    lineHeight: 120,
+    fontSize: 150,
+    lineHeight: 150,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,
