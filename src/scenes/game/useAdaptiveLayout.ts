@@ -20,6 +20,7 @@ export type AdaptiveLayout = {
   isShortLandscape: boolean;
   isVeryShortLandscape: boolean;
   isUltraShortLandscape: boolean;
+  isConstrainedLandscape: boolean;
   widthClass: WidthClass;
   layoutPreset: LayoutPreset;
   scale: number;
@@ -73,20 +74,42 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
 
     const isTabletSystem = smallestScreenWidthDp >= 600;
     const isTvSystem = smallestScreenWidthDp >= 960 || safeWidth >= 1440;
+    const isHandheldLandscape = isLandscape && smallestScreenWidthDp < 600;
+    const isConstrainedLandscape =
+      isLandscape &&
+      (smallestScreenWidthDp < 600 || safeHeight <= 700 || aspectRatio >= 1.72);
 
     let layoutPreset: LayoutPreset = 'phone';
     if (isTvSystem) {
       layoutPreset = 'tv';
-    } else if (isTabletSystem && isLandscape && aspectRatio >= 1.45) {
+    } else if (!isConstrainedLandscape && isTabletSystem && isLandscape && aspectRatio >= 1.45) {
       layoutPreset = 'wideTablet';
-    } else if (isTabletSystem) {
+    } else if (!isConstrainedLandscape && isTabletSystem) {
       layoutPreset = 'tablet';
     }
 
-    const isHandheldLandscape = isLandscape && smallestScreenWidthDp < 600;
-    const isShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 500 : layoutPreset === 'phone' ? 760 : 720);
-    const isVeryShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 430 : layoutPreset === 'phone' ? 680 : 640);
-    const isUltraShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 380 : 560);
+    const isShortLandscape =
+      isLandscape &&
+      safeHeight <=
+        (isConstrainedLandscape
+          ? 640
+          : isHandheldLandscape
+            ? 500
+            : layoutPreset === 'phone'
+              ? 760
+              : 720);
+    const isVeryShortLandscape =
+      isLandscape &&
+      safeHeight <=
+        (isConstrainedLandscape
+          ? 560
+          : isHandheldLandscape
+            ? 430
+            : layoutPreset === 'phone'
+              ? 680
+              : 640);
+    const isUltraShortLandscape =
+      isLandscape && safeHeight <= (isConstrainedLandscape ? 500 : isHandheldLandscape ? 380 : 560);
 
     const widthBase =
       layoutPreset === 'tv'
@@ -95,9 +118,11 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
           ? 1180
           : layoutPreset === 'tablet'
             ? 1024
-            : isHandheldLandscape
-              ? 900
-              : 420;
+            : isConstrainedLandscape
+              ? 980
+              : isHandheldLandscape
+                ? 900
+                : 420;
 
     const heightBase =
       layoutPreset === 'tv'
@@ -106,50 +131,64 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
           ? 720
           : layoutPreset === 'tablet'
             ? 760
-            : isHandheldLandscape
-              ? 520
-              : 800;
+            : isConstrainedLandscape
+              ? 620
+              : isHandheldLandscape
+                ? 520
+                : 800;
 
     const widthFactor = safeWidth / widthBase;
     const heightFactor = safeHeight / heightBase;
-    const heightFirstBase = isHandheldLandscape
-      ? heightFactor * 0.92 + widthFactor * 0.08
-      : isLandscape
-        ? heightFactor * 0.82 + widthFactor * 0.18
-        : heightFactor * 0.62 + widthFactor * 0.38;
+    const heightFirstBase = isConstrainedLandscape
+      ? heightFactor * 0.95 + widthFactor * 0.05
+      : isHandheldLandscape
+        ? heightFactor * 0.92 + widthFactor * 0.08
+        : isLandscape
+          ? heightFactor * 0.82 + widthFactor * 0.18
+          : heightFactor * 0.62 + widthFactor * 0.38;
 
-    const aspectPenalty = isHandheldLandscape
-      ? clamp((aspectRatio - 1.45) * 0.14, 0, 0.24)
-      : isLandscape
-        ? clamp((aspectRatio - 1.6) * 0.08, 0, layoutPreset === 'phone' ? 0.18 : 0.08)
-        : 0;
+    const aspectPenalty = isConstrainedLandscape
+      ? clamp((aspectRatio - 1.55) * 0.16, 0, 0.28)
+      : isHandheldLandscape
+        ? clamp((aspectRatio - 1.45) * 0.14, 0, 0.24)
+        : isLandscape
+          ? clamp((aspectRatio - 1.6) * 0.08, 0, layoutPreset === 'phone' ? 0.18 : 0.08)
+          : 0;
 
     const shortPenalty = isUltraShortLandscape
-      ? (isHandheldLandscape ? 0.24 : 0.18)
+      ? (isConstrainedLandscape ? 0.28 : isHandheldLandscape ? 0.24 : 0.18)
       : isVeryShortLandscape
-        ? (isHandheldLandscape ? 0.16 : 0.12)
+        ? (isConstrainedLandscape ? 0.18 : isHandheldLandscape ? 0.16 : 0.12)
         : isShortLandscape
-          ? (isHandheldLandscape ? 0.09 : 0.06)
+          ? (isConstrainedLandscape ? 0.1 : isHandheldLandscape ? 0.09 : 0.06)
           : 0;
 
     const floor =
       layoutPreset === 'tv'
         ? 0.9
-        : layoutPreset === 'phone'
-          ? isHandheldLandscape
-            ? 0.48
-            : 0.62
-          : layoutPreset === 'tablet'
-            ? 0.8
-            : 0.84;
+        : isConstrainedLandscape
+          ? 0.42
+          : layoutPreset === 'phone'
+            ? isHandheldLandscape
+              ? 0.48
+              : 0.62
+            : layoutPreset === 'tablet'
+              ? 0.8
+              : 0.84;
 
-    const ceiling = isHandheldLandscape ? 0.96 : layoutPreset === 'tv' ? 1.16 : 1.04;
+    const ceiling = isConstrainedLandscape
+      ? 0.9
+      : isHandheldLandscape
+        ? 0.96
+        : layoutPreset === 'tv'
+          ? 1.16
+          : 1.04;
 
     const scale = clamp(heightFirstBase - aspectPenalty - shortPenalty, floor, ceiling);
     const textScale = clamp(
       scale / Math.min(systemMetrics.fontScale || fontScale || 1, 1.15),
-      layoutPreset === 'phone' ? (isHandheldLandscape ? 0.5 : 0.62) : 0.78,
-      isHandheldLandscape ? 0.98 : layoutPreset === 'tv' ? 1.1 : 1.04,
+      isConstrainedLandscape ? 0.48 : layoutPreset === 'phone' ? (isHandheldLandscape ? 0.5 : 0.62) : 0.78,
+      isConstrainedLandscape ? 0.92 : isHandheldLandscape ? 0.98 : layoutPreset === 'tv' ? 1.1 : 1.04,
     );
 
     const s = (value: number) => {
@@ -174,6 +213,7 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
       isShortLandscape,
       isVeryShortLandscape,
       isUltraShortLandscape,
+      isConstrainedLandscape,
       widthClass,
       layoutPreset,
       scale,

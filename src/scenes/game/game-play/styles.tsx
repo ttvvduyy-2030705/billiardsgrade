@@ -5,7 +5,14 @@ import colors from 'configuration/colors';
 import {AdaptiveLayout} from '../useAdaptiveLayout';
 
 const createStyles = (a: AdaptiveLayout) => {
-  const boardGap = a.layoutPreset === 'phone' ? a.s(8) : a.s(12);
+  const constrainedLandscape =
+    a.isLandscape &&
+    (a.isConstrainedLandscape || a.systemMetrics.smallestScreenWidthDp < 600);
+  const boardGap = constrainedLandscape
+    ? a.s(6)
+    : a.layoutPreset === 'phone'
+      ? a.s(8)
+      : a.s(12);
   const shortLandscape = a.isLandscape && a.height <= 720;
   const screenHorizontal =
     shortLandscape
@@ -63,17 +70,19 @@ const createStyles = (a: AdaptiveLayout) => {
     },
 
     poolArenaPlayerColumn: {
-      flex: 1,
+      flex: constrainedLandscape ? 0.95 : 1,
       minWidth: 0,
     },
 
     poolArenaConsoleWrapper: {
       flex:
         a.layoutPreset === 'wideTablet'
-          ? 1.06
-          : a.layoutPreset === 'phone'
-            ? 1.04
-            : 0.98,
+          ? 1.08
+          : constrainedLandscape
+            ? 1.12
+            : a.layoutPreset === 'phone'
+              ? 1.06
+              : 0.98,
       minWidth: 0,
       marginHorizontal: 0,
       paddingBottom: 0,

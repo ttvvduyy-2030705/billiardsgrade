@@ -55,7 +55,8 @@ const TopMatchHeader = ({
 
   const adaptive = useAdaptiveLayout();
   const isHandheldLandscape =
-    adaptive.isLandscape && adaptive.systemMetrics.smallestScreenWidthDp < 600;
+    adaptive.isLandscape &&
+    (adaptive.systemMetrics.smallestScreenWidthDp < 600 || adaptive.isConstrainedLandscape);
 
   const dynamicStyles = useMemo(() => {
     const headerHeight = isHandheldLandscape

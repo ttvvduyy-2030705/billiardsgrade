@@ -454,9 +454,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isShortLandscape = adaptive.isShortLandscape;
   const isVeryShortLandscape = adaptive.isVeryShortLandscape;
   const useResponsiveCompact =
+    adaptive.isConstrainedLandscape ||
     isCompactLandscape || shortestSide <= 520 || (isHandheldLandscape && height <= 900) || height <= 760;
   const useTightLandscapeLayout = isMediumLandscape || useResponsiveCompact;
   const useExtraCompact =
+    adaptive.isVeryShortLandscape ||
     shortestSide <= 460 || height <= 680 || (isHandheldLandscape && height <= 620) || adaptive.aspectRatio >= 1.9;
 
   const uiScale = useMemo(() => {
@@ -855,7 +857,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         return isHandheldLandscape ? 142 : 162;
       }
 
-      return isLargeDisplay ? 250 : isHandheldLandscape ? 156 : 205;
+      return isLargeDisplay ? 250 : isHandheldLandscape ? 128 : adaptive.isConstrainedLandscape ? 146 : 205;
     }
 
     if (useExtraCompact) {
