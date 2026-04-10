@@ -1,11 +1,5 @@
 import React, {memo, useMemo} from 'react';
-import {
-  StyleSheet,
-  TextInput,
-  Text as RNText,
-  Image as RNImage,
-  useWindowDimensions,
-} from 'react-native';
+import {StyleSheet, TextInput, Text as RNText, Image as RNImage} from 'react-native';
 
 import View from 'components/View';
 import Button from 'components/Button';
@@ -14,6 +8,7 @@ import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 import {getCountryFlagImageUri} from '../../settings/player/countries';
+import useAdaptiveLayout from '../../useAdaptiveLayout';
 
 const isEnglish = () => {
   const locale = String(
@@ -89,40 +84,51 @@ const GamePlayer = (
   const isPool15FreeMode = isPool15FreeGame(props.gameSettings?.category);
   const isActiveCard = !!props.isOnTurn;
 
-  const {width, height, fontScale} = useWindowDimensions();
-  const shortestSide = Math.min(width, height);
-  const longestSide = Math.max(width, height);
-  const isLandscape = width > height;
-  const isLargeDisplay = longestSide >= 1600 || shortestSide >= 900;
-  const isMediumLandscape =
-    isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
+  const adaptive = useAdaptiveLayout();
+  const totalPlayers = props.totalPlayers || 2;
+  const isLargeDisplay = adaptive.layoutPreset === 'tv';
+  const isWideLandscape =
+    adaptive.isLandscape &&
+    (adaptive.layoutPreset === 'wideTablet' ||
+      (adaptive.layoutPreset === 'tv' && adaptive.aspectRatio >= 1.5));
   const isCompactLandscape =
-    isLandscape && !isLargeDisplay && shortestSide < 650;
-  const useForcedCompact = isCompactLandscape || shortestSide < 430;
+    adaptive.isLandscape &&
+    (adaptive.height <= 720 || adaptive.aspectRatio >= 1.65 || adaptive.widthClass === 'compact');
+  const useForcedCompact =
+    isCompactLandscape ||
+    adaptive.shortSide < 430 ||
+    (adaptive.isLandscape && adaptive.height <= 700);
 
   const isCompactLayout = Boolean(
-    props.compact || useForcedCompact || (props.totalPlayers || 2) > 2,
+    props.compact || useForcedCompact || totalPlayers > 2,
   );
   const isMediumResponsiveLayout =
-    !isCompactLayout && isMediumLandscape && (props.totalPlayers || 2) <= 2;
+    !isCompactLayout && isWideLandscape && totalPlayers <= 2;
 
   const isPhoneLandscapeTwoPlayer =
-    isLandscape &&
-    !isLargeDisplay &&
-    (props.totalPlayers || 2) <= 2 &&
-    shortestSide < 650;
+    adaptive.isLandscape &&
+    adaptive.height <= 700 &&
+    totalPlayers <= 2;
 
   const isExtraCompactLayout =
-    (props.totalPlayers || 2) >= 4 || (!isLargeDisplay && shortestSide <= 430);
+    totalPlayers >= 4 ||
+    adaptive.shortSide <= 430 ||
+    (adaptive.isLandscape && adaptive.height <= 620);
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
       return 1;
     }
 
-    const base = Math.max(0.72, Math.min(1, shortestSide / 900));
-    return Math.max(0.7, Math.min(1, base / Math.min(fontScale || 1, 1.15)));
-  }, [fontScale, isLargeDisplay, shortestSide]);
+    const shortPenalty = adaptive.isLandscape
+      ? Math.max(0, Math.min(0.24, (720 - adaptive.height) / 260))
+      : 0;
+    const ratioPenalty = adaptive.isLandscape
+      ? Math.max(0, Math.min(0.08, (adaptive.aspectRatio - 1.65) * 0.08))
+      : 0;
+
+    return Math.max(0.62, Math.min(1, adaptive.textScale - shortPenalty - ratioPenalty));
+  }, [adaptive.aspectRatio, adaptive.height, adaptive.isLandscape, adaptive.textScale, isLargeDisplay]);
 
   const isCaromMode = !isPoolMode;
   const isLibreMode = props.gameSettings?.category === 'libre';
@@ -237,6 +243,32 @@ const GamePlayer = (
   const playerFlag = getPlayerFlagText(props.player as any);
   const playerFlagImage = getPlayerFlagImageUri(props.player as any);
 
+  const fluidScale = Math.max(0.64, Math.min(1, uiScale));
+  const dynamicPanelStyle = {
+    paddingHorizontal: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
+    paddingTop: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
+    paddingBottom: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
+    borderRadius: Math.round((isPhoneLandscapeTwoPlayer ? 18 : isMediumResponsiveLayout ? 22 : isCompactLayout ? 20 : 26) * fluidScale),
+  };
+  const dynamicNameRowStyle = {
+    minHeight: Math.round((isCompactLayout ? 46 : isMediumResponsiveLayout ? 54 : 62) * fluidScale),
+  };
+  const dynamicFlagStyle = {
+    width: Math.round((isCompactLayout ? 76 : isMediumResponsiveLayout ? 92 : 112) * fluidScale),
+    height: Math.round((isCompactLayout ? 50 : isMediumResponsiveLayout ? 62 : 76) * fluidScale),
+    marginRight: Math.round((isCompactLayout ? 10 : 14) * fluidScale),
+  };
+  const dynamicEditButtonStyle = {
+    width: Math.round((isCompactLayout ? 28 : isMediumResponsiveLayout ? 32 : 36) * fluidScale),
+    height: Math.round((isCompactLayout ? 28 : isMediumResponsiveLayout ? 32 : 36) * fluidScale),
+    marginLeft: Math.round(6 * fluidScale),
+  };
+  const dynamicStepButtonStyle = {
+    minHeight: Math.round((isCompactLayout ? 36 : isMediumResponsiveLayout ? 40 : 46) * fluidScale),
+  };
+  const scoreTop = Math.round((isPhoneLandscapeTwoPlayer ? 118 : isExtraCompactLayout ? 112 : isCompactLayout ? 122 : isMediumResponsiveLayout ? 146 : 172) * fluidScale);
+  const scoreBottom = Math.round((isPhoneLandscapeTwoPlayer ? 64 : isExtraCompactLayout ? 62 : isCompactLayout ? 70 : isMediumResponsiveLayout ? 88 : 104) * fluidScale);
+
   return (
     <View
       style={[
@@ -245,6 +277,7 @@ const GamePlayer = (
         isMediumResponsiveLayout ? styles.panelMedium : undefined,
         isPhoneLandscapeTwoPlayer ? styles.panelPhoneLandscape : undefined,
         panelDynamicStyle,
+        dynamicPanelStyle,
         isActiveCard ? styles.panelActive : styles.panelInactive,
       ]}>
       <View
@@ -252,6 +285,7 @@ const GamePlayer = (
           styles.nameRow,
           isMediumResponsiveLayout ? styles.nameRowMedium : undefined,
           isCompactLayout && styles.nameRowCompact,
+          dynamicNameRowStyle,
         ]}>
         {playerFlagImage || playerFlag ? (
           <View
@@ -260,6 +294,7 @@ const GamePlayer = (
               isMediumResponsiveLayout ? styles.flagBadgeMedium : undefined,
               isCompactLayout && styles.flagBadgeCompact,
               isActiveCard ? styles.flagBadgeActive : styles.flagBadgeInactive,
+              dynamicFlagStyle,
             ]}>
             {playerFlagImage ? (
               <RNImage
@@ -333,6 +368,7 @@ const GamePlayer = (
             isMediumResponsiveLayout ? styles.editButtonMedium : undefined,
             isCompactLayout && styles.editButtonCompact,
             !isActiveCard && styles.editButtonInactive,
+            dynamicEditButtonStyle,
           ]}>
           <RNText
             style={[
@@ -360,6 +396,7 @@ const GamePlayer = (
             styles.stepButton,
             isMediumResponsiveLayout ? styles.stepButtonMedium : undefined,
             isCompactLayout && styles.stepButtonCompact,
+            dynamicStepButtonStyle,
           ]}
           onPress={viewModel.onDecreasePoint}>
           <RNText
@@ -378,6 +415,7 @@ const GamePlayer = (
             styles.stepButton,
             isMediumResponsiveLayout ? styles.stepButtonMedium : undefined,
             isCompactLayout && styles.stepButtonCompact,
+            dynamicStepButtonStyle,
           ]}
           onPress={viewModel.onIncreasePoint}>
           <RNText
@@ -458,6 +496,7 @@ const GamePlayer = (
           styles.scoreLayer,
           isMediumResponsiveLayout ? styles.scoreLayerMedium : undefined,
           scoreLayerDynamicStyle,
+          {top: scoreTop, bottom: scoreBottom},
           !isActiveCard && styles.scoreLayerInactive,
           isPool15FreeMode && styles.scoreLayerWithScoredBalls,
         ]}

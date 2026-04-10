@@ -20,9 +20,11 @@ import {
   GameWarmUpTime,
 } from 'types/settings';
 
-import styles from './styles';
+import useAdaptiveLayout from '../../useAdaptiveLayout';
+import createStyles from './styles';
 
 interface Props {
+  adaptive?: ReturnType<typeof useAdaptiveLayout>;
   showTitle?: boolean;
   category?: BilliardCategory;
   gameMode?: GameMode;
@@ -49,6 +51,7 @@ const getLocale = () => {
 };
 
 const CategorySettings = ({
+  adaptive: adaptiveProp,
   showTitle = true,
   category,
   gameSettingsMode,
@@ -63,6 +66,8 @@ const CategorySettings = ({
   onSelectWarmUp,
   onSelectExtraTimeBonus,
 }: Props) => {
+  const adaptive = adaptiveProp ?? useAdaptiveLayout();
+  const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isEnglish = getLocale().startsWith('en');
 
   const pickLabel = useCallback(
@@ -73,7 +78,7 @@ const CategorySettings = ({
   const translateValue = useCallback(
     (lookup: string, fallback: string) => {
       const translated = i18n.t(lookup as never);
-      if (translated && translated !== lookup) {
+      if (translated && translated !== lookup && !String(translated).includes('[missing')) {
         return translated as string;
       }
       return fallback;
@@ -130,7 +135,7 @@ const CategorySettings = ({
         </View>
       );
     },
-    [translateValue],
+    [styles, translateValue],
   );
 
   const renderInlineRow = useCallback(
@@ -151,7 +156,7 @@ const CategorySettings = ({
         </View>
       );
     },
-    [renderButtons],
+    [renderButtons, styles],
   );
 
   return (

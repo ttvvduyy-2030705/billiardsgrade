@@ -2,7 +2,6 @@ import React, {memo, useEffect, useMemo, useRef} from 'react';
 import {
   StyleSheet,
   Text as RNText,
-  useWindowDimensions,
 } from 'react-native';
 
 import View from 'components/View';
@@ -23,6 +22,7 @@ import {
   isPoolGame,
 } from 'utils/game';
 import i18n from 'i18n';
+import useAdaptiveLayout from '../../useAdaptiveLayout';
 
 type ActionButtonTone = 'dark' | 'amber' | 'red' | 'green' | 'muted';
 type PoolBallButtonSize = 'large' | 'small';
@@ -438,31 +438,33 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   ]);
 
   const webcamRef = useRef<WebCamHandle>(null);
-  const {width, height, fontScale} = useWindowDimensions();
-  const shortestSide = Math.min(width, height);
-  const longestSide = Math.max(width, height);
-  const isLandscape = width > height;
-  const isLargeDisplay = longestSide >= 1600 || shortestSide >= 900;
+  const adaptive = useAdaptiveLayout();
+  const {width, height, shortSide: shortestSide, longSide: longestSide} = adaptive;
+  const isLandscape = adaptive.isLandscape;
+  const isLargeDisplay = adaptive.layoutPreset === 'tv';
   const isMediumLandscape =
-    isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
+    isLandscape &&
+    !isLargeDisplay &&
+    (adaptive.layoutPreset === 'tablet' || adaptive.layoutPreset === 'wideTablet');
   const isCompactLandscape =
-    isLandscape && !isLargeDisplay && shortestSide < 650;
-  const isShortLandscape = isLandscape && height <= 820;
-  const isVeryShortLandscape = isLandscape && height <= 700;
+    isLandscape &&
+    (adaptive.widthClass === 'compact' || adaptive.isShortLandscape || height <= 760);
+  const isShortLandscape = adaptive.isShortLandscape;
+  const isVeryShortLandscape = adaptive.isVeryShortLandscape;
   const useResponsiveCompact =
-    isCompactLandscape || shortestSide <= 430 || isShortLandscape;
+    isCompactLandscape || shortestSide <= 520 || height <= 760;
   const useTightLandscapeLayout = isMediumLandscape || useResponsiveCompact;
   const useExtraCompact =
-    shortestSide <= 430 || shortestSide < 560 || isVeryShortLandscape;
+    shortestSide <= 460 || height <= 680 || adaptive.aspectRatio >= 1.9;
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
       return 1;
     }
 
-    const base = clamp(shortestSide / 900, 0.74, 1);
-    return clamp(base / Math.min(fontScale || 1, 1.15), 0.72, 1);
-  }, [fontScale, isLargeDisplay, shortestSide]);
+    const compactPenalty = isVeryShortLandscape ? 0.12 : isShortLandscape ? 0.08 : 0;
+    return clamp(adaptive.textScale - compactPenalty, 0.68, 1);
+  }, [adaptive.textScale, isLargeDisplay, isShortLandscape, isVeryShortLandscape]);
 
   const category = props.gameSettings?.category;
   const isPool = isPoolGame(category);
@@ -1457,10 +1459,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactSmallActionText: {
-    fontSize: 11,
+    fontSize: 10,
   },
   extraCompactSmallActionText: {
-    fontSize: 9,
+    fontSize: 8,
   },
   poolSmallActionText: {
     fontSize: 11,
@@ -1475,14 +1477,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   compactWideButton: {
-    minHeight: 34,
+    minHeight: 32,
     borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   extraCompactWideButton: {
-    minHeight: 30,
+    minHeight: 28,
     borderRadius: 9,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
   poolWideButton: {
     minHeight: 36,
@@ -1496,10 +1498,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactWideButtonText: {
-    fontSize: 12,
+    fontSize: 11,
   },
   extraCompactWideButtonText: {
-    fontSize: 11,
+    fontSize: 10,
   },
   poolWideButtonText: {
     fontSize: 13,
@@ -1510,6 +1512,7 @@ const styles = StyleSheet.create({
   },
   compactDualButtonRow: {
     gap: 4,
+    flexWrap: 'wrap',
   },
   dualButton: {
     flex: 1,
@@ -1521,14 +1524,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   compactDualButton: {
-    minHeight: 34,
+    minHeight: 32,
     borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+    minWidth: '48%',
   },
   extraCompactDualButton: {
-    minHeight: 30,
+    minHeight: 28,
     borderRadius: 9,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    minWidth: '48%',
   },
   poolDualButton: {
     minHeight: 36,
@@ -1541,6 +1546,7 @@ const styles = StyleSheet.create({
   },
   compactTripleButtonRow: {
     gap: 4,
+    flexWrap: 'wrap',
   },
   tripleButton: {
     flex: 1,
@@ -1552,14 +1558,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   compactTripleButton: {
-    minHeight: 34,
+    minHeight: 32,
     borderRadius: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
+    minWidth: '31%',
   },
   extraCompactTripleButton: {
-    minHeight: 30,
+    minHeight: 28,
     borderRadius: 9,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
+    minWidth: '31%',
   },
   poolTripleButton: {
     minHeight: 36,
@@ -1573,10 +1581,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   compactTripleButtonText: {
-    fontSize: 11,
+    fontSize: 10,
   },
   extraCompactTripleButtonText: {
-    fontSize: 9,
+    fontSize: 8,
   },
   poolTripleButtonText: {
     fontSize: 12,

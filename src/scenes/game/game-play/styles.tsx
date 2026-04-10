@@ -1,59 +1,84 @@
 import {StyleSheet} from 'react-native';
+
 import colors from 'configuration/colors';
 
-const styles = StyleSheet.create({
-  warmUpContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 40,
-  },
+import {AdaptiveLayout} from '../useAdaptiveLayout';
 
-  buttonEndWarmUp: {
-    backgroundColor: '#131313',
-    borderRadius: 20,
-  },
+const createStyles = (a: AdaptiveLayout) => {
+  const boardGap = a.layoutPreset === 'phone' ? a.s(8) : a.s(12);
+  const shortLandscape = a.isLandscape && a.height <= 720;
+  const screenHorizontal =
+    shortLandscape
+      ? a.s(6)
+      : a.layoutPreset === 'tv'
+        ? a.s(16)
+        : a.layoutPreset === 'wideTablet'
+          ? a.s(12)
+          : a.layoutPreset === 'tablet'
+            ? a.s(10)
+            : a.s(8);
 
-  countdownContainer: {
-    width: '100%',
-    paddingHorizontal: 2,
-    paddingTop: 0,
-    paddingBottom: 0,
-    marginTop: -2,
-    backgroundColor: '#000000',
-  },
+  return StyleSheet.create({
+    warmUpContainer: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.overlay,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 40,
+    },
 
-  mainArea: {
-    flex: 1,
-    paddingTop: 8,
-  },
+    buttonEndWarmUp: {
+      backgroundColor: '#131313',
+      borderRadius: a.s(20),
+    },
 
-  mainAreaFullscreen: {
-    flex: 1,
-    paddingTop: 0,
-  },
+    countdownContainer: {
+      width: '100%',
+      paddingHorizontal: a.s(2),
+      paddingTop: 0,
+      paddingBottom: 0,
+      marginTop: -2,
+      backgroundColor: '#000000',
+    },
 
-  poolArenaScreen: {
-    backgroundColor: '#000000',
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 0,
-  },
+    mainArea: {
+      flex: 1,
+      paddingTop: shortLandscape ? a.s(4) : a.layoutPreset === 'phone' ? a.s(6) : a.s(8),
+    },
 
-  poolArenaBoard: {
-    gap: 12,
-  },
+    mainAreaFullscreen: {
+      flex: 1,
+      paddingTop: 0,
+    },
 
-  poolArenaPlayerColumn: {
-    flex: 1,
-  },
+    poolArenaScreen: {
+      backgroundColor: '#000000',
+      paddingHorizontal: screenHorizontal,
+      paddingTop: shortLandscape ? a.s(4) : a.layoutPreset === 'phone' ? a.s(8) : a.s(10),
+      paddingBottom: 0,
+    },
 
-  poolArenaConsoleWrapper: {
-    flex: 0.98,
-    marginHorizontal: 0,
-    paddingBottom: 0,
-  },
-});
+    poolArenaBoard: {
+      gap: boardGap,
+    },
 
-export default styles;
+    poolArenaPlayerColumn: {
+      flex: 1,
+      minWidth: 0,
+    },
+
+    poolArenaConsoleWrapper: {
+      flex:
+        a.layoutPreset === 'wideTablet'
+          ? 1.08
+          : a.layoutPreset === 'phone'
+            ? 1.06
+            : 0.98,
+      minWidth: 0,
+      marginHorizontal: 0,
+      paddingBottom: 0,
+    },
+  });
+};
+
+export default createStyles;

@@ -1,5 +1,5 @@
 import React, {memo, useEffect, useMemo, useState} from 'react';
-import {StyleSheet, useWindowDimensions} from 'react-native';
+import {StyleSheet} from 'react-native';
 
 import Container from 'components/Container';
 import View from 'components/View';
@@ -11,7 +11,7 @@ import i18n from 'i18n';
 import GamePlayViewModel from './GamePlayViewModel';
 import GamePlayer from './player';
 import GameConsole from './console';
-import styles from './styles';
+import createStyles from './styles';
 import TopMatchHeader from './TopMatchHeader';
 import PoolShotClock from './PoolShotClock';
 import {
@@ -24,6 +24,7 @@ import {
   isPool15OnlyGame,
   isPoolGame,
 } from 'utils/game';
+import useAdaptiveLayout, {AdaptiveLayout} from '../useAdaptiveLayout';
 
 const buildTitle = (category?: string, mode?: string) => {
   return `${i18n.t(category || '').toUpperCase()} - ${i18n
@@ -31,68 +32,71 @@ const buildTitle = (category?: string, mode?: string) => {
     .toUpperCase()}`;
 };
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, value));
-
-const localStyles = StyleSheet.create({
-  splitColumn: {
-    flex: 1,
-    gap: 12,
-  },
-  splitColumnCompact: {
-    gap: 8,
-  },
-  splitSlot: {
-    flex: 1,
-    minHeight: 0,
-  },
-  topBottomBoard: {
-    flex: 1,
-    gap: 12,
-  },
-  topBottomBoardCompact: {
-    gap: 8,
-  },
-  topBottomRowTop: {
-    flex: 1.12,
-    gap: 12,
-  },
-  topBottomRowBottom: {
-    flex: 0.88,
-    gap: 12,
-  },
-  topBottomRowCompact: {
-    gap: 8,
-  },
-  lightScreen: {
-    backgroundColor: '#000000',
-  },
-  centerCompactCell: {
-    flex: 1.02,
-    minHeight: 0,
-  },
-  sideCompactCell: {
-    flex: 1,
-    minHeight: 0,
-  },
-  tabletPlayerSlot: {
-    flex: 0.92,
-    minWidth: 0,
-  },
-  tabletConsoleSlot: {
-    flex: 1.12,
-    minWidth: 0,
-  },
-  compactMainArea: {
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    gap: 8,
-  },
-});
+const createLocalStyles = (a: AdaptiveLayout) =>
+  StyleSheet.create({
+    splitColumn: {
+      flex: 1,
+      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+    },
+    splitColumnCompact: {
+      gap: a.s(8),
+    },
+    splitSlot: {
+      flex: 1,
+      minHeight: 0,
+    },
+    topBottomBoard: {
+      flex: 1,
+      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+    },
+    topBottomBoardCompact: {
+      gap: a.s(8),
+    },
+    topBottomRowTop: {
+      flex: 1.12,
+      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+    },
+    topBottomRowBottom: {
+      flex: 0.88,
+      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+    },
+    topBottomRowCompact: {
+      gap: a.s(8),
+    },
+    lightScreen: {
+      backgroundColor: '#000000',
+    },
+    centerCompactCell: {
+      flex: 1.02,
+      minHeight: 0,
+    },
+    sideCompactCell: {
+      flex: 1,
+      minHeight: 0,
+    },
+    tabletPlayerSlot: {
+      flex: 0.92,
+      minWidth: 0,
+    },
+    tabletConsoleSlot: {
+      flex: 1.12,
+      minWidth: 0,
+    },
+    compactMainArea: {
+      paddingHorizontal: a.s(6),
+      paddingVertical: a.s(6),
+      gap: a.s(8),
+    },
+  });
 
 const GamePlay = () => {
   const viewModel = GamePlayViewModel();
-  const {width, height, fontScale} = useWindowDimensions();
+  const adaptive = useAdaptiveLayout();
+  const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
+  const localStyles = useMemo(
+    () => createLocalStyles(adaptive),
+    [adaptive.styleKey],
+  );
   const [isCameraFullscreen, setIsCameraFullscreen] = useState(
     getCameraFullscreen(),
   );
@@ -102,16 +106,16 @@ const GamePlay = () => {
     return subscribeCameraFullscreen(setIsCameraFullscreen);
   }, []);
 
-  const shortestSide = Math.min(width, height);
-  const longestSide = Math.max(width, height);
-  const isLandscape = width > height;
-  const isLargeDisplay = longestSide >= 1600 || shortestSide >= 900;
-  const isMediumLandscape =
-    isLandscape && !isLargeDisplay && shortestSide >= 650 && shortestSide < 900;
+  const isLargeDisplay = adaptive.layoutPreset === 'tv';
+  const isWideTabletTwoPlayer =
+    adaptive.isLandscape && adaptive.layoutPreset === 'wideTablet';
   const isCompactLandscape =
-    isLandscape && !isLargeDisplay && shortestSide < 650;
-  const useCompactTwoPlayerLayout = isCompactLandscape || shortestSide < 430;
-  const useTightTwoPlayerLayout = isMediumLandscape || useCompactTwoPlayerLayout;
+    adaptive.isLandscape &&
+    (adaptive.height <= 720 || adaptive.aspectRatio >= 1.65 || adaptive.widthClass === 'compact');
+  const useCompactTwoPlayerLayout =
+    isCompactLandscape || adaptive.shortSide < 430 || adaptive.height <= 700;
+  const useTightTwoPlayerLayout =
+    useCompactTwoPlayerLayout || isWideTabletTwoPlayer;
 
   const category = viewModel.gameSettings?.category;
   const players = viewModel.playerSettings?.playingPlayers || [];
@@ -162,15 +166,6 @@ const GamePlay = () => {
       ? localStyles.compactMainArea
       : undefined;
 
-  const uiScale = useMemo(() => {
-    if (isLargeDisplay) {
-      return 1;
-    }
-
-    const target = clamp(shortestSide / 900, 0.78, 1);
-    return clamp(target / Math.min(fontScale || 1, 1.15), 0.74, 1);
-  }, [fontScale, isLargeDisplay, shortestSide]);
-
   const title = useMemo(() => {
     return buildTitle(
       viewModel.gameSettings?.category,
@@ -178,16 +173,16 @@ const GamePlay = () => {
     );
   }, [viewModel.gameSettings?.category, viewModel.gameSettings?.mode?.mode]);
 
-  const warmTitleSize = Math.round((isLargeDisplay ? 64 : 52) * uiScale);
-  const warmTimerSize = Math.round((isLargeDisplay ? 256 : 190) * uiScale);
+  const warmTitleSize = adaptive.fs(isLargeDisplay ? 64 : 52, 0.8, 1.06);
+  const warmTimerSize = adaptive.fs(isLargeDisplay ? 256 : 190, 0.74, 1.05);
   const warmTimerLineHeight = Math.round(warmTimerSize * 1.03);
-  const warmButtonTextSize = Math.round((isLargeDisplay ? 32 : 24) * uiScale);
+  const warmButtonTextSize = adaptive.fs(isLargeDisplay ? 32 : 24, 0.82, 1.04);
 
   const pauseOverlayButtonStyle = {
-    minWidth: isLargeDisplay ? 360 : 230,
+    minWidth: isLargeDisplay ? adaptive.s(360) : adaptive.s(230),
     alignItems: 'center' as const,
-    paddingHorizontal: isLargeDisplay ? '10%' : '8%',
-    paddingVertical: isLargeDisplay ? 15 : 10,
+    paddingHorizontal: adaptive.s(isLargeDisplay ? 36 : 22),
+    paddingVertical: adaptive.s(isLargeDisplay ? 15 : 10),
   };
 
   if (
@@ -452,9 +447,9 @@ const GamePlay = () => {
         style={[
           styles.buttonEndWarmUp,
           {
-            paddingHorizontal: isLargeDisplay ? '10%' : '8%',
-            paddingVertical: isLargeDisplay ? 15 : 10,
-            marginTop: isLargeDisplay ? 30 : 18,
+            paddingHorizontal: adaptive.s(isLargeDisplay ? 36 : 22),
+            paddingVertical: adaptive.s(isLargeDisplay ? 15 : 10),
+            marginTop: adaptive.s(isLargeDisplay ? 30 : 18),
           },
         ]}
         onPress={viewModel.onEndWarmUp}>
@@ -517,7 +512,7 @@ const GamePlay = () => {
                 styles.buttonEndWarmUp,
                 pauseOverlayButtonStyle,
                 {
-                  marginTop: isLargeDisplay ? 30 : 18,
+                  marginTop: adaptive.s(isLargeDisplay ? 30 : 18),
                 },
               ]}
               onPress={viewModel.onPause}>
@@ -531,7 +526,7 @@ const GamePlay = () => {
                 styles.buttonEndWarmUp,
                 pauseOverlayButtonStyle,
                 {
-                  marginTop: isLargeDisplay ? 18 : 12,
+                  marginTop: adaptive.s(isLargeDisplay ? 18 : 12),
                 },
               ]}
               onPress={viewModel.onReplay}>

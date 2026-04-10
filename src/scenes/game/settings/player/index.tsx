@@ -19,9 +19,11 @@ import {
   getCountryFlagImageUri,
   normalizeCountryName,
 } from './countries';
-import styles from './styles';
+import useAdaptiveLayout from '../../useAdaptiveLayout';
+import createStyles from './styles';
 
 interface Props {
+  adaptive?: ReturnType<typeof useAdaptiveLayout>;
   showTitle?: boolean;
   gameMode?: GameMode;
   category: BilliardCategory;
@@ -66,11 +68,13 @@ const EditablePlayerNameInput = memo(
     isPool,
     placeholder,
     onCommit,
+    inputStyle,
   }: {
     value: string;
     index: number;
     isPool: boolean;
     placeholder: string;
+    inputStyle: any[];
     onCommit: (newName: string, index: number) => void;
   }) => {
     const [draftName, setDraftName] = useState(value || '');
@@ -95,7 +99,7 @@ const EditablePlayerNameInput = memo(
         onChangeText={setDraftName}
         onEndEditing={commitName}
         onBlur={commitName}
-        style={[styles.nameInput, isPool && styles.nameInputPool]}
+        style={inputStyle}
         autoCorrect={false}
         autoCapitalize="words"
         selectTextOnFocus={true}
@@ -108,6 +112,7 @@ const EditablePlayerNameInput = memo(
 );
 
 const PlayerSettingsComponent = ({
+  adaptive: adaptiveProp,
   showTitle = true,
   gameMode,
   category,
@@ -118,6 +123,8 @@ const PlayerSettingsComponent = ({
   onChangePlayerPoint,
   onSelectPlayerCountry,
 }: Props) => {
+  const adaptive = adaptiveProp ?? useAdaptiveLayout();
+  const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isPool = useMemo(() => isPoolGame(category), [category]);
   const isEnglish = getLocale().startsWith('en');
   const [countryModalVisible, setCountryModalVisible] = useState(false);
@@ -129,7 +136,7 @@ const PlayerSettingsComponent = ({
   const translate = useCallback(
     (lookup: string, vi: string, en: string) => {
       const translated = i18n.t(lookup as never);
-      if (translated && translated !== lookup) {
+      if (translated && translated !== lookup && !String(translated).includes('[missing')) {
         return translated as string;
       }
       return isEnglish ? en : vi;
@@ -222,7 +229,7 @@ const PlayerSettingsComponent = ({
         </View>
       );
     },
-    [],
+    [styles],
   );
 
   const renderGoal = useCallback(() => {
@@ -265,12 +272,15 @@ const PlayerSettingsComponent = ({
       const playerFlagImage = getPlayerFlagImageUri(currentPlayer);
       const playerFlagText = getPlayerFlagText(currentPlayer);
       const isClassicDarkCard = !isPool && index >= 2;
+      const avatarSize = isPool ? adaptive.s(48) : adaptive.s(44);
+      const flagWidth = isPool ? adaptive.s(36) : adaptive.s(34);
+      const flagHeight = isPool ? adaptive.s(24) : adaptive.s(22);
 
       const avatarShellStyle = {
-        width: isPool ? 48 : 44,
-        height: isPool ? 48 : 44,
+        width: avatarSize,
+        height: avatarSize,
         minHeight: 0,
-        borderRadius: 10,
+        borderRadius: adaptive.s(10),
         alignItems: 'center' as const,
         justifyContent: 'center' as const,
         overflow: 'hidden' as const,
@@ -283,9 +293,9 @@ const PlayerSettingsComponent = ({
       };
 
       const flagFrameStyle = {
-        width: isPool ? 36 : 34,
-        height: isPool ? 24 : 22,
-        borderRadius: 4,
+        width: flagWidth,
+        height: flagHeight,
+        borderRadius: adaptive.s(4),
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.55)',
@@ -331,6 +341,7 @@ const PlayerSettingsComponent = ({
                 value={playerName}
                 index={index}
                 isPool={isPool}
+                inputStyle={[styles.nameInput, isPool && styles.nameInputPool]}
                 onCommit={onChangePlayerName}
                 placeholder={translate(
                   `player${index + 1}`,
@@ -374,11 +385,13 @@ const PlayerSettingsComponent = ({
       );
     },
     [
+      adaptive,
       isPool,
       onChangePlayerName,
       onChangePlayerPoint,
       openCountryModal,
       pointSteps,
+      styles,
       translate,
     ],
   );

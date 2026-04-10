@@ -1,4 +1,4 @@
-import React, {memo} from 'react';
+import React, {memo, useMemo} from 'react';
 import {StyleSheet, Text as RNText} from 'react-native';
 
 import View from 'components/View';
@@ -16,6 +16,7 @@ import {
   isPool15Game,
   isPool15OnlyGame,
 } from 'utils/game';
+import useAdaptiveLayout from '../useAdaptiveLayout';
 
 interface Props {
   title: string;
@@ -52,25 +53,83 @@ const TopMatchHeader = ({
     isPool15Game(gameSettings?.category) ||
     isPool15OnlyGame(gameSettings?.category);
 
+  const adaptive = useAdaptiveLayout();
+
+  const dynamicStyles = useMemo(() => {
+    const clamp = (value: number, min: number, max: number) =>
+      Math.max(min, Math.min(max, value));
+
+    const baseScale = Math.min(adaptive.width / 1280, adaptive.height / 800);
+    const shortPenalty = adaptive.isLandscape
+      ? clamp((720 - adaptive.height) / 260, 0, 0.22)
+      : 0;
+    const ratioPenalty = adaptive.isLandscape
+      ? clamp((adaptive.aspectRatio - 1.65) * 0.08, 0, 0.08)
+      : 0;
+    const scale = clamp(baseScale - shortPenalty - ratioPenalty, 0.68, 1.02);
+
+    return {
+      header: {
+        minHeight: Math.round(74 * scale),
+        borderRadius: Math.round(24 * scale),
+        paddingHorizontal: Math.round(18 * scale),
+        paddingVertical: Math.round(10 * scale),
+      },
+      logoSlot: {
+        width: Math.round(170 * scale),
+      },
+      logo: {
+        width: Math.round(98 * scale),
+        height: Math.round(40 * scale),
+      },
+      titleText: {
+        fontSize: Math.round(35 * scale),
+        lineHeight: Math.round(40 * scale),
+        transform: [{translateX: 0}],
+      },
+      rightSlot: {
+        width: Math.round((isAnyPoolMode ? 188 : 224) * scale),
+      },
+      switchGroup: {
+        width: Math.round((isAnyPoolMode ? 138 : 172) * scale),
+      },
+      switchRow: {
+        minHeight: Math.round(30 * scale),
+      },
+      switchLabel: {
+        fontSize: Math.round(14 * scale),
+      },
+      soundButton: {
+        width: Math.round(36 * scale),
+        height: Math.round(36 * scale),
+        marginLeft: Math.round(12 * scale),
+      },
+      soundIcon: {
+        width: Math.round(22 * scale),
+        height: Math.round(22 * scale),
+      },
+    };
+  }, [adaptive.aspectRatio, adaptive.height, adaptive.isLandscape, adaptive.width, isAnyPoolMode]);
+
   return (
-    <View style={styles.header}>
-      <View style={styles.logoSlot}>
+    <View style={[styles.header, dynamicStyles.header]}>
+      <View style={[styles.logoSlot, dynamicStyles.logoSlot]}>
         <Image
           source={images.logoSmall || images.logo}
           resizeMode="contain"
-          style={styles.logo}
+          style={[styles.logo, dynamicStyles.logo]}
         />
       </View>
 
       <View style={styles.titleSlot}>
-        <RNText style={styles.titleText}>{title}</RNText>
+        <RNText style={[styles.titleText, dynamicStyles.titleText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.68}>{title}</RNText>
       </View>
 
-      <View style={styles.rightSlot}>
-        <View style={styles.switchGroup}>
+      <View style={[styles.rightSlot, dynamicStyles.rightSlot]}>
+        <View style={[styles.switchGroup, dynamicStyles.switchGroup]}>
           {!isAnyPoolMode ? (
-            <View style={styles.switchRow}>
-              <RNText style={styles.switchLabel}>Pro Mode</RNText>
+            <View style={[styles.switchRow, dynamicStyles.switchRow]}>
+              <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>Pro Mode</RNText>
               <Switch
                 defaultValue={proModeEnabled}
                 onChange={value => onToggleProMode?.(value)}
@@ -78,8 +137,8 @@ const TopMatchHeader = ({
             </View>
           ) : null}
 
-          <View style={styles.switchRow}>
-            <RNText style={styles.switchLabel}>
+          <View style={[styles.switchRow, dynamicStyles.switchRow]}>
+            <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
               {localeText('Điều khiển', 'Remote')}
             </RNText>
             <Switch
@@ -89,11 +148,12 @@ const TopMatchHeader = ({
           </View>
         </View>
 
-        <Button onPress={onToggleSound} style={styles.soundButton}>
+        <Button onPress={onToggleSound} style={[styles.soundButton, dynamicStyles.soundButton]}>
           <Image
             source={soundEnabled ? images.game.soundOn : images.game.soundOff}
             style={[
               styles.soundIcon,
+              dynamicStyles.soundIcon,
               {tintColor: soundEnabled ? '#FFFFFF' : '#7A7A7A'},
             ]}
             resizeMode={'contain'}

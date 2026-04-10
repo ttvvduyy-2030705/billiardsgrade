@@ -1,107 +1,109 @@
-import {Dimensions, StyleSheet} from 'react-native';
+import {StyleSheet} from 'react-native';
 
 import colors from 'configuration/colors';
+import {LayoutPreset} from 'scenes/game/useAdaptiveLayout';
 
-const {width, height} = Dimensions.get('window');
-const longSide = Math.max(width, height);
-const shortSide = Math.min(width, height);
-const isLargeDisplay = longSide >= 1700 && shortSide >= 900;
-const pick = (small: number, large: number) => (isLargeDisplay ? large : small);
+export const createStyles = (adaptive: {
+  s: (value: number) => number;
+  fs: (value: number) => number;
+  layoutPreset: LayoutPreset;
+  width?: number;
+  height?: number;
+  isLandscape?: boolean;
+  isShortLandscape?: boolean;
+}) => {
+  const {s, fs, layoutPreset, width = 0, height = 0, isLandscape = false, isShortLandscape = false} = adaptive;
+  const isPhone = layoutPreset === 'phone';
+  const compactLandscape = isLandscape && (isShortLandscape || height <= 760 || width <= 1180);
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: pick(2, 4),
-  },
-  mainTitle: {
-    color: '#FFFFFF',
-    fontSize: pick(14, 16),
-    fontWeight: '800',
-    marginBottom: pick(8, 20),
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: {width: 0, height: 0},
-    textShadowRadius: 1,
-  },
-  section: {
-    marginBottom: pick(8, 20),
-  },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: pick(12.5, 25),
-    fontWeight: '800',
-    marginBottom: pick(5, 6),
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: {width: 0, height: 0},
-    textShadowRadius: 1,
-  },
-  sectionDivider: {
-    height: 1.1,
-    backgroundColor: '#FF1F26',
-    marginBottom: pick(8, 20),
-  },
-  inlineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: pick(6, 20),
-  },
-  compactOptionRow: {
-    marginBottom: pick(5, 20),
-  },
-  inlineLabel: {
-    width: pick(56, 68),
-    color: '#FFFFFF',
-    fontSize: pick(11.5, 22),
-    fontWeight: '700',
-    marginRight: pick(8, 10),
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: {width: 0, height: 0},
-    textShadowRadius: 1,
-  },
-  inlineOptions: {
-    flex: 1,
-    minWidth: 0,
-  },
-  poolBlock: {
-    marginBottom: pick(6, 8),
-  },
-  modeOnlyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: pick(6, 8),
-  },
-  optionsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  optionButton: {
-    minHeight: pick(28, 34),
-    paddingHorizontal: pick(11, 25),
-    paddingVertical: pick(4, 5),
-    marginRight: pick(6, 8),
-    marginBottom: pick(5, 15),
-    borderRadius: pick(13, 15),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: '#141414',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  optionButtonActive: {
-    backgroundColor: '#E11D25',
-    borderColor: '#E11D25',
-  },
-  optionButtonPressed: {
-    opacity: 0.88,
-  },
-  optionText: {
-    color: colors.white,
-    fontSize: pick(11.5, 25),
-    fontWeight: '600',
-  },
-  optionTextActive: {
-    color: colors.white,
-    fontWeight: '700',
-  },
-});
+  return StyleSheet.create({
+    container: {
+      paddingBottom: s(4),
+    },
+    mainTitle: {
+      color: '#FFFFFF',
+      fontSize: fs(isPhone ? 14 : 16),
+      fontWeight: '800',
+      marginBottom: s(10),
+    },
+    section: {
+      marginBottom: s(isPhone ? 8 : compactLandscape ? 10 : 12),
+    },
+    sectionTitle: {
+      color: '#FFFFFF',
+      fontSize: fs(isPhone ? 13 : 15),
+      fontWeight: '800',
+      marginBottom: s(compactLandscape ? 4 : 6),
+    },
+    sectionDivider: {
+      height: 1.1,
+      backgroundColor: '#FF1F26',
+      marginBottom: s(isPhone ? 8 : 10),
+    },
+    inlineRow: {
+      flexDirection: compactLandscape ? 'column' : 'row',
+      alignItems: 'flex-start',
+      marginBottom: s(isPhone ? 6 : compactLandscape ? 7 : 8),
+    },
+    compactOptionRow: {
+      marginBottom: s(isPhone ? 6 : 7),
+    },
+    inlineLabel: {
+      width: compactLandscape ? '100%' : s(isPhone ? 58 : 66),
+      color: '#FFFFFF',
+      fontSize: fs(isPhone ? 11 : compactLandscape ? 12 : 13),
+      fontWeight: '700',
+      marginRight: compactLandscape ? 0 : s(8),
+      marginBottom: compactLandscape ? s(4) : 0,
+      paddingTop: compactLandscape ? 0 : s(6),
+    },
+    inlineOptions: {
+      flex: 1,
+      minWidth: 0,
+    },
+    poolBlock: {
+      marginBottom: s(compactLandscape ? 4 : 6),
+    },
+    modeOnlyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: s(compactLandscape ? 4 : 6),
+    },
+    optionsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+    },
+    optionButton: {
+      minHeight: s(isPhone ? 28 : 31),
+      paddingHorizontal: s(isPhone ? 12 : 14),
+      paddingVertical: s(4),
+      marginRight: s(6),
+      marginBottom: s(compactLandscape ? 4 : 6),
+      borderRadius: s(13),
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+      backgroundColor: '#141414',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    optionButtonActive: {
+      backgroundColor: '#E11D25',
+      borderColor: '#E11D25',
+    },
+    optionButtonPressed: {
+      opacity: 0.88,
+    },
+    optionText: {
+      color: colors.white,
+      fontSize: fs(isPhone ? 11 : compactLandscape ? 12 : 13),
+      fontWeight: '600',
+    },
+    optionTextActive: {
+      color: colors.white,
+      fontWeight: '700',
+    },
+  });
+};
 
-export default styles;
+export default createStyles;
