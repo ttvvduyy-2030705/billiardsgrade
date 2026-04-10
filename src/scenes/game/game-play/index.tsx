@@ -173,6 +173,7 @@ const GamePlay = () => {
     );
   }, [viewModel.gameSettings?.category, viewModel.gameSettings?.mode?.mode]);
 
+
   const warmTitleSize = adaptive.fs(isLargeDisplay ? 64 : 52, 0.8, 1.06);
   const warmTimerSize = adaptive.fs(isLargeDisplay ? 256 : 190, 0.74, 1.05);
   const warmTimerLineHeight = Math.round(warmTimerSize * 1.03);
@@ -481,7 +482,9 @@ const GamePlay = () => {
           />
         ) : null}
 
-        {renderMainBoard()}
+        <View flex={'1'}>
+          {renderMainBoard()}
+        </View>
 
         {!isCameraFullscreen &&
         (isPoolGame(category) || isCaromGame(category)) &&

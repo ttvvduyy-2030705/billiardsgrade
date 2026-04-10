@@ -43,7 +43,7 @@ const createStyles = (a: AdaptiveLayout) => {
 
     mainArea: {
       flex: 1,
-      paddingTop: shortLandscape ? a.s(4) : a.layoutPreset === 'phone' ? a.s(6) : a.s(8),
+      paddingTop: shortLandscape ? 0 : a.layoutPreset === 'phone' ? a.s(4) : a.s(6),
     },
 
     mainAreaFullscreen: {
@@ -70,9 +70,9 @@ const createStyles = (a: AdaptiveLayout) => {
     poolArenaConsoleWrapper: {
       flex:
         a.layoutPreset === 'wideTablet'
-          ? 1.08
+          ? 1.06
           : a.layoutPreset === 'phone'
-            ? 1.06
+            ? 1.04
             : 0.98,
       minWidth: 0,
       marginHorizontal: 0,

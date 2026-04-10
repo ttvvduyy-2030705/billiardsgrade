@@ -1,9 +1,10 @@
 import React, {memo, useMemo} from 'react';
-import {useWindowDimensions} from 'react-native';
 
 import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
+
+import useAdaptiveLayout from '../useAdaptiveLayout';
 
 interface Props {
   originalCountdownTime?: number;
@@ -18,13 +19,22 @@ const PoolShotClock = ({
   currentCountdownTime,
   onPress,
 }: Props) => {
-  const {width, height} = useWindowDimensions();
-  const shortestSide = Math.min(width, height);
-  const isLargeDisplay = width >= 1600 || shortestSide >= 900;
-  const segmentHeight = isLargeDisplay ? 92 : 28;
-  const segmentWrapMinHeight = isLargeDisplay ? 98 : 32;
-  const secondsFontSize = isLargeDisplay ? 58 : 20;
-  const secondsMarginLeft = isLargeDisplay ? '16' : '10';
+  const adaptive = useAdaptiveLayout();
+  const isHandheldLandscape =
+    adaptive.isLandscape && adaptive.systemMetrics.smallestScreenWidthDp < 600;
+
+  const segmentHeight = isHandheldLandscape
+    ? adaptive.s(16)
+    : adaptive.layoutPreset === 'tv'
+      ? adaptive.s(70)
+      : adaptive.s(28);
+  const segmentWrapMinHeight = segmentHeight + adaptive.s(4);
+  const secondsFontSize = isHandheldLandscape
+    ? adaptive.fs(15, 0.7, 0.9)
+    : adaptive.layoutPreset === 'tv'
+      ? adaptive.fs(48, 0.86, 1.04)
+      : adaptive.fs(20, 0.86, 1.02);
+  const secondsMarginLeft = isHandheldLandscape ? adaptive.s(6) : adaptive.s(10);
 
   const safeOriginal = Math.max(1, originalCountdownTime || 40);
   const safeCurrent = Math.max(0, currentCountdownTime);
@@ -38,13 +48,7 @@ const PoolShotClock = ({
   }, [safeCurrent, progressMax]);
 
   return (
-    <Button
-      onPress={onPress}
-      style={{
-        width: '100%',
-        paddingTop: isLargeDisplay ? 0 : 0,
-        paddingBottom: isLargeDisplay ? 0 : 0,
-      }}>
+    <Button onPress={onPress} style={{width: '100%', paddingTop: 0, paddingBottom: 0}}>
       <View
         style={{width: '100%'}}
         direction={'row'}
@@ -64,8 +68,8 @@ const PoolShotClock = ({
                 style={{
                   flex: 1,
                   height: segmentHeight,
-                  marginHorizontal: 2,
-                  borderRadius: isLargeDisplay ? 8 : 4,
+                  marginHorizontal: adaptive.s(1),
+                  borderRadius: isHandheldLandscape ? adaptive.s(3) : adaptive.s(4),
                   backgroundColor: isLit ? activeColor : '#2A2B31',
                   opacity: isLit ? 1 : 0.98,
                 }}
@@ -78,7 +82,7 @@ const PoolShotClock = ({
           color={activeColor}
           fontSize={secondsFontSize}
           fontWeight={'bold'}
-          marginLeft={secondsMarginLeft}>
+          marginLeft={String(secondsMarginLeft)}>
           {`${safeCurrent}s`}
         </Text>
       </View>

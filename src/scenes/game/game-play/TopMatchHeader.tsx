@@ -54,62 +54,67 @@ const TopMatchHeader = ({
     isPool15OnlyGame(gameSettings?.category);
 
   const adaptive = useAdaptiveLayout();
+  const isHandheldLandscape =
+    adaptive.isLandscape && adaptive.systemMetrics.smallestScreenWidthDp < 600;
 
   const dynamicStyles = useMemo(() => {
-    const clamp = (value: number, min: number, max: number) =>
-      Math.max(min, Math.min(max, value));
+    const headerHeight = isHandheldLandscape
+      ? adaptive.s(46)
+      : adaptive.layoutPreset === 'tv'
+        ? adaptive.s(76)
+        : adaptive.s(68);
 
-    const baseScale = Math.min(adaptive.width / 1280, adaptive.height / 800);
-    const shortPenalty = adaptive.isLandscape
-      ? clamp((720 - adaptive.height) / 260, 0, 0.22)
-      : 0;
-    const ratioPenalty = adaptive.isLandscape
-      ? clamp((adaptive.aspectRatio - 1.65) * 0.08, 0, 0.08)
-      : 0;
-    const scale = clamp(baseScale - shortPenalty - ratioPenalty, 0.68, 1.02);
+    const logoWidth = isHandheldLandscape ? adaptive.s(60) : adaptive.s(98);
+    const logoHeight = isHandheldLandscape ? adaptive.s(24) : adaptive.s(40);
+    const logoSlotWidth = isHandheldLandscape ? adaptive.s(84) : adaptive.s(170);
+    const rightSlotWidth = isHandheldLandscape
+      ? adaptive.s(isAnyPoolMode ? 106 : 130)
+      : adaptive.s(isAnyPoolMode ? 188 : 224);
+    const switchGroupWidth = isHandheldLandscape
+      ? adaptive.s(isAnyPoolMode ? 82 : 104)
+      : adaptive.s(isAnyPoolMode ? 138 : 172);
 
     return {
       header: {
-        minHeight: Math.round(74 * scale),
-        borderRadius: Math.round(24 * scale),
-        paddingHorizontal: Math.round(18 * scale),
-        paddingVertical: Math.round(10 * scale),
+        minHeight: headerHeight,
+        borderRadius: isHandheldLandscape ? adaptive.s(18) : adaptive.s(24),
+        paddingHorizontal: isHandheldLandscape ? adaptive.s(12) : adaptive.s(18),
+        paddingVertical: isHandheldLandscape ? adaptive.s(8) : adaptive.s(10),
       },
       logoSlot: {
-        width: Math.round(170 * scale),
+        width: logoSlotWidth,
       },
       logo: {
-        width: Math.round(98 * scale),
-        height: Math.round(40 * scale),
+        width: logoWidth,
+        height: logoHeight,
       },
       titleText: {
-        fontSize: Math.round(35 * scale),
-        lineHeight: Math.round(40 * scale),
-        transform: [{translateX: 0}],
+        fontSize: isHandheldLandscape ? adaptive.fs(24, 0.68, 0.9) : adaptive.fs(35, 0.82, 1.02),
+        lineHeight: isHandheldLandscape ? adaptive.fs(28, 0.68, 0.9) : adaptive.fs(40, 0.82, 1.02),
       },
       rightSlot: {
-        width: Math.round((isAnyPoolMode ? 188 : 224) * scale),
+        width: rightSlotWidth,
       },
       switchGroup: {
-        width: Math.round((isAnyPoolMode ? 138 : 172) * scale),
+        width: switchGroupWidth,
       },
       switchRow: {
-        minHeight: Math.round(30 * scale),
+        minHeight: isHandheldLandscape ? adaptive.s(20) : adaptive.s(30),
       },
       switchLabel: {
-        fontSize: Math.round(14 * scale),
+        fontSize: isHandheldLandscape ? adaptive.fs(10, 0.76, 0.9) : adaptive.fs(14, 0.86, 1),
       },
       soundButton: {
-        width: Math.round(36 * scale),
-        height: Math.round(36 * scale),
-        marginLeft: Math.round(12 * scale),
+        width: isHandheldLandscape ? adaptive.s(28) : adaptive.s(36),
+        height: isHandheldLandscape ? adaptive.s(28) : adaptive.s(36),
+        marginLeft: isHandheldLandscape ? adaptive.s(8) : adaptive.s(12),
       },
       soundIcon: {
-        width: Math.round(22 * scale),
-        height: Math.round(22 * scale),
+        width: isHandheldLandscape ? adaptive.s(18) : adaptive.s(22),
+        height: isHandheldLandscape ? adaptive.s(18) : adaptive.s(22),
       },
     };
-  }, [adaptive.aspectRatio, adaptive.height, adaptive.isLandscape, adaptive.width, isAnyPoolMode]);
+  }, [adaptive, isAnyPoolMode, isHandheldLandscape]);
 
   return (
     <View style={[styles.header, dynamicStyles.header]}>
@@ -122,7 +127,13 @@ const TopMatchHeader = ({
       </View>
 
       <View style={styles.titleSlot}>
-        <RNText style={[styles.titleText, dynamicStyles.titleText]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.68}>{title}</RNText>
+        <RNText
+          style={[styles.titleText, dynamicStyles.titleText]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.62}>
+          {title}
+        </RNText>
       </View>
 
       <View style={[styles.rightSlot, dynamicStyles.rightSlot]}>
@@ -181,24 +192,21 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 0},
     elevation: 10,
   },
-
   logoSlot: {
     width: 170,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
-
   logo: {
     width: 98,
     height: 40,
   },
-
   titleSlot: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 0,
   },
-
   titleText: {
     color: '#FFFFFF',
     fontSize: 35,
@@ -207,33 +215,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     width: '100%',
-    transform: [{translateX: 30}],
   },
-
   rightSlot: {
     width: 224,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-
   switchGroup: {
     width: 172,
   },
-
   switchRow: {
     minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-
   switchLabel: {
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
-
   soundButton: {
     width: 36,
     height: 36,
@@ -241,7 +243,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   soundIcon: {
     width: 22,
     height: 22,

@@ -11,13 +11,6 @@ import CategorySettings from './category';
 import PlayerSettings from './player';
 import GameSettingsViewModel, {Props} from './SettingsViewModel';
 import useAdaptiveLayout from '../useAdaptiveLayout';
-import {
-  getScreenProfile,
-  setScreenProfile,
-  subscribeScreenProfile,
-  hydrateScreenProfile,
-  ScreenProfile,
-} from '../screenProfileStore';
 import createStyles from './styles';
 
 const getLocale = () => {
@@ -38,30 +31,11 @@ const getFallbackLabel = (key: string, vi: string, en: string) => {
   return getLocale().startsWith('en') ? en : vi;
 };
 
-
-const SCREEN_PROFILE_OPTIONS: Array<{
-  value: ScreenProfile;
-  label: string;
-  description: string;
-}> = [
-  {value: 'auto', label: 'Tự động', description: 'Tự nhận diện theo màn hiện tại'},
-  {value: 'compact7', label: '7 inch / nhỏ', description: 'Co mạnh hơn cho máy ngang thấp'},
-  {value: 'tablet12', label: '12 inch / tablet', description: 'Giữ bố cục tablet cân bằng'},
-  {value: 'display24', label: '24 inch / màn lớn', description: 'Ưu tiên giao diện lớn, thoáng'},
-];
-
 const GameSettings = (props: Props) => {
   const viewModel = GameSettingsViewModel(props);
   const adaptive = useAdaptiveLayout();
   const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isEnglish = getLocale().startsWith('en');
-  const [screenProfile, setScreenProfileState] = React.useState<ScreenProfile>(getScreenProfile());
-
-  React.useEffect(() => {
-    const unsubscribe = subscribeScreenProfile(setScreenProfileState);
-    void hydrateScreenProfile().then(setScreenProfileState).catch(() => {});
-    return unsubscribe;
-  }, []);
 
   const translatedTitle = i18n.t(screens.gameSettings as never);
   const title =
@@ -76,11 +50,6 @@ const GameSettings = (props: Props) => {
 
   const cancelText = getFallbackLabel('txtCancel', 'Hủy', 'Cancel');
   const startText = getFallbackLabel('txtStart', 'Bắt đầu', 'Start');
-  const displayTitle = isEnglish ? 'Display Profile' : 'Cấu hình màn hình';
-  const displayHint = isEnglish
-    ? 'Auto detect first. If the device still looks too big or too small, choose a profile manually.'
-    : 'Ưu tiên để tự động. Nếu máy vẫn hiển thị chưa chuẩn thì chọn profile tay bên dưới.';
-  const displayMeta = `${Math.round(adaptive.width)} × ${Math.round(adaptive.height)} • ${adaptive.isLandscape ? (isEnglish ? 'Landscape' : 'Ngang') : isEnglish ? 'Portrait' : 'Dọc'} • ${adaptive.aspectRatio.toFixed(2)}`;
 
   return (
     <Container style={styles.screen}>
@@ -126,46 +95,6 @@ const GameSettings = (props: Props) => {
             style={styles.panelScroll}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.panelScrollContent}>
-            <View style={styles.displayCard}>
-              <Text style={styles.displayCardTitle}>{displayTitle}</Text>
-              <Text style={styles.displayCardHint}>{displayHint}</Text>
-              <Text style={styles.displayCardMeta}>{displayMeta}</Text>
-
-              <View style={styles.profileGrid}>
-                {SCREEN_PROFILE_OPTIONS.map(option => {
-                  const selected = option.value === screenProfile;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      onPress={() => {
-                        setScreenProfileState(option.value);
-                        void setScreenProfile(option.value);
-                      }}
-                      style={({pressed}) => [
-                        styles.profileChip,
-                        selected && styles.profileChipActive,
-                        pressed && styles.profileChipPressed,
-                      ]}>
-                      <Text
-                        style={[
-                          styles.profileChipLabel,
-                          selected && styles.profileChipLabelActive,
-                        ]}>
-                        {option.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.profileChipDescription,
-                          selected && styles.profileChipDescriptionActive,
-                        ]}>
-                        {option.description}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
             <CategorySettings
               adaptive={adaptive}
               showTitle={false}

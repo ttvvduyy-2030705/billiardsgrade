@@ -91,6 +91,8 @@ const GamePlayer = (
     adaptive.isLandscape &&
     (adaptive.layoutPreset === 'wideTablet' ||
       (adaptive.layoutPreset === 'tv' && adaptive.aspectRatio >= 1.5));
+  const isHandheldLandscape =
+    adaptive.isLandscape && adaptive.systemMetrics.smallestScreenWidthDp < 600;
   const isCompactLandscape =
     adaptive.isLandscape &&
     (adaptive.height <= 720 || adaptive.aspectRatio >= 1.65 || adaptive.widthClass === 'compact');
@@ -127,7 +129,7 @@ const GamePlayer = (
       ? Math.max(0, Math.min(0.08, (adaptive.aspectRatio - 1.65) * 0.08))
       : 0;
 
-    return Math.max(0.62, Math.min(1, adaptive.textScale - shortPenalty - ratioPenalty));
+    return Math.max(isHandheldLandscape ? 0.5 : 0.62, Math.min(1, adaptive.textScale - shortPenalty - ratioPenalty));
   }, [adaptive.aspectRatio, adaptive.height, adaptive.isLandscape, adaptive.textScale, isLargeDisplay]);
 
   const isCaromMode = !isPoolMode;
@@ -243,7 +245,7 @@ const GamePlayer = (
   const playerFlag = getPlayerFlagText(props.player as any);
   const playerFlagImage = getPlayerFlagImageUri(props.player as any);
 
-  const fluidScale = Math.max(0.64, Math.min(1, uiScale));
+  const fluidScale = Math.max(isHandheldLandscape ? 0.54 : 0.64, Math.min(1, uiScale));
   const dynamicPanelStyle = {
     paddingHorizontal: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
     paddingTop: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),

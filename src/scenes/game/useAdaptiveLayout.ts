@@ -1,11 +1,11 @@
 import {useEffect, useMemo, useState} from 'react';
 import {PixelRatio, useWindowDimensions} from 'react-native';
+
 import {
-  getScreenProfile,
-  hydrateScreenProfile,
-  ScreenProfile,
-  subscribeScreenProfile,
-} from './screenProfileStore';
+  buildFallbackSystemScreenMetrics,
+  getSystemScreenMetrics,
+  SystemScreenMetrics,
+} from './systemScreenMetrics';
 
 export type WidthClass = 'compact' | 'medium' | 'expanded';
 export type LayoutPreset = 'phone' | 'tablet' | 'wideTablet' | 'tv';
@@ -19,13 +19,14 @@ export type AdaptiveLayout = {
   isLandscape: boolean;
   isShortLandscape: boolean;
   isVeryShortLandscape: boolean;
+  isUltraShortLandscape: boolean;
   widthClass: WidthClass;
   layoutPreset: LayoutPreset;
   scale: number;
   sizeScale: number;
   textScale: number;
-  profile: ScreenProfile;
   styleKey: string;
+  systemMetrics: SystemScreenMetrics;
   s: (value: number) => number;
   fs: (value: number, minFactor?: number, maxFactor?: number) => number;
 };
@@ -37,13 +38,26 @@ const round = (value: number) => PixelRatio.roundToNearestPixel(value);
 
 export const useAdaptiveLayout = (): AdaptiveLayout => {
   const {width, height, fontScale} = useWindowDimensions();
-  const [profile, setProfile] = useState<ScreenProfile>(getScreenProfile());
+  const [systemMetrics, setSystemMetrics] = useState<SystemScreenMetrics>(() =>
+    buildFallbackSystemScreenMetrics(width, height, fontScale || 1),
+  );
 
   useEffect(() => {
-    const unsubscribe = subscribeScreenProfile(setProfile);
-    void hydrateScreenProfile().then(setProfile).catch(() => {});
-    return unsubscribe;
-  }, []);
+    let mounted = true;
+
+    const sync = async () => {
+      const next = await getSystemScreenMetrics(width, height, fontScale || 1);
+      if (mounted) {
+        setSystemMetrics(next);
+      }
+    };
+
+    void sync();
+
+    return () => {
+      mounted = false;
+    };
+  }, [width, height, fontScale]);
 
   return useMemo(() => {
     const safeWidth = Number.isFinite(width) && width > 0 ? width : 1;
@@ -52,99 +66,101 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
     const longSide = Math.max(safeWidth, safeHeight);
     const aspectRatio = longSide / Math.max(shortSide, 1);
     const isLandscape = safeWidth >= safeHeight;
+    const smallestScreenWidthDp = systemMetrics.smallestScreenWidthDp || shortSide;
 
-    const detectedWidthClass: WidthClass =
+    const widthClass: WidthClass =
       safeWidth < 600 ? 'compact' : safeWidth < 900 ? 'medium' : 'expanded';
 
-    const detectedIsShortLandscape = isLandscape && safeHeight <= 760;
-    const detectedIsVeryShortLandscape = isLandscape && safeHeight <= 680;
+    const isTabletSystem = smallestScreenWidthDp >= 600;
+    const isTvSystem = smallestScreenWidthDp >= 960 || safeWidth >= 1440;
 
-    let detectedPreset: LayoutPreset = 'phone';
-
-    if (detectedWidthClass === 'expanded' && (safeWidth >= 1366 || shortSide >= 900)) {
-      detectedPreset = 'tv';
-    } else if (
-      isLandscape &&
-      ((detectedWidthClass === 'expanded' && aspectRatio >= 1.45) ||
-        (detectedWidthClass === 'medium' && aspectRatio >= 1.5))
-    ) {
-      detectedPreset = 'wideTablet';
-    } else if (detectedWidthClass === 'medium' || detectedWidthClass === 'expanded') {
-      detectedPreset = 'tablet';
+    let layoutPreset: LayoutPreset = 'phone';
+    if (isTvSystem) {
+      layoutPreset = 'tv';
+    } else if (isTabletSystem && isLandscape && aspectRatio >= 1.45) {
+      layoutPreset = 'wideTablet';
+    } else if (isTabletSystem) {
+      layoutPreset = 'tablet';
     }
 
+    const isHandheldLandscape = isLandscape && smallestScreenWidthDp < 600;
+    const isShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 500 : layoutPreset === 'phone' ? 760 : 720);
+    const isVeryShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 430 : layoutPreset === 'phone' ? 680 : 640);
+    const isUltraShortLandscape = isLandscape && safeHeight <= (isHandheldLandscape ? 380 : 560);
+
     const widthBase =
-      detectedPreset === 'tv'
+      layoutPreset === 'tv'
         ? 1366
-        : detectedPreset === 'wideTablet'
+        : layoutPreset === 'wideTablet'
           ? 1180
-          : detectedPreset === 'tablet'
+          : layoutPreset === 'tablet'
             ? 1024
-            : 420;
+            : isHandheldLandscape
+              ? 900
+              : 420;
 
     const heightBase =
-      detectedPreset === 'tv'
+      layoutPreset === 'tv'
         ? 768
-        : detectedPreset === 'wideTablet'
+        : layoutPreset === 'wideTablet'
           ? 720
-          : detectedPreset === 'tablet'
+          : layoutPreset === 'tablet'
             ? 760
-            : 800;
+            : isHandheldLandscape
+              ? 520
+              : 800;
 
     const widthFactor = safeWidth / widthBase;
     const heightFactor = safeHeight / heightBase;
-    const aspectBias = isLandscape
-      ? clamp((aspectRatio - 1.35) * 0.08, -0.03, 0.05)
-      : clamp((1.7 - aspectRatio) * 0.03, -0.02, 0.04);
+    const heightFirstBase = isHandheldLandscape
+      ? heightFactor * 0.92 + widthFactor * 0.08
+      : isLandscape
+        ? heightFactor * 0.82 + widthFactor * 0.18
+        : heightFactor * 0.62 + widthFactor * 0.38;
 
-    const targetBase = widthFactor * 0.68 + heightFactor * 0.32 + aspectBias;
+    const aspectPenalty = isHandheldLandscape
+      ? clamp((aspectRatio - 1.45) * 0.14, 0, 0.24)
+      : isLandscape
+        ? clamp((aspectRatio - 1.6) * 0.08, 0, layoutPreset === 'phone' ? 0.18 : 0.08)
+        : 0;
 
-    const compactPenalty =
-      detectedIsVeryShortLandscape ? 0.12 : detectedIsShortLandscape ? 0.08 : 0;
+    const shortPenalty = isUltraShortLandscape
+      ? (isHandheldLandscape ? 0.24 : 0.18)
+      : isVeryShortLandscape
+        ? (isHandheldLandscape ? 0.16 : 0.12)
+        : isShortLandscape
+          ? (isHandheldLandscape ? 0.09 : 0.06)
+          : 0;
 
-    let scale = clamp(
-      targetBase - compactPenalty,
-      detectedPreset === 'phone' ? 0.78 : 0.8,
-      detectedPreset === 'tv' ? 1.2 : 1.08,
+    const floor =
+      layoutPreset === 'tv'
+        ? 0.9
+        : layoutPreset === 'phone'
+          ? isHandheldLandscape
+            ? 0.48
+            : 0.62
+          : layoutPreset === 'tablet'
+            ? 0.8
+            : 0.84;
+
+    const ceiling = isHandheldLandscape ? 0.96 : layoutPreset === 'tv' ? 1.16 : 1.04;
+
+    const scale = clamp(heightFirstBase - aspectPenalty - shortPenalty, floor, ceiling);
+    const textScale = clamp(
+      scale / Math.min(systemMetrics.fontScale || fontScale || 1, 1.15),
+      layoutPreset === 'phone' ? (isHandheldLandscape ? 0.5 : 0.62) : 0.78,
+      isHandheldLandscape ? 0.98 : layoutPreset === 'tv' ? 1.1 : 1.04,
     );
-
-    let textScale = clamp(
-      scale / Math.min(fontScale || 1, 1.15),
-      detectedPreset === 'phone' ? 0.76 : 0.78,
-      detectedPreset === 'tv' ? 1.12 : 1.03,
-    );
-
-    let widthClass = detectedWidthClass;
-    let layoutPreset = detectedPreset;
-    let isShortLandscape = detectedIsShortLandscape;
-    let isVeryShortLandscape = detectedIsVeryShortLandscape;
-
-    if (profile === 'compact7') {
-      widthClass = 'compact';
-      layoutPreset = 'phone';
-      isShortLandscape = isLandscape || detectedIsShortLandscape;
-      isVeryShortLandscape = isLandscape || detectedIsVeryShortLandscape;
-      scale = clamp(scale * (isLandscape ? 0.76 : 0.84), 0.64, 0.95);
-      textScale = clamp(textScale * (isLandscape ? 0.8 : 0.9), 0.68, 0.98);
-    } else if (profile === 'tablet12') {
-      widthClass = 'medium';
-      layoutPreset = isLandscape && aspectRatio >= 1.45 ? 'wideTablet' : 'tablet';
-      scale = clamp(scale * 0.94, 0.8, 1.02);
-      textScale = clamp(textScale * 0.96, 0.78, 1.02);
-    } else if (profile === 'display24') {
-      widthClass = 'expanded';
-      layoutPreset = 'tv';
-      scale = clamp(scale * 1.04, 0.92, 1.18);
-      textScale = clamp(textScale * 1.02, 0.86, 1.08);
-    }
 
     const s = (value: number) => {
       const next = round(value * scale);
       return Number.isFinite(next) ? next : value;
     };
 
-    const fs = (value: number, minFactor = 0.84, maxFactor = 1.08) => {
-      const next = round(clamp(value * textScale, value * minFactor, value * maxFactor));
+    const fs = (value: number, minFactor = 0.82, maxFactor = 1.08) => {
+      const next = round(
+        clamp(value * textScale, value * minFactor, value * maxFactor),
+      );
       return Number.isFinite(next) ? next : value;
     };
 
@@ -157,17 +173,18 @@ export const useAdaptiveLayout = (): AdaptiveLayout => {
       isLandscape,
       isShortLandscape,
       isVeryShortLandscape,
+      isUltraShortLandscape,
       widthClass,
       layoutPreset,
       scale,
       sizeScale: scale,
       textScale,
-      profile,
-      styleKey: `${Math.round(safeWidth)}x${Math.round(safeHeight)}-${layoutPreset}-${widthClass}-${profile}`,
+      styleKey: `${Math.round(safeWidth)}x${Math.round(safeHeight)}-${layoutPreset}-${widthClass}-${Math.round(scale * 1000)}`,
+      systemMetrics,
       s,
       fs,
     };
-  }, [fontScale, height, profile, width]);
+  }, [fontScale, height, systemMetrics, width]);
 };
 
 export default useAdaptiveLayout;

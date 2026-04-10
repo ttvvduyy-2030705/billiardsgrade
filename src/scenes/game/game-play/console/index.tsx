@@ -442,6 +442,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const {width, height, shortSide: shortestSide, longSide: longestSide} = adaptive;
   const isLandscape = adaptive.isLandscape;
   const isLargeDisplay = adaptive.layoutPreset === 'tv';
+  const isHandheldLandscape =
+    isLandscape && adaptive.systemMetrics.smallestScreenWidthDp < 600;
   const isMediumLandscape =
     isLandscape &&
     !isLargeDisplay &&
@@ -452,10 +454,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isShortLandscape = adaptive.isShortLandscape;
   const isVeryShortLandscape = adaptive.isVeryShortLandscape;
   const useResponsiveCompact =
-    isCompactLandscape || shortestSide <= 520 || height <= 760;
+    isCompactLandscape || shortestSide <= 520 || (isHandheldLandscape && height <= 900) || height <= 760;
   const useTightLandscapeLayout = isMediumLandscape || useResponsiveCompact;
   const useExtraCompact =
-    shortestSide <= 460 || height <= 680 || adaptive.aspectRatio >= 1.9;
+    shortestSide <= 460 || height <= 680 || (isHandheldLandscape && height <= 620) || adaptive.aspectRatio >= 1.9;
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
@@ -463,7 +465,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     const compactPenalty = isVeryShortLandscape ? 0.12 : isShortLandscape ? 0.08 : 0;
-    return clamp(adaptive.textScale - compactPenalty, 0.68, 1);
+    return clamp(adaptive.textScale - compactPenalty, isHandheldLandscape ? 0.56 : 0.68, 1);
   }, [adaptive.textScale, isLargeDisplay, isShortLandscape, isVeryShortLandscape]);
 
   const category = props.gameSettings?.category;
@@ -834,41 +836,41 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       }
 
       if (useResponsiveCompact) {
-        return 165;
+        return 154;
       }
 
-      return isLargeDisplay ? 260 : 190;
+      return isLargeDisplay ? 260 : 176;
     }
 
     if (isCarom) {
       if (useExtraCompact) {
-        return 145;
+        return isHandheldLandscape ? 118 : 145;
       }
 
       if (useResponsiveCompact) {
-        return 155;
+        return isHandheldLandscape ? 132 : 155;
       }
 
       if (useTightLandscapeLayout) {
-        return 175;
+        return isHandheldLandscape ? 142 : 162;
       }
 
-      return isLargeDisplay ? 250 : 205;
+      return isLargeDisplay ? 250 : isHandheldLandscape ? 156 : 205;
     }
 
     if (useExtraCompact) {
-      return 160;
+      return isHandheldLandscape ? 122 : 148;
     }
 
     if (useResponsiveCompact) {
-      return 175;
+      return isHandheldLandscape ? 136 : 162;
     }
 
     if (useTightLandscapeLayout) {
-      return 195;
+      return isHandheldLandscape ? 150 : 182;
     }
 
-    return isLargeDisplay ? 280 : 228;
+    return isLargeDisplay ? 280 : isHandheldLandscape ? 170 : 228;
   }, [
     isCarom,
     isLargeDisplay,
@@ -1383,11 +1385,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#141518',
   },
   phoneCameraCard: {
-    minHeight: 190,
+    minHeight: 170,
     borderRadius: 16,
   },
   mediumCameraCard: {
-    minHeight: 205,
+    minHeight: 188,
     borderRadius: 18,
     borderWidth: 4,
   },
@@ -1396,10 +1398,10 @@ const styles = StyleSheet.create({
     minHeight: 176,
   },
   poolCameraCard: {
-    flex: 1.45,
+    flex: 1.16,
     borderRadius: 18,
     borderWidth: 4,
-    minHeight: 260,
+    minHeight: 210,
   },
   pool15CameraCard: {
     flex: 1,
