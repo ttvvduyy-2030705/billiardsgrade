@@ -245,7 +245,7 @@ const PlayerSettingsComponent = ({
     }, {} as Record<string, number>);
 
     return renderSelectorRow(
-      translate('goal', 'Điểm', 'Points'),
+      isEnglish ? 'Target' : 'Mục tiêu',
       goalMap,
       playerSettings.goal.goal,
       onSelectPlayerGoal,
