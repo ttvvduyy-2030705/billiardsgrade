@@ -42,10 +42,11 @@ const createStyles = (a: AdaptiveLayout) => {
     countdownContainer: {
       width: '100%',
       paddingHorizontal: a.s(2),
-      paddingTop: 0,
-      paddingBottom: 0,
-      marginTop: -2,
+      paddingTop: shortLandscape ? a.s(6) : a.s(8),
+      paddingBottom: shortLandscape ? a.s(6) : a.s(8),
+      marginTop: shortLandscape ? 0 : a.s(2),
       backgroundColor: '#000000',
+      minHeight: shortLandscape ? a.s(36) : a.s(46),
     },
 
     mainArea: {

@@ -497,8 +497,8 @@ const GamePlay = () => {
             proModeEnabled={viewModel.proModeEnabled}
             onToggleProMode={viewModel.onToggleProMode}
             gameSettings={viewModel.gameSettings}
-            centerTimeText={headerTimeText}
-            compactTitleLeft={true}
+            centerTimeText={usePoolHeaderClock ? headerTimeText : undefined}
+            compactTitleLeft={usePoolHeaderClock}
           />
         ) : null}
 

@@ -60,26 +60,24 @@ const TopMatchHeader = ({
   const adaptive = useAdaptiveLayout();
   const isHandheldLandscape =
     adaptive.isLandscape &&
-    (adaptive.systemMetrics.smallestScreenWidthDp < 600 ||
-      adaptive.isConstrainedLandscape);
-
-  const useBalancedHeader = compactTitleLeft || !!centerTimeText;
+    (adaptive.systemMetrics.smallestScreenWidthDp < 600 || adaptive.isConstrainedLandscape);
 
   const dynamicStyles = useMemo(() => {
     const headerHeight = isHandheldLandscape
-      ? adaptive.s(48)
+      ? adaptive.s(46)
       : adaptive.layoutPreset === 'tv'
-        ? adaptive.s(78)
-        : adaptive.s(70);
+        ? adaptive.s(76)
+        : adaptive.s(68);
 
     const logoWidth = isHandheldLandscape ? adaptive.s(60) : adaptive.s(98);
     const logoHeight = isHandheldLandscape ? adaptive.s(24) : adaptive.s(40);
-    const soundButtonSize = isHandheldLandscape ? adaptive.s(28) : adaptive.s(36);
-    const soundButtonGap = isHandheldLandscape ? adaptive.s(8) : adaptive.s(12);
-    const sideSlotWidth = isHandheldLandscape
-      ? adaptive.s(isAnyPoolMode ? 170 : 196)
-      : adaptive.s(isAnyPoolMode ? 300 : 344);
-    const switchGroupWidth = sideSlotWidth - soundButtonSize - soundButtonGap;
+    const logoSlotWidth = isHandheldLandscape ? adaptive.s(84) : adaptive.s(170);
+    const rightSlotWidth = isHandheldLandscape
+      ? adaptive.s(isAnyPoolMode ? 106 : 130)
+      : adaptive.s(isAnyPoolMode ? 188 : 224);
+    const switchGroupWidth = isHandheldLandscape
+      ? adaptive.s(isAnyPoolMode ? 82 : 104)
+      : adaptive.s(isAnyPoolMode ? 138 : 172);
 
     return {
       header: {
@@ -88,52 +86,57 @@ const TopMatchHeader = ({
         paddingHorizontal: isHandheldLandscape ? adaptive.s(12) : adaptive.s(18),
         paddingVertical: isHandheldLandscape ? adaptive.s(8) : adaptive.s(10),
       },
-      balancedLeftSlot: {
-        width: sideSlotWidth,
-      },
-      balancedLogoWrap: {
-        width: logoWidth,
+      logoSlot: {
+        width: logoSlotWidth,
       },
       logo: {
         width: logoWidth,
         height: logoHeight,
       },
-      balancedTitleWrap: {
-        marginLeft: isHandheldLandscape ? adaptive.s(8) : adaptive.s(12),
-        paddingRight: isHandheldLandscape ? adaptive.s(10) : adaptive.s(14),
+      leftCluster: {
+        width: compactTitleLeft
+          ? isHandheldLandscape
+            ? adaptive.s(192)
+            : adaptive.s(300)
+          : logoSlotWidth,
       },
-      balancedTitleText: {
+      leftTitleText: {
         fontSize: isHandheldLandscape
-          ? adaptive.fs(13, 0.8, 0.9)
-          : adaptive.fs(18, 0.84, 0.94),
+          ? adaptive.fs(14, 0.76, 0.92)
+          : adaptive.fs(20, 0.82, 0.98),
         lineHeight: isHandheldLandscape
-          ? adaptive.fs(15, 0.8, 0.9)
-          : adaptive.fs(22, 0.84, 0.94),
+          ? adaptive.fs(16, 0.76, 0.92)
+          : adaptive.fs(24, 0.82, 0.98),
+      },
+      titleText: {
+        fontSize: compactTitleLeft
+          ? isHandheldLandscape
+            ? adaptive.fs(14, 0.76, 0.92)
+            : adaptive.fs(20, 0.82, 0.98)
+          : isHandheldLandscape
+            ? adaptive.fs(24, 0.68, 0.9)
+            : adaptive.fs(35, 0.82, 1.02),
+        lineHeight: compactTitleLeft
+          ? isHandheldLandscape
+            ? adaptive.fs(16, 0.76, 0.92)
+            : adaptive.fs(24, 0.82, 0.98)
+          : isHandheldLandscape
+            ? adaptive.fs(28, 0.68, 0.9)
+            : adaptive.fs(40, 0.82, 1.02),
       },
       centerTimeSlot: {
         paddingHorizontal: isHandheldLandscape ? adaptive.s(10) : adaptive.s(16),
       },
       centerTimeText: {
         fontSize: isHandheldLandscape
-          ? adaptive.fs(24, 0.78, 0.96)
-          : adaptive.fs(38, 0.9, 1.04),
+          ? adaptive.fs(24, 0.76, 0.96)
+          : adaptive.fs(38, 0.88, 1.04),
         lineHeight: isHandheldLandscape
-          ? adaptive.fs(28, 0.78, 0.96)
-          : adaptive.fs(42, 0.9, 1.04),
-      },
-      titleText: {
-        fontSize: isHandheldLandscape
-          ? adaptive.fs(24, 0.68, 0.9)
-          : adaptive.fs(35, 0.82, 1.02),
-        lineHeight: isHandheldLandscape
-          ? adaptive.fs(28, 0.68, 0.9)
-          : adaptive.fs(40, 0.82, 1.02),
-      },
-      logoSlot: {
-        width: sideSlotWidth,
+          ? adaptive.fs(28, 0.76, 0.96)
+          : adaptive.fs(42, 0.88, 1.04),
       },
       rightSlot: {
-        width: sideSlotWidth,
+        width: rightSlotWidth,
       },
       switchGroup: {
         width: switchGroupWidth,
@@ -142,47 +145,43 @@ const TopMatchHeader = ({
         minHeight: isHandheldLandscape ? adaptive.s(20) : adaptive.s(30),
       },
       switchLabel: {
-        fontSize: isHandheldLandscape
-          ? adaptive.fs(10, 0.76, 0.9)
-          : adaptive.fs(14, 0.86, 1),
+        fontSize: isHandheldLandscape ? adaptive.fs(10, 0.76, 0.9) : adaptive.fs(14, 0.86, 1),
       },
       soundButton: {
-        width: soundButtonSize,
-        height: soundButtonSize,
-        marginLeft: soundButtonGap,
+        width: isHandheldLandscape ? adaptive.s(28) : adaptive.s(36),
+        height: isHandheldLandscape ? adaptive.s(28) : adaptive.s(36),
+        marginLeft: isHandheldLandscape ? adaptive.s(8) : adaptive.s(12),
       },
       soundIcon: {
         width: isHandheldLandscape ? adaptive.s(18) : adaptive.s(22),
         height: isHandheldLandscape ? adaptive.s(18) : adaptive.s(22),
       },
     };
-  }, [adaptive, isAnyPoolMode, isHandheldLandscape]);
+  }, [adaptive, compactTitleLeft, isAnyPoolMode, isHandheldLandscape]);
 
   return (
     <View style={[styles.header, dynamicStyles.header]}>
-      {useBalancedHeader ? (
+      {compactTitleLeft ? (
         <>
-          <View style={[styles.balancedLeftSlot, dynamicStyles.balancedLeftSlot]}>
-            <View style={[styles.balancedLogoWrap, dynamicStyles.balancedLogoWrap]}>
-              <Image
-                source={images.logoSmall || images.logo}
-                resizeMode="contain"
-                style={[styles.logo, dynamicStyles.logo]}
-              />
-            </View>
+          <View style={[styles.leftCluster, dynamicStyles.leftCluster]}>
+            <Image
+              source={images.logoSmall || images.logo}
+              resizeMode="contain"
+              style={[styles.logo, dynamicStyles.logo]}
+            />
 
-            <View style={[styles.balancedTitleWrap, dynamicStyles.balancedTitleWrap]}>
-              <RNText
-                style={[
-                  styles.balancedTitleText,
-                  dynamicStyles.balancedTitleText,
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.72}>
-                {title}
-              </RNText>
-            </View>
+            <RNText
+              style={[
+                styles.titleText,
+                styles.leftTitleText,
+                dynamicStyles.titleText,
+                dynamicStyles.leftTitleText,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}>
+              {title}
+            </RNText>
           </View>
 
           <View style={[styles.centerTimeSlot, dynamicStyles.centerTimeSlot]}>
@@ -221,9 +220,7 @@ const TopMatchHeader = ({
         <View style={[styles.switchGroup, dynamicStyles.switchGroup]}>
           {!isAnyPoolMode ? (
             <View style={[styles.switchRow, dynamicStyles.switchRow]}>
-              <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
-                Pro Mode
-              </RNText>
+              <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>Pro Mode</RNText>
               <Switch
                 defaultValue={proModeEnabled}
                 onChange={value => onToggleProMode?.(value)}
@@ -275,29 +272,18 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 0},
     elevation: 10,
   },
-  balancedLeftSlot: {
-    width: 300,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  balancedLogoWrap: {
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    zIndex: 2,
-    flexShrink: 0,
-  },
-  balancedTitleWrap: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   logoSlot: {
     width: 170,
     alignItems: 'flex-start',
     justifyContent: 'center',
+  },
+  leftCluster: {
+    width: 300,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    minWidth: 0,
+    gap: 10,
   },
   logo: {
     width: 98,
@@ -324,12 +310,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     width: '100%',
   },
-  balancedTitleText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    textAlign: 'center',
-    includeFontPadding: false,
-    width: '100%',
+  leftTitleText: {
+    flex: 1,
+    textAlign: 'left',
     opacity: 0.96,
   },
   centerTimeText: {

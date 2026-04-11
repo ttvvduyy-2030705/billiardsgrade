@@ -131,17 +131,16 @@ const SmallActionButton = ({
         buttonToneStyle(tone),
         disabled ? styles.disabledButton : undefined,
       ]}>
-      <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.smallActionText,
-    poolCompact ? styles.poolSmallActionText : undefined,
-    compact ? styles.compactSmallActionText : undefined,
-    extraCompact ? styles.extraCompactSmallActionText : undefined,
-  ]}>
-  {label}
-</RNText>
+      <Text
+        color={'#FFFFFF'}
+        style={[
+          styles.smallActionText,
+          poolCompact ? styles.poolSmallActionText : undefined,
+          compact ? styles.compactSmallActionText : undefined,
+          extraCompact ? styles.extraCompactSmallActionText : undefined,
+        ]}>
+        {label}
+      </Text>
     </Button>
   );
 };
@@ -171,17 +170,16 @@ const WideActionButton = ({
         extraCompact ? styles.extraCompactWideButton : undefined,
         buttonToneStyle(tone),
       ]}>
-      <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.wideButtonText,
-    poolCompact ? styles.poolWideButtonText : undefined,
-    compact ? styles.compactWideButtonText : undefined,
-    extraCompact ? styles.extraCompactWideButtonText : undefined,
-  ]}>
-  {label}
-</RNText>
+      <Text
+        color={'#FFFFFF'}
+        style={[
+          styles.wideButtonText,
+          poolCompact ? styles.poolWideButtonText : undefined,
+          compact ? styles.compactWideButtonText : undefined,
+          extraCompact ? styles.extraCompactWideButtonText : undefined,
+        ]}>
+        {label}
+      </Text>
     </Button>
   );
 };
@@ -223,17 +221,16 @@ const DualButton = ({
           extraCompact ? styles.extraCompactDualButton : undefined,
           buttonToneStyle(leftTone),
         ]}>
-        <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.dualButtonText,
-    poolCompact ? styles.poolDualButtonText : undefined,
-    compact ? styles.compactDualButtonText : undefined,
-    extraCompact ? styles.extraCompactDualButtonText : undefined,
-  ]}>
-  {leftLabel}
-</RNText>
+        <Text
+          color={'#FFFFFF'}
+          style={[
+            styles.wideButtonText,
+            poolCompact ? styles.poolWideButtonText : undefined,
+            compact ? styles.compactWideButtonText : undefined,
+            extraCompact ? styles.extraCompactWideButtonText : undefined,
+          ]}>
+          {leftLabel}
+        </Text>
       </Button>
 
       <Button
@@ -245,17 +242,16 @@ const DualButton = ({
           extraCompact ? styles.extraCompactDualButton : undefined,
           buttonToneStyle(rightTone),
         ]}>
-        <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.dualButtonText,
-    poolCompact ? styles.poolDualButtonText : undefined,
-    compact ? styles.compactDualButtonText : undefined,
-    extraCompact ? styles.extraCompactDualButtonText : undefined,
-  ]}>
-  {rightLabel}
-</RNText>
+        <Text
+          color={'#FFFFFF'}
+          style={[
+            styles.wideButtonText,
+            poolCompact ? styles.poolWideButtonText : undefined,
+            compact ? styles.compactWideButtonText : undefined,
+            extraCompact ? styles.extraCompactWideButtonText : undefined,
+          ]}>
+          {rightLabel}
+        </Text>
       </Button>
     </View>
   );
@@ -304,17 +300,16 @@ const TripleButton = ({
           extraCompact ? styles.extraCompactTripleButton : undefined,
           buttonToneStyle(leftTone),
         ]}>
-        <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.tripleButtonText,
-    poolCompact ? styles.poolTripleButtonText : undefined,
-    compact ? styles.compactTripleButtonText : undefined,
-    extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
-  {leftLabel}
-</RNText>
+        <Text
+          color={'#FFFFFF'}
+          style={[
+            styles.tripleButtonText,
+            poolCompact ? styles.poolTripleButtonText : undefined,
+            compact ? styles.compactTripleButtonText : undefined,
+            extraCompact ? styles.extraCompactTripleButtonText : undefined,
+          ]}>
+          {leftLabel}
+        </Text>
       </Button>
 
       <Button
@@ -326,17 +321,16 @@ const TripleButton = ({
           extraCompact ? styles.extraCompactTripleButton : undefined,
           buttonToneStyle(centerTone),
         ]}>
-        <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.tripleButtonText,
-    poolCompact ? styles.poolTripleButtonText : undefined,
-    compact ? styles.compactTripleButtonText : undefined,
-    extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
-  {centerLabel}
-</RNText>
+        <Text
+          color={'#FFFFFF'}
+          style={[
+            styles.tripleButtonText,
+            poolCompact ? styles.poolTripleButtonText : undefined,
+            compact ? styles.compactTripleButtonText : undefined,
+            extraCompact ? styles.extraCompactTripleButtonText : undefined,
+          ]}>
+          {centerLabel}
+        </Text>
       </Button>
 
       <Button
@@ -348,17 +342,16 @@ const TripleButton = ({
           extraCompact ? styles.extraCompactTripleButton : undefined,
           buttonToneStyle(rightTone),
         ]}>
-        <RNText
-  allowFontScaling={false}
-  maxFontSizeMultiplier={1}
-  style={[
-    styles.tripleButtonText,
-    poolCompact ? styles.poolTripleButtonText : undefined,
-    compact ? styles.compactTripleButtonText : undefined,
-    extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
-  {rightLabel}
-</RNText>
+        <Text
+          color={'#FFFFFF'}
+          style={[
+            styles.tripleButtonText,
+            poolCompact ? styles.poolTripleButtonText : undefined,
+            compact ? styles.compactTripleButtonText : undefined,
+            extraCompact ? styles.extraCompactTripleButtonText : undefined,
+          ]}>
+          {rightLabel}
+        </Text>
       </Button>
     </View>
   );
@@ -653,21 +646,40 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useResponsiveCompact,
   ]);
 
-  const cameraUtilityRows = (
-    <TripleButton
+  const cameraUtilityRows = isCarom ? (
+    <DualButton
       leftLabel={`↺ ${tr('Làm mới', 'Refresh')}`}
-      centerLabel={`◔ ${tr('Giải lao', 'Break')}`}
       rightLabel={`⌁ ${tr('Đổi cam', 'Switch cam')}`}
       onLeftPress={() => webcamRef.current?.refresh()}
-      onCenterPress={props.onGameBreak}
       onRightPress={() => webcamRef.current?.switchCamera()}
       leftTone={'dark'}
-      centerTone={'dark'}
       rightTone={'dark'}
       compact={useResponsiveCompact}
-      poolCompact={usePoolBroadcastLayout}
       extraCompact={hideCaromCamera || useExtraCompact}
     />
+  ) : (
+    <>
+      <WideActionButton
+        label={`↺ ${tr('Làm mới', 'Refresh')}`}
+        tone={'dark'}
+        onPress={() => webcamRef.current?.refresh()}
+        compact={useResponsiveCompact}
+        poolCompact={usePoolBroadcastLayout}
+        extraCompact={hideCaromCamera || useExtraCompact}
+      />
+
+      <DualButton
+        leftLabel={`◔ ${tr('Giải lao', 'Break')}`}
+        rightLabel={`⌁ ${tr('Đổi cam', 'Switch cam')}`}
+        onLeftPress={props.onGameBreak}
+        onRightPress={() => webcamRef.current?.switchCamera()}
+        leftTone={'dark'}
+        rightTone={'dark'}
+        compact={useResponsiveCompact}
+        poolCompact={usePoolBroadcastLayout}
+        extraCompact={hideCaromCamera || useExtraCompact}
+      />
+    </>
   );
 
   const bottomControls = useMemo(() => {
@@ -677,12 +689,15 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     if (isCarom) {
       return (
-        <DualButton
+        <TripleButton
           leftLabel={startLabel}
+          centerLabel={`◔ ${tr('Giải lao', 'Break')}`}
           rightLabel={`✈ ${tr('Kết thúc', 'End')}`}
           onLeftPress={handleBottomLeft}
+          onCenterPress={props.onGameBreak}
           onRightPress={viewModel.onStop}
           leftTone={'amber'}
+          centerTone={'dark'}
           rightTone={'red'}
           compact={useResponsiveCompact}
           extraCompact={hideCaromCamera || useExtraCompact}
@@ -831,33 +846,33 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     if (isCarom) {
       if (useExtraCompact) {
-        return isHandheldLandscape ? 104 : 124;
+        return isHandheldLandscape ? 118 : 145;
       }
 
       if (useResponsiveCompact) {
-        return isHandheldLandscape ? 116 : 138;
+        return isHandheldLandscape ? 132 : 155;
       }
 
       if (useTightLandscapeLayout) {
-        return isHandheldLandscape ? 126 : 150;
+        return isHandheldLandscape ? 142 : 162;
       }
 
-      return isLargeDisplay ? 220 : isHandheldLandscape ? 118 : adaptive.isConstrainedLandscape ? 134 : 178;
+      return isLargeDisplay ? 250 : isHandheldLandscape ? 128 : adaptive.isConstrainedLandscape ? 146 : 205;
     }
 
     if (useExtraCompact) {
-      return isHandheldLandscape ? 104 : 128;
+      return isHandheldLandscape ? 122 : 148;
     }
 
     if (useResponsiveCompact) {
-      return isHandheldLandscape ? 118 : 140;
+      return isHandheldLandscape ? 136 : 162;
     }
 
     if (useTightLandscapeLayout) {
-      return isHandheldLandscape ? 128 : 154;
+      return isHandheldLandscape ? 150 : 182;
     }
 
-    return isLargeDisplay ? 220 : isHandheldLandscape ? 142 : 176;
+    return isLargeDisplay ? 280 : isHandheldLandscape ? 170 : 228;
   }, [
     isCarom,
     isLargeDisplay,
@@ -879,6 +894,35 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           useResponsiveCompact ? styles.phoneWrapper : undefined,
           hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
         ]}>
+        <View
+          style={[
+            styles.timeWrap,
+            styles.caromTimeWrap,
+            useResponsiveCompact ? styles.phoneTimeWrap : undefined,
+            hideCaromCamera ? styles.caromTimeWrapNoCamera : undefined,
+          ]}>
+          <View
+            style={[
+              styles.timeCard,
+              styles.caromTimeCard,
+              useResponsiveCompact ? styles.phoneTimeCard : undefined,
+            ]}>
+            <RNText
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              minimumFontScale={0.7}
+              style={[
+                styles.timeText,
+                styles.caromTimeText,
+                timeTextStyle,
+                useResponsiveCompact ? styles.phoneCaromTimeText : undefined,
+                hideCaromCamera ? styles.caromTimeTextNoCamera : undefined,
+              ]}>
+              {totalTimeText}
+            </RNText>
+          </View>
+        </View>
+
         {props.gameSettings?.mode?.countdownTime ? (
           <View
             style={[
@@ -1000,13 +1044,13 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   }
 
   const poolMetaTextStyle = {
-    fontSize: Math.round(28 * uiScale),
-    lineHeight: Math.round(32 * uiScale),
+    fontSize: Math.round(20 * uiScale),
+    lineHeight: Math.round(24 * uiScale),
   };
 
   const poolMetaValueTextStyle = {
-    fontSize: Math.round(28 * uiScale),
-    lineHeight: Math.round(32 * uiScale),
+    fontSize: Math.round(22 * uiScale),
+    lineHeight: Math.round(24 * uiScale),
   };
 
   return (
@@ -1019,6 +1063,41 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         useResponsiveCompact ? styles.phoneWrapper : undefined,
         usePoolBroadcastLayout ? styles.poolWrapper : undefined,
       ]}>
+      {!usePoolBroadcastLayout ? (
+        <View
+          style={[
+            styles.timeWrap,
+            useTightLandscapeLayout && !useResponsiveCompact
+              ? styles.mediumTimeWrap
+              : undefined,
+            useResponsiveCompact ? styles.phoneTimeWrap : undefined,
+          ]}>
+          <View
+            style={[
+              styles.timeCard,
+              useTightLandscapeLayout && !useResponsiveCompact
+                ? styles.mediumTimeCard
+                : undefined,
+              useResponsiveCompact ? styles.phoneTimeCard : undefined,
+              usePoolBroadcastLayout ? styles.poolTimeCard : undefined,
+            ]}>
+            <RNText
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              minimumFontScale={0.7}
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[
+                styles.timeText,
+                timeTextStyle,
+                useResponsiveCompact ? styles.phoneTimeText : undefined,
+              ]}>
+              {totalTimeText}
+            </RNText>
+          </View>
+        </View>
+      ) : null}
+
       {isPool15 ? (
         <View style={styles.topButtonRowWrap}>
           <DualButton
@@ -1050,12 +1129,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             <RNText
               allowFontScaling={false}
               maxFontSizeMultiplier={1}
-              style={[styles.metaInlineCombinedText, poolMetaTextStyle]}>
+              style={[styles.metaInlineText, poolMetaTextStyle]}>
               {`${tr('Số lượt', 'Turns')}: `}
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[styles.metaInlineCombinedValueText, poolMetaValueTextStyle]}>
+              <RNText style={[styles.metaInlineValueText, poolMetaValueTextStyle]}>
                 {props.totalTurns}
               </RNText>
             </RNText>
@@ -1070,12 +1146,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             <RNText
               allowFontScaling={false}
               maxFontSizeMultiplier={1}
-              style={[styles.metaInlineCombinedText, poolMetaTextStyle]}>
+              style={[styles.metaInlineText, poolMetaTextStyle]}>
               {`${tr('Mục tiêu', 'Goal')}: `}
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[styles.metaInlineCombinedValueText, poolMetaValueTextStyle]}>
+              <RNText style={[styles.metaInlineValueText, poolMetaValueTextStyle]}>
                 {props.goal}
               </RNText>
             </RNText>
@@ -1213,7 +1286,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     paddingBottom: 8,
-    gap: 4,
+    gap: 6,
   },
   phoneWrapper: {
     paddingHorizontal: 5,
@@ -1308,11 +1381,11 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   poolMetaInlineRow: {
-    gap: 10,
+    gap: 6,
   },
   metaInlineCard: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 46,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#2C2F35',
@@ -1323,48 +1396,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   phoneMetaInlineCard: {
-    minHeight: 46,
+    minHeight: 40,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 5,
   },
   poolMetaInlineCard: {
-    minHeight: 60,
+    minHeight: 44,
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  metaInlineTextRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   metaInlineText: {
     color: '#FFFFFF',
     fontWeight: '800',
     textAlign: 'center',
     includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  metaInlineCombinedText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    textAlign: 'center',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
   },
   metaInlineValueText: {
     color: '#FF2525',
     fontWeight: '900',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  metaInlineCombinedValueText: {
-    color: '#FF2525',
-    fontWeight: '900',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
   },
   metaCard: {
     flex: 1,
@@ -1425,8 +1476,8 @@ const styles = StyleSheet.create({
   caromGoalInlineValue: {},
   cameraCard: {
     width: '100%',
-    flex: 0.98,
-    minHeight: 236,
+    flex: 1,
+    minHeight: 228,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 5,
@@ -1447,10 +1498,10 @@ const styles = StyleSheet.create({
     minHeight: 176,
   },
   poolCameraCard: {
-    flex: 1.02,
+    flex: 1.16,
     borderRadius: 18,
     borderWidth: 4,
-    minHeight: 176,
+    minHeight: 210,
   },
   pool15CameraCard: {
     flex: 1,
@@ -1459,7 +1510,7 @@ const styles = StyleSheet.create({
   actionStack: {
     width: '100%',
     alignSelf: 'stretch',
-    gap: 8,
+    gap: 5,
     paddingBottom: 0,
   },
   phoneActionStack: {
@@ -1469,8 +1520,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   poolActionStack: {
-    gap: 12,
-    paddingTop: 6,
+    gap: 6,
   },
   caromActionStack: {},
   caromActionStackNoCamera: {
@@ -1482,48 +1532,46 @@ const styles = StyleSheet.create({
   },
   smallActionButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 34,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
   compactSmallActionButton: {
-    minHeight: 42,
+    minHeight: 30,
     borderRadius: 10,
     paddingHorizontal: 8,
   },
   extraCompactSmallActionButton: {
-    minHeight: 38,
+    minHeight: 28,
     borderRadius: 9,
     paddingHorizontal: 6,
   },
   poolSmallActionButton: {
-    minHeight: 72,
-    borderRadius: 14,
-    paddingHorizontal: 12,
+    minHeight: 38,
+    borderRadius: 13,
+    paddingHorizontal: 10,
   },
   smallActionText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
   },
   compactSmallActionText: {
-    fontSize: 15,
+    fontSize: 10,
   },
   extraCompactSmallActionText: {
-    fontSize: 13,
+    fontSize: 8,
   },
   poolSmallActionText: {
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 31,
+    fontSize: 13,
   },
   wideButton: {
     width: '100%',
-    minHeight: 58,
+    minHeight: 40,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
@@ -1531,48 +1579,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   compactWideButton: {
-    minHeight: 48,
+    minHeight: 32,
     borderRadius: 10,
     paddingHorizontal: 8,
   },
   extraCompactWideButton: {
-    minHeight: 42,
+    minHeight: 28,
     borderRadius: 9,
     paddingHorizontal: 6,
   },
   poolWideButton: {
-    minHeight: 84,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+    minHeight: 44,
+    borderRadius: 13,
+    paddingHorizontal: 14,
   },
   wideButtonText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
   },
   compactWideButtonText: {
-    fontSize: 16,
+    fontSize: 11,
   },
   extraCompactWideButtonText: {
-    fontSize: 14,
+    fontSize: 10,
   },
   poolWideButtonText: {
-    fontSize: 31,
-    fontWeight: '900',
-    lineHeight: 34,
+    fontSize: 15,
   },
   dualButtonRow: {
     width: '100%',
     gap: 6,
   },
   compactDualButtonRow: {
-    gap: 6,
-    flexWrap: 'nowrap',
+    gap: 4,
+    flexWrap: 'wrap',
   },
   dualButton: {
     flex: 1,
-    minHeight: 58,
+    minHeight: 40,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
@@ -1580,50 +1626,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   compactDualButton: {
-    minHeight: 48,
+    minHeight: 32,
     borderRadius: 10,
     paddingHorizontal: 8,
-    minWidth: 0,
+    minWidth: '48%',
   },
   extraCompactDualButton: {
-    minHeight: 42,
+    minHeight: 28,
     borderRadius: 9,
     paddingHorizontal: 6,
-    minWidth: 0,
+    minWidth: '48%',
   },
   poolDualButton: {
-    minHeight: 84,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-  },
-  dualButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  compactDualButtonText: {
-    fontSize: 16,
-  },
-  extraCompactDualButtonText: {
-    fontSize: 14,
-  },
-  poolDualButtonText: {
-    fontSize: 31,
-    fontWeight: '900',
-    lineHeight: 34,
+    minHeight: 44,
+    borderRadius: 13,
+    paddingHorizontal: 12,
   },
   tripleButtonRow: {
     width: '100%',
     gap: 6,
   },
   compactTripleButtonRow: {
-    gap: 6,
-    flexWrap: 'nowrap',
+    gap: 4,
+    flexWrap: 'wrap',
   },
   tripleButton: {
     flex: 1,
-    minHeight: 58,
+    minHeight: 40,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
@@ -1631,38 +1660,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   compactTripleButton: {
-    minHeight: 48,
+    minHeight: 32,
     borderRadius: 10,
     paddingHorizontal: 6,
-    minWidth: 0,
+    minWidth: '31%',
   },
   extraCompactTripleButton: {
-    minHeight: 42,
+    minHeight: 28,
     borderRadius: 9,
     paddingHorizontal: 5,
-    minWidth: 0,
+    minWidth: '31%',
   },
   poolTripleButton: {
-    minHeight: 72,
-    borderRadius: 14,
-    paddingHorizontal: 12,
+    minHeight: 44,
+    borderRadius: 13,
+    paddingHorizontal: 10,
   },
   tripleButtonText: {
     color: '#FFFFFF',
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'center',
   },
   compactTripleButtonText: {
-    fontSize: 15,
+    fontSize: 10,
   },
   extraCompactTripleButtonText: {
-    fontSize: 13,
+    fontSize: 8,
   },
   poolTripleButtonText: {
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 31,
+    fontSize: 14,
   },
   disabledButton: {
     opacity: 0.5,
