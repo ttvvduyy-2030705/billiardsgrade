@@ -78,9 +78,16 @@ const CaromInfo = (props: Props) => {
 
       return (
         <View
-          style={{backgroundColor: player.color}}
-          direction={'row'}
-          alignItems={'center'}>
+  style={{
+    backgroundColor: player.color,
+    borderTopLeftRadius: index === 0 ? 10 : 0,
+    borderTopRightRadius: index === 0 ? 10 : 0,
+    borderBottomLeftRadius: index === 1 ? 10 : 0,
+    borderBottomRightRadius: index === 1 ? 10 : 0,
+    overflow: 'hidden',
+  }}
+  direction={'row'}
+  alignItems={'center'}>
           <View direction={'row'} alignItems={'center'} paddingLeft={'10'}>
             {playerFlagImage || playerFlag ? (
               <View style={styles.flagBadge}>
@@ -182,19 +189,29 @@ const CaromInfo = (props: Props) => {
             </Text>
           </View>
 
-          <View flex={'1'} direction={'row'}>
-            <Countdown
-              originalCountdownTime={props.gameSettings.mode?.countdownTime}
-              currentCountdownTime={props.countdownTime}
-              countdownWidth={dims.screenWidth * 0.28}
-              heightItem={27}
-              marginHorizontal={2}
-              direction="right-to-left"
-              colorMode="threshold"
-              yellowThreshold={10}
-              redThreshold={5}
-            />
-          </View>
+          <View
+  flex={'1'}
+  direction={'row'}
+  alignItems={'center'}
+  justify={'center'}>
+  <View
+    style={{width: '100%'}}
+    paddingLeft={'10'}
+    paddingRight={'10'}
+    alignItems={'center'}>
+    <Countdown
+      originalCountdownTime={props.gameSettings.mode?.countdownTime}
+      currentCountdownTime={props.countdownTime}
+      countdownWidth={dims.screenWidth * 0.225}
+      heightItem={27}
+      marginHorizontal={2}
+      direction="right-to-left"
+      colorMode="threshold"
+      yellowThreshold={10}
+      redThreshold={5}
+    />
+  </View>
+</View>
         </View>
       </View>
     </View>

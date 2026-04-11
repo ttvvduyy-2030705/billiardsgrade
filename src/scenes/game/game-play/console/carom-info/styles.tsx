@@ -8,14 +8,14 @@ const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
     borderRightWidth: responsiveDimension(20),
-    borderColor: '#FF0000',
-    backgroundColor: '#FF0000',
+    borderColor: '#757670',
+    backgroundColor: '#757670',
     borderRadius: RADIUS,
     overflow: 'hidden',
   },
 
   totalTurnWrapper: {
-    backgroundColor: '#FF0000',
+    backgroundColor: '#757670',
     marginRight: responsiveDimension(4),
   },
 
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   },
 
   countdownContainer: {
-    backgroundColor: '#FF0000',
+    backgroundColor: '#757670',
   },
 
   linearWrapper: {

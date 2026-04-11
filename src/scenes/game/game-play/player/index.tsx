@@ -404,10 +404,16 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
+              {
+                fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale),
+                lineHeight: Math.round((isCompactLayout ? 26 : 30) * uiScale),
+                textAlign: 'center',
+              },
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
-            ]}>
+            ]}
+            allowFontScaling={false}
+            maxFontSizeMultiplier={1}>
             −
           </RNText>
         </Button>
@@ -423,11 +429,17 @@ const GamePlayer = (
           <RNText
             style={[
               styles.stepButtonText,
-              {fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale)},
+              {
+                fontSize: Math.round((isCompactLayout ? 26 : 30) * uiScale),
+                lineHeight: Math.round((isCompactLayout ? 26 : 30) * uiScale),
+                textAlign: 'center',
+              },
               isMediumResponsiveLayout ? styles.stepButtonTextMedium : undefined,
               isCompactLayout && styles.stepButtonTextCompact,
-            ]}>
-            ＋
+            ]}
+            allowFontScaling={false}
+            maxFontSizeMultiplier={1}>
+            +
           </RNText>
         </Button>
       </View>
@@ -626,7 +638,7 @@ const GamePlayer = (
             ]}
             allowFontScaling={false}
             maxFontSizeMultiplier={1}>
-            {tr('Đang đánh', 'Playing')}
+            {tr('Đổi lượt đánh', 'Switch turn')}
           </RNText>
         </Button>
       ) : (
@@ -646,7 +658,7 @@ const GamePlayer = (
             ]}
             allowFontScaling={false}
             maxFontSizeMultiplier={1}>
-            {tr('Đang đánh', 'Playing')}
+            {tr('Đổi lượt đánh', 'Switch turn')}
           </RNText>
         </View>
       )}
@@ -660,7 +672,8 @@ const GamePlayer = (
           isCompactLayout && styles.violateWrapCompact,
           !isActiveCard && styles.violateWrapInactive,
         ]}>
-        <View
+        <Button
+          onPress={viewModel.onViolate}
           style={[
             styles.violateCircle,
             isMediumResponsiveLayout ? styles.violateCircleMedium : undefined,
@@ -678,7 +691,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}>
             ×
           </RNText>
-        </View>
+        </Button>
         <RNText
           style={[
             styles.violateCount,
@@ -859,6 +872,8 @@ const styles = StyleSheet.create({
     marginTop: 18,
     justifyContent: 'space-between',
     gap: 14,
+    zIndex: 4,
+    elevation: 4,
   },
   plusMinusRowMedium: {
     marginTop: 12,
@@ -889,6 +904,8 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontWeight: '700',
     includeFontPadding: false,
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
   stepButtonTextMedium: {},
   stepButtonTextCompact: {},
@@ -1298,7 +1315,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'right',
     fontSize: 18,
+    lineHeight: 18,
     fontWeight: '700',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   violateCountMedium: {
     fontSize: 16,

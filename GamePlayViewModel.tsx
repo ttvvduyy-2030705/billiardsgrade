@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Alert} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
@@ -385,7 +385,6 @@ const isReplayResumeSnapshotMatch = (
 };
 
 const GamePlayViewModel = () => {
-  const navigation = useNavigation<any>();
   const realm = useRealm();
   const dispatch = useDispatch();
   const {updateGameSettings} = useSelector((state: RootState) => state.UI.game);
@@ -1374,28 +1373,13 @@ const GamePlayViewModel = () => {
           text: i18n.t('txtClose'),
           onPress: () => {
             winnerAlertShownRef.current = false;
-            setTimeout(() => {
-              try {
-                if (navigation?.canGoBack?.()) {
-                  navigation.goBack();
-                  return;
-                }
-              } catch (error) {
-                console.log('[WinnerAlert] navigation.goBack failed', error);
-              }
-
-              try {
-                goBack();
-              } catch (error) {
-                console.log('[WinnerAlert] fallback goBack failed', error);
-              }
-            }, 0);
+            goBack();
           },
         },
       ],
       {cancelable: false},
     );
-  }, [navigation]);
+  }, []);
 
   const onChangePlayerPoint = useCallback(
     (addedPoint: number, index: number, stepIndex: number) => {

@@ -98,9 +98,14 @@ const TopMatchHeader = ({
         width: logoWidth,
         height: logoHeight,
       },
-      balancedTitleWrap: {
-        marginLeft: isHandheldLandscape ? adaptive.s(8) : adaptive.s(12),
-        paddingRight: isHandheldLandscape ? adaptive.s(10) : adaptive.s(14),
+      compactHeaderMain: {
+        marginRight: isHandheldLandscape ? adaptive.s(12) : adaptive.s(18),
+      },
+      compactLogoSlot: {
+        width: logoWidth,
+      },
+      compactTitleSlot: {
+        paddingHorizontal: isHandheldLandscape ? adaptive.s(8) : adaptive.s(12),
       },
       balancedTitleText: {
         fontSize: isHandheldLandscape
@@ -161,31 +166,30 @@ const TopMatchHeader = ({
   return (
     <View style={[styles.header, dynamicStyles.header]}>
       {useBalancedHeader ? (
-        <>
-          <View style={[styles.balancedLeftSlot, dynamicStyles.balancedLeftSlot]}>
-            <View style={[styles.balancedLogoWrap, dynamicStyles.balancedLogoWrap]}>
-              <Image
-                source={images.logoSmall || images.logo}
-                resizeMode="contain"
-                style={[styles.logo, dynamicStyles.logo]}
-              />
-            </View>
-
-            <View style={[styles.balancedTitleWrap, dynamicStyles.balancedTitleWrap]}>
-              <RNText
-                style={[
-                  styles.balancedTitleText,
-                  dynamicStyles.balancedTitleText,
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.72}>
-                {title}
-              </RNText>
-            </View>
+        <View style={[styles.compactHeaderMain, dynamicStyles.compactHeaderMain]}>
+          <View style={[styles.compactLogoSlot, dynamicStyles.compactLogoSlot]}>
+            <Image
+              source={images.logoSmall || images.logo}
+              resizeMode="contain"
+              style={[styles.logo, dynamicStyles.logo]}
+            />
           </View>
 
-          <View style={[styles.centerTimeSlot, dynamicStyles.centerTimeSlot]}>
+          <View style={[styles.compactTitleSlot, dynamicStyles.compactTitleSlot]}>
+            <RNText
+              style={[
+                styles.balancedTitleText,
+                styles.compactTitleText,
+                dynamicStyles.balancedTitleText,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}>
+              {title}
+            </RNText>
+          </View>
+
+          <View style={[styles.centerTimeSlot, styles.compactCenterTimeSlot, dynamicStyles.centerTimeSlot]}>
             <RNText
               style={[styles.centerTimeText, dynamicStyles.centerTimeText]}
               numberOfLines={1}
@@ -194,7 +198,7 @@ const TopMatchHeader = ({
               {centerTimeText || '00:00:00'}
             </RNText>
           </View>
-        </>
+        </View>
       ) : (
         <>
           <View style={[styles.logoSlot, dynamicStyles.logoSlot]}>
@@ -222,7 +226,7 @@ const TopMatchHeader = ({
           {!isAnyPoolMode ? (
             <View style={[styles.switchRow, dynamicStyles.switchRow]}>
               <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
-                {localeText('Chuyên nghiệp', 'Pro mode')}
+                Pro Mode
               </RNText>
               <Switch
                 defaultValue={proModeEnabled}
@@ -315,6 +319,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 0,
   },
+  compactCenterTimeSlot: {
+    flex: 1,
+  },
   titleText: {
     color: '#FFFFFF',
     fontSize: 35,
@@ -331,6 +338,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     width: '100%',
     opacity: 0.96,
+  },
+  compactTitleText: {
+    textAlign: 'center',
   },
   centerTimeText: {
     color: '#FF2D2D',

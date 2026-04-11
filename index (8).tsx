@@ -947,73 +947,36 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               alignItems={'center'}
               justify={'center'}
               style={styles.caromGoalInlineRow}>
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[
-                  styles.metaLabel,
-                  styles.caromGoalInlineLabel,
-                  {
-                    color: '#FFFFFF',
-                    fontSize: 18,
-                    lineHeight: 22,
-                    fontWeight: '800',
-                    includeFontPadding: false,
-                    textAlignVertical: 'center',
-                  },
-                ]}>
-                {tr('Mục tiêu', 'Goal')}:
-              </RNText>
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
+              <Text
+                color={'#FFFFFF'}
+                fontSize={18}
+                fontWeight={'800'}
+                style={[styles.metaLabel, styles.caromGoalInlineLabel]}>
+                {tr('Mục tiêu', 'Goal')}
+              </Text>
+              <Text
+                color={'#FF2525'}
+                fontWeight={'900'}
                 style={[
                   styles.metaValue,
                   styles.metaValueNoLabel,
                   styles.caromGoalInlineValue,
                   metaValueStyle,
-                  {
-                    color: '#FF2525',
-                    fontWeight: '900',
-                    includeFontPadding: false,
-                    textAlignVertical: 'center',
-                  },
                 ]}>
                 {props.goal}
-              </RNText>
+              </Text>
             </View>
           ) : (
             <View style={styles.goalRow}>
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={{
-                  color: '#FFFFFF',
-                  fontSize: 16,
-                  lineHeight: 20,
-                  fontWeight: '700',
-                  includeFontPadding: false,
-                  textAlign: 'center',
-                  textAlignVertical: 'center',
-                }}>
-                {tr('Mục tiêu', 'Goal')} :
-              </RNText>
-              <RNText
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[
-                  styles.metaValue,
-                  styles.metaValueNoLabel,
-                  metaValueStyle,
-                  {
-                    color: '#FF2525',
-                    fontWeight: '900',
-                    includeFontPadding: false,
-                    textAlignVertical: 'center',
-                  },
-                ]}>
+              <Text color={'#FFFFFF'} fontSize={16} fontWeight={'700'}>
+                {tr('Mục tiêu', 'Goal')}
+              </Text>
+              <Text
+                color={'#FF2525'}
+                fontWeight={'900'}
+                style={[styles.metaValue, styles.metaValueNoLabel, metaValueStyle]}>
                 {props.goal}
-              </RNText>
+              </Text>
             </View>
           )}
         </View>
@@ -1039,15 +1002,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const poolMetaTextStyle = {
     fontSize: Math.round(28 * uiScale),
     lineHeight: Math.round(32 * uiScale),
-    includeFontPadding: false,
-    textAlignVertical: 'center' as const,
   };
 
   const poolMetaValueTextStyle = {
     fontSize: Math.round(28 * uiScale),
     lineHeight: Math.round(32 * uiScale),
-    includeFontPadding: false,
-    textAlignVertical: 'center' as const,
   };
 
   return (
@@ -1092,26 +1051,20 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               <RNText
                 allowFontScaling={false}
                 maxFontSizeMultiplier={1}
-                style={[styles.metaInlineCombinedText, poolMetaTextStyle]}>
-                <RNText
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}
-                  style={[
-                    styles.metaInlineCombinedText,
-                    styles.metaInlineCombinedLabelText,
-                    poolMetaTextStyle,
-                  ]}>
-                  {`${tr('Số lượt', 'Turns')}: `}
-                </RNText>
-                <RNText
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}
-                  style={[
-                    styles.metaInlineCombinedValueText,
-                    poolMetaValueTextStyle,
-                  ]}>
-                  {props.totalTurns}
-                </RNText>
+                style={[styles.metaInlineCombinedText, poolMetaTextStyle]}
+                numberOfLines={1}>
+                {`${tr('Số lượt', 'Turns')}:`}
+              </RNText>
+
+              <RNText
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[
+                  styles.metaInlineCombinedValueText,
+                  poolMetaValueTextStyle,
+                ]}
+                numberOfLines={1}>
+                {props.totalTurns}
               </RNText>
             </View>
           </View>
@@ -1126,26 +1079,20 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               <RNText
                 allowFontScaling={false}
                 maxFontSizeMultiplier={1}
-                style={[styles.metaInlineCombinedText, poolMetaTextStyle]}>
-                <RNText
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}
-                  style={[
-                    styles.metaInlineCombinedText,
-                    styles.metaInlineCombinedLabelText,
-                    poolMetaTextStyle,
-                  ]}>
-                  {`${tr('Mục tiêu', 'Goal')}: `}
-                </RNText>
-                <RNText
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}
-                  style={[
-                    styles.metaInlineCombinedValueText,
-                    poolMetaValueTextStyle,
-                  ]}>
-                  {props.goal}
-                </RNText>
+                style={[styles.metaInlineCombinedText, poolMetaTextStyle]}
+                numberOfLines={1}>
+                {`${tr('Mục tiêu', 'Goal')}:`}
+              </RNText>
+
+              <RNText
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[
+                  styles.metaInlineCombinedValueText,
+                  poolMetaValueTextStyle,
+                ]}
+                numberOfLines={1}>
+                {props.goal}
               </RNText>
             </View>
           </View>
@@ -1209,7 +1156,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 styles.metaLabel,
                 useResponsiveCompact ? styles.phoneMetaLabel : undefined,
               ]}>
-              {tr('Mục tiêu', 'Goal')} :
+              {tr('Mục tiêu', 'Goal')}
             </Text>
             <Text
               color={'#FF2525'}
@@ -1409,6 +1356,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     columnGap: 8,
   },
+  metaInlineCombinedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 8,
+    minHeight: '100%',
+  },
   metaInlineText: {
     color: '#FFFFFF',
     fontWeight: '800',
@@ -1422,14 +1376,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     textAlignVertical: 'center',
-  },
-  metaInlineCombinedRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-  },
-  metaInlineCombinedLabelText: {
-    marginRight: 0,
+    marginTop: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   metaInlineValueText: {
     color: '#FF2525',
@@ -1442,6 +1391,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     includeFontPadding: false,
     textAlignVertical: 'center',
+    marginTop: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   metaCard: {
     flex: 1,

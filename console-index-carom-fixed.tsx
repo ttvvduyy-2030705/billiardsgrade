@@ -962,7 +962,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                     textAlignVertical: 'center',
                   },
                 ]}>
-                {tr('Mục tiêu', 'Goal')}:
+                {tr('Mục tiêu', 'Goal')}
               </RNText>
               <RNText
                 allowFontScaling={false}
@@ -996,7 +996,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                   textAlign: 'center',
                   textAlignVertical: 'center',
                 }}>
-                {tr('Mục tiêu', 'Goal')} :
+                {tr('Mục tiêu', 'Goal')}
               </RNText>
               <RNText
                 allowFontScaling={false}
@@ -1209,7 +1209,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
                 styles.metaLabel,
                 useResponsiveCompact ? styles.phoneMetaLabel : undefined,
               ]}>
-              {tr('Mục tiêu', 'Goal')} :
+              {tr('Mục tiêu', 'Goal')}
             </Text>
             <Text
               color={'#FF2525'}

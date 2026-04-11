@@ -29,13 +29,19 @@ const PoolShotClock = ({
     : adaptive.layoutPreset === 'tv'
       ? adaptive.s(70)
       : adaptive.s(28);
+
   const segmentWrapMinHeight = segmentHeight + adaptive.s(4);
+
   const secondsFontSize = isHandheldLandscape
     ? adaptive.fs(15, 0.7, 0.9)
     : adaptive.layoutPreset === 'tv'
       ? adaptive.fs(48, 0.86, 1.04)
       : adaptive.fs(20, 0.86, 1.02);
+
   const secondsMarginLeft = isHandheldLandscape ? adaptive.s(6) : adaptive.s(10);
+
+  // Đẩy cả thanh đếm ngược lên trên để tránh bị viền trắng che
+  const clockBottomOffset = isHandheldLandscape ? adaptive.s(12) : adaptive.s(14);
 
   const safeOriginal = Math.max(1, originalCountdownTime || 40);
   const safeCurrent = Math.max(0, currentCountdownTime);
@@ -49,7 +55,14 @@ const PoolShotClock = ({
   }, [safeCurrent, progressMax]);
 
   return (
-    <Button onPress={onPress} style={{width: '100%', paddingTop: 0, paddingBottom: 0}}>
+    <Button
+      onPress={onPress}
+      style={{
+        width: '100%',
+        paddingTop: 0,
+        paddingBottom: 0,
+        marginBottom: clockBottomOffset,
+      }}>
       <View
         style={{width: '100%'}}
         direction={'row'}

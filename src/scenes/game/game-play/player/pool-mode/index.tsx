@@ -47,7 +47,7 @@ const PoolMode = ({
             style={playerStyles.buttonEndTurn}
             onPress={onEndTurn.bind(PoolMode, undefined)}>
             <Text color={colors.white} fontSize={dims.screenWidth * 0.02}>
-              {isEnglish ? 'Playing' : 'Đang đánh'}
+              {isEnglish ? 'Switch turn' : 'Đổi lượt đánh'}
             </Text>
           </Button>
         ) : (
