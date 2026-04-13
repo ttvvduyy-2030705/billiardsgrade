@@ -55,7 +55,7 @@ import {createGameplayLayoutRules, createGameplayStyles} from '../../layoutRules
 
 const BASE_ZOOM_STEPS = [1, 2, 5, 10];
 
-const DEBUG_CAMERA = false;
+const DEBUG_CAMERA = true;
 
 type ThumbnailOverlayData = {
   enabled: boolean;
@@ -74,7 +74,7 @@ const EMPTY_THUMBNAILS: ThumbnailOverlayData = {
 };
 
 const debugCameraLog = (...args: any[]) => {
-  if (__DEV__ && DEBUG_CAMERA) {
+  if (DEBUG_CAMERA) {
     console.log(...args);
   }
 };
@@ -256,6 +256,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const cameraScaleMode = props.cameraScaleMode || 'contain';
 
   const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
+  const [cameraVisualReady, setCameraVisualReady] = useState(false);
   const [zoomSupported, setZoomSupported] = useState(false);
   const [zoomSteps, setZoomSteps] = useState<number[]>(BASE_ZOOM_STEPS);
   const [currentZoom, setCurrentZoom] = useState(1);
@@ -371,12 +372,74 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     effectiveCameraSource === 'external' ? 'webcam' : 'phone';
 
   const showLogoOnly = !hasDetectedExternalWebcam();
+  const streamUri =
+    typeof viewModel.source?.uri === 'string' ? viewModel.source.uri.trim() : '';
+  const hasStreamUri = streamUri.length > 0;
+  const handleCameraReadyChange = useCallback(
+    (nextReady: boolean) => {
+      setCameraVisualReady(prev => (prev === nextReady ? prev : nextReady));
+      props.setIsCameraReady(nextReady);
+      debugCameraLog('[WebCam] visual ready changed', {
+        nextReady,
+        effectiveCameraSource,
+        effectiveSourceType,
+        streamUri,
+      });
+    },
+    [effectiveCameraSource, effectiveSourceType, props, streamUri],
+  );
+
+  useEffect(() => {
+    setCameraVisualReady(false);
+    debugCameraLog('[WebCam] reset visual ready for source signature', {
+      effectiveCameraSource,
+      effectiveSourceType,
+      streamUri,
+      youtubeLivePreviewActive: !!props.youtubeLivePreviewActive,
+      refreshing: !!viewModel.refreshing,
+    });
+  }, [
+    effectiveCameraSource,
+    effectiveSourceType,
+    streamUri,
+    props.youtubeLivePreviewActive,
+    viewModel.refreshing,
+  ]);
+
+  const effectiveCameraReady = props.isCameraReady && cameraVisualReady;
   const shouldShowPhonePlaceholder =
-    effectiveSourceType === 'phone' && !props.isCameraReady && !viewModel.refreshing;
+    effectiveSourceType === 'phone' && !effectiveCameraReady;
   const shouldShowExternalPlaceholder =
-    effectiveSourceType === 'webcam' && (showLogoOnly || !viewModel.source?.uri);
+    effectiveSourceType === 'webcam' &&
+    (!effectiveCameraReady || showLogoOnly || !hasStreamUri);
   const shouldShowLogoPlaceholder =
     shouldShowPhonePlaceholder || shouldShowExternalPlaceholder;
+
+  useEffect(() => {
+    debugCameraLog('[WebCam] placeholder branch', {
+      effectiveCameraSource,
+      effectiveSourceType,
+      streamUri,
+      hasStreamUri,
+      propsIsCameraReady: props.isCameraReady,
+      cameraVisualReady,
+      effectiveCameraReady,
+      shouldShowPhonePlaceholder,
+      shouldShowExternalPlaceholder,
+      shouldShowLogoPlaceholder,
+    });
+  }, [
+    cameraVisualReady,
+    effectiveCameraSource,
+    effectiveSourceType,
+    effectiveCameraReady,
+    hasStreamUri,
+    props.isCameraReady,
+    shouldShowExternalPlaceholder,
+    shouldShowLogoPlaceholder,
+    shouldShowPhonePlaceholder,
+    streamUri,
+  ]);
 
   const canRewatch = useMemo(() => {
     return props.isStarted && props.isPaused && !props.youtubeLivePreviewActive;
@@ -694,6 +757,16 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         source={images.logoSmall || images.logo}
         style={styles.logoOnlyImage}
         resizeMode="contain"
+        onLoad={() => {
+          debugCameraLog('[WebCam] logo placeholder loaded', {
+            source: effectiveCameraSource,
+            type: effectiveSourceType,
+            shouldShowLogoPlaceholder,
+          });
+        }}
+        onError={error => {
+          console.log('[WebCam] logo placeholder image error', error?.nativeEvent || error);
+        }}
       />
     </RNView>
   );
@@ -805,9 +878,17 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   };
 
   const renderCameraContent = () => {
-    if (shouldShowLogoPlaceholder) {
-      return fullLogoPlaceholder;
-    }
+    debugCameraLog('[WebCam] renderCameraContent branch', {
+      refreshing: viewModel.refreshing,
+      useYouTubeNativePreview,
+      effectiveCameraSource,
+      effectiveSourceType,
+      shouldShowLogoPlaceholder,
+      propsIsCameraReady: props.isCameraReady,
+      cameraVisualReady,
+      effectiveCameraReady,
+      streamUri,
+    });
 
     if (!viewModel.refreshing || useYouTubeNativePreview) {
       const contentKey = [
@@ -821,7 +902,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
           {useYouTubeNativePreview ? (
             <YouTubeAndroidLivePreview
               controllerRef={youtubeControllerRef}
-              setIsCameraReady={props.setIsCameraReady}
+              setIsCameraReady={handleCameraReadyChange}
               sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
               cameraFacing={effectiveCameraFacing}
             />
@@ -848,7 +929,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
               isStarted={props.isStarted}
               videoUri={props.videoUri}
               webcamType={effectiveCameraSource as any}
-              setIsCameraReady={props.setIsCameraReady}
+              setIsCameraReady={handleCameraReadyChange}
               overlayContent={
                 effectiveCameraSource === 'external'
                   ? renderOverlay()
@@ -955,15 +1036,29 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     );
   };
 
-  const renderCameraView = (fullscreenMode: boolean) => (
-    <RNView
-      style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
-      {renderCameraContent()}
-      {shouldShowLogoPlaceholder ? null : renderThumbnailOverlay(fullscreenMode)}
-      {shouldShowLogoPlaceholder ? null : renderScoreboardOverlay(fullscreenMode)}
-      {shouldShowLogoPlaceholder ? null : renderCameraChrome()}
-    </RNView>
-  );
+  const renderCameraView = (fullscreenMode: boolean) => {
+    if (shouldShowLogoPlaceholder) {
+      return (
+        <RNView
+          style={fullscreenMode ? styles.fullscreenVideoClipPlaceholder : styles.videoClipPlaceholder}
+          onLayout={event => {
+            debugCameraLog('[WebCam] placeholder surface layout', event.nativeEvent.layout);
+          }}>
+          {fullLogoPlaceholder}
+        </RNView>
+      );
+    }
+
+    return (
+      <RNView
+        style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
+        {renderCameraContent()}
+        {renderThumbnailOverlay(fullscreenMode)}
+        {renderScoreboardOverlay(fullscreenMode)}
+        {renderCameraChrome()}
+      </RNView>
+    );
+  };
 
   return (
     <>
@@ -983,7 +1078,9 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
               });
             }}>
             <RNView
-              style={[styles.videoHost, styles.videoStage, cameraStageStyle]}
+              style={shouldShowLogoPlaceholder
+                ? [styles.videoHost, styles.placeholderStageHost]
+                : [styles.videoHost, styles.videoStage, cameraStageStyle]}
               pointerEvents="box-none">
               {renderCameraView(false)}
 
@@ -1105,6 +1202,35 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     backgroundColor: '#000',
   },
 
+  placeholderStageHost: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch',
+    minHeight: adaptive.s(96),
+  },
+
+  videoClipPlaceholder: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    minHeight: adaptive.s(96),
+    backgroundColor: '#000',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  fullscreenVideoClipPlaceholder: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   videoClip: {
     flex: 1,
     backgroundColor: '#000',
@@ -1130,6 +1256,8 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
 
   logoOnlyBackground: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1138,9 +1266,25 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   },
 
   logoOnlyImage: {
-    width: '84%',
-    height: '84%',
-    opacity: 0.96,
+    width: '72%',
+    height: '72%',
+    alignSelf: 'center',
+    opacity: 0.98,
+  },
+
+  logoOnlyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000',
+    zIndex: 999,
+    elevation: 999,
+  },
+
+  logoOnlyOverlayImage: {
+    width: '76%',
+    height: '76%',
+    alignSelf: 'center',
   },
 
   fullWidth: {

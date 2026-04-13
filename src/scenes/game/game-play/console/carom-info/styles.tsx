@@ -19,6 +19,15 @@ const styles = StyleSheet.create({
     marginRight: responsiveScale(4),
   },
 
+  totalTurnWrapperCompact: {
+    marginRight: responsiveScale(2),
+  },
+
+
+  containerCompact: {
+    borderRightWidth: responsiveScale(10),
+    borderRadius: responsiveScale(12),
+  },
 
   flagBadge: {
     width: responsiveScale(34),
@@ -29,6 +38,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: responsiveScale(8),
     overflow: 'hidden',
+  },
+
+  flagBadgeCompact: {
+    width: responsiveScale(24),
+    height: responsiveScale(18),
+    marginRight: responsiveScale(4),
   },
 
   flagText: {
@@ -42,6 +57,10 @@ const styles = StyleSheet.create({
     marginRight: responsiveScale(6),
   },
 
+  nameWithFlagCompact: {
+    marginRight: responsiveScale(3),
+  },
+
   turnImage: {    width: responsiveScale(40),
     height: responsiveScale(40),
     tintColor: colors.red,
@@ -49,10 +68,23 @@ const styles = StyleSheet.create({
     marginRight: responsiveScale(-5),
   },
 
+  turnImageCompact: {
+    width: responsiveScale(26),
+    height: responsiveScale(26),
+    marginLeft: responsiveScale(4),
+    marginRight: responsiveScale(-2),
+  },
+
   empty: {
     width: responsiveScale(40),
     height: responsiveScale(40),
     marginLeft: responsiveScale(10),
+  },
+
+  emptyCompact: {
+    width: responsiveScale(26),
+    height: responsiveScale(26),
+    marginLeft: responsiveScale(4),
   },
 
   countdownContainer: {
@@ -77,6 +109,10 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 
+  countdownWrapperCompact: {
+    minWidth: responsiveScale(30),
+  },
+
   currentTotalPoint: {
     marginBottom: responsiveScale(3),
     minWidth: responsiveScale(44),
@@ -89,6 +125,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  totalPointWrapperCompact: {
+    minWidth: responsiveScale(54),
+  },
+
   totalPointText0: {
     marginBottom: responsiveScale(-11),
   },
@@ -96,6 +136,10 @@ const styles = StyleSheet.create({
   totalPointText1: {
     marginTop: responsiveScale(4),
     marginBottom: responsiveScale(-11),
+  },
+
+  currentTotalPointCompact: {
+    minWidth: responsiveScale(32),
   },
 
   currentPointText: {

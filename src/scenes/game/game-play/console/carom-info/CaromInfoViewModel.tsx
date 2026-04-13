@@ -20,6 +20,7 @@ export interface Props {
   currentPlayerIndex: number;
   gameSettings: GameSettings;
   playerSettings: PlayerSettings;
+  compact?: boolean;
 }
 
 const CaromInfoViewModel = (props: Props) => {

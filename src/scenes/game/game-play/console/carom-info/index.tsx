@@ -38,34 +38,40 @@ const CaromInfo = (props: Props) => {
   const getTotalPointFont = useCallback(
     (point: number) => {
       const value = Number(point || 0);
+      const baseLarge = props.compact ? 30 : 40;
+      const baseLargeLine = props.compact ? 34 : 46;
+      const baseMedium = props.compact ? 24 : 30;
+      const baseMediumLine = props.compact ? 28 : 34;
+      const baseSmall = props.compact ? 18 : 22;
+      const baseSmallLine = props.compact ? 22 : 26;
 
       if (!isLibre) {
         return {
-          fontSize: 40,
-          lineHeight: 46,
+          fontSize: baseLarge,
+          lineHeight: baseLargeLine,
         };
       }
 
       if (value >= 1000) {
         return {
-          fontSize: 22,
-          lineHeight: 26,
+          fontSize: baseSmall,
+          lineHeight: baseSmallLine,
         };
       }
 
       if (value >= 100) {
         return {
-          fontSize: 30,
-          lineHeight: 34,
+          fontSize: baseMedium,
+          lineHeight: baseMediumLine,
         };
       }
 
       return {
-        fontSize: 40,
-        lineHeight: 46,
+        fontSize: baseLarge,
+        lineHeight: baseLargeLine,
       };
     },
-    [isLibre],
+    [isLibre, props.compact],
   );
 
   const renderPlayer = useCallback(
@@ -90,7 +96,7 @@ const CaromInfo = (props: Props) => {
   alignItems={'center'}>
           <View direction={'row'} alignItems={'center'} paddingLeft={'10'}>
             {playerFlagImage || playerFlag ? (
-              <View style={styles.flagBadge}>
+              <View style={[styles.flagBadge, props.compact ? styles.flagBadgeCompact : undefined]}>
                 {playerFlagImage ? (
                   <RNImage
                     source={{uri: playerFlagImage}}
@@ -104,20 +110,31 @@ const CaromInfo = (props: Props) => {
               </View>
             ) : null}
 
-            <View flex={'1'} style={playerFlag ? styles.nameWithFlag : undefined}>
-              <Text fontSize={22} fontWeight={'900'} numberOfLines={1}>
+            <View
+              flex={'1'}
+              style={[playerFlag ? styles.nameWithFlag : undefined, props.compact ? styles.nameWithFlagCompact : undefined]}>
+              <Text
+                fontSize={props.compact ? 16 : 22}
+                lineHeight={props.compact ? 20 : 26}
+                fontWeight={'900'}
+                numberOfLines={1}>
                 {player.name.toUpperCase()}
               </Text>
             </View>
 
             {props.currentPlayerIndex === index ? (
-              <Image source={images.game.turn} style={styles.turnImage} />
+              <Image
+                source={images.game.turn}
+                style={[styles.turnImage, props.compact ? styles.turnImageCompact : undefined]}
+              />
             ) : (
-              <View style={styles.empty} />
+              <View style={[styles.empty, props.compact ? styles.emptyCompact : undefined]} />
             )}
 
             <View direction={'row'} alignItems={'end'}>
-              <View style={styles.totalPointWrapper} paddingHorizontal={'10'}>
+              <View
+                style={[styles.totalPointWrapper, props.compact ? styles.totalPointWrapperCompact : undefined]}
+                paddingHorizontal={'10'}>
                 <Text
                   style={totalPointStyle}
                   fontSize={totalPointFont.fontSize}
@@ -129,11 +146,13 @@ const CaromInfo = (props: Props) => {
                 </Text>
               </View>
 
-              <View style={styles.currentTotalPoint} paddingHorizontal={'10'}>
+              <View
+                style={[styles.currentTotalPoint, props.compact ? styles.currentTotalPointCompact : undefined]}
+                paddingHorizontal={'10'}>
                 <Text
                   style={styles.currentPointText}
-                  fontSize={32}
-                  lineHeight={38}
+                  fontSize={props.compact ? 22 : 32}
+                  lineHeight={props.compact ? 26 : 38}
                   fontWeight={'bold'}>
                   {player.proMode?.currentPoint || 0}
                 </Text>
@@ -151,7 +170,10 @@ const CaromInfo = (props: Props) => {
   }
 
   return (
-    <View style={styles.container} direction={'row'} marginTop={'10'}>
+    <View
+      style={[styles.container, props.compact ? styles.containerCompact : undefined]}
+      direction={'row'}
+      marginTop={'10'}>
       <View flex={'1'}>
         <View
           collapsable={false}
@@ -161,9 +183,12 @@ const CaromInfo = (props: Props) => {
             <View
               flex={'1'}
               justify={'center'}
-              style={styles.totalTurnWrapper}
+              style={[styles.totalTurnWrapper, props.compact ? styles.totalTurnWrapperCompact : undefined]}
               paddingHorizontal={'20'}>
-              <Text color={colors.white} fontSize={56} lineHeight={70}>
+              <Text
+                color={colors.white}
+                fontSize={props.compact ? 40 : 56}
+                lineHeight={props.compact ? 46 : 70}>
                 {Math.max(1, Number(props.totalTurns || 1))}
               </Text>
             </View>
@@ -181,37 +206,37 @@ const CaromInfo = (props: Props) => {
           direction={'row'}
           alignItems={'center'}>
           <View
-            style={styles.countdownWrapper}
+            style={[styles.countdownWrapper, props.compact ? styles.countdownWrapperCompact : undefined]}
             paddingHorizontal={'20'}
             marginLeft={'5'}>
-            <Text fontSize={20} color={colors.white}>
+            <Text fontSize={props.compact ? 16 : 20} color={colors.white}>
               {props.countdownTime}
             </Text>
           </View>
 
           <View
-  flex={'1'}
-  direction={'row'}
-  alignItems={'center'}
-  justify={'center'}>
-  <View
-    style={{width: '100%'}}
-    paddingLeft={'10'}
-    paddingRight={'10'}
-    alignItems={'center'}>
-    <Countdown
-      originalCountdownTime={props.gameSettings.mode?.countdownTime}
-      currentCountdownTime={props.countdownTime}
-      countdownWidth={dims.screenWidth * 0.225}
-      heightItem={27}
-      marginHorizontal={2}
-      direction="right-to-left"
-      colorMode="threshold"
-      yellowThreshold={10}
-      redThreshold={5}
-    />
-  </View>
-</View>
+            flex={'1'}
+            direction={'row'}
+            alignItems={'center'}
+            justify={'center'}>
+            <View
+              style={{width: '100%'}}
+              paddingLeft={'10'}
+              paddingRight={'10'}
+              alignItems={'center'}>
+              <Countdown
+                originalCountdownTime={props.gameSettings.mode?.countdownTime}
+                currentCountdownTime={props.countdownTime}
+                countdownWidth={dims.screenWidth * (props.compact ? 0.18 : 0.225)}
+                heightItem={props.compact ? 14 : 27}
+                marginHorizontal={props.compact ? 1 : 2}
+                direction="right-to-left"
+                colorMode="threshold"
+                yellowThreshold={10}
+                redThreshold={5}
+              />
+            </View>
+          </View>
         </View>
       </View>
     </View>

@@ -65,6 +65,13 @@ const getPoolBall = (number: BallType) => {
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
+const DEBUG_CAROM_LAYOUT = true;
+const debugCaromLayout = (...args: any[]) => {
+  if (DEBUG_CAROM_LAYOUT) {
+    console.log(...args);
+  }
+};
+
 const isEnglish = () => {
   const locale = String(
     (i18n as any)?.locale || (i18n as any)?.language || '',
@@ -114,6 +121,7 @@ const SmallActionButton = ({
   compact,
   extraCompact,
   poolCompact,
+  tight,
 }: {
   label: string;
   onPress?: () => void;
@@ -122,6 +130,7 @@ const SmallActionButton = ({
   compact?: boolean;
   extraCompact?: boolean;
   poolCompact?: boolean;
+  tight?: boolean;
 }) => {
   return (
     <Button
@@ -131,6 +140,7 @@ const SmallActionButton = ({
         poolCompact ? styles.poolSmallActionButton : undefined,
         compact ? styles.compactSmallActionButton : undefined,
         extraCompact ? styles.extraCompactSmallActionButton : undefined,
+        tight ? styles.tightSmallActionButton : undefined,
         buttonToneStyle(tone),
         disabled ? styles.disabledButton : undefined,
       ]}>
@@ -142,7 +152,12 @@ const SmallActionButton = ({
     poolCompact ? styles.poolSmallActionText : undefined,
     compact ? styles.compactSmallActionText : undefined,
     extraCompact ? styles.extraCompactSmallActionText : undefined,
-  ]}>
+    tight ? styles.tightSmallActionText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {label}
 </RNText>
     </Button>
@@ -156,6 +171,7 @@ const WideActionButton = ({
   compact,
   extraCompact,
   poolCompact,
+  tight,
 }: {
   label: string;
   onPress?: () => void;
@@ -163,6 +179,7 @@ const WideActionButton = ({
   compact?: boolean;
   extraCompact?: boolean;
   poolCompact?: boolean;
+  tight?: boolean;
 }) => {
   return (
     <Button
@@ -172,6 +189,7 @@ const WideActionButton = ({
         poolCompact ? styles.poolWideButton : undefined,
         compact ? styles.compactWideButton : undefined,
         extraCompact ? styles.extraCompactWideButton : undefined,
+        tight ? styles.tightWideButton : undefined,
         buttonToneStyle(tone),
       ]}>
       <RNText
@@ -182,7 +200,12 @@ const WideActionButton = ({
     poolCompact ? styles.poolWideButtonText : undefined,
     compact ? styles.compactWideButtonText : undefined,
     extraCompact ? styles.extraCompactWideButtonText : undefined,
-  ]}>
+    tight ? styles.tightWideButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {label}
 </RNText>
     </Button>
@@ -199,6 +222,7 @@ const DualButton = ({
   compact,
   extraCompact,
   poolCompact,
+  tight,
 }: {
   leftLabel: string;
   rightLabel: string;
@@ -209,6 +233,7 @@ const DualButton = ({
   compact?: boolean;
   extraCompact?: boolean;
   poolCompact?: boolean;
+  tight?: boolean;
 }) => {
   return (
     <View
@@ -224,6 +249,7 @@ const DualButton = ({
           poolCompact ? styles.poolDualButton : undefined,
           compact ? styles.compactDualButton : undefined,
           extraCompact ? styles.extraCompactDualButton : undefined,
+          tight ? styles.tightDualButton : undefined,
           buttonToneStyle(leftTone),
         ]}>
         <RNText
@@ -234,7 +260,12 @@ const DualButton = ({
     poolCompact ? styles.poolDualButtonText : undefined,
     compact ? styles.compactDualButtonText : undefined,
     extraCompact ? styles.extraCompactDualButtonText : undefined,
-  ]}>
+    tight ? styles.tightDualButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {leftLabel}
 </RNText>
       </Button>
@@ -246,6 +277,7 @@ const DualButton = ({
           poolCompact ? styles.poolDualButton : undefined,
           compact ? styles.compactDualButton : undefined,
           extraCompact ? styles.extraCompactDualButton : undefined,
+          tight ? styles.tightDualButton : undefined,
           buttonToneStyle(rightTone),
         ]}>
         <RNText
@@ -256,7 +288,12 @@ const DualButton = ({
     poolCompact ? styles.poolDualButtonText : undefined,
     compact ? styles.compactDualButtonText : undefined,
     extraCompact ? styles.extraCompactDualButtonText : undefined,
-  ]}>
+    tight ? styles.tightDualButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {rightLabel}
 </RNText>
       </Button>
@@ -277,6 +314,7 @@ const TripleButton = ({
   compact,
   extraCompact,
   poolCompact,
+  tight,
 }: {
   leftLabel: string;
   centerLabel: string;
@@ -290,6 +328,7 @@ const TripleButton = ({
   compact?: boolean;
   extraCompact?: boolean;
   poolCompact?: boolean;
+  tight?: boolean;
 }) => {
   return (
     <View
@@ -305,6 +344,7 @@ const TripleButton = ({
           poolCompact ? styles.poolTripleButton : undefined,
           compact ? styles.compactTripleButton : undefined,
           extraCompact ? styles.extraCompactTripleButton : undefined,
+          tight ? styles.tightTripleButton : undefined,
           buttonToneStyle(leftTone),
         ]}>
         <RNText
@@ -315,7 +355,12 @@ const TripleButton = ({
     poolCompact ? styles.poolTripleButtonText : undefined,
     compact ? styles.compactTripleButtonText : undefined,
     extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
+    tight ? styles.tightTripleButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {leftLabel}
 </RNText>
       </Button>
@@ -327,6 +372,7 @@ const TripleButton = ({
           poolCompact ? styles.poolTripleButton : undefined,
           compact ? styles.compactTripleButton : undefined,
           extraCompact ? styles.extraCompactTripleButton : undefined,
+          tight ? styles.tightTripleButton : undefined,
           buttonToneStyle(centerTone),
         ]}>
         <RNText
@@ -337,7 +383,12 @@ const TripleButton = ({
     poolCompact ? styles.poolTripleButtonText : undefined,
     compact ? styles.compactTripleButtonText : undefined,
     extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
+    tight ? styles.tightTripleButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {centerLabel}
 </RNText>
       </Button>
@@ -349,6 +400,7 @@ const TripleButton = ({
           poolCompact ? styles.poolTripleButton : undefined,
           compact ? styles.compactTripleButton : undefined,
           extraCompact ? styles.extraCompactTripleButton : undefined,
+          tight ? styles.tightTripleButton : undefined,
           buttonToneStyle(rightTone),
         ]}>
         <RNText
@@ -359,7 +411,12 @@ const TripleButton = ({
     poolCompact ? styles.poolTripleButtonText : undefined,
     compact ? styles.compactTripleButtonText : undefined,
     extraCompact ? styles.extraCompactTripleButtonText : undefined,
-  ]}>
+    tight ? styles.tightTripleButtonText : undefined,
+  ]}
+  numberOfLines={1}
+  adjustsFontSizeToFit={!!tight || !!compact || !!extraCompact}
+  minimumFontScale={0.78}
+  ellipsizeMode="tail">
   {rightLabel}
 </RNText>
       </Button>
@@ -493,6 +550,54 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
   const hideCaromCamera = isCarom && (props.totalPlayers || 0) >= 5;
+  const useCaromConsoleCompact =
+    isCarom &&
+    !hideCaromCamera &&
+    adaptive.isLandscape &&
+    !isLargeDisplay;
+  const useCaromCompactButtons = isCarom
+    ? useResponsiveCompact || useCaromConsoleCompact
+    : useResponsiveCompact;
+  const useCaromExtraCompactButtons = isCarom
+    ? hideCaromCamera || useExtraCompact || (useCaromConsoleCompact && height <= 900)
+    : hideCaromCamera || useExtraCompact;
+  const useCaromTightLayout =
+    isCarom && !hideCaromCamera && (useCaromConsoleCompact || useResponsiveCompact || height <= 900);
+  const caromExpectedButtonCount = !isCarom
+    ? 0
+    : (props.isStarted ? 3 : 1) + 3 + 2;
+
+  useEffect(() => {
+    if (!isCarom) {
+      return;
+    }
+
+    debugCaromLayout('[GameConsole] carom layout branch', {
+      isCarom,
+      hideCaromCamera,
+      useCaromConsoleCompact,
+      useCaromCompactButtons,
+      useCaromExtraCompactButtons,
+      useCaromTightLayout,
+      expectedButtonCount: caromExpectedButtonCount,
+      cameraMinHeight: null,
+      countdownEnabled: !!props.gameSettings?.mode?.countdownTime,
+      isStarted: props.isStarted,
+      width,
+      height,
+    });
+  }, [
+    height,
+    hideCaromCamera,
+    isCarom,
+    props.gameSettings?.mode?.countdownTime,
+    useCaromCompactButtons,
+    useCaromConsoleCompact,
+    useCaromExtraCompactButtons,
+    useCaromTightLayout,
+    caromExpectedButtonCount,
+    width,
+  ]);
 
   const leftScore = Number(players[0]?.totalPoint || 0);
   const rightScore = Number(players[1]?.totalPoint || 0);
@@ -573,8 +678,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             label={`↗ ${tr('Đổi người', 'Switch player')}`}
             tone={'amber'}
             onPress={viewModel.onSwitchTurn}
-            compact={useResponsiveCompact}
-            extraCompact={hideCaromCamera || useExtraCompact}
+            compact={useCaromCompactButtons}
+            extraCompact={useCaromExtraCompactButtons}
+            tight={useCaromTightLayout}
           />
         );
       }
@@ -590,8 +696,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           leftTone={'green'}
           centerTone={'amber'}
           rightTone={'muted'}
-          compact={useResponsiveCompact}
-          extraCompact={hideCaromCamera || useExtraCompact}
+          compact={useCaromCompactButtons}
+          extraCompact={useCaromExtraCompactButtons}
+          tight={useCaromTightLayout}
         />
       );
     }
@@ -656,6 +763,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useExtraCompact,
     usePoolBroadcastLayout,
     useResponsiveCompact,
+    useCaromCompactButtons,
+    useCaromExtraCompactButtons,
+    useCaromTightLayout,
   ]);
 
   const cameraUtilityRows = (
@@ -669,9 +779,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       leftTone={'dark'}
       centerTone={'dark'}
       rightTone={'dark'}
-      compact={useResponsiveCompact}
+      compact={isCarom ? useCaromCompactButtons : useResponsiveCompact}
       poolCompact={usePoolBroadcastLayout}
-      extraCompact={hideCaromCamera || useExtraCompact}
+      extraCompact={isCarom ? useCaromExtraCompactButtons : hideCaromCamera || useExtraCompact}
+      tight={isCarom ? useCaromTightLayout : false}
     />
   );
 
@@ -689,8 +800,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           onRightPress={viewModel.onStop}
           leftTone={'amber'}
           rightTone={'red'}
-          compact={useResponsiveCompact}
-          extraCompact={hideCaromCamera || useExtraCompact}
+          compact={useCaromCompactButtons}
+          extraCompact={useCaromExtraCompactButtons}
+          tight={useCaromTightLayout}
         />
       );
     }
@@ -719,6 +831,34 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     usePoolBroadcastLayout,
     useResponsiveCompact,
     viewModel.onStop,
+    useCaromCompactButtons,
+    useCaromExtraCompactButtons,
+    useCaromTightLayout,
+  ]);
+
+  useEffect(() => {
+    if (!isCarom) {
+      return;
+    }
+
+    debugCaromLayout('[GameConsole] carom rendered button rows', {
+      utilityButtons: 3,
+      mainButtons: props.isStarted ? 3 : 1,
+      bottomButtons: 2,
+      totalButtons: caromExpectedButtonCount,
+      useCaromConsoleCompact,
+      useCaromCompactButtons,
+      useCaromExtraCompactButtons,
+      useCaromTightLayout,
+    });
+  }, [
+    caromExpectedButtonCount,
+    isCarom,
+    props.isStarted,
+    useCaromCompactButtons,
+    useCaromConsoleCompact,
+    useCaromExtraCompactButtons,
+    useCaromTightLayout,
   ]);
 
   const pool15Footer = useMemo(() => {
@@ -835,19 +975,27 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     if (isCarom) {
+      if (useCaromTightLayout) {
+        return isHandheldLandscape ? 64 : 72;
+      }
+
       if (useExtraCompact) {
-        return isHandheldLandscape ? 104 : 124;
+        return isHandheldLandscape ? 70 : 82;
+      }
+
+      if (useCaromConsoleCompact) {
+        return isHandheldLandscape ? 78 : 90;
       }
 
       if (useResponsiveCompact) {
-        return isHandheldLandscape ? 116 : 138;
+        return isHandheldLandscape ? 86 : 100;
       }
 
       if (useTightLandscapeLayout) {
-        return isHandheldLandscape ? 126 : 150;
+        return isHandheldLandscape ? 110 : 132;
       }
 
-      return isLargeDisplay ? 220 : isHandheldLandscape ? 118 : adaptive.isConstrainedLandscape ? 134 : 178;
+      return isLargeDisplay ? 210 : isHandheldLandscape ? 112 : adaptive.isConstrainedLandscape ? 128 : 164;
     }
 
     if (useExtraCompact) {
@@ -870,6 +1018,35 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useExtraCompact,
     useResponsiveCompact,
     useTightLandscapeLayout,
+    useCaromConsoleCompact,
+    useCaromTightLayout,
+  ]);
+
+  useEffect(() => {
+    if (!isCarom) {
+      return;
+    }
+
+    debugCaromLayout('[GameConsole] computed carom sizes', {
+      cameraMinHeight,
+      useCaromConsoleCompact,
+      useCaromCompactButtons,
+      useCaromExtraCompactButtons,
+      useCaromTightLayout,
+      expectedButtonCount: caromExpectedButtonCount,
+      isStarted: props.isStarted,
+      countdownEnabled: !!props.gameSettings?.mode?.countdownTime,
+    });
+  }, [
+    cameraMinHeight,
+    isCarom,
+    props.gameSettings?.mode?.countdownTime,
+    props.isStarted,
+    useCaromCompactButtons,
+    useCaromConsoleCompact,
+    useCaromExtraCompactButtons,
+    useCaromTightLayout,
+    caromExpectedButtonCount,
   ]);
 
   if (isCarom) {
@@ -901,6 +1078,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               currentPlayerIndex={props.currentPlayerIndex}
               gameSettings={props.gameSettings}
               playerSettings={props.playerSettings}
+              compact={useCaromTightLayout || useCaromConsoleCompact}
             />
           </View>
         ) : null}
@@ -915,8 +1093,13 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               useResponsiveCompact ? styles.phoneCameraCard : undefined,
               styles.caromCameraCard,
               useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
+              useCaromTightLayout ? styles.caromCameraCardTight : undefined,
+              useCaromConsoleCompact ? styles.caromCameraCardCompact : undefined,
               {minHeight: cameraMinHeight},
-            ]}>
+            ]}
+            onLayout={event => {
+              debugCaromLayout('[GameConsole] carom cameraCard layout', event.nativeEvent.layout);
+            }}>
             <Webcam
               ref={webcamRef}
               hideBottomControls
@@ -942,10 +1125,15 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             useResponsiveCompact ? styles.phoneGoalCard : undefined,
             hideCaromCamera ? styles.caromGoalCardNoCamera : undefined,
             !hideCaromCamera ? styles.caromGoalCardInline : undefined,
+            useCaromTightLayout ? styles.caromGoalCardTight : undefined,
+            useCaromConsoleCompact ? styles.caromGoalCardCompact : undefined,
             isLargeDisplay && !useResponsiveCompact
               ? styles.caromGoalCardLargeDisplay
               : undefined,
-          ]}>
+          ]}
+          onLayout={event => {
+            debugCaromLayout('[GameConsole] carom goalCard layout', event.nativeEvent.layout);
+          }}>
           {!hideCaromCamera ? (
             <View
               direction={'row'}
@@ -1031,8 +1219,13 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               ? styles.mediumActionStack
               : undefined,
             useResponsiveCompact ? styles.phoneActionStack : undefined,
+            useCaromTightLayout ? styles.caromActionStackTight : undefined,
+            useCaromConsoleCompact ? styles.caromActionStackCompact : undefined,
             hideCaromCamera ? styles.caromActionStackNoCamera : undefined,
-          ]}>
+          ]}
+          onLayout={event => {
+            debugCaromLayout('[GameConsole] carom actionStack layout', event.nativeEvent.layout);
+          }}>
           {cameraUtilityRows}
           {mainActionRow}
           {bottomControls}
@@ -1309,6 +1502,11 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   caromWrapper: {
     backgroundColor: '#111216',
+    minHeight: 0,
+    paddingHorizontal: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
+    gap: 3,
   },
   caromWrapperNoCamera: {
     justifyContent: 'space-between',
@@ -1524,9 +1722,21 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     borderRadius: 18,
     borderWidth: 4,
   },
-  caromCameraCard: {},
+  caromCameraCard: {
+    flex: 1,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  caromCameraCardCompact: {
+    borderWidth: 4,
+    maxHeight: 118,
+  },
+  caromCameraCardTight: {
+    flex: 0.54,
+    maxHeight: 104,
+  },
   caromPhoneCameraCard: {
-    minHeight: 176,
+    minHeight: 150,
   },
   poolCameraCard: {
     flex: 1.02,
@@ -1554,7 +1764,16 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     gap: 12,
     paddingTop: 6,
   },
-  caromActionStack: {},
+  caromActionStack: {
+    gap: 4,
+    flexShrink: 0,
+  },
+  caromActionStackCompact: {
+    gap: 3,
+  },
+  caromActionStackTight: {
+    gap: 2,
+  },
   caromActionStackNoCamera: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1581,6 +1800,11 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     borderRadius: 9,
     paddingHorizontal: 6,
   },
+  tightSmallActionButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+  },
   poolSmallActionButton: {
     minHeight: 72,
     borderRadius: 14,
@@ -1598,6 +1822,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   extraCompactSmallActionText: {
     fontSize: 13,
   },
+  tightSmallActionText: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
   poolSmallActionText: {
     fontSize: 28,
     fontWeight: '900',
@@ -1613,12 +1841,17 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingHorizontal: 14,
   },
   compactWideButton: {
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: 10,
     paddingHorizontal: 8,
   },
   extraCompactWideButton: {
-    minHeight: 42,
+    minHeight: 38,
+    borderRadius: 9,
+    paddingHorizontal: 6,
+  },
+  tightWideButton: {
+    minHeight: 34,
     borderRadius: 9,
     paddingHorizontal: 6,
   },
@@ -1638,6 +1871,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   extraCompactWideButtonText: {
     fontSize: 14,
+  },
+  tightWideButtonText: {
+    fontSize: 14,
+    lineHeight: 16,
   },
   poolWideButtonText: {
     fontSize: 31,
@@ -1662,16 +1899,21 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingHorizontal: 12,
   },
   compactDualButton: {
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: 10,
     paddingHorizontal: 8,
     minWidth: 0,
   },
   extraCompactDualButton: {
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: 9,
     paddingHorizontal: 6,
     minWidth: 0,
+  },
+  tightDualButton: {
+    minHeight: 34,
+    borderRadius: 9,
+    paddingHorizontal: 6,
   },
   poolDualButton: {
     minHeight: 84,
@@ -1689,6 +1931,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   extraCompactDualButtonText: {
     fontSize: 14,
+  },
+  tightDualButtonText: {
+    fontSize: 13,
+    lineHeight: 15,
   },
   poolDualButtonText: {
     fontSize: 31,
@@ -1713,16 +1959,21 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingHorizontal: 10,
   },
   compactTripleButton: {
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: 10,
     paddingHorizontal: 6,
     minWidth: 0,
   },
   extraCompactTripleButton: {
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: 9,
     paddingHorizontal: 5,
     minWidth: 0,
+  },
+  tightTripleButton: {
+    minHeight: 34,
+    borderRadius: 9,
+    paddingHorizontal: 4,
   },
   poolTripleButton: {
     minHeight: 72,
@@ -1740,6 +1991,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   extraCompactTripleButtonText: {
     fontSize: 13,
+  },
+  tightTripleButtonText: {
+    fontSize: 12,
+    lineHeight: 14,
   },
   poolTripleButtonText: {
     fontSize: 28,
@@ -1775,12 +2030,26 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingVertical: 6,
   },
   caromGoalCardNoCamera: {},
-  caromGoalCardInline: {},
+  caromGoalCardInline: {
+    minHeight: 44,
+    paddingVertical: 4,
+  },
+  caromGoalCardCompact: {
+    minHeight: 40,
+    paddingVertical: 3,
+  },
+  caromGoalCardTight: {
+    minHeight: 34,
+    paddingVertical: 2,
+  },
   caromGoalCardLargeDisplay: {},
   caromInfoWrap: {
     width: '100%',
+    flexShrink: 0,
   },
-  caromInfoWrapCompact: {},
+  caromInfoWrapCompact: {
+    marginBottom: 0,
+  },
   caromInfoWrapNoCamera: {},
   poolBallButton: {
     borderWidth: 1.2,

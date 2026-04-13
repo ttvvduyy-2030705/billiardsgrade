@@ -50,9 +50,9 @@ import {
 } from 'services/youtubeCameraStream';
 
 
-const DEBUG_VIDEO = false;
+const DEBUG_VIDEO = true;
 const debugVideoLog = (...args: any[]) => {
-  if (__DEV__ && DEBUG_VIDEO) {
+  if (DEBUG_VIDEO) {
     console.log(...args);
   }
 };
@@ -189,6 +189,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const [youtubeNativeZoomInfoState, setYoutubeNativeZoomInfoState] =
     useState<YouTubeNativeZoomInfo>(DEFAULT_YOUTUBE_NATIVE_ZOOM);
   const [stableHasUvcWebcam, setStableHasUvcWebcam] = useState(false);
+  const [externalStreamReady, setExternalStreamReady] = useState(false);
 
   const backDevice = useCameraDevice('back');
   const frontDevice = useCameraDevice('front');
@@ -770,8 +771,16 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
 
   useEffect(() => {
     setCameraErrorMessage(null);
+    setExternalStreamReady(false);
     props.setIsCameraReady(false);
   }, [resolvedSelectedSource, props.setIsCameraReady]);
+
+  useEffect(() => {
+    if (effectiveWebcamType !== WebcamType.camera) {
+      setExternalStreamReady(false);
+      props.setIsCameraReady(false);
+    }
+  }, [effectiveWebcamType, viewModel.source?.uri, props.setIsCameraReady]);
 
   useEffect(() => {
     if (!usingUvc) return;
@@ -1144,10 +1153,25 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   }, [viewModel.webcamType, effectiveWebcamType, hasBuiltInCamera]);
 
   const renderFallback = (message?: string) => {
+    debugVideoLog('[Video] renderFallback', {
+      effectiveWebcamType,
+      selectedSource,
+      usingUvc,
+      isYouTubeNativeActive,
+      hasSourceUri: !!viewModel.source?.uri,
+      message: message ?? '',
+    });
+
     return (
       <View style={[styles.container, localStyles.fallbackContainer]}> 
         {images?.logoSmall || images?.logoclb ? (
-          <Image source={images.logoSmall || images.logoclb} style={localStyles.logo} resizeMode="contain" />
+          <Image
+            source={images.logoSmall || images.logoclb}
+            style={localStyles.logo}
+            resizeMode="contain"
+            onLoad={() => debugVideoLog('[Video] fallback logo loaded')}
+            onError={error => console.log('[Video] fallback logo error', error?.nativeEvent || error)}
+          />
         ) : (
           <Text style={localStyles.title}>APLUS BILLIARDS</Text>
         )}
@@ -1155,6 +1179,57 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       </View>
     );
   };
+
+  const readySignature = [
+    effectiveWebcamType,
+    selectedSource,
+    viewModel.source?.uri || '',
+    usingUvc ? 'uvc' : 'standard',
+    isYouTubeNativeActive ? 'youtube-native' : 'local',
+    youtubeNativeCameraLocked ? 'locked' : 'unlocked',
+  ].join(':');
+
+  const lastReadySignatureRef = useRef('');
+
+  useEffect(() => {
+    if (lastReadySignatureRef.current === readySignature) {
+      return;
+    }
+
+    lastReadySignatureRef.current = readySignature;
+    props.setIsCameraReady(false);
+    debugVideoLog('[Video] reset ready for signature', {readySignature});
+  }, [props, readySignature]);
+
+  useEffect(() => {
+    debugVideoLog('[Video] runtime branch snapshot', {
+      effectiveWebcamType,
+      selectedSource,
+      shouldUsePhoneCamera,
+      shouldActivatePhoneCamera,
+      usingUvc,
+      isYouTubeNativeActive,
+      youtubeNativeCameraLocked,
+      externalLiveLocked,
+      sourceUri: viewModel.source?.uri || '',
+      permissionState,
+      hasDevice: !!device,
+      cameraErrorMessage,
+    });
+  }, [
+    cameraErrorMessage,
+    device,
+    effectiveWebcamType,
+    externalLiveLocked,
+    isYouTubeNativeActive,
+    permissionState,
+    selectedSource,
+    shouldActivatePhoneCamera,
+    shouldUsePhoneCamera,
+    usingUvc,
+    viewModel.source?.uri,
+    youtubeNativeCameraLocked,
+  ]);
 
   useEffect(() => {
     if (!isYouTubeNativeActive) {
@@ -1223,14 +1298,23 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
           source={viewModel.source}
           style={styles.container}
           resizeMode={cameraScaleMode}
+          posterResizeMode={cameraScaleMode}
+          onLoad={event => {
+            setExternalStreamReady(true);
+            props.setIsCameraReady(true);
+            props.onLoad?.(event as any);
+          }}
           onError={e => {
+            setExternalStreamReady(false);
+            props.setIsCameraReady(false);
             console.error('[Video] stream/video error:', e);
+            props.onError?.(e as any);
           }}
         />
       );
     }
 
-    return renderFallback('Không có nguồn webcam.');
+    return renderFallback(externalStreamReady ? undefined : '');
   }
 
   if (usingUvc) {
