@@ -1,17 +1,17 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   textViolate: {
     marginBottom: -16,
   },
   textX: {
-    marginTop: responsiveDimension(-6),
+    marginTop: responsiveScale(-6),
   },
   buttonViolate: {
-    width: responsiveDimension(96),
-    height: responsiveDimension(96),
+    width: responsiveScale(96),
+    height: responsiveScale(96),
     borderRadius: 100,
     backgroundColor: colors.red,
     justifyContent: 'center',

@@ -1,6 +1,6 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   stepsWrapper: {
@@ -12,10 +12,10 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: colors.deepGray,
     borderRadius: 20,
-    paddingHorizontal: responsiveDimension(35),
-    paddingVertical: responsiveDimension(15),
-    marginRight: responsiveDimension(15),
-    marginBottom: responsiveDimension(15),
+    paddingHorizontal: responsiveScale(35),
+    paddingVertical: responsiveScale(15),
+    marginRight: responsiveScale(15),
+    marginBottom: responsiveScale(15),
   },
 });
 

@@ -49,6 +49,9 @@ import {
   setCameraFullscreen,
   subscribeCameraFullscreen,
 } from '../../cameraFullscreenStore';
+import useSafeScreenInsets, {ZERO_INSETS} from 'theme/safeArea';
+import useDesignSystem from 'theme/useDesignSystem';
+import {createGameplayLayoutRules, createGameplayStyles} from '../../layoutRules';
 
 const BASE_ZOOM_STEPS = [1, 2, 5, 10];
 
@@ -149,6 +152,7 @@ const getCameraRecordingInfo = (cameraRef: any): RecordingInfo => {
 
 type WebCamComponentProps = Props & {
   hideBottomControls?: boolean;
+  cameraScaleMode?: 'contain' | 'cover';
 };
 
 export type WebCamHandle = {
@@ -241,6 +245,15 @@ const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?:
 
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
+  const {adaptive, design} = useDesignSystem();
+  const safeInsets = useSafeScreenInsets();
+  const overlaySafeInsets = useMemo(() => ({
+    ...safeInsets,
+    top: ZERO_INSETS.top,
+  }), [safeInsets.bottom, safeInsets.left, safeInsets.right, safeInsets.top]);
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
+  const styles = useMemo(() => createStyles(adaptive, design, layoutRules, overlaySafeInsets), [adaptive.styleKey, overlaySafeInsets.top, overlaySafeInsets.right, overlaySafeInsets.bottom, overlaySafeInsets.left]);
+  const cameraScaleMode = props.cameraScaleMode || 'contain';
 
   const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
   const [zoomSupported, setZoomSupported] = useState(false);
@@ -358,6 +371,12 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     effectiveCameraSource === 'external' ? 'webcam' : 'phone';
 
   const showLogoOnly = !hasDetectedExternalWebcam();
+  const shouldShowPhonePlaceholder =
+    effectiveSourceType === 'phone' && !props.isCameraReady && !viewModel.refreshing;
+  const shouldShowExternalPlaceholder =
+    effectiveSourceType === 'webcam' && (showLogoOnly || !viewModel.source?.uri);
+  const shouldShowLogoPlaceholder =
+    shouldShowPhonePlaceholder || shouldShowExternalPlaceholder;
 
   const canRewatch = useMemo(() => {
     return props.isStarted && props.isPaused && !props.youtubeLivePreviewActive;
@@ -594,16 +613,44 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     props.youtubeLivePreviewActive,
   ]);
 
-  const containerStyle = useMemo(() => {
-    const prefersLandscapeExternal = effectiveCameraSource === 'external';
-    const embeddedAspectRatio = prefersLandscapeExternal
-      ? 16 / 9
-      : props.innerControls
-        ? 2
-        : 1.565;
+  const [cameraStageBounds, setCameraStageBounds] = useState({width: 0, height: 0});
 
-    return [styles.embeddedRoot, {aspectRatio: embeddedAspectRatio}];
+  const targetCameraAspectRatio = useMemo(() => {
+    if (effectiveCameraSource === 'external') {
+      return 16 / 9;
+    }
+
+    return props.innerControls ? 2 : 16 / 10;
   }, [effectiveCameraSource, props.innerControls]);
+
+  const cameraStageStyle = useMemo(() => {
+    const containerWidth = Math.max(cameraStageBounds.width, 0);
+    const containerHeight = Math.max(cameraStageBounds.height, 0);
+
+    if (!containerWidth || !containerHeight) {
+      return undefined;
+    }
+
+    const containerAspect = containerWidth / Math.max(containerHeight, 1);
+
+    if (cameraScaleMode === 'cover') {
+      if (containerAspect > targetCameraAspectRatio) {
+        const height = containerWidth / targetCameraAspectRatio;
+        return {width: containerWidth, height};
+      }
+
+      const width = containerHeight * targetCameraAspectRatio;
+      return {width, height: containerHeight};
+    }
+
+    if (containerAspect > targetCameraAspectRatio) {
+      const width = containerHeight * targetCameraAspectRatio;
+      return {width, height: containerHeight};
+    }
+
+    const height = containerWidth / targetCameraAspectRatio;
+    return {width: containerWidth, height};
+  }, [cameraScaleMode, cameraStageBounds.height, cameraStageBounds.width, targetCameraAspectRatio]);
 
   const showBottomControls =
     (!props.innerControls || viewModel.innerControlsShow) &&
@@ -758,7 +805,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   };
 
   const renderCameraContent = () => {
-    if (showLogoOnly) {
+    if (shouldShowLogoPlaceholder) {
       return fullLogoPlaceholder;
     }
 
@@ -807,6 +854,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
                   ? renderOverlay()
                   : undefined
               }
+              cameraScaleMode={cameraScaleMode}
             />
           )}
           {effectiveCameraSource !== 'external' ? renderOverlay() : null}
@@ -815,6 +863,13 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     }
 
     return fullLogoPlaceholder;
+  };
+
+  const fullscreenChromeOffsets = {
+    top: Math.max(18, overlaySafeInsets.top + 8),
+    left: Math.max(18, overlaySafeInsets.left + 8),
+    right: Math.max(16, overlaySafeInsets.right + 8),
+    bottom: Math.max(24, overlaySafeInsets.bottom + 12),
   };
 
   const renderCameraChrome = () => {
@@ -830,13 +885,13 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
 
     return (
       <>
-        <Pressable style={styles.closeButton} onPress={closeFullscreen}>
+        <Pressable style={[styles.closeButton, {top: fullscreenChromeOffsets.top, left: fullscreenChromeOffsets.left}]} onPress={closeFullscreen}>
           <Text color={colors.white} fontSize={16}>
             Đóng
           </Text>
         </Pressable>
 
-        <RNView style={styles.zoomRail}>
+        <RNView style={[styles.zoomRail, {top: fullscreenChromeOffsets.top + 52, right: fullscreenChromeOffsets.right, bottom: fullscreenChromeOffsets.bottom}]}>
           <Pressable
             style={[
               styles.zoomControlButton,
@@ -904,29 +959,45 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     <RNView
       style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
       {renderCameraContent()}
-      {showLogoOnly ? null : renderThumbnailOverlay(fullscreenMode)}
-      {showLogoOnly ? null : renderScoreboardOverlay(fullscreenMode)}
-      {showLogoOnly ? null : renderCameraChrome()}
+      {shouldShowLogoPlaceholder ? null : renderThumbnailOverlay(fullscreenMode)}
+      {shouldShowLogoPlaceholder ? null : renderScoreboardOverlay(fullscreenMode)}
+      {shouldShowLogoPlaceholder ? null : renderCameraChrome()}
     </RNView>
   );
 
   return (
     <>
       {!isFullscreen ? (
-        <RNView style={containerStyle} pointerEvents="box-none">
-          <RNView style={styles.videoHost} pointerEvents="box-none">
-            {renderCameraView(false)}
+        <RNView style={styles.embeddedRoot} pointerEvents="box-none">
+          <RNView
+            style={styles.videoStageSlot}
+            pointerEvents="box-none"
+            onLayout={event => {
+              const {width: nextWidth, height: nextHeight} = event.nativeEvent.layout;
+              setCameraStageBounds(prev => {
+                if (prev.width === nextWidth && prev.height === nextHeight) {
+                  return prev;
+                }
 
-            {props.innerControls && !showLogoOnly ? (
-              <Pressable
-                style={styles.overlayTouch}
-                pointerEvents="box-only"
-                onPress={viewModel.onToggleInnerControls}
-              />
-            ) : null}
+                return {width: nextWidth, height: nextHeight};
+              });
+            }}>
+            <RNView
+              style={[styles.videoHost, styles.videoStage, cameraStageStyle]}
+              pointerEvents="box-none">
+              {renderCameraView(false)}
+
+              {props.innerControls && !shouldShowLogoPlaceholder ? (
+                <Pressable
+                  style={styles.overlayTouch}
+                  pointerEvents="box-only"
+                  onPress={viewModel.onToggleInnerControls}
+                />
+              ) : null}
+            </RNView>
           </RNView>
 
-          {showBottomControls && !showLogoOnly ? (
+          {showBottomControls && !shouldShowLogoPlaceholder ? (
             <RNView style={styles.bottomBar} pointerEvents="box-none">
               <Pressable
                 onPress={() => {
@@ -991,12 +1062,23 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) => createGameplayStyles(adaptive, {
   embeddedRoot: {
+    flex: 1,
     width: '100%',
-    alignSelf: 'center',
-    marginTop: 10,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    marginTop: 0,
     backgroundColor: colors.black,
+  },
+
+  videoStageSlot: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.black,
+    overflow: 'hidden',
   },
 
   fullscreenRoot: {
@@ -1008,6 +1090,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     overflow: 'hidden',
+  },
+
+  videoStage: {
+    maxWidth: '100%',
+    maxHeight: '100%',
+    alignSelf: 'center',
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   fullscreenVideoHost: {
@@ -1093,24 +1183,24 @@ const styles = StyleSheet.create({
   },
 
   thumbnailImage: {
-    width: 92,
-    height: 52,
+    width: adaptive.s(92),
+    height: adaptive.s(52),
     marginRight: 8,
   },
 
   thumbnailImageFullscreen: {
-    width: 150,
-    height: 84,
+    width: adaptive.s(150),
+    height: adaptive.s(84),
     marginRight: 10,
   },
 
   fullscreenFab: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    top: rules.camera.overlayInset,
+    right: rules.camera.overlayInset,
+    width: adaptive.s(42),
+    height: adaptive.s(42),
+    borderRadius: adaptive.s(21),
     backgroundColor: 'rgba(0,0,0,0.76)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1119,8 +1209,8 @@ const styles = StyleSheet.create({
 
   closeButton: {
     position: 'absolute',
-    top: 18,
-    left: 18,
+    top: Math.max(rules.camera.overlayInset + safeInsets.top, adaptive.s(18)),
+    left: Math.max(rules.camera.overlayInset + safeInsets.left, adaptive.s(18)),
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 22,
@@ -1130,11 +1220,11 @@ const styles = StyleSheet.create({
 
   zoomRail: {
     position: 'absolute',
-    right: 16,
-    top: 70,
-    bottom: 24,
-    width: 64,
-    borderRadius: 28,
+    right: Math.max(rules.camera.overlayInset + safeInsets.right, adaptive.s(16)),
+    top: Math.max(safeInsets.top + adaptive.s(70), adaptive.s(70)),
+    bottom: Math.max(safeInsets.bottom + adaptive.s(24), adaptive.s(24)),
+    width: rules.camera.fullscreenRailWidth,
+    borderRadius: adaptive.s(28),
     backgroundColor: 'rgba(0,0,0,0.72)',
     paddingVertical: 14,
     alignItems: 'center',
@@ -1164,7 +1254,7 @@ const styles = StyleSheet.create({
     minWidth: 44,
     paddingVertical: 6,
     paddingHorizontal: 6,
-    borderRadius: 14,
+    borderRadius: rules.camera.cardRadius,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
   },
@@ -1173,7 +1263,7 @@ const styles = StyleSheet.create({
     width: 44,
     paddingVertical: 8,
     paddingHorizontal: 6,
-    borderRadius: 14,
+    borderRadius: rules.camera.cardRadius,
     backgroundColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
   },
@@ -1182,7 +1272,7 @@ const styles = StyleSheet.create({
     minWidth: 38,
     paddingVertical: 6,
     paddingHorizontal: 6,
-    borderRadius: 14,
+    borderRadius: rules.camera.cardRadius,
     backgroundColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
   },
@@ -1202,8 +1292,8 @@ const styles = StyleSheet.create({
 
   actionButton: {
     flex: 1,
-    minHeight: 44,
-    borderRadius: 12,
+    minHeight: rules.controlHeights.compact,
+    borderRadius: design.radius.md,
     backgroundColor: '#1f1f1f',
     alignItems: 'center',
     justifyContent: 'center',

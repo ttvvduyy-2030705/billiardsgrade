@@ -1,20 +1,25 @@
-import {Platform, StyleSheet} from 'react-native';
-import {dims, getHeaderHeight, getStatusBarHeight} from 'configuration';
+import {StyleSheet} from 'react-native';
+
 import colors from 'configuration/colors';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
     backgroundColor: colors.lightGray3,
-    paddingTop: Platform.OS === 'android' ? 0 : getStatusBarHeight(),
+  },
+  noSafeArea: {
+    paddingTop: 0,
+    paddingBottom: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   loadingWrapper: {
-    position: 'absolute',
-    top: 0,
-    width: dims.screenWidth,
-    height: dims.screenHeight - getHeaderHeight() + 10,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 999,
   },
 });
 

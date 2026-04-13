@@ -1,7 +1,7 @@
 import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   ballsWrapper: {
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     borderRadius: 0,
-    paddingVertical: responsiveDimension(20),
+    paddingVertical: responsiveScale(20),
     alignItems: 'center',
     justifyContent: 'center',
   },

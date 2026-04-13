@@ -1,7 +1,7 @@
 import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   container: {
@@ -9,26 +9,26 @@ const styles = StyleSheet.create({
     borderRadius: 30,
   },
   icon: {
-    width: responsiveDimension(32),
-    height: responsiveDimension(32),
+    width: responsiveScale(32),
+    height: responsiveScale(32),
   },
   buttonSound: {
-    padding: responsiveDimension(15),
+    padding: responsiveScale(15),
   },
   button: {
     flex: 1,
     borderWidth: 0.5,
     borderRadius: 10,
-    paddingVertical: responsiveDimension(5),
+    paddingVertical: responsiveScale(5),
     borderColor: colors.gray,
     alignItems: 'center',
     justifyContent: 'center',
   },
   marginTop: {
-    marginTop: responsiveDimension(20),
+    marginTop: responsiveScale(20),
   },
   marginVertical: {
-    marginVertical: responsiveDimension(20),
+    marginVertical: responsiveScale(20),
   },
   logo: {
     height: dims.screenHeight * 0.07,

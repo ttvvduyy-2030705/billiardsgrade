@@ -1,20 +1,27 @@
 import {StyleSheet} from 'react-native';
 
-const createStyles = (width: number, height: number) => {
-  const topPadding = Math.max(26, height * 0.06);
-  const horizontalPadding = Math.max(24, width * 0.07);
+import {DesignSystem} from 'theme/designSystem';
+
+type Metrics = {
+  width: number;
+  height: number;
+};
+
+const createStyles = (design: DesignSystem, metrics: Metrics) => {
+  const {spacing, font, radius, icon, safeArea} = design;
+  const topPadding = safeArea.top + spacing.lg;
+  const horizontalPadding = spacing.xl;
 
   return StyleSheet.create({
     screen: {
       flex: 1,
       backgroundColor: '#000000',
+      paddingHorizontal: horizontalPadding,
+      paddingTop: topPadding,
+      paddingBottom: safeArea.bottom + spacing.lg,
     },
 
     topRow: {
-      position: 'absolute',
-      top: topPadding,
-      left: horizontalPadding,
-      right: horizontalPadding,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-start',
@@ -23,7 +30,7 @@ const createStyles = (width: number, height: number) => {
 
     title: {
       color: '#FFFFFF',
-      fontSize: Math.min(width * 0.03, 30),
+      fontSize: font.titleLarge,
       fontWeight: '400',
     },
 
@@ -34,49 +41,50 @@ const createStyles = (width: number, height: number) => {
     greetingRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: spacing.xs,
+      minHeight: design.control.minTouch,
     },
 
     greetingText: {
       color: '#FFFFFF',
-      fontSize: Math.min(width * 0.03, 30),
+      fontSize: font.titleLarge,
       fontWeight: '400',
     },
 
     settingsIcon: {
-      width: Math.min(width * 0.028, 27),
-      height: Math.min(width * 0.028, 27),
+      width: icon.lg,
+      height: icon.lg,
       tintColor: '#FFFFFF',
     },
 
     historyPill: {
-      marginTop: Math.max(12, height * 0.017),
-      paddingVertical: Math.max(8, height * 0.011),
-      paddingHorizontal: Math.max(15, width * 0.013),
-      borderRadius: 999,
+      marginTop: spacing.sm,
+      minHeight: design.control.minTouch,
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.pill,
       backgroundColor: 'rgba(28, 28, 28, 0.95)',
       flexDirection: 'row',
       alignItems: 'center',
     },
 
     historyIcon: {
-      width: Math.min(width * 0.021, 19),
-      height: Math.min(width * 0.021, 19),
+      width: icon.sm,
+      height: icon.sm,
       tintColor: '#B1B1B1',
-      marginRight: 8,
+      marginRight: spacing.xs,
     },
 
     historyText: {
       color: '#C6C6C6',
-      fontSize: Math.min(width * 0.021, 18),
+      fontSize: font.bodyLarge,
       fontWeight: '500',
     },
 
-    startButtonCenterLayer: {
-      ...StyleSheet.absoluteFillObject,
+    centerZone: {
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10,
     },
 
     startButtonTouchArea: {
@@ -91,48 +99,48 @@ const createStyles = (width: number, height: number) => {
 
     startButtonGlowOuter: {
       position: 'absolute',
-      top: 7,
-      left: 10,
-      right: 10,
+      top: spacing.xs,
+      left: spacing.sm,
+      right: spacing.sm,
       bottom: 0,
-      borderRadius: 28,
+      borderRadius: radius.xl,
       backgroundColor: 'rgba(255, 34, 10, 0.18)',
       shadowColor: '#ff2b14',
       shadowOffset: {width: 0, height: 0},
       shadowOpacity: 1,
-      shadowRadius: 22,
+      shadowRadius: spacing.lg,
       elevation: 18,
     },
 
     startButtonGlowInner: {
       position: 'absolute',
-      top: 2,
-      left: 4,
-      right: 4,
-      bottom: 2,
-      borderRadius: 28,
-      borderWidth: 2,
+      top: spacing.xxs,
+      left: spacing.xs,
+      right: spacing.xs,
+      bottom: spacing.xxs,
+      borderRadius: radius.xl,
+      borderWidth: design.border.regular,
       borderColor: 'rgba(255, 101, 54, 0.62)',
       shadowColor: '#ff5227',
       shadowOffset: {width: 0, height: 0},
       shadowOpacity: 0.95,
-      shadowRadius: 10,
+      shadowRadius: spacing.md,
       elevation: 13,
     },
 
     startButtonCore: {
       width: '100%',
       height: '100%',
-      borderRadius: 28,
-      padding: 4,
-      borderWidth: 2,
+      borderRadius: radius.xl,
+      padding: spacing.xxs,
+      borderWidth: design.border.strong,
       borderColor: '#ff4229',
     },
 
     startButtonInnerBorder: {
       flex: 1,
-      borderRadius: 23,
-      borderWidth: 1.6,
+      borderRadius: radius.lg,
+      borderWidth: design.border.thin,
       borderColor: 'rgba(255, 197, 128, 0.56)',
       backgroundColor: 'rgba(122, 7, 7, 0.30)',
       overflow: 'hidden',
@@ -143,29 +151,25 @@ const createStyles = (width: number, height: number) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 22,
+      paddingHorizontal: spacing.lg,
     },
 
     startGameIcon: {
-      width: Math.min(width * 0.026, 26),
-      height: Math.min(width * 0.026, 26),
+      width: icon.lg,
+      height: icon.lg,
       tintColor: '#f1d48d',
-      marginRight: 12,
+      marginRight: spacing.sm,
     },
 
     startButtonText: {
       color: '#f1d48d',
-      fontSize: Math.min(width * 0.029, 28),
+      fontSize: font.titleLarge,
       fontWeight: '700',
       letterSpacing: 0.2,
       textAlign: 'center',
     },
 
     logoBottomLayer: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: Math.max(18, height * 0.045),
       alignItems: 'center',
       zIndex: 5,
     },
@@ -176,9 +180,9 @@ const createStyles = (width: number, height: number) => {
     },
 
     tagline: {
-      marginTop: Math.max(10, height * 0.012),
+      marginTop: spacing.sm,
       color: '#FFFFFF',
-      fontSize: Math.min(width * 0.022, 20),
+      fontSize: font.bodyLarge,
       fontWeight: '400',
       letterSpacing: 0.15,
       textAlign: 'center',

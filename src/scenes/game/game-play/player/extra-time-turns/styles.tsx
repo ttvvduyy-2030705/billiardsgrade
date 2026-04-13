@@ -1,19 +1,19 @@
 import {StyleSheet} from 'react-native';
 
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   extraTimeTurnsContainer: {
     position: 'absolute',
-    right: responsiveDimension(10),
+    right: responsiveScale(10),
     top: '36%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   extraTimeTurn: {
-    width: responsiveDimension(34),
-    height: responsiveDimension(34),
-    marginBottom: responsiveDimension(10),
+    width: responsiveScale(34),
+    height: responsiveScale(34),
+    marginBottom: responsiveScale(10),
     borderRadius: 17,
     backgroundColor: 'rgba(24, 25, 31, 0.95)',
     borderWidth: 1,

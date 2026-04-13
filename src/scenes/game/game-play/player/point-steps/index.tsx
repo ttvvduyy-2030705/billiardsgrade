@@ -7,7 +7,7 @@ import {
   GAME_PLAY_POINTS_STEPS,
   GAME_PLAY_POINTS_STEPS_SHORT,
 } from 'constants/game-play';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 import Text from 'components/Text';
 import {isPoolGame} from 'utils/game';
 
@@ -53,8 +53,8 @@ const PointSteps = (props: Props) => {
                 styles.buttonStep,
                 {
                   paddingVertical: PAIR_PLAY
-                    ? responsiveDimension(15)
-                    : responsiveDimension(0),
+                    ? responsiveScale(15)
+                    : responsiveScale(0),
                 },
               ]}
               onPress={props.onPressPointStep.bind(

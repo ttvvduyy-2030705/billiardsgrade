@@ -1,102 +1,154 @@
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 22,
-  },
-  headerGlow: {
-    minHeight: 70,
-    borderRadius: 24,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#050505',
-    flexDirection: 'row',
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    shadowOffset: {width: 0, height: 8},
-    elevation: 12,
-  },
-  headerBackButton: {
-    position: 'absolute',
-    left: 18,
-    top: 9,
-    bottom: 9,
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  headerBackFrame: {
-    height: 52,
-    minWidth: 116,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#070707',
-    justifyContent: 'center',
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: 4},
-    elevation: 6,
-    transform: [{skewX: '-16deg'}],
-  },
-  headerBackInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{skewX: '16deg'}],
-  },
-  headerBackArrow: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '900',
-    marginRight: 10,
-  },
-  headerBackLogoImage: {
-    width: 72,
-    height: 28,
-  },
-  headerTitleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 146,
-    pointerEvents: 'none',
-  },
-  logoButton: {width: 120, justifyContent: 'center', alignItems: 'flex-start', paddingVertical: 6},
-  logoImage: {width: 92, height: 34},
-  headerTitle: {flex: 1, color: '#FFFFFF', textAlign: 'center', fontSize: 26, fontWeight: '800'},
-  headerSpacer: {width: 120},
-  listContent: {paddingTop: 18, paddingBottom: 8},
-  item: {borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: '#050505', padding: 18, marginBottom: 16},
-  itemRow: {flexDirection: 'row', alignItems: 'center'},
-  itemColumn: {flex: 1},
-  itemMeta: {color: '#9D9D9D', fontSize: 12, marginBottom: 6},
-  itemValue: {color: '#FFFFFF', fontSize: 13, fontWeight: '700'},
-  playerWrap: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center'},
-  player: {borderRadius: 18, minWidth: responsiveDimension(118), paddingHorizontal: responsiveDimension(16), paddingVertical: responsiveDimension(12), marginHorizontal: responsiveDimension(6), marginVertical: responsiveDimension(6), alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)'},
-  playerName: {fontSize: 12, fontWeight: '700', marginBottom: 6},
-  playerPoint: {fontSize: 42, fontWeight: '900'},
-  actionColumn: {alignItems: 'flex-end', justifyContent: 'center'},
-  button: {backgroundColor: '#C91D24', minWidth: 110, paddingHorizontal: responsiveDimension(26), paddingVertical: responsiveDimension(12), borderRadius: 16, alignItems: 'center', marginBottom: 12},
-  buttonText: {color: '#FFFFFF', fontWeight: '800'},
-  buttonDelete: {backgroundColor: '#101010', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', padding: responsiveDimension(10), borderRadius: 14},
-  icon: {width: responsiveDimension(24), height: responsiveDimension(24), tintColor: '#FF4444'},
-  emptyWrap: {paddingVertical: 60, alignItems: 'center', justifyContent: 'center'},
-  emptyTitle: {color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 8},
-  emptyText: {color: '#888888', fontSize: 14},
-});
+import {AdaptiveLayout} from 'scenes/game/useAdaptiveLayout';
+import createBrandedScreenChrome from 'scenes/shared/createBrandedScreenChrome';
+import getBrandedScreenMetrics from 'scenes/shared/getBrandedScreenMetrics';
 
-export default styles;
+const createStyles = (adaptive: AdaptiveLayout) => {
+  const chrome = createBrandedScreenChrome(adaptive);
+  const metrics = getBrandedScreenMetrics(adaptive);
+  const stacked = !adaptive.isLandscape || adaptive.width < 1100;
+
+  return StyleSheet.create({
+    screen: chrome.screen,
+    headerGlow: chrome.headerGlow,
+    headerBackButton: chrome.headerBackButton,
+    headerBackFrame: chrome.headerBackFrame,
+    headerBackInner: chrome.headerBackInner,
+    headerBackArrow: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(22),
+      fontWeight: '900',
+      marginRight: metrics.s(10),
+    },
+    headerBackLogoImage: chrome.headerBackLogoImage,
+    headerTitleWrap: chrome.headerTitleWrap,
+    logoButton: {
+      width: metrics.s(120),
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+      paddingVertical: metrics.s(6),
+    },
+    logoImage: {
+      width: metrics.s(92),
+      height: metrics.s(34),
+    },
+    headerTitle: chrome.headerTitle,
+    headerSpacer: {
+      width: metrics.s(120),
+    },
+    listContent: {
+      flexGrow: 1,
+      width: '100%',
+      alignSelf: 'stretch',
+      paddingTop: metrics.sectionGap,
+      paddingBottom: metrics.s(8),
+    },
+    item: {
+      width: '100%',
+      alignSelf: 'stretch',
+      borderRadius: metrics.panelRadius,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: '#050505',
+      padding: metrics.panelPadding,
+      marginBottom: metrics.sectionGap,
+    },
+    itemRow: {
+      width: '100%',
+      flexDirection: stacked ? 'column' : 'row',
+      alignItems: stacked ? 'stretch' : 'center',
+      gap: metrics.sectionGap,
+    },
+    itemColumn: {
+      flex: 1,
+      minWidth: 0,
+    },
+    itemMeta: {
+      color: '#9D9D9D',
+      fontSize: metrics.fs(12),
+      marginBottom: metrics.s(6),
+    },
+    itemValue: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(13),
+      fontWeight: '700',
+    },
+    playerWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: stacked ? 'flex-start' : 'center',
+      gap: metrics.s(8),
+    },
+    player: {
+      borderRadius: metrics.cardRadius,
+      minWidth: adaptive.s(stacked ? 132 : 118),
+      paddingHorizontal: metrics.s(16),
+      paddingVertical: metrics.s(12),
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.18)',
+    },
+    playerName: {
+      fontSize: metrics.fs(12),
+      fontWeight: '700',
+      marginBottom: metrics.s(6),
+      textAlign: 'center',
+    },
+    playerPoint: {
+      fontSize: metrics.fs(stacked ? 38 : 42),
+      fontWeight: '900',
+    },
+    actionColumn: {
+      alignItems: stacked ? 'stretch' : 'flex-end',
+      justifyContent: 'center',
+      width: stacked ? '100%' : undefined,
+    },
+    button: {
+      backgroundColor: '#C91D24',
+      minWidth: adaptive.s(110),
+      paddingHorizontal: metrics.s(26),
+      paddingVertical: metrics.s(12),
+      borderRadius: metrics.fieldRadius,
+      alignItems: 'center',
+      marginBottom: metrics.s(12),
+    },
+    buttonText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: metrics.fs(14),
+    },
+    buttonDelete: {
+      alignSelf: stacked ? 'flex-start' : 'flex-end',
+      backgroundColor: '#101010',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.10)',
+      padding: metrics.s(10),
+      borderRadius: metrics.fieldRadius,
+    },
+    icon: {
+      width: metrics.s(24),
+      height: metrics.s(24),
+      tintColor: '#FF4444',
+    },
+    emptyWrap: {
+      width: '100%',
+      flexGrow: 1,
+      paddingVertical: adaptive.s(60),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyTitle: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(20),
+      fontWeight: '800',
+      marginBottom: metrics.s(8),
+    },
+    emptyText: {
+      color: '#888888',
+      fontSize: metrics.fs(14),
+    },
+  });
+};
+
+export default createStyles;

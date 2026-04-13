@@ -1,13 +1,13 @@
 import {StyleSheet} from 'react-native';
 
 import colors from 'configuration/colors';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   button: {
     flex: 1,
     borderRadius: 18,
-    paddingVertical: responsiveDimension(11),
+    paddingVertical: responsiveScale(11),
     borderColor: colors.transparent,
     alignItems: 'center',
     justifyContent: 'center',

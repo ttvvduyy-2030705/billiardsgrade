@@ -5,7 +5,7 @@ import colors from 'configuration/colors';
 import Button from 'components/Button';
 import Image from 'components/Image';
 import images from 'assets';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 import {Player} from 'types/player';
 import styles from './styles';
 
@@ -40,20 +40,20 @@ const PlayerName = (props: Props) => {
   const metrics = useMemo(() => {
     if (isMultiPlayerLayout) {
       return {
-        containerHeight: responsiveDimension(56),
-        inputHeight: responsiveDimension(36),
-        fontSize: responsiveDimension(24),
-        lineHeight: responsiveDimension(28),
-        horizontalPadding: responsiveDimension(14),
+        containerHeight: responsiveScale(56),
+        inputHeight: responsiveScale(36),
+        fontSize: responsiveScale(24),
+        lineHeight: responsiveScale(28),
+        horizontalPadding: responsiveScale(14),
       };
     }
 
     return {
-      containerHeight: responsiveDimension(72),
-      inputHeight: responsiveDimension(46),
-      fontSize: responsiveDimension(34),
-      lineHeight: responsiveDimension(40),
-      horizontalPadding: responsiveDimension(16),
+      containerHeight: responsiveScale(72),
+      inputHeight: responsiveScale(46),
+      fontSize: responsiveScale(34),
+      lineHeight: responsiveScale(40),
+      horizontalPadding: responsiveScale(16),
     };
   }, [isMultiPlayerLayout]);
 

@@ -22,7 +22,8 @@ import {
   isPoolGame,
 } from 'utils/game';
 import i18n from 'i18n';
-import useAdaptiveLayout from '../../useAdaptiveLayout';
+import useDesignSystem from 'theme/useDesignSystem';
+import {createGameplayLayoutRules, createGameplayStyles} from '../layoutRules';
 
 type ActionButtonTone = 'dark' | 'amber' | 'red' | 'green' | 'muted';
 type PoolBallButtonSize = 'large' | 'small';
@@ -72,6 +73,8 @@ const isEnglish = () => {
 };
 
 const tr = (vi: string, en: string) => (isEnglish() ? en : vi);
+
+let styles: any = {};
 
 const buttonToneStyle = (tone: ActionButtonTone) => {
   switch (tone) {
@@ -445,7 +448,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   ]);
 
   const webcamRef = useRef<WebCamHandle>(null);
-  const adaptive = useAdaptiveLayout();
+  const {adaptive, design} = useDesignSystem();
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
+  styles = useMemo(() => createStyles(adaptive, design, layoutRules), [adaptive.styleKey]);
   const {width, height, shortSide: shortestSide, longSide: longestSide} = adaptive;
   const isLandscape = adaptive.isLandscape;
   const isLargeDisplay = adaptive.layoutPreset === 'tv';
@@ -1271,7 +1276,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (adaptive: any, design: any, rules: any) => createGameplayStyles(adaptive, {
   wrapper: {
     width: '100%',
     flex: 1,

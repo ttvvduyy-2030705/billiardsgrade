@@ -41,7 +41,8 @@ import {isCaromGame, isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
 import PlayBackWebcamViewModel, {
   PlayBackWebcamViewModelProps,
 } from './PlayBackViewModel';
-import styles from './styles';
+import createStyles from './styles';
+import useDesignSystem from 'theme/useDesignSystem';
 import VideoListItem from './videoListItem';
 
 const setReplayReturnRequestSync = (
@@ -118,6 +119,8 @@ const getReplayResumeSnapshotSync = (): ReplayOverlaySnapshot | null => {
 
 const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
   const viewModel = PlayBackWebcamViewModel(props);
+  const {adaptive, design} = useDesignSystem();
+  const styles = useMemo(() => createStyles(adaptive, design), [adaptive.styleKey, design]);
   const {gameSettings} = useSelector((state: RootState) => state.game);
 
   const [folder, setFolder] = useState<string>(

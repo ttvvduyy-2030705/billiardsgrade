@@ -1,13 +1,13 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
-const RADIUS = responsiveDimension(18);
+const RADIUS = responsiveScale(18);
 
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
-    borderRightWidth: responsiveDimension(20),
+    borderRightWidth: responsiveScale(20),
     borderColor: '#757670',
     backgroundColor: '#757670',
     borderRadius: RADIUS,
@@ -16,43 +16,43 @@ const styles = StyleSheet.create({
 
   totalTurnWrapper: {
     backgroundColor: '#757670',
-    marginRight: responsiveDimension(4),
+    marginRight: responsiveScale(4),
   },
 
 
   flagBadge: {
-    width: responsiveDimension(34),
-    height: responsiveDimension(24),
-    borderRadius: responsiveDimension(4),
+    width: responsiveScale(34),
+    height: responsiveScale(24),
+    borderRadius: responsiveScale(4),
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: responsiveDimension(8),
+    marginRight: responsiveScale(8),
     overflow: 'hidden',
   },
 
   flagText: {
-    fontSize: responsiveDimension(16),
-    lineHeight: responsiveDimension(18),
+    fontSize: responsiveScale(16),
+    lineHeight: responsiveScale(18),
     textAlign: 'center',
     includeFontPadding: false,
   },
 
   nameWithFlag: {
-    marginRight: responsiveDimension(6),
+    marginRight: responsiveScale(6),
   },
 
-  turnImage: {    width: responsiveDimension(40),
-    height: responsiveDimension(40),
+  turnImage: {    width: responsiveScale(40),
+    height: responsiveScale(40),
     tintColor: colors.red,
-    marginLeft: responsiveDimension(10),
-    marginRight: responsiveDimension(-5),
+    marginLeft: responsiveScale(10),
+    marginRight: responsiveScale(-5),
   },
 
   empty: {
-    width: responsiveDimension(40),
-    height: responsiveDimension(40),
-    marginLeft: responsiveDimension(10),
+    width: responsiveScale(40),
+    height: responsiveScale(40),
+    marginLeft: responsiveScale(10),
   },
 
   countdownContainer: {
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     overflow: 'hidden',
-    marginHorizontal: responsiveDimension(15),
+    marginHorizontal: responsiveScale(15),
   },
 
   linear: {
@@ -78,28 +78,28 @@ const styles = StyleSheet.create({
   },
 
   currentTotalPoint: {
-    marginBottom: responsiveDimension(3),
-    minWidth: responsiveDimension(44),
+    marginBottom: responsiveScale(3),
+    minWidth: responsiveScale(44),
     alignItems: 'center',
   },
 
   totalPointWrapper: {
     backgroundColor: colors.black,
-    minWidth: responsiveDimension(74),
+    minWidth: responsiveScale(74),
     alignItems: 'center',
   },
 
   totalPointText0: {
-    marginBottom: responsiveDimension(-11),
+    marginBottom: responsiveScale(-11),
   },
 
   totalPointText1: {
-    marginTop: responsiveDimension(4),
-    marginBottom: responsiveDimension(-11),
+    marginTop: responsiveScale(4),
+    marginBottom: responsiveScale(-11),
   },
 
   currentPointText: {
-    marginBottom: responsiveDimension(-11),
+    marginBottom: responsiveScale(-11),
   },
 
   buttonTurns: {

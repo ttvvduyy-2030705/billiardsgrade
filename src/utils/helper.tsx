@@ -1,10 +1,9 @@
-import {dims} from 'configuration';
+import {moderateScale, fontScale as responsiveTextScale} from 'utils/responsive';
 
 import Numeral from 'numeral';
 import {Alert} from 'react-native';
 
 let timeout: any = null;
-const {screenWidth} = dims;
 
 const debounce = (callback = () => {}, duration = 1000) => {
   if (timeout) {
@@ -18,11 +17,17 @@ const debounce = (callback = () => {}, duration = 1000) => {
 };
 
 const responsiveFontSize = (fontSize: number) => {
-  return screenWidth * 0.0007 * fontSize;
+  return responsiveTextScale(fontSize, undefined, undefined, {
+    minFactor: 0.82,
+    maxFactor: 1.04,
+  });
 };
 
 const responsiveDimension = (size: number) => {
-  return screenWidth * 0.0005 * size;
+  return moderateScale(size, 0.65, undefined, undefined, {
+    minFactor: 0.8,
+    maxFactor: 1.08,
+  });
 };
 
 const numberFormat = (number: string | number | undefined) => {

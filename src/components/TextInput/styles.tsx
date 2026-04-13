@@ -1,5 +1,10 @@
-import { StyleSheet } from 'react-native';
+import {StyleSheet} from 'react-native';
+
 import colors from 'configuration/colors';
+import {responsiveDimension} from 'utils/helper';
+
+const radius = responsiveDimension(10);
+const horizontalInset = responsiveDimension(16);
 
 const styles = StyleSheet.create({
   flex: {
@@ -7,7 +12,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    height: 35,
+    minHeight: responsiveDimension(38),
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -20,49 +25,49 @@ const styles = StyleSheet.create({
   input: {
     flex: 13,
     height: '100%',
-    borderTopLeftRadius: 5,
-    borderBottomLeftRadius: 5,
+    borderTopLeftRadius: radius,
+    borderBottomLeftRadius: radius,
     backgroundColor: colors.white,
-    paddingHorizontal: 10,
-    marginLeft: 20,
+    paddingHorizontal: responsiveDimension(10),
+    marginLeft: horizontalInset,
     paddingVertical: 0,
   },
   textArea: {
     flex: 1,
     height: '100%',
-    borderRadius: 5,
+    borderRadius: radius,
     backgroundColor: colors.white,
-    padding: 10,
-    marginHorizontal: 20,
+    padding: responsiveDimension(10),
+    marginHorizontal: horizontalInset,
   },
   flexInput: {
     flex: 1,
     height: '100%',
-    marginHorizontal: 20,
-    borderRadius: 5,
+    marginHorizontal: horizontalInset,
+    borderRadius: radius,
     backgroundColor: colors.white,
-    paddingHorizontal: 10,
+    paddingHorizontal: responsiveDimension(10),
     paddingVertical: 0,
   },
   cancelInputWrapper: {
     flex: 1,
     height: '100%',
-    paddingRight: 10,
+    paddingRight: responsiveDimension(10),
     alignItems: 'flex-end',
     justifyContent: 'center',
     backgroundColor: colors.white,
-    borderTopRightRadius: 5,
+    borderTopRightRadius: radius,
     borderTopLeftRadius: 0,
     borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 5,
-    marginRight: 20,
+    borderBottomRightRadius: radius,
+    marginRight: horizontalInset,
   },
   cancelInputIcon: {
-    width: 15,
-    height: 15,
+    width: responsiveDimension(15),
+    height: responsiveDimension(15),
   },
   emptyView: {
-    height: 15,
+    height: responsiveDimension(15),
   },
   error: {
     borderWidth: 1,
@@ -72,11 +77,11 @@ const styles = StyleSheet.create({
   },
   txtError: {
     position: 'absolute',
-    left: 20,
-    bottom: -20,
+    left: horizontalInset,
+    bottom: -responsiveDimension(20),
   },
   marginBottom: {
-    marginBottom: 15,
+    marginBottom: responsiveDimension(15),
   },
   backgroundWhite: {
     backgroundColor: colors.white,

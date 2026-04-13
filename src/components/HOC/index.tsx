@@ -10,6 +10,7 @@ import i18n from 'i18n';
 import images from 'assets';
 
 import {LanguageContext} from 'context/language';
+import useScreenSystemUI from 'theme/systemUI';
 
 import configColors from 'configuration/colors';
 
@@ -22,6 +23,8 @@ const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
 
   const WrappedScene = (props: any): React.JSX.Element => {
     const {navigation, route, isNetworkConnected} = props;
+
+    useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
 
     const [isReady, setIsReady] = useState(defaultIsReady);
 

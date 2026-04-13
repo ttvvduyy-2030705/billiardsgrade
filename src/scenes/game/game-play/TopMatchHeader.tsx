@@ -16,7 +16,8 @@ import {
   isPool15Game,
   isPool15OnlyGame,
 } from 'utils/game';
-import useAdaptiveLayout from '../useAdaptiveLayout';
+import useDesignSystem from 'theme/useDesignSystem';
+import {createGameplayLayoutRules} from './layoutRules';
 
 interface Props {
   title: string;
@@ -57,7 +58,8 @@ const TopMatchHeader = ({
     isPool15Game(gameSettings?.category) ||
     isPool15OnlyGame(gameSettings?.category);
 
-  const adaptive = useAdaptiveLayout();
+  const {adaptive, design} = useDesignSystem();
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
   const isHandheldLandscape =
     adaptive.isLandscape &&
     (adaptive.systemMetrics.smallestScreenWidthDp < 600 ||
@@ -66,11 +68,7 @@ const TopMatchHeader = ({
   const useBalancedHeader = compactTitleLeft || !!centerTimeText;
 
   const dynamicStyles = useMemo(() => {
-    const headerHeight = isHandheldLandscape
-      ? adaptive.s(48)
-      : adaptive.layoutPreset === 'tv'
-        ? adaptive.s(78)
-        : adaptive.s(70);
+    const headerHeight = layoutRules.headerHeight;
 
     const logoWidth = isHandheldLandscape ? adaptive.s(60) : adaptive.s(98);
     const logoHeight = isHandheldLandscape ? adaptive.s(24) : adaptive.s(40);
@@ -84,9 +82,9 @@ const TopMatchHeader = ({
     return {
       header: {
         minHeight: headerHeight,
-        borderRadius: isHandheldLandscape ? adaptive.s(18) : adaptive.s(24),
-        paddingHorizontal: isHandheldLandscape ? adaptive.s(12) : adaptive.s(18),
-        paddingVertical: isHandheldLandscape ? adaptive.s(8) : adaptive.s(10),
+        borderRadius: isHandheldLandscape ? design.radius.lg : layoutRules.panelRadius,
+        paddingHorizontal: isHandheldLandscape ? design.spacing.sm : design.spacing.lg,
+        paddingVertical: isHandheldLandscape ? design.spacing.xs : design.spacing.sm,
       },
       balancedLeftSlot: {
         width: sideSlotWidth,

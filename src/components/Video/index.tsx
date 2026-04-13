@@ -171,6 +171,7 @@ const getSelectedSourceSnapshot = (): CameraSource => {
 };
 
 const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
+  const cameraScaleMode = props.cameraScaleMode || 'contain';
   const viewModel = VideoViewModel(props);
   const isFocused = useIsFocused();
 
@@ -1145,8 +1146,8 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const renderFallback = (message?: string) => {
     return (
       <View style={[styles.container, localStyles.fallbackContainer]}> 
-        {images?.logoclb ? (
-          <Image source={images.logoclb} style={localStyles.logo} resizeMode="contain" />
+        {images?.logoSmall || images?.logoclb ? (
+          <Image source={images.logoSmall || images.logoclb} style={localStyles.logo} resizeMode="contain" />
         ) : (
           <Text style={localStyles.title}>APLUS BILLIARDS</Text>
         )}
@@ -1221,7 +1222,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
         <RNVideo
           source={viewModel.source}
           style={styles.container}
-          resizeMode="contain"
+          resizeMode={cameraScaleMode}
           onError={e => {
             console.error('[Video] stream/video error:', e);
           }}
@@ -1296,7 +1297,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       fps={30}
       videoBitRate={10_000_000}
       zoom={safeZoom}
-      resizeMode="cover"
+      resizeMode={cameraScaleMode}
       androidPreviewViewType={Platform.OS === 'android' ? 'texture-view' : undefined}
       onInitialized={() => {
         debugVideoLog('[Video] camera initialized');
@@ -1355,8 +1356,8 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: '72%',
-    height: '72%',
+    width: '78%',
+    height: '78%',
   },
   title: {
     color: '#fff',

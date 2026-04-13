@@ -1,23 +1,24 @@
-import { StyleSheet } from 'react-native';
+import {StyleSheet} from 'react-native';
+import {responsiveDimension} from 'utils/helper';
 
 const styles = StyleSheet.create({
   loading: {
     alignSelf: 'center',
     paddingVertical: 1,
-    width: 140,
-    height: 140,
+    width: responsiveDimension(140),
+    height: responsiveDimension(140),
   },
   loading_small: {
     alignSelf: 'center',
     paddingVertical: 1,
-    width: 50,
-    height: 50,
+    width: responsiveDimension(50),
+    height: responsiveDimension(50),
   },
   loading_large: {
     alignSelf: 'center',
     paddingVertical: 1,
-    width: 200,
-    height: 200,
+    width: responsiveDimension(200),
+    height: responsiveDimension(200),
   },
 });
 

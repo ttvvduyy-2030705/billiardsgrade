@@ -8,7 +8,8 @@ import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 import {getCountryFlagImageUri} from '../../settings/player/countries';
-import useAdaptiveLayout from '../../useAdaptiveLayout';
+import useDesignSystem from 'theme/useDesignSystem';
+import {createGameplayLayoutRules, createGameplayStyles} from '../layoutRules';
 
 const isEnglish = () => {
   const locale = String(
@@ -84,7 +85,9 @@ const GamePlayer = (
   const isPool15FreeMode = isPool15FreeGame(props.gameSettings?.category);
   const isActiveCard = !!props.isOnTurn;
 
-  const adaptive = useAdaptiveLayout();
+  const {adaptive, design} = useDesignSystem();
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
+  const styles = useMemo(() => createStyles(adaptive, design, layoutRules), [adaptive.styleKey]);
   const totalPlayers = props.totalPlayers || 2;
   const isLargeDisplay = adaptive.layoutPreset === 'tv';
   const isWideLandscape =
@@ -247,10 +250,10 @@ const GamePlayer = (
 
   const fluidScale = Math.max(isHandheldLandscape ? 0.54 : 0.64, Math.min(1, uiScale));
   const dynamicPanelStyle = {
-    paddingHorizontal: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
-    paddingTop: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
-    paddingBottom: Math.round((isPhoneLandscapeTwoPlayer ? 10 : isMediumResponsiveLayout ? 14 : isCompactLayout ? 11 : 16) * fluidScale),
-    borderRadius: Math.round((isPhoneLandscapeTwoPlayer ? 18 : isMediumResponsiveLayout ? 22 : isCompactLayout ? 20 : 26) * fluidScale),
+    paddingHorizontal: Math.round((isPhoneLandscapeTwoPlayer ? design.spacing.xs : isMediumResponsiveLayout ? design.spacing.sm : isCompactLayout ? design.spacing.xs : design.spacing.md) * fluidScale),
+    paddingTop: Math.round((isPhoneLandscapeTwoPlayer ? design.spacing.xs : isMediumResponsiveLayout ? design.spacing.sm : isCompactLayout ? design.spacing.xs : design.spacing.md) * fluidScale),
+    paddingBottom: Math.round((isPhoneLandscapeTwoPlayer ? design.spacing.xs : isMediumResponsiveLayout ? design.spacing.sm : isCompactLayout ? design.spacing.xs : design.spacing.md) * fluidScale),
+    borderRadius: Math.round((isPhoneLandscapeTwoPlayer ? design.radius.lg : isMediumResponsiveLayout ? design.radius.xl : isCompactLayout ? design.radius.lg : layoutRules.panelRadius) * fluidScale),
   };
   const dynamicNameRowStyle = {
     minHeight: Math.round((isCompactLayout ? 46 : isMediumResponsiveLayout ? 54 : 62) * fluidScale),
@@ -334,7 +337,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameInput,
-              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
+              {fontSize: Math.round(adaptive.fs(42, 0.72, 1.02) * uiScale), lineHeight: Math.round(adaptive.fs(48, 0.72, 1.02) * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameInputMedium : undefined,
               isCompactLayout && styles.nameInputCompact,
@@ -352,7 +355,7 @@ const GamePlayer = (
             maxFontSizeMultiplier={1}
             style={[
               styles.nameText,
-              {fontSize: Math.round(42 * uiScale), lineHeight: Math.round(48 * uiScale)},
+              {fontSize: Math.round(adaptive.fs(42, 0.72, 1.02) * uiScale), lineHeight: Math.round(adaptive.fs(48, 0.72, 1.02) * uiScale)},
               (playerFlagImage || playerFlag) && styles.nameTextWithFlag,
               isMediumResponsiveLayout ? styles.nameTextMedium : undefined,
               isCompactLayout && styles.nameTextCompact,
@@ -709,7 +712,7 @@ const GamePlayer = (
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (adaptive: any, design: any, rules: any) => createGameplayStyles(adaptive, {
   panel: {
     flex: 1,
     borderRadius: 26,
@@ -797,7 +800,7 @@ const styles = StyleSheet.create({
     fontSize: 52,
     lineHeight: 56,
     textAlign: 'center',
-    includeFontPadding: false,
+    includeFontPadding: true,
   },
   flagTextMedium: {
     fontSize: 42,
@@ -1013,6 +1016,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 6,
+    overflow: 'visible',
   },
   scoreTextBoxMedium: {
     paddingHorizontal: 8,
@@ -1025,74 +1031,74 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 230,
-    lineHeight: 230,
+    lineHeight: 250,
     textAlign: 'center',
     textAlignVertical: 'center',
     includeFontPadding: false,
   },
   scoreTextMedium: {
     fontSize: 198,
-    lineHeight: 198,
+    lineHeight: 216,
   },
   scoreTextCompact: {
     fontSize: 165,
-    lineHeight: 165,
+    lineHeight: 180,
   },
   scoreTextExtraCompact: {
     fontSize: 135,
-    lineHeight: 135,
+    lineHeight: 148,
   },
   scoreTextPhoneLandscape: {
     fontSize: 150,
-    lineHeight: 150,
+    lineHeight: 164,
   },
   scoreTextCarom: {
     fontSize: 230,
-    lineHeight: 230,
+    lineHeight: 250,
   },
   scoreTextCaromCompact: {
     fontSize: 170,
-    lineHeight: 170,
+    lineHeight: 186,
   },
   scoreTextCaromExtraCompact: {
     fontSize: 140,
-    lineHeight: 140,
+    lineHeight: 154,
   },
   scoreTextCaromPhoneLandscape: {
     fontSize: 150,
-    lineHeight: 150,
+    lineHeight: 164,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,
-    lineHeight: 190,
+    lineHeight: 206,
   },
   scoreTextLibre4Digits: {
     fontSize: 150,
-    lineHeight: 150,
+    lineHeight: 164,
   },
   scoreTextLibre3DigitsCompact: {
     fontSize: 150,
-    lineHeight: 150,
+    lineHeight: 164,
   },
   scoreTextLibre4DigitsCompact: {
     fontSize: 120,
-    lineHeight: 120,
+    lineHeight: 132,
   },
   scoreTextLibre3DigitsExtraCompact: {
     fontSize: 128,
-    lineHeight: 128,
+    lineHeight: 140,
   },
   scoreTextLibre4DigitsExtraCompact: {
     fontSize: 104,
-    lineHeight: 104,
+    lineHeight: 116,
   },
   scoreTextLibre3DigitsPhoneLandscape: {
     fontSize: 132,
-    lineHeight: 132,
+    lineHeight: 145,
   },
   scoreTextLibre4DigitsPhoneLandscape: {
     fontSize: 106,
-    lineHeight: 106,
+    lineHeight: 118,
   },
   scoreTextSingleDigit: {},
   scoreTextSingleDigitMedium: {},

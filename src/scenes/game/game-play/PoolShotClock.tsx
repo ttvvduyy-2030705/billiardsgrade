@@ -4,7 +4,8 @@ import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
 
-import useAdaptiveLayout from '../useAdaptiveLayout';
+import useDesignSystem from 'theme/useDesignSystem';
+import {createGameplayLayoutRules} from './layoutRules';
 
 interface Props {
   originalCountdownTime?: number;
@@ -19,7 +20,8 @@ const PoolShotClock = ({
   currentCountdownTime,
   onPress,
 }: Props) => {
-  const adaptive = useAdaptiveLayout();
+  const {adaptive, design} = useDesignSystem();
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
   const isHandheldLandscape =
     adaptive.isLandscape &&
     (adaptive.systemMetrics.smallestScreenWidthDp < 600 || adaptive.isConstrainedLandscape);
@@ -27,7 +29,7 @@ const PoolShotClock = ({
   const segmentHeight = isHandheldLandscape
     ? adaptive.s(16)
     : adaptive.layoutPreset === 'tv'
-      ? adaptive.s(70)
+      ? layoutRules.controlHeights.regular
       : adaptive.s(28);
 
   const segmentWrapMinHeight = segmentHeight + adaptive.s(4);

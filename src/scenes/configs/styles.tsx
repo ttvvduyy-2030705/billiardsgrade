@@ -1,180 +1,143 @@
 import {StyleSheet} from 'react-native';
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 22,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingTop: 18,
-    paddingBottom: 8,
-  },
-  headerGlow: {
-    minHeight: 70,
-    borderRadius: 24,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#050505',
-    flexDirection: 'row',
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    shadowOffset: {width: 0, height: 8},
-    elevation: 12,
-  },
-  headerBackButton: {
-    position: 'absolute',
-    left: 18,
-    top: 9,
-    bottom: 9,
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  headerBackFrame: {
-    height: 52,
-    minWidth: 116,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#070707',
-    justifyContent: 'center',
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: 4},
-    elevation: 6,
-    transform: [{skewX: '-16deg'}],
-  },
-  headerBackInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{skewX: '16deg'}],
-  },
-  headerBackArrow: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '900',
-    marginRight: 10,
-  },
-  headerBackLogoImage: {
-    width: 72,
-    height: 28,
-  },
-  headerTitleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 146,
-    pointerEvents: 'none',
-  },
-  logoButton: {
-    width: 120,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    paddingVertical: 6,
-  },
-  logoImage: {
-    width: 92,
-    height: 34,
-  },
-  headerTitle: {
-    flex: 1,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  headerSpacer: {
-    width: 120,
-  },
-  contentRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  contentColumn: {
-    flexDirection: 'column',
-  },
-  leftColumn: {
-    flex: 1,
-    marginRight: 12,
-  },
-  centerColumn: {
-    flex: 1.2,
-    marginHorizontal: 12,
-  },
-  rightColumn: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  stackedColumn: {
-    marginLeft: 0,
-    marginRight: 0,
-    marginHorizontal: 0,
-    marginBottom: 16,
-  },
-  columnSpacer: {
-    height: 16,
-  },
-  panelShell: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: '#050505',
-    padding: 14,
-    shadowColor: '#000000',
-    shadowOpacity: 0.24,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: 6},
-    elevation: 8,
-  },
-  livePanelBody: {
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  tabRow: {
-    flexDirection: 'row',
-    backgroundColor: '#090909',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 6,
-    marginBottom: 14,
-  },
-  tabButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  tabButtonActive: {
-    backgroundColor: '#C91D24',
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  tabButtonIdle: {
-    backgroundColor: '#0F0F0F',
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  tabLabel: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
+import {AdaptiveLayout} from 'scenes/game/useAdaptiveLayout';
+import createBrandedScreenChrome from 'scenes/shared/createBrandedScreenChrome';
+import getBrandedScreenMetrics from 'scenes/shared/getBrandedScreenMetrics';
 
-export default styles;
+const createStyles = (adaptive: AdaptiveLayout) => {
+  const chrome = createBrandedScreenChrome(adaptive);
+  const metrics = getBrandedScreenMetrics(adaptive);
+  const stacked = !adaptive.isLandscape || adaptive.width < 1180;
+  const sideGap = metrics.sectionGap;
+
+  return StyleSheet.create({
+    screen: chrome.screen,
+    scrollView: {
+      flex: 1,
+      width: '100%',
+      alignSelf: 'stretch',
+    },
+    scrollContent: {
+      flexGrow: 1,
+      width: '100%',
+      alignSelf: 'stretch',
+      paddingTop: metrics.sectionGap,
+      paddingBottom: metrics.s(8),
+    },
+    headerGlow: chrome.headerGlow,
+    headerBackButton: chrome.headerBackButton,
+    headerBackFrame: chrome.headerBackFrame,
+    headerBackInner: chrome.headerBackInner,
+    headerBackArrow: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(22),
+      fontWeight: '900',
+      marginRight: metrics.s(10),
+    },
+    headerBackLogoImage: chrome.headerBackLogoImage,
+    headerTitleWrap: chrome.headerTitleWrap,
+    logoButton: {
+      width: metrics.s(120),
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+      paddingVertical: metrics.s(6),
+    },
+    logoImage: {
+      width: metrics.s(92),
+      height: metrics.s(34),
+    },
+    headerTitle: chrome.headerTitle,
+    headerSpacer: {
+      width: metrics.s(120),
+    },
+    contentRow: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flexDirection: stacked ? 'column' : 'row',
+      alignItems: 'stretch',
+      gap: stacked ? metrics.sectionGap : sideGap,
+    },
+    contentColumn: {
+      flexDirection: 'column',
+    },
+    leftColumn: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flex: stacked ? undefined : 1,
+      minWidth: 0,
+    },
+    centerColumn: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flex: stacked ? undefined : 1.22,
+      minWidth: 0,
+    },
+    rightColumn: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flex: stacked ? undefined : 1,
+      minWidth: 0,
+    },
+    stackedColumn: {
+      marginBottom: 0,
+    },
+    columnSpacer: {
+      height: metrics.sectionGap,
+    },
+    panelShell: {
+      width: '100%',
+      alignSelf: 'stretch',
+      borderRadius: metrics.panelRadius,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: '#050505',
+      padding: metrics.panelPadding,
+      shadowColor: '#000000',
+      shadowOpacity: 0.24,
+      shadowRadius: metrics.s(10),
+      shadowOffset: {width: 0, height: metrics.s(6)},
+      elevation: 8,
+    },
+    livePanelBody: {
+      width: '100%',
+      alignSelf: 'stretch',
+      borderRadius: metrics.cardRadius,
+      overflow: 'hidden',
+      minHeight: 0,
+    },
+    tabRow: {
+      flexDirection: 'row',
+      backgroundColor: '#090909',
+      borderRadius: metrics.cardRadius,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      padding: metrics.s(6),
+      marginBottom: metrics.s(14),
+      gap: metrics.s(8),
+    },
+    tabButton: {
+      flex: 1,
+      minHeight: metrics.buttonHeight,
+      borderRadius: metrics.fieldRadius,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'transparent',
+    },
+    tabButtonActive: {
+      backgroundColor: '#C91D24',
+      borderColor: 'rgba(255,255,255,0.12)',
+    },
+    tabButtonIdle: {
+      backgroundColor: '#0F0F0F',
+      borderColor: 'rgba(255,255,255,0.08)',
+    },
+    tabLabel: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(stacked ? 14 : 15),
+      fontWeight: '700',
+    },
+  });
+};
+
+export default createStyles;

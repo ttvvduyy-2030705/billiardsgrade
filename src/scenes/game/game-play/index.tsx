@@ -25,6 +25,9 @@ import {
   isPoolGame,
 } from 'utils/game';
 import useAdaptiveLayout, {AdaptiveLayout} from '../useAdaptiveLayout';
+import useDesignSystem from 'theme/useDesignSystem';
+import useScreenSystemUI from 'theme/systemUI';
+import {createGameplayLayoutRules} from './layoutRules';
 
 const buildTitle = (category?: string, mode?: string) => {
   return `${i18n.t(category || '').toUpperCase()} - ${i18n
@@ -43,14 +46,14 @@ const formatHeaderTime = (totalTime?: number) => {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 };
 
-const createLocalStyles = (a: AdaptiveLayout) =>
+const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
   StyleSheet.create({
     splitColumn: {
       flex: 1,
-      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+      gap: rules.panelGap,
     },
     splitColumnCompact: {
-      gap: a.s(8),
+      gap: design.spacing.xs,
     },
     splitSlot: {
       flex: 1,
@@ -58,21 +61,21 @@ const createLocalStyles = (a: AdaptiveLayout) =>
     },
     topBottomBoard: {
       flex: 1,
-      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+      gap: rules.panelGap,
     },
     topBottomBoardCompact: {
-      gap: a.s(8),
+      gap: design.spacing.xs,
     },
     topBottomRowTop: {
       flex: 1.12,
-      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+      gap: rules.panelGap,
     },
     topBottomRowBottom: {
       flex: 0.88,
-      gap: a.layoutPreset === 'phone' ? a.s(8) : a.s(12),
+      gap: rules.panelGap,
     },
     topBottomRowCompact: {
-      gap: a.s(8),
+      gap: design.spacing.xs,
     },
     lightScreen: {
       backgroundColor: '#000000',
@@ -96,16 +99,18 @@ const createLocalStyles = (a: AdaptiveLayout) =>
     compactMainArea: {
       paddingHorizontal: a.s(6),
       paddingVertical: a.s(6),
-      gap: a.s(8),
+      gap: design.spacing.xs,
     },
   });
 
 const GamePlay = () => {
   const viewModel = GamePlayViewModel();
-  const adaptive = useAdaptiveLayout();
-  const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
+  const {adaptive, design} = useDesignSystem();
+  const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
+  const styles = useMemo(() => createStyles(adaptive, design, layoutRules), [adaptive.styleKey]);
   const localStyles = useMemo(
-    () => createLocalStyles(adaptive),
+    () => createLocalStyles(adaptive, design, layoutRules),
     [adaptive.styleKey],
   );
   const [isCameraFullscreen, setIsCameraFullscreen] = useState(
@@ -210,7 +215,7 @@ const GamePlay = () => {
     !viewModel.playerSettings
   ) {
     return (
-      <Container isLoading={true}>
+      <Container variant="fullscreen" isLoading={true}>
         <View />
       </Container>
     );
@@ -481,7 +486,7 @@ const GamePlay = () => {
   );
 
   return (
-    <Container>
+    <Container variant="fullscreen">
       <View
         style={[
           useDarkPoolBackground ? styles.poolArenaScreen : undefined,

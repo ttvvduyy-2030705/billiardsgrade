@@ -120,11 +120,15 @@ export const createStyles = (adaptive: {
     },
     contentRow: {
       flex: 1,
+      width: '100%',
+      alignSelf: 'stretch',
       flexDirection: contentDirection,
       marginTop: s(isPhone ? 8 : compactLandscape ? 10 : 12),
       minHeight: 0,
     },
     panelShell: {
+      width: '100%',
+      alignSelf: 'stretch',
       minHeight: 0,
       borderRadius: panelRadius,
       borderWidth: 1,
@@ -166,14 +170,20 @@ export const createStyles = (adaptive: {
       minHeight: 0,
     },
     panelScrollContent: {
+      width: '100%',
+      alignSelf: 'stretch',
       paddingBottom: s(4),
       flexGrow: 1,
     },
     rightPanelContent: {
       flex: 1,
+      width: '100%',
+      alignSelf: 'stretch',
       minHeight: 0,
     },
     playerScrollContent: {
+      width: '100%',
+      alignSelf: 'stretch',
       paddingBottom: s(6),
       flexGrow: 1,
     },

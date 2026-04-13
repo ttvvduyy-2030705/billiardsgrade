@@ -1,9 +1,9 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   NativeStackNavigationOptions,
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
-import {Platform, StyleSheet} from 'react-native';
+import {StyleSheet} from 'react-native';
 
 import Text from 'components/Text';
 import Button from 'components/Button';
@@ -12,7 +12,6 @@ import Image from 'components/Image';
 import {withWrapper} from 'components/HOC';
 
 import colors from 'configuration/colors';
-import {getHeaderHeight, getStatusBarHeight} from 'configuration';
 
 import i18n from 'i18n';
 import images from 'assets';
@@ -20,6 +19,7 @@ import images from 'assets';
 import {goBack} from 'utils/navigation';
 
 import {screens} from './screens';
+import {configureSystemUI} from 'theme/systemUI';
 
 const Stack = createNativeStackNavigator();
 
@@ -38,10 +38,7 @@ const styles = StyleSheet.create({
   backButton: {
     marginLeft: -15,
     padding: 10,
-    height:
-      Platform.OS === 'android'
-        ? '100%'
-        : getHeaderHeight() - getStatusBarHeight() - 4,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -124,6 +121,10 @@ const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
 
 const StackScreens = () => {
+  useEffect(() => {
+    configureSystemUI({animated: false});
+  }, []);
+
   return (
     <Stack.Navigator initialRouteName={screens.home}>
       <Stack.Screen

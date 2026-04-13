@@ -1,6 +1,6 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   container: {
@@ -20,8 +20,8 @@ const styles = StyleSheet.create({
   },
 
   icon: {
-    width: responsiveDimension(24),
-    height: responsiveDimension(24),
+    width: responsiveScale(24),
+    height: responsiveScale(24),
   },
 
   fullWidth: {
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
 
   buttonIP: {
     flexDirection: 'row',
-    padding: responsiveDimension(10),
+    padding: responsiveScale(10),
     backgroundColor: colors.whiteDarkerOverlay,
     borderRadius: 20,
   },
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
   controlWrapper: {},
 
   innerControlWrapper: {
-    marginTop: responsiveDimension(-48),
+    marginTop: responsiveScale(-48),
     backgroundColor: colors.white,
   },
 

@@ -13,10 +13,8 @@ import {
   Linking,
   Pressable,
   ScrollView,
-  StatusBar,
-  StyleSheet,
+    StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -25,7 +23,11 @@ import AppImage from 'components/Image';
 import Container from 'components/Container';
 import Text from 'components/Text';
 import {LIVESTREAM_ACCOUNT_STORAGE_KEY} from 'config/livestreamAuth';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
+import useScreenSystemUI from 'theme/systemUI';
 import {screens} from 'scenes/screens';
+import createBrandedScreenChrome from 'scenes/shared/createBrandedScreenChrome';
+import getBrandedScreenMetrics from 'scenes/shared/getBrandedScreenMetrics';
 import {
   openPlatformOAuth,
   parseOAuthCallback,
@@ -67,10 +69,101 @@ const normalizePlatform = (value?: string | null): Platform | null => {
   return null;
 };
 
+const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
+  const chrome = createBrandedScreenChrome(adaptive);
+  const metrics = getBrandedScreenMetrics(adaptive);
+
+  return StyleSheet.create({
+    screen: chrome.screen,
+    scrollView: {flex: 1, width: '100%', alignSelf: 'stretch'},
+    scrollContent: {
+      flexGrow: 1,
+      width: '100%',
+      alignSelf: 'stretch',
+      paddingHorizontal: metrics.screenPaddingX,
+      paddingTop: metrics.sectionGap,
+      paddingBottom: metrics.s(24),
+    },
+    contentInner: {width: '100%', alignSelf: 'stretch'},
+    headerGlow: chrome.headerGlow,
+    headerBackButton: chrome.headerBackButton,
+    headerBackFrame: chrome.headerBackFrame,
+    headerBackInner: chrome.headerBackInner,
+    headerBackArrow: {
+      color: '#FFFFFF',
+      fontSize: metrics.fs(22),
+      fontWeight: '900',
+      marginRight: metrics.s(10),
+    },
+    headerBackLogoImage: chrome.headerBackLogoImage,
+    headerTitleWrap: chrome.headerTitleWrap,
+    headerTitle: chrome.headerTitle,
+    sectionLabel: {
+      color: '#8A8A8A',
+    },
+    accountRow: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: metrics.s(14),
+      minHeight: adaptive.s(72),
+    },
+    accountTextWrap: {
+      marginLeft: metrics.s(16),
+      flex: 1,
+    },
+    mutedText: {
+      color: '#8A8A8A',
+      marginTop: metrics.s(4),
+      lineHeight: metrics.fs(18),
+    },
+    radioOuter: {
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FFFFFF',
+    },
+    radioInner: {
+      backgroundColor: '#000000',
+    },
+    logoutButton: {
+      width: '100%',
+      alignSelf: 'stretch',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderColor: '#111111',
+      backgroundColor: '#FFFFFF',
+    },
+    optionRow: {
+      width: '100%',
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: adaptive.s(54),
+    },
+    optionLabel: {
+      marginLeft: metrics.s(16),
+    },
+    continueButton: {
+      width: '100%',
+      alignSelf: 'stretch',
+      backgroundColor: '#FF174F',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    continueText: {
+      color: '#FFFFFF',
+      textAlign: 'center',
+    },
+  });
+};
+
 const LivePlatformSetup = (props: Props) => {
-  const {width, height} = useWindowDimensions();
-  const shortestSide = Math.min(width, height);
-  const isTablet = shortestSide >= 768;
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
+  const adaptive = useAdaptiveLayout();
+  const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
+  const metrics = useMemo(() => getBrandedScreenMetrics(adaptive), [adaptive.styleKey]);
 
   const saveToDeviceWhileStreaming =
     props.route?.params?.saveToDeviceWhileStreaming || false;
@@ -84,21 +177,23 @@ const LivePlatformSetup = (props: Props) => {
 
   const autoAuthTriggeredRef = useRef(false);
 
+  const compact = !adaptive.isLandscape || adaptive.width < 1100;
+
   const ui = useMemo(() => {
     return {
-      horizontalPadding: isTablet ? 28 : 18,
-      sectionGap: isTablet ? 22 : 16,
-      titleSize: isTablet ? 19 : 15,
-      bodySize: isTablet ? 17 : 13,
-      subSize: isTablet ? 14 : 11,
-      buttonSize: isTablet ? 17 : 14,
-      buttonHeight: isTablet ? 56 : 48,
-      radioSize: isTablet ? 28 : 22,
-      optionGap: isTablet ? 18 : 12,
-      boxRadius: isTablet ? 18 : 14,
+      horizontalPadding: metrics.screenPaddingX,
+      sectionGap: metrics.sectionGap,
+      titleSize: metrics.fs(compact ? 15 : 19),
+      bodySize: metrics.fs(compact ? 13 : 17),
+      subSize: metrics.fs(compact ? 11 : 14),
+      buttonSize: metrics.fs(compact ? 14 : 17),
+      buttonHeight: adaptive.s(compact ? 48 : 56),
+      radioSize: adaptive.s(compact ? 22 : 28),
+      optionGap: metrics.s(compact ? 12 : 18),
+      boxRadius: metrics.fieldRadius,
       outlineWidth: 2,
     };
-  }, [isTablet]);
+  }, [adaptive, compact, metrics]);
 
   const readStorage = useCallback(async () => {
     try {
@@ -434,11 +529,6 @@ const LivePlatformSetup = (props: Props) => {
 
   return (
     <Container style={styles.screen}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent={false}
-      />
 
       <View style={styles.headerGlow}>
         <Pressable
@@ -450,7 +540,7 @@ const LivePlatformSetup = (props: Props) => {
   <AppImage
     source={require('../../assets/images/logo-back.png')}
     resizeMode="contain"
-    style={{width: 18, height: 18, marginRight: 8}}
+    style={{width: adaptive.s(18), height: adaptive.s(18), marginRight: adaptive.s(8)}}
   />
   <AppImage
     source={images.logoSmall || images.logo}
@@ -469,12 +559,10 @@ const LivePlatformSetup = (props: Props) => {
       </View>
 
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: ui.horizontalPadding,
-          paddingTop: 18,
-          paddingBottom: 24,
-        }}>
+        contentContainerStyle={styles.scrollContent}>
+        <View style={styles.contentInner}>
         <Text fontSize={ui.titleSize} style={styles.sectionLabel}>
           {accountSectionTitle}
         </Text>
@@ -567,138 +655,10 @@ const LivePlatformSetup = (props: Props) => {
             {continueButtonText}
           </Text>
         </TouchableOpacity>
+        </View>
       </ScrollView>
     </Container>
   );
 };
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 22,
-  },
-  headerGlow: {
-    minHeight: 70,
-    borderRadius: 24,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#050505',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    position: 'relative',
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.45,
-    shadowRadius: 20,
-    shadowOffset: {width: 0, height: 8},
-    elevation: 12,
-  },
-  headerBackButton: {
-    position: 'absolute',
-    left: 18,
-    top: 9,
-    bottom: 9,
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  headerBackFrame: {
-    height: 52,
-    minWidth: 116,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 52, 52, 0.28)',
-    backgroundColor: '#070707',
-    justifyContent: 'center',
-    shadowColor: '#FF1414',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: {width: 0, height: 4},
-    elevation: 6,
-    transform: [{skewX: '-16deg'}],
-  },
-  headerBackInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{skewX: '16deg'}],
-  },
-  headerBackArrow: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '900',
-    marginRight: 10,
-  },
-  headerBackLogoImage: {
-    width: 72,
-    height: 28,
-  },
-  headerTitleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 146,
-    pointerEvents: 'none',
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  sectionLabel: {
-    color: '#8A8A8A',
-  },
-  accountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-  },
-  accountTextWrap: {
-    marginLeft: 16,
-    flex: 1,
-  },
-  mutedText: {
-    color: '#8A8A8A',
-    marginTop: 4,
-  },
-  radioOuter: {
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  radioInner: {
-    backgroundColor: '#000000',
-  },
-  logoutButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderColor: '#111111',
-    backgroundColor: '#FFFFFF',
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  optionLabel: {
-    marginLeft: 16,
-  },
-  continueButton: {
-    backgroundColor: '#FF174F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  continueText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-});
 
 export default memo(LivePlatformSetup);

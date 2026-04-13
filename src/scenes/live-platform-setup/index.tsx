@@ -5,8 +5,7 @@ import {
   Alert,
   Pressable,
   ScrollView,
-  StatusBar,
-  StyleSheet,
+    StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -17,6 +16,7 @@ import AppImage from 'components/Image';
 import Container from 'components/Container';
 import Text from 'components/Text';
 import {Navigation} from 'types/navigation';
+import useScreenSystemUI from 'theme/systemUI';
 import {screens} from 'scenes/screens';
 
 import {CURRENT_PLATFORM_KEY} from '../live-platform';
@@ -55,6 +55,7 @@ const normalizePlatform = (value?: string | null): Platform | null => {
 };
 
 const LivePlatformSetup = (props: Props) => {
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const {width, height} = useWindowDimensions();
   const shortestSide = Math.min(width, height);
   const isTablet = shortestSide >= 768;
@@ -317,11 +318,6 @@ const LivePlatformSetup = (props: Props) => {
 
   return (
     <Container style={styles.screen}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent={false}
-      />
 
       <View style={styles.headerGlow}>
         <Pressable
@@ -348,12 +344,10 @@ const LivePlatformSetup = (props: Props) => {
       </View>
 
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: ui.horizontalPadding,
-          paddingTop: 18,
-          paddingBottom: 24,
-        }}>
+        contentContainerStyle={styles.scrollContent}>
+        <View style={styles.contentInner}>
         <Text fontSize={ui.titleSize} style={styles.sectionLabel}>
           {accountSectionTitle}
         </Text>
@@ -443,6 +437,7 @@ const LivePlatformSetup = (props: Props) => {
             {continueButtonText}
           </Text>
         </TouchableOpacity>
+        </View>
       </ScrollView>
     </Container>
   );
@@ -455,6 +450,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 12,
     paddingBottom: 22,
+  },
+  scrollView: {
+    flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    width: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 24,
+  },
+  contentInner: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
   headerGlow: {
     minHeight: 70,
@@ -532,6 +544,8 @@ const styles = StyleSheet.create({
     color: '#8A8A8A',
   },
   accountRow: {
+    width: '100%',
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 14,
@@ -554,12 +568,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   logoutButton: {
+    width: '100%',
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
     borderColor: '#111111',
     backgroundColor: '#FFFFFF',
   },
   optionRow: {
+    width: '100%',
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -567,6 +585,8 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   continueButton: {
+    width: '100%',
+    alignSelf: 'stretch',
     backgroundColor: '#FF174F',
     alignItems: 'center',
     justifyContent: 'center',

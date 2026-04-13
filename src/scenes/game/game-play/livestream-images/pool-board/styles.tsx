@@ -1,11 +1,11 @@
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   matchInfo: {
     position: 'absolute',
-    bottom: responsiveDimension(-512),
+    bottom: responsiveScale(-512),
     width: '200%',
     borderWidth: 1,
     borderColor: colors.white,
@@ -24,19 +24,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.transparent,
   },
   imageTurnLeft: {
-    width: responsiveDimension(24),
-    height: responsiveDimension(24),
+    width: responsiveScale(24),
+    height: responsiveScale(24),
     tintColor: colors.white,
   },
   imageTurnRight: {
-    width: responsiveDimension(24),
-    height: responsiveDimension(24),
+    width: responsiveScale(24),
+    height: responsiveScale(24),
     transform: [{rotate: '180deg'}],
     tintColor: colors.white,
   },
   empty: {
-    width: responsiveDimension(24),
-    height: responsiveDimension(24),
+    width: responsiveScale(24),
+    height: responsiveScale(24),
   },
   matchBackground: {
     backgroundColor: colors.darkRed,
@@ -45,8 +45,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   matchPointText: {
-    marginTop: responsiveDimension(-10),
-    marginBottom: responsiveDimension(-8),
+    marginTop: responsiveScale(-10),
+    marginBottom: responsiveScale(-8),
   },
 });
 

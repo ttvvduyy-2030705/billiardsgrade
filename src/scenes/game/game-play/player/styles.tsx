@@ -1,6 +1,6 @@
 import {StyleSheet} from 'react-native';
 import colors from 'configuration/colors';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   container: {
@@ -14,7 +14,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4A1E20',
     borderRadius: 80,
-    paddingBottom: responsiveDimension(10),
+    paddingBottom: responsiveScale(10),
     backgroundColor: '#1C0C0D',
   },
   leftContainer: {
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B31217',
     borderTopRightRadius: 20,
     borderBottomLeftRadius: 20,
-    paddingHorizontal: responsiveDimension(30),
+    paddingHorizontal: responsiveScale(30),
     borderWidth: 1.2,
     borderColor: '#FF5858',
     shadowColor: '#FF3030',
@@ -43,15 +43,15 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   buttonEndTurnEmpty: {
-    paddingHorizontal: responsiveDimension(30),
+    paddingHorizontal: responsiveScale(30),
   },
   totalPointWrapper: {
-    marginBottom: responsiveDimension(-56),
-    marginHorizontal: responsiveDimension(64),
+    marginBottom: responsiveScale(-56),
+    marginHorizontal: responsiveScale(64),
   },
   totalPointNoMarginBottom: {
     marginBottom: 0,
-    marginHorizontal: responsiveDimension(64),
+    marginHorizontal: responsiveScale(64),
   },
 
   arenaContainer: {

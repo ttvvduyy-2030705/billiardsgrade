@@ -1,5 +1,5 @@
 import React, {memo, useCallback, useMemo} from 'react';
-import {Pressable, ScrollView, StatusBar, useWindowDimensions} from 'react-native';
+import {Pressable, ScrollView} from 'react-native';
 
 import images from 'assets';
 import Image from 'components/Image';
@@ -15,7 +15,9 @@ import Livestream from './livestream';
 import TableNumber from './table-number';
 import Thumbnails from './thumbnails';
 import WebcamConfig from './webcam';
-import styles from './styles';
+import createStyles from './styles';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
+import useScreenSystemUI from 'theme/systemUI';
 
 const getFallbackTitle = () => {
   const translated = i18n.t('configs' as never);
@@ -27,11 +29,13 @@ const getFallbackTitle = () => {
 };
 
 const Configs = (props: any) => {
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const viewModel = ConfigsViewModel();
-  const {width} = useWindowDimensions();
+  const adaptive = useAdaptiveLayout();
+  const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
 
   const title = useMemo(() => getFallbackTitle(), []);
-  const isStacked = width < 1220;
+  const isStacked = !adaptive.isLandscape || adaptive.width < 1180;
 
   const onBack = useCallback(() => {
     if (typeof props?.goBack === 'function') {
@@ -46,11 +50,6 @@ const Configs = (props: any) => {
 
   return (
     <Container style={styles.screen}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent={false}
-      />
 
       <View style={styles.headerGlow}>
         <Pressable
@@ -62,7 +61,7 @@ const Configs = (props: any) => {
   <Image
     source={require('../../assets/images/logo-back.png')}
     resizeMode="contain"
-    style={{width: 18, height: 18, marginRight: 8}}
+    style={{width: adaptive.s(18), height: adaptive.s(18), marginRight: adaptive.s(8)}}
   />
   <Image
     source={images.logoSmall || images.logo}
@@ -79,6 +78,7 @@ const Configs = (props: any) => {
       </View>
 
       <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         <View style={[styles.contentRow, isStacked && styles.contentColumn]}>

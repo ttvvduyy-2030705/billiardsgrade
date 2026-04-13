@@ -1,10 +1,10 @@
 import {StyleSheet} from 'react-native';
 import colors from 'configuration/colors';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   functionWrapper: {
-    top: responsiveDimension(24),
+    top: responsiveScale(24),
     left: 0,
     position: 'absolute',
     width: '100%',
@@ -12,12 +12,12 @@ const styles = StyleSheet.create({
   },
   buttonPoolBreak: {
     backgroundColor: colors.green,
-    paddingVertical: responsiveDimension(8),
-    paddingHorizontal: responsiveDimension(24),
-    marginRight: responsiveDimension(15),
+    paddingVertical: responsiveScale(8),
+    paddingHorizontal: responsiveScale(24),
+    marginRight: responsiveScale(15),
   },
   additionalWrapper: {
-    marginTop: responsiveDimension(-16),
+    marginTop: responsiveScale(-16),
     height: '100%',
   },
 });

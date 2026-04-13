@@ -1,16 +1,11 @@
 import React, {memo, useMemo} from 'react';
-import {
-  Image,
-  Pressable,
-  StatusBar,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import {Image, Pressable, Text, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
 import images from 'assets';
 import i18n from 'i18n';
+import useDesignSystem from 'theme/useDesignSystem';
+import useScreenSystemUI from 'theme/systemUI';
 
 import HomeViewModel, {Props} from './HomeViewModel';
 import createStyles from './styles';
@@ -20,29 +15,40 @@ const clamp = (value: number, min: number, max: number) => {
 };
 
 const Home = (props: Props) => {
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const viewModel = HomeViewModel(props);
-  const {width, height} = useWindowDimensions();
-  const styles = useMemo(() => createStyles(width, height), [width, height]);
+  const {adaptive, design} = useDesignSystem();
+  const styles = useMemo(
+    () => createStyles(design, {width: adaptive.width, height: adaptive.height}),
+    [adaptive.height, adaptive.width, design],
+  );
 
   const metrics = useMemo(() => {
-    const visualButtonWidth = clamp(width * 0.31, 360, 520);
-    const visualButtonHeight = clamp(height * 0.12, 84, 102);
-    const logoWidth = clamp(width * 0.22, 200, 320);
+    const visualButtonWidth = clamp(
+      adaptive.width * 0.31,
+      adaptive.s(300),
+      adaptive.s(520),
+    );
+    const visualButtonHeight = clamp(
+      adaptive.height * 0.12,
+      adaptive.s(84),
+      adaptive.s(110),
+    );
+    const logoWidth = clamp(adaptive.width * 0.22, adaptive.s(200), adaptive.s(320));
     const logoHeight = logoWidth * 0.41;
 
     return {
       visualButtonWidth,
       visualButtonHeight,
-      touchButtonWidth: visualButtonWidth + 34,
-      touchButtonHeight: visualButtonHeight + 28,
+      touchButtonWidth: visualButtonWidth + design.spacing.lg,
+      touchButtonHeight: visualButtonHeight + design.spacing.md,
       logoWidth,
       logoHeight,
     };
-  }, [width, height]);
+  }, [adaptive.height, adaptive.width, adaptive, design.spacing.lg, design.spacing.md]);
 
   return (
     <View style={styles.screen}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       <View style={styles.topRow}>
         <Text style={styles.title}>{i18n.t('msgAppName')}</Text>
@@ -66,7 +72,7 @@ const Home = (props: Props) => {
         </View>
       </View>
 
-      <View style={styles.startButtonCenterLayer} pointerEvents="box-none">
+      <View style={styles.centerZone} pointerEvents="box-none">
         <Pressable
           onPress={viewModel.onStartNewGame}
           hitSlop={{top: 14, bottom: 14, left: 14, right: 14}}

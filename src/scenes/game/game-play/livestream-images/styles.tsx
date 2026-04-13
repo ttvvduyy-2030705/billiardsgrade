@@ -1,19 +1,19 @@
 import {StyleSheet} from 'react-native';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   image: {
-    width: responsiveDimension(256),
-    height: responsiveDimension(144),
-    marginRight: responsiveDimension(10),
+    width: responsiveScale(256),
+    height: responsiveScale(144),
+    marginRight: responsiveScale(10),
   },
   absolute: {
     position: 'absolute',
-    bottom: responsiveDimension(-512),
+    bottom: responsiveScale(-512),
   },
   emptyView: {
-    width: responsiveDimension(256),
-    height: responsiveDimension(144),
+    width: responsiveScale(256),
+    height: responsiveScale(144),
   },
 });
 

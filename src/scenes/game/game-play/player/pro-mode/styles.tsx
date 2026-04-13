@@ -1,13 +1,13 @@
 import {StyleSheet} from 'react-native';
 import colors from 'configuration/colors';
-import {responsiveDimension} from 'utils/helper';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   totalPointInTurn: {
     backgroundColor: colors.grayBlue,
     borderTopLeftRadius: 20,
     borderBottomRightRadius: 20,
-    paddingHorizontal: responsiveDimension(30),
+    paddingHorizontal: responsiveScale(30),
   },
 });
 

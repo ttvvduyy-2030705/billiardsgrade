@@ -42,6 +42,7 @@ export interface Props {
   webcamType : string;
   setIsCameraReady: ((isReady: boolean) => void);
   overlayContent?: ReactNode;
+  cameraScaleMode?: 'contain' | 'cover';
 }
 
 const VideoViewModel = (props: Props) => {

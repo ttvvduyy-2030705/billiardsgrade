@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, ScrollView, StatusBar, Text, View} from 'react-native';
+import {Pressable, ScrollView, Text, View} from 'react-native';
 
 import images from 'assets';
 import Image from 'components/Image';
@@ -11,6 +11,7 @@ import CategorySettings from './category';
 import PlayerSettings from './player';
 import GameSettingsViewModel, {Props} from './SettingsViewModel';
 import useAdaptiveLayout from '../useAdaptiveLayout';
+import useScreenSystemUI from 'theme/systemUI';
 import createStyles from './styles';
 
 const getLocale = () => {
@@ -32,6 +33,7 @@ const getFallbackLabel = (key: string, vi: string, en: string) => {
 };
 
 const GameSettings = (props: Props) => {
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const viewModel = GameSettingsViewModel(props);
   const adaptive = useAdaptiveLayout();
   const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
@@ -53,11 +55,6 @@ const GameSettings = (props: Props) => {
 
   return (
     <Container style={styles.screen}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="transparent"
-        translucent={false}
-      />
 
       <View style={styles.headerGlow}>
         <Pressable

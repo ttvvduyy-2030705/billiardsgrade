@@ -1,5 +1,5 @@
 import React, {memo, useCallback, useMemo} from 'react';
-import {FlatList, Pressable, StatusBar} from 'react-native';
+import {FlatList, Pressable} from 'react-native';
 import dayjs from 'dayjs';
 import images from 'assets';
 import Image from 'components/Image';
@@ -13,7 +13,9 @@ import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {DAY_FORMAT, TIME_FORMAT} from 'utils/date';
 import HistoryViewModel from './HistoryViewModel';
-import styles from './styles';
+import createStyles from './styles';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
+import useScreenSystemUI from 'theme/systemUI';
 
 const getTextColor = (hex?: string) => {
   const value = String(hex || '').replace('#', '');
@@ -22,27 +24,30 @@ const getTextColor = (hex?: string) => {
 };
 
 const History = (props: any) => {
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const viewModel = HistoryViewModel();
+  const adaptive = useAdaptiveLayout();
+  const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
   const title = useMemo(() => { const t = i18n.t('history' as never); return t && t !== 'history' ? (t as string) : 'Lịch sử'; }, []);
   const onBack = useCallback(() => { if (typeof props?.goBack === 'function') { props.goBack(); return; } if (typeof props?.navigation?.goBack === 'function') { props.navigation.goBack(); } }, [props]);
 
   const renderPlayer = useCallback((player: Player, index: number) => {
     const textColor = getTextColor(player.color);
     return <View key={`player-${index}`} style={[styles.player, {backgroundColor: player.color || colors.white}]}><Text color={textColor} style={[styles.playerName, {color: textColor}]}>{player.name}</Text><Text color={textColor} style={[styles.playerPoint, {color: textColor}]}>{player.totalPoint}</Text></View>;
-  }, []);
+  }, [styles]);
 
   const renderItem = useCallback(({item, index}: {item: GameSettings; index: number}) => (
     <View key={`history-${index}`} style={styles.item}>
       <View style={styles.itemRow}>
         <View style={styles.itemColumn}>
           <Text color={'#9D9D9D'} style={styles.itemMeta}>{i18n.t('category')}</Text><Text color={'#FFFFFF'} style={styles.itemValue}>{viewModel.buildCategoryTitle(item)}</Text>
-          <View marginTop={'10'} />
+          <View style={{height: adaptive.s(10)}} />
           <Text color={'#9D9D9D'} style={styles.itemMeta}>{i18n.t('mode')}</Text><Text color={'#FFFFFF'} style={styles.itemValue}>{viewModel.buildModeTitle(item)}</Text>
-          <View marginTop={'10'} />
+          <View style={{height: adaptive.s(10)}} />
           <Text color={'#9D9D9D'} style={styles.itemMeta}>{i18n.t('time')}</Text><Text color={'#FFFFFF'} style={styles.itemValue}>{dayjs(item.updatedAt).format(TIME_FORMAT)}</Text>
-          <View marginTop={'10'} />
+          <View style={{height: adaptive.s(10)}} />
           <Text color={'#9D9D9D'} style={styles.itemMeta}>{i18n.t('txtDate')}</Text><Text color={'#FFFFFF'} style={styles.itemValue}>{dayjs(item.updatedAt).format(DAY_FORMAT)}</Text>
-          <View marginTop={'10'} />
+          <View style={{height: adaptive.s(10)}} />
           <Text color={'#9D9D9D'} style={styles.itemMeta}>{i18n.t('playingTime')}</Text><Text color={'#FFFFFF'} style={styles.itemValue}>{item.totalTime} {i18n.t('txtSecond')}</Text>
         </View>
         <View style={[styles.itemColumn, styles.playerWrap]}>{item.players.playingPlayers.map(renderPlayer)}</View>
@@ -52,11 +57,10 @@ const History = (props: any) => {
         </View>
       </View>
     </View>
-  ), [renderPlayer, viewModel]);
+  ), [adaptive, renderPlayer, viewModel]);
 
   return (
     <Container style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={false} />
       <View style={styles.headerGlow}>
         <Pressable
           onPress={onBack}
@@ -67,7 +71,7 @@ const History = (props: any) => {
   <Image
     source={require('../../assets/images/logo-back.png')}
     resizeMode="contain"
-    style={{width: 18, height: 18, marginRight: 8}}
+    style={{width: adaptive.s(18), height: adaptive.s(18), marginRight: adaptive.s(8)}}
   />
   <Image
     source={images.logoSmall || images.logo}
