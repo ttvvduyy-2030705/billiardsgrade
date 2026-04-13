@@ -549,7 +549,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isFastMode = props.gameSettings?.mode?.mode === 'fast';
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
-  const hideCaromCamera = isCarom && (props.totalPlayers || 0) >= 5;
+  const totalPlayers = Number(props.totalPlayers || 2);
+  const hideCaromCamera = isCarom && totalPlayers >= 5;
+  const hideCaromScoreChrome = isCarom && totalPlayers >= 3;
   const useCaromConsoleCompact =
     isCarom &&
     !hideCaromCamera &&
@@ -575,12 +577,14 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     debugCaromLayout('[GameConsole] carom layout branch', {
       isCarom,
       hideCaromCamera,
+    hideCaromScoreChrome,
       useCaromConsoleCompact,
       useCaromCompactButtons,
       useCaromExtraCompactButtons,
       useCaromTightLayout,
       expectedButtonCount: caromExpectedButtonCount,
       cameraMinHeight: null,
+      hideCaromScoreChrome,
       countdownEnabled: !!props.gameSettings?.mode?.countdownTime,
       isStarted: props.isStarted,
       width,
@@ -589,6 +593,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   }, [
     height,
     hideCaromCamera,
+    hideCaromScoreChrome,
     isCarom,
     props.gameSettings?.mode?.countdownTime,
     useCaromCompactButtons,
@@ -975,6 +980,30 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     if (isCarom) {
+      if (hideCaromScoreChrome) {
+        if (useCaromTightLayout) {
+          return isHandheldLandscape ? 118 : 136;
+        }
+
+        if (useExtraCompact) {
+          return isHandheldLandscape ? 124 : 144;
+        }
+
+        if (useCaromConsoleCompact) {
+          return isHandheldLandscape ? 132 : 154;
+        }
+
+        if (useResponsiveCompact) {
+          return isHandheldLandscape ? 136 : 164;
+        }
+
+        if (useTightLandscapeLayout) {
+          return isHandheldLandscape ? 148 : 176;
+        }
+
+        return isLargeDisplay ? 230 : isHandheldLandscape ? 156 : adaptive.isConstrainedLandscape ? 170 : 194;
+      }
+
       if (useCaromTightLayout) {
         return isHandheldLandscape ? 64 : 72;
       }
@@ -1020,6 +1049,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useTightLandscapeLayout,
     useCaromConsoleCompact,
     useCaromTightLayout,
+    hideCaromScoreChrome,
   ]);
 
   useEffect(() => {
@@ -1061,7 +1091,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           useResponsiveCompact ? styles.phoneWrapper : undefined,
           hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
         ]}>
-        {props.gameSettings?.mode?.countdownTime ? (
+        {props.gameSettings?.mode?.countdownTime && !hideCaromScoreChrome ? (
           <View
             style={[
               styles.caromInfoWrap,
@@ -1095,6 +1125,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
               useCaromTightLayout ? styles.caromCameraCardTight : undefined,
               useCaromConsoleCompact ? styles.caromCameraCardCompact : undefined,
+              hideCaromScoreChrome ? styles.caromCameraCardExpanded : undefined,
               {minHeight: cameraMinHeight},
             ]}
             onLayout={event => {
@@ -1730,6 +1761,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   caromCameraCardCompact: {
     borderWidth: 4,
     maxHeight: 118,
+  },
+  caromCameraCardExpanded: {
+    flex: 1.2,
+    maxHeight: undefined,
   },
   caromCameraCardTight: {
     flex: 0.54,

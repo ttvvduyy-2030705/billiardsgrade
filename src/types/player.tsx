@@ -3,7 +3,7 @@ import {GameExtraTimeTurns} from './settings';
 
 export type PlayerPointStep = -10 | -50 | -1 | -5 | 0 | 1 | 5 | 10 | 50;
 
-export type PlayerNumber = 2 | 3 | 4 | 5;
+export type PlayerNumber = 2 | 3 | 4;
 
 export type PlayerGoal = {
   goal: number;

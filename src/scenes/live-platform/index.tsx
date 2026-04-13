@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, {memo, useCallback, useContext, useMemo, useState} from 'react';
+import React, {memo, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {Image, Pressable, ScrollView, StyleSheet, Switch, View} from 'react-native';
 
 import images from 'assets';
@@ -21,7 +21,7 @@ export interface Props extends Navigation {}
 export const CURRENT_PLATFORM_KEY = '@current_livestream_platform';
 
 type PlatformKey = 'facebook' | 'youtube' | 'device';
-type PlatformItem = {key: PlatformKey; label: string; image?: any; isAccent?: boolean};
+type PlatformItem = {key: PlatformKey; label: string; image?: any};
 
 const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
   const chrome = createBrandedScreenChrome(adaptive);
@@ -44,6 +44,7 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
     logoImage:{width:metrics.s(92), height:metrics.s(34)},
     headerTitle: chrome.headerTitle,
     headerSpacer:{width:metrics.s(120)},
+    gridShell:{width:'100%', alignSelf:'stretch', marginTop: metrics.sectionGap, borderRadius: metrics.panelRadius + metrics.s(2), borderWidth: 1, borderColor:'rgba(201,29,36,0.72)', backgroundColor:'rgba(201,29,36,0.06)', padding: metrics.s(10)},
     grid:{width:'100%', alignSelf:'stretch', alignItems:'stretch', gap: metrics.sectionGap, flexDirection: stacked ? 'column' : 'row'},
     card:{
       flex: 1,
@@ -52,13 +53,14 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       borderWidth: 1,
       borderColor:'rgba(255,255,255,0.08)',
       backgroundColor:'#050505',
+      overflow:'hidden',
       alignItems:'center',
       justifyContent:'center',
       padding: metrics.panelPadding,
     },
     cardInline:{},
     cardStacked:{width:'100%'},
-    cardAccent:{backgroundColor:'#8F1318', borderColor:'rgba(255,255,255,0.12)'},
+    cardActive:{backgroundColor:'#8F1318', borderColor:'rgba(255,255,255,0.12)'},
     deviceBadge:{width:adaptive.s(72), height:adaptive.s(72), borderRadius:adaptive.s(36), backgroundColor:'rgba(255,255,255,0.08)', alignItems:'center', justifyContent:'center', marginBottom:metrics.s(16)},
     cardTitle:{color:'#FFFFFF', fontSize:metrics.fs(stacked ? 15 : 16), fontWeight:'800', textAlign:'center'},
     switchBox:{width:'100%', alignSelf:'stretch', backgroundColor:'#050505', borderWidth:1, borderColor:'rgba(255,255,255,0.08)', borderRadius:metrics.panelRadius, paddingHorizontal:metrics.panelPadding, paddingVertical:metrics.panelPadding, flexDirection:'row', alignItems:'center', justifyContent:'space-between'},
@@ -75,7 +77,18 @@ const LivePlatform = (props: any) => {
   const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
   const metrics = useMemo(() => getBrandedScreenMetrics(adaptive), [adaptive.styleKey]);
   const [saveToDeviceWhileStreaming, setSaveToDeviceWhileStreaming] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformKey | null>(null);
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCompact = !adaptive.isLandscape || adaptive.width < 1100;
+
+
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const localized = useMemo(() => {
     if (language === 'en') {
@@ -107,20 +120,28 @@ const LivePlatform = (props: any) => {
     titleSize: metrics.fs(isCompact ? 15 : 16),
     subtitleSize: metrics.fs(isCompact ? 12 : 13),
   }), [adaptive, isCompact, metrics]);
-  const platformItems: PlatformItem[] = useMemo(() => [{key:'facebook', label:'Facebook', image:facebookLogo}, {key:'youtube', label:'YouTube', image:youtubeLogo}, {key:'device', label:localized.deviceLabel, isAccent:true}], [localized.deviceLabel]);
+  const platformItems: PlatformItem[] = useMemo(() => [{key:'device', label:localized.deviceLabel}, {key:'youtube', label:'YouTube', image:youtubeLogo}, {key:'facebook', label:'Facebook', image:facebookLogo}], [localized.deviceLabel]);
 
   const onBack = useCallback(() => { if (typeof props?.goBack === 'function') { props.goBack(); return; } if (typeof props?.navigation?.goBack === 'function') { props.navigation.goBack(); } }, [props]);
 
   const onSelectPlatform = useCallback(async (platform: PlatformKey) => {
-    if (platform === 'device') {
-      await AsyncStorage.removeItem(CURRENT_PLATFORM_KEY);
-      props.navigate?.(screens.gameSettings, {livestreamPlatform: platform, saveToDeviceWhileStreaming});
-      return;
+    setSelectedPlatform(platform);
+
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
     }
-    await AsyncStorage.setItem(CURRENT_PLATFORM_KEY, platform);
-    const params = {livestreamPlatform: platform, saveToDeviceWhileStreaming};
-    if (platform === 'facebook') { props.navigate?.(screens.livePlatformSetupFacebook, params); return; }
-    props.navigate?.(screens.livePlatformSetupYoutube, params);
+
+    navigationTimeoutRef.current = setTimeout(async () => {
+      if (platform === 'device') {
+        await AsyncStorage.removeItem(CURRENT_PLATFORM_KEY);
+        props.navigate?.(screens.gameSettings, {livestreamPlatform: platform, saveToDeviceWhileStreaming});
+        return;
+      }
+      await AsyncStorage.setItem(CURRENT_PLATFORM_KEY, platform);
+      const params = {livestreamPlatform: platform, saveToDeviceWhileStreaming};
+      if (platform === 'facebook') { props.navigate?.(screens.livePlatformSetupFacebook, params); return; }
+      props.navigate?.(screens.livePlatformSetupYoutube, params);
+    }, 120);
   }, [props, saveToDeviceWhileStreaming]);
 
   return (
@@ -152,11 +173,25 @@ const LivePlatform = (props: any) => {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.contentInner}>
           <Text color={'#8C8C8C'} fontSize={ui.subtitleSize}>{localized.subtitle}</Text>
-          <View style={[styles.grid, {marginTop: ui.topGap}]}> 
-            {platformItems.map(item => <Pressable key={item.key} onPress={() => onSelectPlatform(item.key)} style={[styles.card, item.isAccent && styles.cardAccent, isCompact ? styles.cardStacked : styles.cardInline]}>
-              {item.image ? <Image source={item.image} resizeMode="contain" style={{width: ui.iconSize, height: ui.iconSize, marginBottom: adaptive.s(16)}} /> : <View style={styles.deviceBadge}><Text color={'#FFFFFF'} fontWeight={'900'} fontSize={metrics.fs(18)}>{localized.saveBadge}</Text></View>}
-              <Text color={'#FFFFFF'} style={styles.cardTitle}>{item.label}</Text>
-            </Pressable>)}
+          <View style={styles.gridShell}>
+            <View style={styles.grid}> 
+              {platformItems.map(item => {
+                const isActive = selectedPlatform === item.key;
+                return (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => onSelectPlatform(item.key)}
+                    style={[styles.card, isActive && styles.cardActive, isCompact ? styles.cardStacked : styles.cardInline]}>
+                    {item.image ? (
+                      <Image source={item.image} resizeMode="contain" style={{width: ui.iconSize, height: ui.iconSize, marginBottom: adaptive.s(16)}} />
+                    ) : (
+                      <View style={styles.deviceBadge}><Text color={'#FFFFFF'} fontWeight={'900'} fontSize={metrics.fs(18)}>{localized.saveBadge}</Text></View>
+                    )}
+                    <Text color={'#FFFFFF'} style={styles.cardTitle}>{item.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
           <View style={[styles.switchBox, {marginTop: ui.topGap}]}> 
             <View style={styles.switchTextWrap}><Text color={'#FFFFFF'} style={styles.switchTitle}>{localized.switchTitle}</Text><Text color={'#8C8C8C'} style={styles.switchDescription}>{localized.switchDescription}</Text></View>

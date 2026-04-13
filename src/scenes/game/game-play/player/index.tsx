@@ -141,19 +141,27 @@ const GamePlayer = (
   const rawPlayerColor = String((props.player as any)?.color || '').trim();
   const useColoredPanel = Boolean(rawPlayerColor) && isCaromMode;
   const playerPanelColor = useColoredPanel ? rawPlayerColor : '#000000';
-  const primaryTextColor = useColoredPanel ? '#111111' : '#FFFFFF';
+  const isLightPlayerPanel = useColoredPanel && isLightColor(playerPanelColor);
+  const primaryTextColor = useColoredPanel
+    ? isLightPlayerPanel
+      ? '#111111'
+      : '#FFFFFF'
+    : '#FFFFFF';
   const secondaryTextColor = useColoredPanel
-    ? 'rgba(17,17,17,0.72)'
+    ? isLightPlayerPanel
+      ? 'rgba(17,17,17,0.72)'
+      : 'rgba(255,255,255,0.82)'
     : '#FFFFFF';
   const inactiveTextColor = useColoredPanel
-    ? 'rgba(17,17,17,0.52)'
+    ? isLightPlayerPanel
+      ? 'rgba(17,17,17,0.52)'
+      : 'rgba(255,255,255,0.58)'
     : '#8B8D95';
 
   const panelDynamicStyle = useColoredPanel
-    ? {backgroundColor: playerPanelColor, borderColor: 'rgba(17,17,17,0.28)'}
+    ? {backgroundColor: playerPanelColor, borderColor: isLightPlayerPanel ? 'rgba(17,17,17,0.28)' : 'rgba(255,255,255,0.18)'}
     : {backgroundColor: '#000000', borderColor: '#FF1818'};
 
-  const isLightPlayerPanel = useColoredPanel && isLightColor(playerPanelColor);
   const addTimeButtonDynamicStyle = isLightPlayerPanel
     ? {
         borderColor: 'rgba(17,17,17,0.5)',
@@ -167,7 +175,23 @@ const GamePlayer = (
   const textColorStyle = {color: primaryTextColor};
   const inactivePlaceholderColor = inactiveTextColor;
 
-  const scoreLayerDynamicStyle = isCaromMode
+  const isMultiPlayerLayout = totalPlayers > 2;
+  const hasScoredBalls = Boolean((props.player.scoredBalls || []).length > 0);
+  const isFourPlayerScoreLayout = totalPlayers >= 4;
+  const isCaromThreePlayerCompactCard =
+    isCaromMode && totalPlayers === 3 && props.index > 0;
+
+  const scoreLayerDynamicStyle = isMultiPlayerLayout
+    ? isCaromMode
+      ? isCaromThreePlayerCompactCard
+        ? styles.scoreLayerCaromThreePlayerCompact
+        : isFourPlayerScoreLayout
+        ? styles.scoreLayerCaromFourPlayer
+        : styles.scoreLayerCaromThreePlayer
+      : isFourPlayerScoreLayout
+      ? styles.scoreLayerPoolFourPlayer
+      : styles.scoreLayerPoolThreePlayer
+    : isCaromMode
     ? isPhoneLandscapeTwoPlayer
       ? styles.scoreLayerCaromPhoneLandscape
       : isExtraCompactLayout
@@ -183,7 +207,17 @@ const GamePlayer = (
     ? styles.scoreLayerCompact
     : undefined;
 
-  const scoreTextDynamicStyle = isCaromMode
+  const scoreTextDynamicStyle = isMultiPlayerLayout
+    ? isCaromMode
+      ? isCaromThreePlayerCompactCard
+        ? styles.scoreTextCaromThreePlayerCompact
+        : isFourPlayerScoreLayout
+        ? styles.scoreTextCaromFourPlayer
+        : styles.scoreTextCaromThreePlayer
+      : isFourPlayerScoreLayout
+      ? styles.scoreTextPoolFourPlayer
+      : styles.scoreTextPoolThreePlayer
+    : isCaromMode
     ? isPhoneLandscapeTwoPlayer
       ? styles.scoreTextCaromPhoneLandscape
       : isExtraCompactLayout
@@ -271,8 +305,12 @@ const GamePlayer = (
   const dynamicStepButtonStyle = {
     minHeight: Math.round((isCompactLayout ? 36 : isMediumResponsiveLayout ? 40 : 46) * fluidScale),
   };
-  const scoreTop = Math.round((isPhoneLandscapeTwoPlayer ? 118 : isExtraCompactLayout ? 112 : isCompactLayout ? 122 : isMediumResponsiveLayout ? 146 : 172) * fluidScale);
-  const scoreBottom = Math.round((isPhoneLandscapeTwoPlayer ? 64 : isExtraCompactLayout ? 62 : isCompactLayout ? 70 : isMediumResponsiveLayout ? 88 : 104) * fluidScale);
+  const scoreTop = isCaromThreePlayerCompactCard
+    ? Math.round(92 * fluidScale)
+    : Math.round((isPhoneLandscapeTwoPlayer ? 118 : isExtraCompactLayout ? 112 : isCompactLayout ? 122 : isMediumResponsiveLayout ? 146 : 172) * fluidScale);
+  const scoreBottom = isCaromThreePlayerCompactCard
+    ? Math.round(46 * fluidScale)
+    : Math.round((isPhoneLandscapeTwoPlayer ? 64 : isExtraCompactLayout ? 62 : isCompactLayout ? 70 : isMediumResponsiveLayout ? 88 : 104) * fluidScale);
 
   return (
     <View
@@ -515,7 +553,7 @@ const GamePlayer = (
           scoreLayerDynamicStyle,
           {top: scoreTop, bottom: scoreBottom},
           !isActiveCard && styles.scoreLayerInactive,
-          isPool15FreeMode && styles.scoreLayerWithScoredBalls,
+          isPool15FreeMode && hasScoredBalls && styles.scoreLayerWithScoredBalls,
         ]}
         pointerEvents="none">
         <View
@@ -523,6 +561,10 @@ const GamePlayer = (
             styles.scoreTextBox,
             isMediumResponsiveLayout ? styles.scoreTextBoxMedium : undefined,
             isCompactLayout && styles.scoreTextBoxCompact,
+            isMultiPlayerLayout && styles.scoreTextBoxMultiPlayer,
+            isFourPlayerScoreLayout && styles.scoreTextBoxFourPlayer,
+            isCaromThreePlayerCompactCard &&
+              styles.scoreTextBoxCaromThreePlayerCompact,
           ]}>
           <RNText
             numberOfLines={1}
@@ -1005,6 +1047,26 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     top: 118,
     bottom: 64,
   },
+  scoreLayerCaromThreePlayer: {
+    top: 132,
+    bottom: 56,
+  },
+  scoreLayerCaromThreePlayerCompact: {
+    top: 92,
+    bottom: 46,
+  },
+  scoreLayerCaromFourPlayer: {
+    top: 118,
+    bottom: 52,
+  },
+  scoreLayerPoolThreePlayer: {
+    top: 124,
+    bottom: 56,
+  },
+  scoreLayerPoolFourPlayer: {
+    top: 112,
+    bottom: 52,
+  },
   scoreLayerInactive: {
     opacity: 0.88,
   },
@@ -1025,6 +1087,19 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   scoreTextBoxCompact: {
     paddingHorizontal: 6,
+  },
+  scoreTextBoxMultiPlayer: {
+    paddingHorizontal: 4,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  scoreTextBoxFourPlayer: {
+    paddingHorizontal: 2,
+  },
+  scoreTextBoxCaromThreePlayerCompact: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   scoreText: {
     width: '90%',
@@ -1067,6 +1142,26 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   scoreTextCaromPhoneLandscape: {
     fontSize: 150,
     lineHeight: 164,
+  },
+  scoreTextCaromThreePlayer: {
+    fontSize: 104,
+    lineHeight: 110,
+  },
+  scoreTextCaromThreePlayerCompact: {
+    fontSize: 72,
+    lineHeight: 76,
+  },
+  scoreTextCaromFourPlayer: {
+    fontSize: 78,
+    lineHeight: 84,
+  },
+  scoreTextPoolThreePlayer: {
+    fontSize: 96,
+    lineHeight: 102,
+  },
+  scoreTextPoolFourPlayer: {
+    fontSize: 76,
+    lineHeight: 82,
   },
   scoreTextLibre3Digits: {
     fontSize: 190,

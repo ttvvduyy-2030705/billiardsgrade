@@ -1,7 +1,7 @@
 import colors from 'configuration/colors';
 import {PlayerNumber, PlayerPointStep} from 'types/player';
 
-type PLAYER_NUMBER_TYPE = 'pn2' | 'pn3' | 'pn4' | 'pn5';
+type PLAYER_NUMBER_TYPE = 'pn2' | 'pn3' | 'pn4';
 type PLAYER_NUMBER_POOL_TYPE = 'pn2' | 'pn3' | 'pn4';
 type PLAYER_NUMBER_POOL_15_TYPE = 'pn2';
 type PLAYER_POINT_STEPS_TYPE =
@@ -20,7 +20,6 @@ const PLAYER_NUMBER: {[key in PLAYER_NUMBER_TYPE]: PlayerNumber} = {
   pn2: 2,
   pn3: 3,
   pn4: 4,
-  pn5: 5,
 };
 
 const PLAYER_NUMBER_POOL: {[key in PLAYER_NUMBER_POOL_TYPE]: PlayerNumber} = {

@@ -126,30 +126,67 @@ const createDefaultPlayerCountry = () => ({
   flag: DEFAULT_COUNTRY.flag,
 });
 
-const sanitizePlayerSettings = (value: PlayerSettings): PlayerSettings => {
+const clampPlayerNumber = (value?: number): PlayerNumber => {
+  const numeric = Number(value || 2);
+  if (numeric >= 4) {
+    return 4;
+  }
+  if (numeric <= 2) {
+    return 2;
+  }
+  return 3;
+};
+
+const buildPlayersForCount = (
+  playerNumber: PlayerNumber,
+  category: BilliardCategory,
+  previousPlayers: PlayerSettings['playingPlayers'] = [],
+) => {
+  return Array.from({length: playerNumber}, (_, number) => {
+    const previousPlayer = previousPlayers[number];
+    return {
+      ...createDefaultPlayerCountry(),
+      ...(previousPlayer || {}),
+      name: previousPlayer?.name || i18n.t(`player${number + 1}`),
+      color: isPoolGame(category)
+        ? PLAYER_COLOR[1]
+        : (PLAYER_COLOR as any)[number],
+      totalPoint: Number(previousPlayer?.totalPoint || 0),
+    };
+  });
+};
+
+const sanitizePlayerSettings = (
+  value: PlayerSettings,
+  category: BilliardCategory = '9-ball',
+): PlayerSettings => {
   const safeValue = cloneSettingsValue(value) as PlayerSettings;
+  const playerNumber = clampPlayerNumber(safeValue.playerNumber);
+
+  const normalizedPlayers = (safeValue.playingPlayers || []).map(player => {
+    const fallbackCountry =
+      findCountryByCode((player as any)?.countryCode) ?? DEFAULT_COUNTRY;
+    const rawFlag = String((player as any)?.flag || '').trim();
+    const safeFlag = isRemoteUri(rawFlag)
+      ? fallbackCountry.flag || ''
+      : rawFlag || fallbackCountry.flag || '';
+
+    return {
+      ...player,
+      countryCode: String(
+        (player as any)?.countryCode || fallbackCountry.code || '',
+      ),
+      countryName: String(
+        (player as any)?.countryName || fallbackCountry.name || '',
+      ),
+      flag: safeFlag,
+    };
+  });
 
   return {
     ...safeValue,
-    playingPlayers: (safeValue.playingPlayers || []).map(player => {
-      const fallbackCountry =
-        findCountryByCode((player as any)?.countryCode) ?? DEFAULT_COUNTRY;
-      const rawFlag = String((player as any)?.flag || '').trim();
-      const safeFlag = isRemoteUri(rawFlag)
-        ? fallbackCountry.flag || ''
-        : rawFlag || fallbackCountry.flag || '';
-
-      return {
-        ...player,
-        countryCode: String(
-          (player as any)?.countryCode || fallbackCountry.code || '',
-        ),
-        countryName: String(
-          (player as any)?.countryName || fallbackCountry.name || '',
-        ),
-        flag: safeFlag,
-      };
-    }),
+    playerNumber,
+    playingPlayers: buildPlayersForCount(playerNumber, category, normalizedPlayers),
   } as PlayerSettings;
 };
 
@@ -168,7 +205,7 @@ const GameSettingsViewModel = (props: Props) => {
     );
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings>(
     runtimeDraft?.playerSettings
-      ? sanitizePlayerSettings(runtimeDraft.playerSettings)
+      ? sanitizePlayerSettings(runtimeDraft.playerSettings, runtimeDraft?.category ?? '9-ball')
       : PLAYER_SETTINGS(),
   );
 
@@ -203,13 +240,37 @@ const GameSettingsViewModel = (props: Props) => {
       restoredDraftRef.current = true;
       setCategory(persistedDraft.category);
       setGameSettingsMode(persistedDraft.gameSettingsMode);
-      setPlayerSettings(sanitizePlayerSettings(persistedDraft.playerSettings));
+      setPlayerSettings(sanitizePlayerSettings(persistedDraft.playerSettings, persistedDraft.category));
     })();
 
     return () => {
       cancelled = true;
     };
   }, [runtimeDraft]);
+
+
+  useEffect(() => {
+    const nextPlayerNumber = clampPlayerNumber(playerSettings.playerNumber);
+    const needsClamp =
+      nextPlayerNumber !== playerSettings.playerNumber ||
+      (playerSettings.playingPlayers?.length || 0) !== nextPlayerNumber;
+
+    if (!needsClamp) {
+      return;
+    }
+
+    setPlayerSettings(prev =>
+      ({
+        ...prev,
+        playerNumber: nextPlayerNumber,
+        playingPlayers: buildPlayersForCount(
+          nextPlayerNumber,
+          category,
+          prev.playingPlayers,
+        ),
+      } as PlayerSettings),
+    );
+  }, [category, playerSettings.playerNumber, playerSettings.playingPlayers]);
 
   useEffect(() => {
     const draft: SettingsDraftSnapshot = {
@@ -391,19 +452,15 @@ const onSelectGameMode = useCallback(
 
   const onSelectPlayerNumber = useCallback(
     (playerNumber: PlayerNumber) => {
+      const nextPlayerNumber = clampPlayerNumber(playerNumber);
       setPlayerSettings({
         ...playerSettings,
-        playerNumber,
-        playingPlayers: Array.from(Array(playerNumber).keys()).map(number => {
-          return {
-            name: i18n.t(`player${number + 1}`),
-            color: isPoolGame(category)
-              ? PLAYER_COLOR[1]
-              : (PLAYER_COLOR as any)[number],
-            totalPoint: 0,
-            ...createDefaultPlayerCountry(),
-          };
-        }),
+        playerNumber: nextPlayerNumber,
+        playingPlayers: buildPlayersForCount(
+          nextPlayerNumber,
+          category,
+          playerSettings.playingPlayers,
+        ),
       } as PlayerSettings);
     },
     [playerSettings, category],

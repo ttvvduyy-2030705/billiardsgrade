@@ -99,7 +99,8 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
     headerTitleWrap: chrome.headerTitleWrap,
     headerTitle: chrome.headerTitle,
     sectionLabel: {
-      color: '#8A8A8A',
+      color: '#FFFFFF',
+      fontWeight: '800',
     },
     accountRow: {
       width: '100%',
@@ -114,7 +115,7 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       flex: 1,
     },
     mutedText: {
-      color: '#8A8A8A',
+      color: 'rgba(255,255,255,0.72)',
       marginTop: metrics.s(4),
       lineHeight: metrics.fs(18),
     },
@@ -132,8 +133,8 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       alignSelf: 'stretch',
       alignItems: 'center',
       justifyContent: 'center',
-      borderColor: '#111111',
-      backgroundColor: '#FFFFFF',
+      borderColor: 'rgba(255,255,255,0.2)',
+      backgroundColor: '#0A0A0A',
     },
     optionRow: {
       width: '100%',
@@ -144,6 +145,8 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
     },
     optionLabel: {
       marginLeft: metrics.s(16),
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
     continueButton: {
       width: '100%',
@@ -153,6 +156,13 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       justifyContent: 'center',
     },
     continueText: {
+      color: '#FFFFFF',
+      textAlign: 'center',
+    },
+    primaryText: {
+      color: '#FFFFFF',
+    },
+    logoutText: {
       color: '#FFFFFF',
       textAlign: 'center',
     },
@@ -571,7 +581,7 @@ const LivePlatformSetup = (props: Props) => {
           {renderRadio(true)}
 
           <View style={styles.accountTextWrap}>
-            <Text fontSize={ui.bodySize} fontWeight={'bold'}>
+            <Text fontSize={ui.bodySize} fontWeight={'bold'} style={styles.primaryText}>
               {accountOptionTitle}
             </Text>
 
@@ -596,7 +606,7 @@ const LivePlatformSetup = (props: Props) => {
               borderWidth: ui.outlineWidth,
             },
           ]}>
-          <Text fontSize={ui.buttonSize} fontWeight={'bold'}>
+          <Text fontSize={ui.buttonSize} fontWeight={'bold'} style={styles.logoutText}>
             ĐĂNG XUẤT
           </Text>
         </TouchableOpacity>

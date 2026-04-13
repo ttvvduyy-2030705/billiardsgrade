@@ -20,6 +20,7 @@ import {
 } from './cameraFullscreenStore';
 import {
   isCaromGame,
+  isPool15FreeGame,
   isPool15Game,
   isPool15OnlyGame,
   isPoolGame,
@@ -96,6 +97,14 @@ const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
       flex: 1.12,
       minWidth: 0,
     },
+    multiPlayerSideColumn: {
+      flex: 1.06,
+      minWidth: 0,
+    },
+    multiPlayerConsoleSlot: {
+      flex: 0.96,
+      minWidth: 0,
+    },
     compactMainArea: {
       paddingHorizontal: a.s(6),
       paddingVertical: a.s(6),
@@ -134,11 +143,12 @@ const GamePlay = () => {
     useCompactTwoPlayerLayout || isWideTabletTwoPlayer;
 
   const category = viewModel.gameSettings?.category;
-  const players = viewModel.playerSettings?.playingPlayers || [];
-  const configuredPlayerCount = Number(
-    viewModel.gameSettings?.players?.playerNumber || players.length || 2,
+  const players = (viewModel.playerSettings?.playingPlayers || []).slice(0, 4);
+  const configuredPlayerCount = Math.min(
+    4,
+    Number(viewModel.gameSettings?.players?.playerNumber || players.length || 2),
   );
-  const totalPlayers = Math.max(players.length, configuredPlayerCount, 2);
+  const totalPlayers = Math.min(4, Math.max(players.length, configuredPlayerCount, 2));
 
   const isPoolArenaLayout = useMemo(() => {
     return (
@@ -153,27 +163,28 @@ const GamePlay = () => {
     return (
       isPoolArenaLayout ||
       isPool15Game(category) ||
-      isPool15OnlyGame(category)
+      isPool15OnlyGame(category) ||
+      isPool15FreeGame(category)
     );
   }, [category, isPoolArenaLayout]);
 
   const isCaromMode = useMemo(() => isCaromGame(category), [category]);
   const useThreePlayerLayout = totalPlayers === 3;
   const useFourPlayerLayout = totalPlayers === 4;
-  const useFivePlayerCaromLayout = isCaromMode && totalPlayers >= 5;
+  const useFivePlayerCaromLayout = false;
   const useMultiPlayerLayout =
     !isCameraFullscreen &&
-    (useThreePlayerLayout || useFourPlayerLayout || useFivePlayerCaromLayout);
+    (useThreePlayerLayout || useFourPlayerLayout);
   const useCompactResponsiveLayout =
     useMultiPlayerLayout || (!isCameraFullscreen && useCompactTwoPlayerLayout);
 
   const responsivePlayerSlotStyle =
-    !isCameraFullscreen && useTightTwoPlayerLayout
+    !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
       ? localStyles.tabletPlayerSlot
       : undefined;
 
   const responsiveConsoleSlotStyle =
-    !isCameraFullscreen && useTightTwoPlayerLayout
+    !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
       ? localStyles.tabletConsoleSlot
       : undefined;
 
@@ -181,6 +192,21 @@ const GamePlay = () => {
     !isCameraFullscreen && useTightTwoPlayerLayout
       ? localStyles.compactMainArea
       : undefined;
+
+  const displayProModeEnabled =
+    viewModel.proModeEnabled && !(isCaromMode && totalPlayers > 2);
+
+  const effectivePlayerSettings = useMemo(() => {
+    if (!viewModel.playerSettings) {
+      return viewModel.playerSettings;
+    }
+
+    return {
+      ...viewModel.playerSettings,
+      playerNumber: totalPlayers as any,
+      playingPlayers: players,
+    };
+  }, [players, totalPlayers, viewModel.playerSettings]);
 
   const title = useMemo(() => {
     return buildTitle(
@@ -244,7 +270,7 @@ const GamePlay = () => {
         isStarted={viewModel.isStarted}
         isPaused={viewModel.isPaused}
         soundEnabled={viewModel.soundEnabled}
-        proModeEnabled={viewModel.proModeEnabled}
+        proModeEnabled={displayProModeEnabled}
         totalTurns={viewModel.totalTurns}
         gameSettings={viewModel.gameSettings}
         totalPlayers={totalPlayers}
@@ -264,7 +290,7 @@ const GamePlay = () => {
       <GameConsole
         winner={viewModel.winner}
         gameSettings={viewModel.gameSettings}
-        playerSettings={viewModel.playerSettings}
+        playerSettings={effectivePlayerSettings}
         currentMode={viewModel.gameSettings.mode}
         warmUpCount={viewModel.warmUpCount}
         totalPlayers={totalPlayers}
@@ -278,7 +304,7 @@ const GamePlay = () => {
         isMatchPaused={viewModel.isMatchPaused}
         soundEnabled={viewModel.soundEnabled}
         poolBreakEnabled={viewModel.poolBreakEnabled}
-        proModeEnabled={viewModel.proModeEnabled}
+        proModeEnabled={displayProModeEnabled}
         webcamFolderName={viewModel.webcamFolderName}
         onGameBreak={viewModel.onGameBreak}
         onPoolBreak={viewModel.onPoolBreak}
@@ -388,7 +414,45 @@ const GamePlay = () => {
       );
     }
 
-    if (useThreePlayerLayout || useFourPlayerLayout) {
+    if (useThreePlayerLayout) {
+      return (
+        <View
+          flex={'1'}
+          direction={'row'}
+          style={[styles.poolArenaBoard, styles.mainArea, compactMainAreaStyle]}>
+          <View
+            style={[
+              styles.poolArenaPlayerColumn,
+              localStyles.multiPlayerSideColumn,
+              responsivePlayerSlotStyle,
+            ]}>
+            {renderPlayer(0)}
+          </View>
+
+          <View
+            style={[
+              styles.poolArenaConsoleWrapper,
+              localStyles.multiPlayerConsoleSlot,
+              responsiveConsoleSlotStyle,
+            ]}>
+            {renderConsole()}
+          </View>
+
+          <View
+            style={[
+              localStyles.splitColumn,
+              localStyles.multiPlayerSideColumn,
+              useCompactResponsiveLayout && localStyles.splitColumnCompact,
+              responsivePlayerSlotStyle,
+            ]}>
+            <View style={localStyles.splitSlot}>{renderPlayer(1)}</View>
+            <View style={localStyles.splitSlot}>{renderPlayer(2)}</View>
+          </View>
+        </View>
+      );
+    }
+
+    if (useFourPlayerLayout) {
       return (
         <View
           flex={'1'}
@@ -397,6 +461,7 @@ const GamePlay = () => {
           <View
             style={[
               localStyles.splitColumn,
+              localStyles.multiPlayerSideColumn,
               useCompactResponsiveLayout && localStyles.splitColumnCompact,
               responsivePlayerSlotStyle,
             ]}>
@@ -407,30 +472,26 @@ const GamePlay = () => {
           <View
             style={[
               styles.poolArenaConsoleWrapper,
+              localStyles.multiPlayerConsoleSlot,
               responsiveConsoleSlotStyle,
             ]}>
             {renderConsole()}
           </View>
 
-          {useThreePlayerLayout ? (
-            <View
-              style={[styles.poolArenaPlayerColumn, responsivePlayerSlotStyle]}>
-              {renderPlayer(1)}
-            </View>
-          ) : (
-            <View
-              style={[
-                localStyles.splitColumn,
-                useCompactResponsiveLayout && localStyles.splitColumnCompact,
-                responsivePlayerSlotStyle,
-              ]}>
-              <View style={localStyles.splitSlot}>{renderPlayer(1)}</View>
-              <View style={localStyles.splitSlot}>{renderPlayer(3)}</View>
-            </View>
-          )}
+          <View
+            style={[
+              localStyles.splitColumn,
+              localStyles.multiPlayerSideColumn,
+              useCompactResponsiveLayout && localStyles.splitColumnCompact,
+              responsivePlayerSlotStyle,
+            ]}>
+            <View style={localStyles.splitSlot}>{renderPlayer(1)}</View>
+            <View style={localStyles.splitSlot}>{renderPlayer(3)}</View>
+          </View>
         </View>
       );
     }
+
 
     return (
       <View
@@ -500,9 +561,10 @@ const GamePlay = () => {
             onToggleSound={viewModel.onToggleSound}
             remoteEnabled={remoteEnabled}
             onToggleRemote={setRemoteEnabled}
-            proModeEnabled={viewModel.proModeEnabled}
+            proModeEnabled={displayProModeEnabled}
             onToggleProMode={viewModel.onToggleProMode}
             gameSettings={viewModel.gameSettings}
+            totalPlayers={totalPlayers}
             centerTimeText={headerTimeText}
             compactTitleLeft={true}
           />

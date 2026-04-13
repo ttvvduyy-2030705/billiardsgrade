@@ -174,7 +174,11 @@ const PlayerViewModel = (props: Props) => {
   );
 
   const showProMode = useMemo(() => {
-    return props.proModeEnabled && !isPoolGame(props.gameSettings?.category);
+    return (
+      props.proModeEnabled &&
+      !isPoolGame(props.gameSettings?.category) &&
+      Number(props.totalPlayers || 2) <= 2
+    );
   }, [props]);
 
   return useMemo(() => {

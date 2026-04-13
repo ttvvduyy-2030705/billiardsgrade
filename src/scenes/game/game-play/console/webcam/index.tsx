@@ -225,7 +225,16 @@ const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?:
     return subscribeCaromCameraScoreboardState(setState);
   }, []);
 
-  const shouldShowCarom = isCaromGame(state.gameSettings?.category);
+  const totalPlayers = Math.max(
+    Number((state.playerSettings as any)?.playerNumber || 0),
+    Array.isArray((state.playerSettings as any)?.playingPlayers)
+      ? (state.playerSettings as any).playingPlayers.length
+      : 0,
+    2,
+  );
+
+  const shouldShowCarom =
+    isCaromGame(state.gameSettings?.category) && totalPlayers <= 2;
   if (!shouldShowCarom) {
     return null;
   }

@@ -28,6 +28,7 @@ interface Props {
   proModeEnabled?: boolean;
   onToggleProMode?: (value: boolean) => void;
   gameSettings?: any;
+  totalPlayers?: number;
   centerTimeText?: string;
   compactTitleLeft?: boolean;
 }
@@ -48,6 +49,7 @@ const TopMatchHeader = ({
   proModeEnabled = false,
   onToggleProMode,
   gameSettings,
+  totalPlayers = 2,
   centerTimeText,
   compactTitleLeft = false,
 }: Props) => {
@@ -217,7 +219,7 @@ const TopMatchHeader = ({
 
       <View style={[styles.rightSlot, dynamicStyles.rightSlot]}>
         <View style={[styles.switchGroup, dynamicStyles.switchGroup]}>
-          {!isAnyPoolMode ? (
+          {!isAnyPoolMode && totalPlayers <= 2 ? (
             <View style={[styles.switchRow, dynamicStyles.switchRow]}>
               <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
                 {localeText('Chuyên nghiệp', 'Pro mode')}
