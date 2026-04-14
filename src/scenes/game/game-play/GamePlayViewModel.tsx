@@ -184,6 +184,41 @@ type ReplayReturnRequest = {
   requestedAt?: number;
 };
 
+type Pool8Tracker = {
+  sequence: BallType[];
+  activeIndex: number;
+};
+
+const DEFAULT_POOL8_LEFT_SEQUENCE: BallType[] = [
+  BallType.B1,
+  BallType.B2,
+  BallType.B3,
+  BallType.B4,
+  BallType.B5,
+  BallType.B6,
+  BallType.B7,
+  BallType.B8,
+];
+
+const DEFAULT_POOL8_RIGHT_SEQUENCE: BallType[] = [
+  BallType.B9,
+  BallType.B10,
+  BallType.B11,
+  BallType.B12,
+  BallType.B13,
+  BallType.B14,
+  BallType.B15,
+  BallType.B8,
+];
+
+const buildDefaultPool8Trackers = (): Pool8Tracker[] => [
+  {sequence: [...DEFAULT_POOL8_LEFT_SEQUENCE], activeIndex: 0},
+  {sequence: [...DEFAULT_POOL8_RIGHT_SEQUENCE], activeIndex: 0},
+];
+
+const resetPool8Trackers = (trackers: Pool8Tracker[]): Pool8Tracker[] =>
+  trackers.map(tracker => ({...tracker, activeIndex: 0}));
+
 const REPLAY_RESUME_SNAPSHOT_STORAGE_KEY =
   '@APLUS_REPLAY_RESUME_SNAPSHOT_V3';
 
@@ -475,12 +510,28 @@ const GamePlayViewModel = () => {
   const winnerAlertShownRef = useRef(false);
   const pendingNewGameAfterViolateRef = useRef(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [pool8FreeHole10Scores, setPool8FreeHole10Scores] = useState<number[]>([0, 0, 0, 0]);
+  const [pool8FreeSetWinnerIndex, setPool8FreeSetWinnerIndex] = useState<number | null>(null);
+  const [pool8Trackers, setPool8Trackers] = useState<Pool8Tracker[]>(buildDefaultPool8Trackers);
+  const [pool8SetWinnerIndex, setPool8SetWinnerIndex] = useState<number | null>(null);
   const [cameraSessionNonce, setCameraSessionNonce] = useState(0);
   const replayReturnAtRef = useRef(0);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  useEffect(() => {
+    if (!playerSettings) {
+      return;
+    }
+
+    setPool8FreeHole10Scores(prev => {
+      const next = Array.from({length: Math.max(4, playerSettings.playingPlayers.length)}, (_, index) => prev[index] || 0);
+      return next;
+    });
+  }, [playerSettings?.playingPlayers.length]);
+
 
   const clearRecordingStartRetry = useCallback(() => {
     if (recordingStartRetryRef.current) {
@@ -1048,6 +1099,7 @@ const GamePlayViewModel = () => {
       setIsMatchPaused(false);
       setGameBreakEnabled(false);
       setWinner(undefined);
+    setPool8FreeSetWinnerIndex(null);
       setTotalTurns(1);
       setTotalTime(0);
       setCurrentPlayerIndex(0);
@@ -1074,10 +1126,15 @@ const GamePlayViewModel = () => {
 
       if (
         isPoolGame(gameSettings?.category) &&
-        !isPool15Game(gameSettings?.category) &&
+        !isPool15FreeGame(gameSettings?.category) &&
         gameSettings?.mode?.countdownTime
       ) {
         setPoolBreakEnabled(true);
+      }
+
+      if (isPool15OnlyGame(gameSettings?.category)) {
+        setPool8Trackers(buildDefaultPool8Trackers());
+        setPool8SetWinnerIndex(null);
       }
     };
 
@@ -1719,6 +1776,99 @@ const GamePlayViewModel = () => {
     ],
   );
 
+  const onIncrementPool8FreeHole10 = useCallback((playerIndex: number) => {
+    setPool8FreeHole10Scores(prev =>
+      prev.map((score, index) => (index === playerIndex ? score + 1 : score)),
+    );
+  }, []);
+
+  const onSwapPool8Groups = useCallback(() => {
+    if (!isPool15OnlyGame(gameSettings?.category)) {
+      return;
+    }
+
+    setPool8Trackers(prev => {
+      const next = prev.length >= 2 ? [...prev] : buildDefaultPool8Trackers();
+      return [next[1], next[0]];
+    });
+  }, [gameSettings?.category]);
+
+  const onPressPool8Ball = useCallback(
+    (playerIndex: number) => {
+      if (
+        !isStarted ||
+        !playerSettings ||
+        !isPool15OnlyGame(gameSettings?.category) ||
+        winner ||
+        poolBreakEnabled ||
+        isPaused ||
+        isMatchPaused ||
+        pool8SetWinnerIndex !== null ||
+        playerIndex !== currentPlayerIndex
+      ) {
+        return;
+      }
+
+      const tracker = pool8Trackers[playerIndex];
+      const activeBall = tracker?.sequence?.[tracker.activeIndex];
+      if (typeof activeBall !== 'number') {
+        return;
+      }
+
+      if (activeBall === BallType.B8) {
+        const updatedPlayers = playerSettings.playingPlayers.map((player, index) =>
+          index === playerIndex
+            ? ({
+                ...player,
+                totalPoint: Number(player.totalPoint || 0) + 1,
+              } as Player)
+            : player,
+        );
+
+        setPlayerSettings({...playerSettings, playingPlayers: updatedPlayers});
+        setPool8SetWinnerIndex(playerIndex);
+        setIsMatchPaused(true);
+
+        const setWinnerPlayer = updatedPlayers[playerIndex];
+        const targetGoal = Number(gameSettings?.players?.goal?.goal || 0);
+
+        if (Number(setWinnerPlayer?.totalPoint || 0) >= targetGoal && targetGoal > 0) {
+          setWinner(setWinnerPlayer);
+          setIsStarted(false);
+          setIsPaused(false);
+          showWinnerAlertAndGoBack(setWinnerPlayer);
+        }
+
+        return;
+      }
+
+      setPool8Trackers(prev =>
+        prev.map((item, index) =>
+          index === playerIndex
+            ? {
+                ...item,
+                activeIndex: Math.min(item.sequence.length - 1, item.activeIndex + 1),
+              }
+            : item,
+        ),
+      );
+    },
+    [
+      currentPlayerIndex,
+      gameSettings?.category,
+      gameSettings?.players?.goal?.goal,
+      isMatchPaused,
+      isPaused,
+      isStarted,
+      playerSettings,
+      pool8SetWinnerIndex,
+      pool8Trackers,
+      poolBreakEnabled,
+      showWinnerAlertAndGoBack,
+      winner,
+    ],
+  );
+
   const onPoolScore = useCallback(
     (ball: PoolBallType) => {
       if (
@@ -1730,6 +1880,14 @@ const GamePlayViewModel = () => {
         return;
       }
 
+      if (isPool15FreeGame(gameSettings?.category) && pool8FreeSetWinnerIndex !== null) {
+        return;
+      }
+
+      if (isPool15OnlyGame(gameSettings?.category)) {
+        return;
+      }
+
       const newPlayingPlayers = playerSettings.playingPlayers.map(
         (player, index) => {
           if (currentPlayerIndex === index) {
@@ -1738,7 +1896,7 @@ const GamePlayViewModel = () => {
               ...player,
               scoredBalls: nextScoredBalls,
               totalPoint: isPool15FreeGame(gameSettings?.category)
-                ? nextScoredBalls.length
+                ? player.totalPoint
                 : player.totalPoint,
             } as Player;
           }
@@ -1747,10 +1905,44 @@ const GamePlayViewModel = () => {
         },
       );
 
+      if (isPool15FreeGame(gameSettings?.category)) {
+        const nextCurrentPlayer = newPlayingPlayers[currentPlayerIndex];
+        const scoredCount = nextCurrentPlayer?.scoredBalls?.length || 0;
+
+        if (scoredCount >= 8) {
+          const updatedPlayers = newPlayingPlayers.map((player, index) =>
+            index === currentPlayerIndex
+              ? ({
+                  ...player,
+                  totalPoint: Number(player.totalPoint || 0) + 1,
+                } as Player)
+              : player,
+          );
+
+          setPlayerSettings({...playerSettings, playingPlayers: updatedPlayers});
+          setPool8FreeSetWinnerIndex(currentPlayerIndex);
+          setIsMatchPaused(true);
+
+          const setWinnerPlayer = updatedPlayers[currentPlayerIndex];
+          const targetGoal = Number(gameSettings?.players?.goal?.goal || 0);
+          if (Number(setWinnerPlayer?.totalPoint || 0) >= targetGoal && targetGoal > 0) {
+            setWinner(setWinnerPlayer);
+            setIsStarted(false);
+            setIsPaused(false);
+            showWinnerAlertAndGoBack(setWinnerPlayer);
+          }
+          return;
+        }
+
+        setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
+        return;
+      }
+
       setPlayerSettings({...playerSettings, playingPlayers: newPlayingPlayers});
 
       switch (true) {
         case isPool9Game(gameSettings?.category):
+        case isPool15OnlyGame(gameSettings?.category):
           if (ball.number === BallType.B9) {
             onSelectWinner();
           }
@@ -1760,28 +1952,6 @@ const GamePlayViewModel = () => {
             onSelectWinner();
           }
           break;
-        case isPool15FreeGame(gameSettings?.category): {
-          const totalScoredBalls = newPlayingPlayers.reduce(
-            (sum, player) => sum + (player.scoredBalls?.length || 0),
-            0,
-          );
-
-          if (totalScoredBalls >= 15) {
-            const [firstPlayer, secondPlayer] = newPlayingPlayers;
-            const winnerIndex =
-              Number(firstPlayer?.totalPoint || 0) >=
-              Number(secondPlayer?.totalPoint || 0)
-                ? 0
-                : 1;
-            const winnerPlayer = newPlayingPlayers[winnerIndex];
-            setWinner(winnerPlayer);
-            setIsStarted(false);
-            setIsPaused(false);
-            setIsMatchPaused(true);
-            showWinnerAlertAndGoBack(winnerPlayer);
-          }
-          break;
-        }
         default:
           break;
       }
@@ -1789,9 +1959,11 @@ const GamePlayViewModel = () => {
     [
       currentPlayerIndex,
       gameSettings?.category,
+      gameSettings?.players?.goal?.goal,
       isStarted,
       onSelectWinner,
       playerSettings,
+      pool8FreeSetWinnerIndex,
       winner,
       showWinnerAlertAndGoBack,
     ],
@@ -1872,6 +2044,11 @@ const GamePlayViewModel = () => {
     setPoolBreakEnabled(false);
     setIsMatchPaused(false);
     setIsStarted(true);
+
+    if (isPool15OnlyGame(gameSettings?.category)) {
+      setPool8Trackers(prev => resetPool8Trackers(prev.length ? prev : buildDefaultPool8Trackers()));
+      setPool8SetWinnerIndex(null);
+    }
   }, [gameSettings, isStarted, isPaused, poolBreakEnabled]);
 
   const getWarmUpTimeString = useCallback(() => {
@@ -2345,10 +2522,11 @@ const GamePlayViewModel = () => {
     }
 
     if (isPoolGame(gameSettings?.category)) {
-      setPoolBreakEnabled(!isPool15Game(gameSettings?.category));
+      setPoolBreakEnabled(!isPool15FreeGame(gameSettings?.category));
     }
 
     setIsMatchPaused(false);
+    setPool8FreeSetWinnerIndex(null);
 
     onSwitchPoolBreakPlayerIndex(poolBreakPlayerIndex, playerIndex => {
       setCurrentPlayerIndex(playerIndex);
@@ -2568,7 +2746,7 @@ const GamePlayViewModel = () => {
     void setReplayResumeSnapshot(null);
     void setLiveMatchSnapshot(null);
     setReplayReturnRequestSync(null);
-    const shouldResetRackScore = isPool15Game(gameSettings?.category);
+    const shouldResetRackScore = false;
 
     const newPlayerSettings = {
       ...playerSettings,
@@ -2595,10 +2773,19 @@ const GamePlayViewModel = () => {
     ) {
       const extraTimeBonus = gameSettings.mode?.extraTimeBonus || 0;
       setCountdownTime(gameSettings.mode?.countdownTime! + extraTimeBonus);
-      setPoolBreakEnabled(!isPool15Game(gameSettings?.category));
+      setPoolBreakEnabled(!isPool15FreeGame(gameSettings?.category));
     }
 
-    if (isPool15Game(gameSettings?.category)) {
+    if (isPool15OnlyGame(gameSettings?.category)) {
+      setPool8SetWinnerIndex(null);
+      setPool8Trackers(prev => resetPool8Trackers(prev.length ? prev : buildDefaultPool8Trackers()));
+      setIsMatchPaused(false);
+      setPoolBreakEnabled(false);
+      return;
+    }
+
+    if (isPool15FreeGame(gameSettings?.category)) {
+      setPool8FreeSetWinnerIndex(null);
       setIsMatchPaused(false);
       return;
     }
@@ -2895,6 +3082,13 @@ const GamePlayViewModel = () => {
       updateWebcamFolderName,
       onPool15OnlyScore,
       onPoolScore,
+      pool8Trackers,
+      pool8SetWinnerIndex,
+      onSwapPool8Groups,
+      onPressPool8Ball,
+      pool8FreeHole10Scores,
+      pool8FreeSetWinnerIndex,
+      onIncrementPool8FreeHole10,
       onSelectWinner,
       onClearWinner,
       onPoolBreak,
@@ -2962,6 +3156,13 @@ const GamePlayViewModel = () => {
     updateWebcamFolderName,
     onPool15OnlyScore,
     onPoolScore,
+    pool8Trackers,
+    pool8SetWinnerIndex,
+    onSwapPool8Groups,
+    onPressPool8Ball,
+    pool8FreeHole10Scores,
+    pool8FreeSetWinnerIndex,
+    onIncrementPool8FreeHole10,
     onSelectWinner,
     onClearWinner,
     onPoolBreak,

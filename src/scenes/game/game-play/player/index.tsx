@@ -4,7 +4,9 @@ import {StyleSheet, TextInput, Text as RNText, Image as RNImage} from 'react-nat
 import View from 'components/View';
 import Button from 'components/Button';
 import i18n from 'i18n';
-import {isPool15FreeGame, isPool15Game, isPoolGame} from 'utils/game';
+import {BALLS_15} from 'constants/balls';
+import {BallType} from 'types/ball';
+import {isPool15FreeGame, isPool15Game, isPool15OnlyGame, isPoolGame} from 'utils/game';
 
 import PlayerViewModel, {Props} from './PlayerViewModel';
 import {getCountryFlagImageUri} from '../../settings/player/countries';
@@ -77,11 +79,18 @@ const isLightColor = (value?: string) => {
 };
 
 const GamePlayer = (
-  props: Props & {layout?: 'default' | 'poolArena'; compact?: boolean},
+  props: Props & {
+    layout?: 'default' | 'poolArena';
+    compact?: boolean;
+    showPool8Tracker?: boolean;
+    pool8Tracker?: {sequence: BallType[]; activeIndex: number};
+    onPressPool8Ball?: (playerIndex: number) => void;
+  },
 ) => {
   const viewModel = PlayerViewModel(props);
   const isPoolMode = isPoolGame(props.gameSettings?.category);
   const isPool15Mode = isPool15Game(props.gameSettings?.category);
+  const isPool15OnlyMode = isPool15OnlyGame(props.gameSettings?.category);
   const isPool15FreeMode = isPool15FreeGame(props.gameSettings?.category);
   const isActiveCard = !!props.isOnTurn;
 
@@ -272,12 +281,36 @@ const GamePlayer = (
     Number((props.player as any)?.proMode?.extraTimeTurns ?? 0),
   );
 
-  const showAddTime = extraTimeTurns > 0 && !isPool15Mode;
+  const showAddTime = extraTimeTurns > 0 && (!isPool15Mode || isPool15OnlyMode);
 
 
   const addTimeButtons = useMemo(() => {
     return Array.from({length: extraTimeTurns}, (_, index) => index);
   }, [extraTimeTurns]);
+
+  const poolBallMap = useMemo(() => {
+    return BALLS_15.reduce<Record<string, any>>((result, ball) => {
+      result[String(ball.number)] = ball;
+      return result;
+    }, {});
+  }, []);
+
+  const showPool8Tracker = Boolean(
+    isPool15OnlyMode && props.showPool8Tracker && props.pool8Tracker?.sequence?.length,
+  );
+
+  const pool8TrackerBalls = useMemo(() => {
+    if (!showPool8Tracker) {
+      return [];
+    }
+
+    return (props.pool8Tracker?.sequence || []).map((number, index) => ({
+      index,
+      number,
+      ball: poolBallMap[String(number)],
+      isActive: index === Number(props.pool8Tracker?.activeIndex || 0),
+    }));
+  }, [poolBallMap, props.pool8Tracker, showPool8Tracker]);
 
   const playerFlag = getPlayerFlagText(props.player as any);
   const playerFlagImage = getPlayerFlagImageUri(props.player as any);
@@ -590,6 +623,7 @@ const GamePlayer = (
             styles.addTimeStack,
             isMediumResponsiveLayout ? styles.addTimeStackMedium : undefined,
             isCompactLayout && styles.addTimeStackCompact,
+            isPool15OnlyMode && styles.addTimeStackPool8,
             !isActiveCard && styles.addTimeStackInactive,
           ]}>
           {addTimeButtons.map(index => (
@@ -620,12 +654,58 @@ const GamePlayer = (
         </View>
       ) : null}
 
+      {showPool8Tracker ? (
+        <View
+          style={[
+            styles.pool8TrackerStack,
+            !isActiveCard && styles.pool8TrackerStackInactive,
+          ]}>
+          {pool8TrackerBalls.map(item => {
+            const ball = item.ball;
+            if (!ball) {
+              return null;
+            }
+
+            const isBlackBall = item.number === BallType.B8;
+            return (
+              <Button
+                key={`pool8-track-${props.index}-${item.index}-${item.number}`}
+                onPress={item.isActive && isActiveCard ? () => props.onPressPool8Ball?.(props.index) : undefined}
+                style={[
+                  styles.pool8TrackerBall,
+                  item.isActive ? styles.pool8TrackerBallActive : styles.pool8TrackerBallInactive,
+                  {
+                    backgroundColor: item.isActive ? (ball.cut ? '#FFFFFF' : ball.color) : '#1E2128',
+                    borderColor: item.isActive ? ball.color : '#50545D',
+                  },
+                ]}>
+                {ball.cut && item.isActive ? (
+                  <View style={[styles.pool8TrackerStripe, {backgroundColor: ball.color}]} />
+                ) : null}
+                <RNText
+                  style={[
+                    styles.pool8TrackerBallText,
+                    {color: item.isActive ? (isBlackBall ? '#FFFFFF' : '#111111') : '#8A8F99'},
+                  ]}
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}>
+                  {item.number}
+                </RNText>
+              </Button>
+            );
+          })}
+        </View>
+      ) : null}
+
       {isPool15FreeMode && (props.player.scoredBalls || []).length > 0 ? (
         <View
           style={[
             styles.scoredBallStack,
+            isPool15FreeMode && styles.scoredBallStackPool15Free,
             isMediumResponsiveLayout ? styles.scoredBallStackMedium : undefined,
             isCompactLayout && styles.scoredBallStackCompact,
+            isPool15FreeMode && isMediumResponsiveLayout && styles.scoredBallStackPool15FreeMedium,
+            isPool15FreeMode && isCompactLayout && styles.scoredBallStackPool15FreeCompact,
             !isActiveCard && styles.scoredBallStackInactive,
           ]}>
           {(props.player.scoredBalls || []).map((ball, index) => {
@@ -1257,6 +1337,61 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   addTimeTextInactive: {
     opacity: 0.92,
   },
+  addTimeStackPool8: {
+    position: 'absolute',
+    right: 10,
+    top: 142,
+    bottom: 82,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 6,
+    elevation: 6,
+  },
+  pool8TrackerStack: {
+    position: 'absolute',
+    left: 12,
+    top: 142,
+    bottom: 82,
+    width: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 6,
+    elevation: 6,
+  },
+  pool8TrackerStackInactive: {
+    opacity: 0.84,
+  },
+  pool8TrackerBall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  pool8TrackerBallActive: {
+    opacity: 1,
+  },
+  pool8TrackerBallInactive: {
+    opacity: 0.9,
+  },
+  pool8TrackerStripe: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 11,
+    height: 10,
+  },
+  pool8TrackerBallText: {
+    fontSize: 13,
+    lineHeight: 15,
+    fontWeight: '900',
+    includeFontPadding: false,
+    textAlign: 'center',
+  },
   scoredBallStack: {
     position: 'absolute',
     right: 10,
@@ -1264,12 +1399,28 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     gap: 6,
     alignItems: 'center',
   },
+  scoredBallStackPool15Free: {
+    top: 138,
+    bottom: 84,
+    justifyContent: 'center',
+    gap: 5,
+  },
   scoredBallStackMedium: {
     top: 104,
     gap: 5,
   },
+  scoredBallStackPool15FreeMedium: {
+    top: 122,
+    bottom: 72,
+    gap: 4,
+  },
   scoredBallStackCompact: {
     top: 92,
+    gap: 4,
+  },
+  scoredBallStackPool15FreeCompact: {
+    top: 104,
+    bottom: 68,
     gap: 4,
   },
   scoredBallStackInactive: {

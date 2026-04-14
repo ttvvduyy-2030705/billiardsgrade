@@ -11,6 +11,7 @@ import {
   GAME_WARM_UP_TIME,
 } from 'constants/game-settings';
 import {BilliardCategory} from 'types/category';
+import {isPoolGame} from 'utils/game';
 import {
   GameCountDownTime,
   GameExtraTimeBonus,
@@ -219,7 +220,7 @@ const CategorySettings = ({
             styles.compactOptionRow,
           )}
 
-        {extraTimeBonusEnabled &&
+        {extraTimeBonusEnabled && !isPoolGame(category) &&
           renderInlineRow(
             extraTimeTitle,
             GAME_EXTRA_TIME_BONUS,

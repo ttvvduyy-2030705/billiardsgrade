@@ -153,8 +153,7 @@ const GamePlay = () => {
   const isPoolArenaLayout = useMemo(() => {
     return (
       isPoolGame(category) &&
-      !isPool15Game(category) &&
-      !isPool15OnlyGame(category) &&
+      !isPool15FreeGame(category) &&
       totalPlayers === 2
     );
   }, [category, totalPlayers]);
@@ -162,8 +161,6 @@ const GamePlay = () => {
   const useDarkPoolBackground = useMemo(() => {
     return (
       isPoolArenaLayout ||
-      isPool15Game(category) ||
-      isPool15OnlyGame(category) ||
       isPool15FreeGame(category)
     );
   }, [category, isPoolArenaLayout]);
@@ -220,7 +217,7 @@ const GamePlay = () => {
   }, [viewModel.totalTime]);
 
   const usePoolHeaderClock = useMemo(() => {
-    return isPoolGame(category) && !isPool15Game(category) && !isPool15OnlyGame(category);
+    return isPoolGame(category) && !isPool15FreeGame(category);
   }, [category]);
 
   const warmTitleSize = adaptive.fs(isLargeDisplay ? 64 : 52, 0.8, 1.06);
@@ -281,6 +278,9 @@ const GamePlay = () => {
         onViolate={viewModel.onViolate}
         onEndTurn={viewModel.onEndTurn}
         onPressGiveMoreTime={viewModel.onPressGiveMoreTime}
+        showPool8Tracker={isPool15OnlyGame(category) && viewModel.isStarted && !viewModel.poolBreakEnabled}
+        pool8Tracker={viewModel.pool8Trackers?.[playerIndex]}
+        onPressPool8Ball={viewModel.onPressPool8Ball}
       />
     );
   };
@@ -318,6 +318,12 @@ const GamePlay = () => {
         onToggleProMode={viewModel.onToggleProMode}
         onPool15OnlyScore={viewModel.onPool15OnlyScore}
         onPoolScore={viewModel.onPoolScore}
+        pool8Trackers={viewModel.pool8Trackers}
+        pool8SetWinnerIndex={viewModel.pool8SetWinnerIndex}
+        onSwapPool8Groups={viewModel.onSwapPool8Groups}
+        pool8FreeHole10Scores={viewModel.pool8FreeHole10Scores}
+        pool8FreeSetWinnerIndex={viewModel.pool8FreeSetWinnerIndex}
+        onIncrementPool8FreeHole10={viewModel.onIncrementPool8FreeHole10}
         renderLastPlayer={() => <View />}
         onSelectWinner={viewModel.onSelectWinner}
         onClearWinner={viewModel.onClearWinner}
@@ -540,7 +546,9 @@ const GamePlay = () => {
         ]}
         onPress={viewModel.onEndWarmUp}>
         <Text color={colors.white} fontSize={warmButtonTextSize}>
-          Kết thúc khởi động
+          {viewModel.gameBreakEnabled
+            ? 'Kết thúc giải lao'
+            : 'Kết thúc khởi động'}
         </Text>
       </Button>
     </View>

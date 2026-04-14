@@ -542,14 +542,19 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const category = props.gameSettings?.category;
   const isPool = isPoolGame(category);
   const isCarom = isCaromGame(category);
-  const isPool15 = isPool15Game(category);
-  const isPool15Only = isPool15OnlyGame(category);
   const isPool15Free = isPool15FreeGame(category);
+  const isPool8Temp = isPool15OnlyGame(category);
+  const isPool15 = isPool15Free;
+  const isPool15Only = false;
   const usePoolBroadcastLayout = isPool && !isPool15;
   const isFastMode = props.gameSettings?.mode?.mode === 'fast';
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
   const totalPlayers = Number(props.totalPlayers || 2);
+  const pool8FreeSetWinnerPlayer = props.pool8FreeSetWinnerIndex != null ? players[props.pool8FreeSetWinnerIndex] : undefined;
+  const pool8SetWinnerPlayer = props.pool8SetWinnerIndex != null ? players[props.pool8SetWinnerIndex] : undefined;
+  const leftHole10Score = Number(props.pool8FreeHole10Scores?.[0] || 0);
+  const rightHole10Score = Number(props.pool8FreeHole10Scores?.[1] || 0);
   const hideCaromCamera = isCarom && totalPlayers >= 5;
   const hideCaromScoreChrome = isCarom && totalPlayers >= 3;
   const useCaromConsoleCompact =
@@ -867,6 +872,27 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   ]);
 
   const pool15Footer = useMemo(() => {
+    if (isPool8Temp) {
+      if (pool8SetWinnerPlayer && !props.winner) {
+        return (
+          <View style={styles.pool15FooterWrap}>
+            <View style={styles.pool8FreeWinnerInline}>
+              <RNText style={styles.pool8FreeWinnerInlineText}>
+                {`${pool8SetWinnerPlayer.name} ${tr('thắng set này', 'wins this set')}`}
+              </RNText>
+              <Button style={styles.pool8FreeWinnerInlineButton} onPress={props.onReset}>
+                <RNText style={styles.pool8FreeWinnerInlineButtonText}>
+                  {tr('Ván mới', 'New game')}
+                </RNText>
+              </Button>
+            </View>
+          </View>
+        );
+      }
+
+      return null;
+    }
+
     if (!isPool15) {
       return null;
     }
@@ -926,20 +952,62 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       );
     }
 
+    const freeRows = [
+      [BallType.B1, BallType.B2, BallType.B3, BallType.B4, BallType.B5],
+      [BallType.B6, BallType.B7, BallType.B8, BallType.B9, BallType.B10],
+      [BallType.B11, BallType.B12, BallType.B13, BallType.B14, BallType.B15],
+    ];
+
     return (
       <View style={styles.pool15FooterWrap}>
-        <View style={styles.pool15FreeGrid}>
-          {remainingFreeBalls.map(ball => (
-            <View
-              key={`free-ball-${ball.number}`}
-              style={styles.pool15FreeBallWrap}>
-              <PoolBallButton
-                ball={ball}
-                size={useExtraCompact ? 'small' : 'large'}
-                onPress={() => props.onPoolScore(ball)}
-              />
-            </View>
-          ))}
+        <View direction={'row'} style={styles.pool8FreeFooterRow}>
+          <Button style={styles.pool8FreeSideCounter} onPress={() => props.onIncrementPool8FreeHole10?.(0)}>
+            <RNText style={styles.pool8FreeSideCounterTitle}>Lỗ 10</RNText>
+            <RNText style={styles.pool8FreeSideCounterValue}>{leftHole10Score}</RNText>
+          </Button>
+
+          <View style={styles.pool8FreeCenterWrap}>
+            {pool8FreeSetWinnerPlayer && !props.winner ? (
+              <View style={styles.pool8FreeWinnerInline}>
+                <RNText style={styles.pool8FreeWinnerInlineText}>
+                  {`${pool8FreeSetWinnerPlayer.name} ${tr('thắng set này', 'wins this set')}`}
+                </RNText>
+                <Button style={styles.pool8FreeWinnerInlineButton} onPress={props.onReset}>
+                  <RNText style={styles.pool8FreeWinnerInlineButtonText}>
+                    {tr('Ván mới', 'New game')}
+                  </RNText>
+                </Button>
+              </View>
+            ) : (
+              <View style={styles.pool8FreeRowsWrap}>
+                {freeRows.map((row, rowIndex) => (
+                  <View key={`free-row-${rowIndex}`} style={styles.pool8FreeRow}>
+                    {row.map(number => {
+                      const ball = remainingFreeBalls.find(item => item.number === number);
+                      return (
+                        <View key={`free-ball-${number}`} style={styles.pool15FreeBallWrap}>
+                          {ball ? (
+                            <PoolBallButton
+                              ball={ball}
+                              size={useExtraCompact ? 'small' : 'large'}
+                              onPress={() => props.onPoolScore(ball)}
+                            />
+                          ) : (
+                            <View style={styles.pool8FreeBallPlaceholder} />
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <Button style={styles.pool8FreeSideCounter} onPress={() => props.onIncrementPool8FreeHole10?.(1)}>
+            <RNText style={styles.pool8FreeSideCounterTitle}>Lỗ 10</RNText>
+            <RNText style={styles.pool8FreeSideCounterValue}>{rightHole10Score}</RNText>
+          </Button>
         </View>
       </View>
     );
@@ -954,6 +1022,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     rightScore,
     useExtraCompact,
     viewModel.onRestart,
+    leftHole10Score,
+    rightHole10Score,
+    pool8FreeSetWinnerPlayer,
+    pool8SetWinnerPlayer,
+    isPool8Temp,
   ]);
 
   const timeTextStyle = {
@@ -1298,6 +1371,21 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             onRightPress={viewModel.onStop}
             leftTone={'amber'}
             rightTone={'red'}
+            compact={useResponsiveCompact}
+            poolCompact={usePoolBroadcastLayout}
+            extraCompact={useExtraCompact}
+          />
+        </View>
+      ) : isPool8Temp && props.isStarted && !props.poolBreakEnabled ? (
+        <View style={styles.topButtonRowWrap}>
+          <TripleButton
+            leftLabel={`${tr('Số lượt', 'Turns')} ${props.totalTurns}`}
+            centerLabel={tr('Đổi bi', 'Swap balls')}
+            rightLabel={`${tr('Mục tiêu', 'Goal')} ${props.goal}`}
+            onCenterPress={props.onSwapPool8Groups}
+            leftTone={'dark'}
+            centerTone={'amber'}
+            rightTone={'dark'}
             compact={useResponsiveCompact}
             poolCompact={usePoolBroadcastLayout}
             extraCompact={useExtraCompact}
@@ -2189,6 +2277,96 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   pool15FreeBallWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  pool8FreeFooterRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  pool8FreeSideCounter: {
+    width: 78,
+    minHeight: 112,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2C2F35',
+    backgroundColor: '#17181C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+  },
+  pool8FreeSideCounterTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  pool8FreeSideCounterValue: {
+    color: '#FF2525',
+    fontSize: 28,
+    fontWeight: '900',
+  },
+  pool8FreeCenterWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pool8FreeRowsWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pool8FreeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pool8FreeBallPlaceholder: {
+    width: 44,
+    height: 44,
+  },
+  pool8FreeWinnerInline: {
+    width: '100%',
+    minHeight: 148,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2C2F35',
+    backgroundColor: '#17181C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+  },
+  pool8FreeWinnerInlineText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  pool8FreeWinnerInlineButton: {
+    minWidth: 164,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#F1BE4C',
+    backgroundColor: '#E2A20A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  pool8FreeWinnerInlineButtonText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 });
 
