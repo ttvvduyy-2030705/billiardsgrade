@@ -14,6 +14,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  View as RNView,
 } from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
 import RNFS from 'react-native-fs';
@@ -181,6 +182,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     useState<PermissionState>('loading');
   const [usbDevices, setUsbDevices] = useState<any[]>([]);
   const [cameraErrorMessage, setCameraErrorMessage] = useState<string | null>(null);
+  const [phoneCameraConfigMode, setPhoneCameraConfigMode] = useState<'standard' | 'safe' | 'ultra-safe'>('standard');
   const [selectedSource, setSelectedSource] = useState<CameraSource>(() =>
     getSelectedSourceSnapshot(),
   );
@@ -190,6 +192,17 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     useState<YouTubeNativeZoomInfo>(DEFAULT_YOUTUBE_NATIVE_ZOOM);
   const [stableHasUvcWebcam, setStableHasUvcWebcam] = useState(false);
   const [externalStreamReady, setExternalStreamReady] = useState(false);
+  const [phonePreviewReady, setPhonePreviewReady] = useState(false);
+  const lastSuccessfulPhoneModeRef = useRef<Record<string, 'standard' | 'safe' | 'ultra-safe'>>({});
+  const getPreferredPhoneMode = useCallback((source: CameraSource, deviceId?: string | null) => {
+    const directKey = `${source}:${deviceId || 'unknown'}`;
+    const sourceKey = `${source}:*`;
+    return (
+      lastSuccessfulPhoneModeRef.current[directKey] ||
+      lastSuccessfulPhoneModeRef.current[sourceKey] ||
+      'standard'
+    );
+  }, []);
 
   const backDevice = useCameraDevice('back');
   const frontDevice = useCameraDevice('front');
@@ -772,20 +785,21 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   useEffect(() => {
     setCameraErrorMessage(null);
     setExternalStreamReady(false);
+    setPhoneCameraConfigMode(getPreferredPhoneMode(resolvedSelectedSource, device?.id));
     props.setIsCameraReady(false);
-  }, [resolvedSelectedSource, props.setIsCameraReady]);
+  }, [device?.id, getPreferredPhoneMode, resolvedSelectedSource]);
 
   useEffect(() => {
     if (effectiveWebcamType !== WebcamType.camera) {
       setExternalStreamReady(false);
       props.setIsCameraReady(false);
     }
-  }, [effectiveWebcamType, viewModel.source?.uri, props.setIsCameraReady]);
+  }, [effectiveWebcamType, viewModel.source?.uri]);
 
   useEffect(() => {
     if (!usingUvc) return;
     props.setIsCameraReady(true);
-  }, [usingUvc, props.setIsCameraReady]);
+  }, [usingUvc]);
 
   if (!controllerRef.current) {
     controllerRef.current = {
@@ -1140,7 +1154,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
 
     setCameraErrorMessage(null);
     props.setIsCameraReady(false);
-  }, [props, youtubeNativeCameraLocked]);
+  }, [props.setIsCameraReady, youtubeNativeCameraLocked]);
 
   useEffect(() => {
     if (
@@ -1152,18 +1166,9 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     }
   }, [viewModel.webcamType, effectiveWebcamType, hasBuiltInCamera]);
 
-  const renderFallback = (message?: string) => {
-    debugVideoLog('[Video] renderFallback', {
-      effectiveWebcamType,
-      selectedSource,
-      usingUvc,
-      isYouTubeNativeActive,
-      hasSourceUri: !!viewModel.source?.uri,
-      message: message ?? '',
-    });
-
+  const renderFallbackContent = (message?: string) => {
     return (
-      <View style={[styles.container, localStyles.fallbackContainer]}> 
+      <>
         {images?.logoSmall || images?.logoclb ? (
           <Image
             source={images.logoSmall || images.logoclb}
@@ -1176,7 +1181,45 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
           <Text style={localStyles.title}>APLUS BILLIARDS</Text>
         )}
         {!!message && <Text style={localStyles.message}>{message}</Text>}
-      </View>
+      </>
+    );
+  };
+
+  const renderFallback = (message?: string) => {
+    debugVideoLog('[Video] renderFallback', {
+      effectiveWebcamType,
+      selectedSource,
+      usingUvc,
+      isYouTubeNativeActive,
+      hasSourceUri: !!viewModel.source?.uri,
+      message: message ?? '',
+    });
+
+    return (
+      <RNView collapsable={false} style={[styles.container, localStyles.fallbackContainer, localStyles.fallbackLayer]}>
+        {renderFallbackContent(message)}
+      </RNView>
+    );
+  };
+
+  const renderFallbackOverlay = (message?: string) => {
+    debugVideoLog('[Video] renderFallbackOverlay', {
+      effectiveWebcamType,
+      selectedSource,
+      usingUvc,
+      isYouTubeNativeActive,
+      hasSourceUri: !!viewModel.source?.uri,
+      message: message ?? '',
+      phonePreviewReady,
+      externalStreamReady,
+    });
+
+    return (
+      <RNView pointerEvents="none" collapsable={false} style={[localStyles.fallbackOverlay, localStyles.fallbackLayer]}>
+        <RNView style={localStyles.fallbackContainer}>
+          {renderFallbackContent(message)}
+        </RNView>
+      </RNView>
     );
   };
 
@@ -1197,9 +1240,11 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     }
 
     lastReadySignatureRef.current = readySignature;
+    setPhonePreviewReady(false);
+    setExternalStreamReady(false);
     props.setIsCameraReady(false);
     debugVideoLog('[Video] reset ready for signature', {readySignature});
-  }, [props, readySignature]);
+  }, [readySignature]);
 
   useEffect(() => {
     debugVideoLog('[Video] runtime branch snapshot', {
@@ -1215,6 +1260,29 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       permissionState,
       hasDevice: !!device,
       cameraErrorMessage,
+      phoneCameraConfigMode,
+      phonePreviewReady,
+      externalStreamReady,
+      shouldRenderExternalVideo: effectiveWebcamType !== WebcamType.camera && !!viewModel.source?.uri,
+      shouldRenderPhoneCamera: effectiveWebcamType === WebcamType.camera && !usingUvc && !isYouTubeNativeActive && permissionState === 'granted' && !!device && !cameraErrorMessage,
+      shouldShowPhoneFallback: !phonePreviewReady || !!cameraErrorMessage || permissionState !== 'granted' || !device,
+      shouldShowExternalFallback: effectiveWebcamType !== WebcamType.camera ? (!viewModel.source?.uri || !externalStreamReady) : false,
+      visionOutputs: {
+        mode: phoneCameraConfigMode,
+        video: phoneCameraConfigMode !== 'ultra-safe',
+        photo: false,
+        audio: phoneCameraConfigMode === 'standard' && microphonePermissionState === 'granted',
+        format: phoneCameraConfigMode === 'standard' ? 'preferredFormat' : 'default',
+        fps: phoneCameraConfigMode === 'standard' ? 30 : 'default',
+        previewViewType:
+          Platform.OS === 'android'
+            ? phoneCameraConfigMode === 'ultra-safe'
+              ? 'default'
+              : device?.previewViewType === 'surface-view'
+                ? 'surface-view'
+                : 'texture-view'
+            : 'default',
+      },
     });
   }, [
     cameraErrorMessage,
@@ -1223,12 +1291,16 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     externalLiveLocked,
     isYouTubeNativeActive,
     permissionState,
+    phoneCameraConfigMode,
+    phonePreviewReady,
+    externalStreamReady,
     selectedSource,
     shouldActivatePhoneCamera,
     shouldUsePhoneCamera,
     usingUvc,
     viewModel.source?.uri,
     youtubeNativeCameraLocked,
+    microphonePermissionState,
   ]);
 
   useEffect(() => {
@@ -1282,7 +1354,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     };
   }, [
     isYouTubeNativeActive,
-    props,
+    props.setIsCameraReady,
     refreshYouTubeNativeZoomInfo,
     setCameraErrorMessage,
   ]);
@@ -1294,23 +1366,27 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   if (effectiveWebcamType !== WebcamType.camera) {
     if (viewModel.source?.uri) {
       return (
-        <RNVideo
-          source={viewModel.source}
-          style={styles.container}
-          resizeMode={cameraScaleMode}
-          posterResizeMode={cameraScaleMode}
-          onLoad={event => {
-            setExternalStreamReady(true);
-            props.setIsCameraReady(true);
-            props.onLoad?.(event as any);
-          }}
-          onError={e => {
-            setExternalStreamReady(false);
-            props.setIsCameraReady(false);
-            console.error('[Video] stream/video error:', e);
-            props.onError?.(e as any);
-          }}
-        />
+        <View style={styles.container}>
+          <RNVideo
+            source={viewModel.source}
+            style={styles.container}
+            resizeMode={cameraScaleMode}
+            posterResizeMode={cameraScaleMode}
+            onLoad={event => {
+              setExternalStreamReady(true);
+              props.setIsCameraReady(true);
+              props.onLoad?.(event as any);
+            }}
+            onError={e => {
+              setExternalStreamReady(false);
+              props.setIsCameraReady(false);
+              console.error('[Video] stream/video error:', e);
+              props.onError?.(e as any);
+            }}
+          />
+          {!externalStreamReady ? renderFallbackOverlay('Đang chuẩn bị stream camera...') : null}
+          {props.overlayContent}
+        </View>
       );
     }
 
@@ -1369,57 +1445,105 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   }
 
   return (
-    <Camera
-      key={`vision-${device.id}`}
-      ref={visionCameraRef}
-      style={localStyles.cameraRoot}
-      device={device}
-      isActive={shouldActivatePhoneCamera}
-      video={true}
-      audio={microphonePermissionState === 'granted'}
-      format={preferredFormat}
-      fps={30}
-      videoBitRate={10_000_000}
-      zoom={safeZoom}
-      resizeMode={cameraScaleMode}
-      androidPreviewViewType={Platform.OS === 'android' ? 'texture-view' : undefined}
-      onInitialized={() => {
-        debugVideoLog('[Video] camera initialized');
-      }}
-      onStarted={() => {
-        debugVideoLog('[Video] camera started');
-      }}
-      onStopped={() => {
-        debugVideoLog('[Video] camera stopped');
-        props.setIsCameraReady(false);
-      }}
-      onPreviewStarted={() => {
-        debugVideoLog('[Video] preview started');
-        setCameraErrorMessage(null);
-        props.setIsCameraReady(true);
-      }}
-      onPreviewStopped={() => {
-        debugVideoLog('[Video] preview stopped');
-        props.setIsCameraReady(false);
-      }}
-      onError={error => {
-        props.setIsCameraReady(false);
+    <View style={styles.container} collapsable={false}>
+      <RNView style={localStyles.cameraSurfaceHost} collapsable={false}>
+        <Camera
+          key={`vision-${device.id}-${phoneCameraConfigMode}`}
+          ref={visionCameraRef}
+          style={localStyles.cameraRoot}
+          device={device}
+          isActive={shouldActivatePhoneCamera}
+          video={phoneCameraConfigMode !== 'ultra-safe'}
+          photo={false}
+          audio={phoneCameraConfigMode === 'standard' && microphonePermissionState === 'granted'}
+          format={phoneCameraConfigMode === 'standard' ? preferredFormat : undefined}
+          fps={phoneCameraConfigMode === 'standard' ? 30 : undefined}
+          videoBitRate={phoneCameraConfigMode === 'standard' ? 10_000_000 : undefined}
+          zoom={safeZoom}
+          resizeMode={cameraScaleMode}
+          androidPreviewViewType={
+            Platform.OS === 'android'
+              ? phoneCameraConfigMode === 'ultra-safe'
+                ? undefined
+                : device.previewViewType === 'surface-view'
+                  ? 'surface-view'
+                  : 'texture-view'
+              : undefined
+          }
+          onInitialized={() => {
+            debugVideoLog('[Video] camera initialized');
+            setPhonePreviewReady(false);
+          }}
+          onStarted={() => {
+            debugVideoLog('[Video] camera started');
+            setCameraErrorMessage(null);
+            setPhonePreviewReady(false);
+          }}
+          onStopped={() => {
+            debugVideoLog('[Video] camera stopped');
+            setPhonePreviewReady(false);
+            props.setIsCameraReady(false);
+          }}
+          onPreviewStarted={() => {
+            debugVideoLog('[Video] preview started');
+            setCameraErrorMessage(null);
+            setPhonePreviewReady(true);
+            const successSourceKey = `${selectedSource}:${device?.id || 'unknown'}`;
+            lastSuccessfulPhoneModeRef.current[successSourceKey] = phoneCameraConfigMode;
+            lastSuccessfulPhoneModeRef.current[`${selectedSource}:*`] = phoneCameraConfigMode;
+            debugVideoLog('[Video] remember successful phone camera config', {
+              selectedSource,
+              deviceId: device?.id || 'unknown',
+              phoneCameraConfigMode,
+            });
+            props.setIsCameraReady(true);
+          }}
+          onPreviewStopped={() => {
+            debugVideoLog('[Video] preview stopped');
+            setPhonePreviewReady(false);
+            props.setIsCameraReady(false);
+          }}
+          onError={error => {
+            setPhonePreviewReady(false);
+            props.setIsCameraReady(false);
 
-        const code = String((error as any)?.code || '');
-        const message = String((error as any)?.message || '');
+            const code = String((error as any)?.code || '');
+            const message = String((error as any)?.message || '');
 
-        if (code === 'session/invalid-output-configuration') {
-          console.warn('[Video] VisionCamera invalid output configuration:', {code, message});
-          setCameraErrorMessage('Camera của thiết bị này không nhận cấu hình hiện tại. Đã chuyển sang cấu hình an toàn hơn.');
-          return;
-        }
+            if (code === 'session/invalid-output-configuration') {
+              console.warn('[Video] VisionCamera invalid output configuration:', {
+                code,
+                message,
+                phoneCameraConfigMode,
+              });
 
-        console.error('[Video] VisionCamera error:', error);
-        setCameraErrorMessage(
-          message || 'Không mở được camera trên thiết bị này.',
-        );
-      }}
-    />
+              if (phoneCameraConfigMode === 'standard') {
+                debugVideoLog('[Video] retry with safe phone camera config');
+                setCameraErrorMessage(null);
+                setPhoneCameraConfigMode('safe');
+                return;
+              }
+
+              if (phoneCameraConfigMode === 'safe') {
+                debugVideoLog('[Video] retry with ultra-safe phone camera config');
+                setCameraErrorMessage(null);
+                setPhoneCameraConfigMode('ultra-safe');
+                return;
+              }
+
+              setCameraErrorMessage('Camera của thiết bị này không nhận được cả cấu hình chuẩn lẫn cấu hình tương thích tối giản. Đã chuyển sang logo fallback.');
+              return;
+            }
+
+            console.error('[Video] VisionCamera error:', error);
+            setCameraErrorMessage(
+              message || 'Không mở được camera trên thiết bị này.',
+            );
+          }}
+        />
+      </RNView>
+      {!phonePreviewReady ? renderFallbackOverlay(cameraErrorMessage || 'Đang chuẩn bị camera...') : null}
+    </View>
   );
 };
 
@@ -1428,13 +1552,27 @@ const localStyles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
+  cameraSurfaceHost: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
   cameraRoot: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 1,
+    elevation: 1,
+  },
+  fallbackOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fallbackLayer: {
+    zIndex: 1000,
+    elevation: 1000,
     backgroundColor: '#000',
   },
   fallbackContainer: {
+    flex: 1,
     backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',

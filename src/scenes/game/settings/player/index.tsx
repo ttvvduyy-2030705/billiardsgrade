@@ -1,5 +1,5 @@
-import React, {memo, useCallback, useMemo, useState, useEffect} from 'react';
-import {Image, Pressable, Text, TextInput, View} from 'react-native';
+import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
+import {FlatList, Image, Modal, Pressable, Text, TextInput, View} from 'react-native';
 
 import i18n from 'i18n';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
@@ -13,8 +13,14 @@ import {BilliardCategory} from 'types/category';
 import {Player, PlayerNumber, PlayerSettings} from 'types/player';
 import {GameMode} from 'types/settings';
 
-import {getCountryFlagImageUri} from './countries';
+import {
+  COUNTRIES,
+  CountryItem,
+  getCountryFlagImageUri,
+  normalizeCountryName,
+} from './countries';
 import useAdaptiveLayout from '../../useAdaptiveLayout';
+import {configureSystemUI} from 'theme/systemUI';
 import createStyles from './styles';
 
 interface Props {
@@ -27,7 +33,7 @@ interface Props {
   onSelectPlayerGoal: (addedPoint: number, index: number) => void;
   onChangePlayerName: (newName: string, index: number) => void;
   onChangePlayerPoint: (addedPoint: number, index: number, type: number) => void;
-  onOpenCountryPicker: (index: number) => void;
+  onSelectPlayerCountry: (country: CountryItem, index: number) => void;
 }
 
 const getLocale = () => {
@@ -116,12 +122,25 @@ const PlayerSettingsComponent = ({
   onSelectPlayerGoal,
   onChangePlayerName,
   onChangePlayerPoint,
-  onOpenCountryPicker,
+  onSelectPlayerCountry,
 }: Props) => {
   const adaptive = adaptiveProp ?? useAdaptiveLayout();
   const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isPool = useMemo(() => isPoolGame(category), [category]);
   const isEnglish = getLocale().startsWith('en');
+  const [countryModalVisible, setCountryModalVisible] = useState(false);
+  const [countryKeyword, setCountryKeyword] = useState('');
+  const [countryPlayerIndex, setCountryPlayerIndex] = useState<number | null>(
+    null,
+  );
+
+  const reapplyFullscreenSystemUI = useCallback(() => {
+    configureSystemUI({
+      animated: false,
+      barStyle: 'light-content',
+      backgroundColor: 'transparent',
+    });
+  }, []);
 
   const translate = useCallback(
     (lookup: string, vi: string, en: string) => {
@@ -149,6 +168,52 @@ const PlayerSettingsComponent = ({
   }, [category, gameMode, isPool]);
 
   const pointSteps = useMemo(() => Object.keys(PLAYER_POINT_STEPS), []);
+
+  const openCountryModal = useCallback((index: number) => {
+    setCountryPlayerIndex(index);
+    setCountryKeyword('');
+    setCountryModalVisible(true);
+    requestAnimationFrame(reapplyFullscreenSystemUI);
+  }, [reapplyFullscreenSystemUI]);
+
+  const closeCountryModal = useCallback(() => {
+    setCountryModalVisible(false);
+    setCountryKeyword('');
+    setCountryPlayerIndex(null);
+    requestAnimationFrame(reapplyFullscreenSystemUI);
+  }, [reapplyFullscreenSystemUI]);
+
+  useEffect(() => {
+    if (!countryModalVisible) {
+      return;
+    }
+
+    reapplyFullscreenSystemUI();
+
+    const timers = [0, 80, 180].map(delay =>
+      setTimeout(reapplyFullscreenSystemUI, delay),
+    );
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [countryModalVisible, reapplyFullscreenSystemUI]);
+
+  const filteredCountries = useMemo(() => {
+    const keyword = normalizeCountryName(countryKeyword);
+
+    if (!keyword) {
+      return COUNTRIES;
+    }
+
+    return COUNTRIES.filter(item => {
+      return (
+        item.normalizedName.includes(keyword) ||
+        normalizeCountryName(item.name).includes(keyword) ||
+        item.code.toLowerCase().includes(keyword)
+      );
+    });
+  }, [countryKeyword]);
 
   const renderSelectorRow = useCallback(
     (
@@ -215,11 +280,11 @@ const PlayerSettingsComponent = ({
       true,
     );
   }, [
-    isEnglish,
     onSelectPlayerGoal,
     playerSettings.goal.goal,
     playerSettings.goal.pointSteps,
     renderSelectorRow,
+    translate,
   ]);
 
   const renderPlayerItem = useCallback(
@@ -272,7 +337,7 @@ const PlayerSettingsComponent = ({
             isPool ? styles.playerCardPool : {backgroundColor: currentPlayer.color},
           ]}>
           <Pressable
-            onPress={() => onOpenCountryPicker(index)}
+            onPress={() => openCountryModal(index)}
             style={({pressed}) => [
               avatarShellStyle,
               pressed && styles.selectorButtonPressed,
@@ -351,7 +416,7 @@ const PlayerSettingsComponent = ({
       isPool,
       onChangePlayerName,
       onChangePlayerPoint,
-      onOpenCountryPicker,
+      openCountryModal,
       pointSteps,
       styles,
       translate,
@@ -378,6 +443,97 @@ const PlayerSettingsComponent = ({
       <View style={styles.playerList}>
         {playerSettings.playingPlayers.map(renderPlayerItem)}
       </View>
+
+      <Modal
+        visible={countryModalVisible}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        navigationBarTranslucent={true}
+        hardwareAccelerated={true}
+        onShow={reapplyFullscreenSystemUI}
+        onRequestClose={closeCountryModal}>
+        <Pressable style={styles.countryModalOverlay} onPress={closeCountryModal}>
+          <Pressable style={styles.countryModalCard} onPress={() => {}}>
+            <Text style={styles.countryModalTitle}>
+              {isEnglish ? 'Select country' : 'Chọn quốc gia'}
+            </Text>
+
+            <TextInput
+              value={countryKeyword}
+              onChangeText={setCountryKeyword}
+              placeholder={isEnglish ? 'Search country...' : 'Tìm quốc gia...'}
+              placeholderTextColor="#8E8E8E"
+              autoCorrect={false}
+              autoCapitalize="words"
+              autoFocus={false}
+              onFocus={reapplyFullscreenSystemUI}
+              style={styles.countrySearchInput}
+            />
+
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={item => item.code}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={styles.countryList}
+              renderItem={({item}) => {
+                const displayFlag = item.flag || '🏳️';
+                const displayFlagImage = getCountryFlagImageUri(item.code, 80);
+
+                return (
+                  <Pressable
+                    style={({pressed}) => [
+                      styles.countryItem,
+                      pressed && styles.countryItemPressed,
+                    ]}
+                    onPress={() => {
+                      if (countryPlayerIndex !== null) {
+                        onSelectPlayerCountry(
+                          {
+                            ...item,
+                            flag: displayFlag,
+                          },
+                          countryPlayerIndex,
+                        );
+                      }
+                      closeCountryModal();
+                    }}>
+                    {displayFlagImage ? (
+                      <View
+                        style={{
+                          width: 42,
+                          height: 28,
+                          marginRight: 12,
+                          borderRadius: 4,
+                          backgroundColor: '#FFFFFF',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.55)',
+                          overflow: 'hidden',
+                        }}>
+                        <Image
+                          source={{uri: displayFlagImage}}
+                          resizeMode="cover"
+                          fadeDuration={0}
+                          style={{width: '100%', height: '100%'}}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={styles.countryFlag}>{displayFlag}</Text>
+                    )}
+                    <Text style={styles.countryName}>{item.name}</Text>
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={styles.countryEmptyText}>
+                  {isEnglish ? 'No result found' : 'Không tìm thấy kết quả'}
+                </Text>
+              }
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
