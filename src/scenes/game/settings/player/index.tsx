@@ -1,5 +1,5 @@
-import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
-import {FlatList, Image, Modal, Pressable, Text, TextInput, View} from 'react-native';
+import React, {memo, useCallback, useMemo, useState, useEffect} from 'react';
+import {Image, Pressable, Text, TextInput, View} from 'react-native';
 
 import i18n from 'i18n';
 import {isPool15OnlyGame, isPoolGame} from 'utils/game';
@@ -13,12 +13,7 @@ import {BilliardCategory} from 'types/category';
 import {Player, PlayerNumber, PlayerSettings} from 'types/player';
 import {GameMode} from 'types/settings';
 
-import {
-  COUNTRIES,
-  CountryItem,
-  getCountryFlagImageUri,
-  normalizeCountryName,
-} from './countries';
+import {getCountryFlagImageUri} from './countries';
 import useAdaptiveLayout from '../../useAdaptiveLayout';
 import createStyles from './styles';
 
@@ -32,7 +27,7 @@ interface Props {
   onSelectPlayerGoal: (addedPoint: number, index: number) => void;
   onChangePlayerName: (newName: string, index: number) => void;
   onChangePlayerPoint: (addedPoint: number, index: number, type: number) => void;
-  onSelectPlayerCountry: (country: CountryItem, index: number) => void;
+  onOpenCountryPicker: (index: number) => void;
 }
 
 const getLocale = () => {
@@ -121,17 +116,12 @@ const PlayerSettingsComponent = ({
   onSelectPlayerGoal,
   onChangePlayerName,
   onChangePlayerPoint,
-  onSelectPlayerCountry,
+  onOpenCountryPicker,
 }: Props) => {
   const adaptive = adaptiveProp ?? useAdaptiveLayout();
   const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isPool = useMemo(() => isPoolGame(category), [category]);
   const isEnglish = getLocale().startsWith('en');
-  const [countryModalVisible, setCountryModalVisible] = useState(false);
-  const [countryKeyword, setCountryKeyword] = useState('');
-  const [countryPlayerIndex, setCountryPlayerIndex] = useState<number | null>(
-    null,
-  );
 
   const translate = useCallback(
     (lookup: string, vi: string, en: string) => {
@@ -159,34 +149,6 @@ const PlayerSettingsComponent = ({
   }, [category, gameMode, isPool]);
 
   const pointSteps = useMemo(() => Object.keys(PLAYER_POINT_STEPS), []);
-
-  const openCountryModal = useCallback((index: number) => {
-    setCountryPlayerIndex(index);
-    setCountryKeyword('');
-    setCountryModalVisible(true);
-  }, []);
-
-  const closeCountryModal = useCallback(() => {
-    setCountryModalVisible(false);
-    setCountryKeyword('');
-    setCountryPlayerIndex(null);
-  }, []);
-
-  const filteredCountries = useMemo(() => {
-    const keyword = normalizeCountryName(countryKeyword);
-
-    if (!keyword) {
-      return COUNTRIES;
-    }
-
-    return COUNTRIES.filter(item => {
-      return (
-        item.normalizedName.includes(keyword) ||
-        normalizeCountryName(item.name).includes(keyword) ||
-        item.code.toLowerCase().includes(keyword)
-      );
-    });
-  }, [countryKeyword]);
 
   const renderSelectorRow = useCallback(
     (
@@ -253,11 +215,11 @@ const PlayerSettingsComponent = ({
       true,
     );
   }, [
+    isEnglish,
     onSelectPlayerGoal,
     playerSettings.goal.goal,
     playerSettings.goal.pointSteps,
     renderSelectorRow,
-    translate,
   ]);
 
   const renderPlayerItem = useCallback(
@@ -310,7 +272,7 @@ const PlayerSettingsComponent = ({
             isPool ? styles.playerCardPool : {backgroundColor: currentPlayer.color},
           ]}>
           <Pressable
-            onPress={() => openCountryModal(index)}
+            onPress={() => onOpenCountryPicker(index)}
             style={({pressed}) => [
               avatarShellStyle,
               pressed && styles.selectorButtonPressed,
@@ -389,7 +351,7 @@ const PlayerSettingsComponent = ({
       isPool,
       onChangePlayerName,
       onChangePlayerPoint,
-      openCountryModal,
+      onOpenCountryPicker,
       pointSteps,
       styles,
       translate,
@@ -416,92 +378,6 @@ const PlayerSettingsComponent = ({
       <View style={styles.playerList}>
         {playerSettings.playingPlayers.map(renderPlayerItem)}
       </View>
-
-      <Modal
-        visible={countryModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closeCountryModal}>
-        <Pressable style={styles.countryModalOverlay} onPress={closeCountryModal}>
-          <Pressable style={styles.countryModalCard} onPress={() => {}}>
-            <Text style={styles.countryModalTitle}>
-              {isEnglish ? 'Select country' : 'Chọn quốc gia'}
-            </Text>
-
-            <TextInput
-              value={countryKeyword}
-              onChangeText={setCountryKeyword}
-              placeholder={isEnglish ? 'Search country...' : 'Tìm quốc gia...'}
-              placeholderTextColor="#8E8E8E"
-              autoCorrect={false}
-              autoCapitalize="words"
-              autoFocus={true}
-              style={styles.countrySearchInput}
-            />
-
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={item => item.code}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              style={styles.countryList}
-              renderItem={({item}) => {
-                const displayFlag = item.flag || '🏳️';
-                const displayFlagImage = getCountryFlagImageUri(item.code, 80);
-
-                return (
-                  <Pressable
-                    style={({pressed}) => [
-                      styles.countryItem,
-                      pressed && styles.countryItemPressed,
-                    ]}
-                    onPress={() => {
-                      if (countryPlayerIndex !== null) {
-                        onSelectPlayerCountry(
-                          {
-                            ...item,
-                            flag: displayFlag,
-                          },
-                          countryPlayerIndex,
-                        );
-                      }
-                      closeCountryModal();
-                    }}>
-                    {displayFlagImage ? (
-                      <View
-                        style={{
-                          width: 42,
-                          height: 28,
-                          marginRight: 12,
-                          borderRadius: 4,
-                          backgroundColor: '#FFFFFF',
-                          borderWidth: 1,
-                          borderColor: 'rgba(255,255,255,0.55)',
-                          overflow: 'hidden',
-                        }}>
-                        <Image
-                          source={{uri: displayFlagImage}}
-                          resizeMode="cover"
-                          fadeDuration={0}
-                          style={{width: '100%', height: '100%'}}
-                        />
-                      </View>
-                    ) : (
-                      <Text style={styles.countryFlag}>{displayFlag}</Text>
-                    )}
-                    <Text style={styles.countryName}>{item.name}</Text>
-                  </Pressable>
-                );
-              }}
-              ListEmptyComponent={
-                <Text style={styles.countryEmptyText}>
-                  {isEnglish ? 'No result found' : 'Không tìm thấy kết quả'}
-                </Text>
-              }
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 };

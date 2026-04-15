@@ -12,6 +12,7 @@ import PlayerViewModel, {Props} from './PlayerViewModel';
 import {getCountryFlagImageUri} from '../../settings/player/countries';
 import useDesignSystem from 'theme/useDesignSystem';
 import {createGameplayLayoutRules, createGameplayStyles} from '../layoutRules';
+import Pool8BlackBall from '../pool8BlackBall';
 
 const isEnglish = () => {
   const locale = String(
@@ -299,17 +300,22 @@ const GamePlayer = (
     isPool15OnlyMode && props.showPool8Tracker && props.pool8Tracker?.sequence?.length,
   );
 
-  const pool8TrackerBalls = useMemo(() => {
+  const pool8CurrentTrackerBall = useMemo(() => {
     if (!showPool8Tracker) {
-      return [];
+      return undefined;
     }
 
-    return (props.pool8Tracker?.sequence || []).map((number, index) => ({
-      index,
+    const activeIndex = Number(props.pool8Tracker?.activeIndex || 0);
+    const number = props.pool8Tracker?.sequence?.[activeIndex];
+    if (number == null) {
+      return undefined;
+    }
+
+    return {
+      index: activeIndex,
       number,
       ball: poolBallMap[String(number)],
-      isActive: index === Number(props.pool8Tracker?.activeIndex || 0),
-    }));
+    };
   }, [poolBallMap, props.pool8Tracker, showPool8Tracker]);
 
   const playerFlag = getPlayerFlagText(props.player as any);
@@ -344,6 +350,12 @@ const GamePlayer = (
   const scoreBottom = isCaromThreePlayerCompactCard
     ? Math.round(46 * fluidScale)
     : Math.round((isPhoneLandscapeTwoPlayer ? 64 : isExtraCompactLayout ? 62 : isCompactLayout ? 70 : isMediumResponsiveLayout ? 88 : 104) * fluidScale);
+
+  const pool8BallTop = Math.round(scoreTop + 4 * fluidScale);
+  const pool8BallBottom = Math.max(18, Math.round(scoreBottom + 12 * fluidScale));
+  const pool8AddTimeTop = Math.max(82, Math.round(scoreTop - 4 * fluidScale));
+  const isPool8LeftPlayerLayout = isPool15OnlyMode && props.index === 0;
+  const isPool8RightPlayerLayout = isPool15OnlyMode && props.index === 1;
 
   return (
     <View
@@ -585,6 +597,8 @@ const GamePlayer = (
           isMediumResponsiveLayout ? styles.scoreLayerMedium : undefined,
           scoreLayerDynamicStyle,
           {top: scoreTop, bottom: scoreBottom},
+          isPool15OnlyMode && styles.pool8ScoreLayer,
+          isPool8RightPlayerLayout && styles.pool8ScoreLayerMirrored,
           !isActiveCard && styles.scoreLayerInactive,
           isPool15FreeMode && hasScoredBalls && styles.scoreLayerWithScoredBalls,
         ]}
@@ -598,6 +612,7 @@ const GamePlayer = (
             isFourPlayerScoreLayout && styles.scoreTextBoxFourPlayer,
             isCaromThreePlayerCompactCard &&
               styles.scoreTextBoxCaromThreePlayerCompact,
+            isPool15OnlyMode && styles.pool8ScoreTextBox,
           ]}>
           <RNText
             numberOfLines={1}
@@ -609,6 +624,7 @@ const GamePlayer = (
               scoreTextDynamicStyle,
               libreScoreTextStyle,
               textColorStyle,
+              isPool15OnlyMode && styles.pool8ScoreText,
             ]}
             allowFontScaling={false}
             maxFontSizeMultiplier={1}>
@@ -624,6 +640,7 @@ const GamePlayer = (
             isMediumResponsiveLayout ? styles.addTimeStackMedium : undefined,
             isCompactLayout && styles.addTimeStackCompact,
             isPool15OnlyMode && styles.addTimeStackPool8,
+            isPool15OnlyMode && {top: pool8AddTimeTop},
             !isActiveCard && styles.addTimeStackInactive,
           ]}>
           {addTimeButtons.map(index => (
@@ -654,46 +671,20 @@ const GamePlayer = (
         </View>
       ) : null}
 
-      {showPool8Tracker ? (
+      {showPool8Tracker && pool8CurrentTrackerBall?.ball ? (
         <View
           style={[
-            styles.pool8TrackerStack,
+            styles.pool8CurrentBallWrap,
+            isPool8RightPlayerLayout ? styles.pool8CurrentBallWrapMirrored : undefined,
+            {top: pool8BallTop, bottom: pool8BallBottom},
             !isActiveCard && styles.pool8TrackerStackInactive,
           ]}>
-          {pool8TrackerBalls.map(item => {
-            const ball = item.ball;
-            if (!ball) {
-              return null;
-            }
-
-            const isBlackBall = item.number === BallType.B8;
-            return (
-              <Button
-                key={`pool8-track-${props.index}-${item.index}-${item.number}`}
-                onPress={item.isActive && isActiveCard ? () => props.onPressPool8Ball?.(props.index) : undefined}
-                style={[
-                  styles.pool8TrackerBall,
-                  item.isActive ? styles.pool8TrackerBallActive : styles.pool8TrackerBallInactive,
-                  {
-                    backgroundColor: item.isActive ? (ball.cut ? '#FFFFFF' : ball.color) : '#1E2128',
-                    borderColor: item.isActive ? ball.color : '#50545D',
-                  },
-                ]}>
-                {ball.cut && item.isActive ? (
-                  <View style={[styles.pool8TrackerStripe, {backgroundColor: ball.color}]} />
-                ) : null}
-                <RNText
-                  style={[
-                    styles.pool8TrackerBallText,
-                    {color: item.isActive ? (isBlackBall ? '#FFFFFF' : '#111111') : '#8A8F99'},
-                  ]}
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}>
-                  {item.number}
-                </RNText>
-              </Button>
-            );
-          })}
+          <Pool8BlackBall
+            key={`pool8-current-${props.index}-${pool8CurrentTrackerBall.index}-${pool8CurrentTrackerBall.number}`}
+            number={pool8CurrentTrackerBall.number}
+            size={64}
+            onPress={isActiveCard ? () => props.onPressPool8Ball?.(props.index) : undefined}
+          />
         </View>
       ) : null}
 
@@ -706,40 +697,19 @@ const GamePlayer = (
             isCompactLayout && styles.scoredBallStackCompact,
             isPool15FreeMode && isMediumResponsiveLayout && styles.scoredBallStackPool15FreeMedium,
             isPool15FreeMode && isCompactLayout && styles.scoredBallStackPool15FreeCompact,
+            isPool15FreeMode && styles.scoredBallStackPool15FreeTwoCol,
+            isPool15FreeMode && isMediumResponsiveLayout && styles.scoredBallStackPool15FreeTwoColMedium,
+            isPool15FreeMode && isCompactLayout && styles.scoredBallStackPool15FreeTwoColCompact,
             !isActiveCard && styles.scoredBallStackInactive,
           ]}>
           {(props.player.scoredBalls || []).map((ball, index) => {
-            const isBlackBall = ball.number === 8;
-            const textColor = isBlackBall ? '#FFFFFF' : '#111111';
-
             return (
-              <View
+              <Pool8BlackBall
                 key={`player-scored-ball-${ball.number}-${index}`}
-                style={[
-                  styles.scoredBallItem,
-                  {
-                    backgroundColor: ball.cut ? '#FFFFFF' : ball.color,
-                    borderColor: ball.color,
-                  },
-                ]}>
-                {ball.cut ? (
-                  <View
-                    style={[
-                      styles.scoredBallStripe,
-                      {backgroundColor: ball.color},
-                    ]}
-                  />
-                ) : null}
-                <RNText
-                  style={[
-                    styles.scoredBallText,
-                    {color: ball.cut ? '#111111' : textColor},
-                  ]}
-                  allowFontScaling={false}
-                  maxFontSizeMultiplier={1}>
-                  {ball.number}
-                </RNText>
-              </View>
+                number={ball.number}
+                size={isCompactLayout ? 24 : isMediumResponsiveLayout ? 26 : 28}
+                style={styles.scoredBallAssetWrap}
+              />
             );
           })}
         </View>
@@ -1339,55 +1309,78 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   addTimeStackPool8: {
     position: 'absolute',
-    right: 10,
-    top: 142,
-    bottom: 82,
-    justifyContent: 'center',
+    right: 14,
+    justifyContent: 'flex-start',
     alignItems: 'center',
     gap: 8,
     zIndex: 6,
     elevation: 6,
   },
-  pool8TrackerStack: {
-    position: 'absolute',
-    left: 12,
-    top: 142,
-    bottom: 82,
-    width: 42,
-    justifyContent: 'center',
+  pool8ScoreLayer: {
+    left: '46%',
+    right: 28,
     alignItems: 'center',
-    gap: 8,
-    zIndex: 6,
-    elevation: 6,
+    justifyContent: 'center',
+  },
+  pool8ScoreLayerMirrored: {
+    left: 28,
+    right: '46%',
+  },
+  pool8ScoreTextBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  pool8ScoreText: {
+    width: '100%',
+    fontSize: 170,
+    lineHeight: 176,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   pool8TrackerStackInactive: {
     opacity: 0.84,
   },
-  pool8TrackerBall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1.4,
+  pool8CurrentBallWrap: {
+    position: 'absolute',
+    left: '18%',
+    width: 92,
+    marginLeft: -46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 8,
+    elevation: 8,
+  },
+  pool8CurrentBallWrapMirrored: {
+    left: undefined,
+    right: '18%',
+    marginLeft: 0,
+    marginRight: -46,
+  },
+  pool8CurrentBall: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    borderWidth: 2.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  pool8TrackerBallActive: {
-    opacity: 1,
-  },
-  pool8TrackerBallInactive: {
-    opacity: 0.9,
-  },
-  pool8TrackerStripe: {
+  pool8CurrentBallStripe: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 11,
-    height: 10,
+    top: 23,
+    height: 20,
   },
-  pool8TrackerBallText: {
-    fontSize: 13,
-    lineHeight: 15,
+  pool8CurrentBallText: {
+    fontSize: 28,
+    lineHeight: 30,
     fontWeight: '900',
     includeFontPadding: false,
     textAlign: 'center',
@@ -1400,31 +1393,50 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     alignItems: 'center',
   },
   scoredBallStackPool15Free: {
-    top: 138,
-    bottom: 84,
-    justifyContent: 'center',
-    gap: 5,
+    top: 122,
+    right: 8,
+    justifyContent: 'flex-start',
+    gap: 4,
+  },
+  scoredBallStackPool15FreeTwoCol: {
+    height: 124,
+    width: 64,
+    flexDirection: 'column',
+    flexWrap: 'wrap',
+    alignContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   scoredBallStackMedium: {
     top: 104,
     gap: 5,
   },
   scoredBallStackPool15FreeMedium: {
-    top: 122,
-    bottom: 72,
-    gap: 4,
+    top: 112,
+    right: 8,
+    gap: 3,
+  },
+  scoredBallStackPool15FreeTwoColMedium: {
+    height: 112,
+    width: 58,
   },
   scoredBallStackCompact: {
     top: 92,
     gap: 4,
   },
   scoredBallStackPool15FreeCompact: {
-    top: 104,
-    bottom: 68,
-    gap: 4,
+    top: 96,
+    right: 6,
+    gap: 3,
+  },
+  scoredBallStackPool15FreeTwoColCompact: {
+    height: 104,
+    width: 52,
   },
   scoredBallStackInactive: {
     opacity: 0.8,
+  },
+  scoredBallAssetWrap: {
+    backgroundColor: 'transparent',
   },
   scoredBallItem: {
     width: 26,

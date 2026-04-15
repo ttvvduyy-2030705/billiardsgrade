@@ -50,6 +50,7 @@ export interface ConsoleViewModelProps {
   pool8FreeHole10Scores?: number[];
   pool8FreeSetWinnerIndex?: number | null;
   onIncrementPool8FreeHole10?: (playerIndex: number) => void;
+  onDecrementPool8FreeHole10?: (playerIndex: number) => void;
   onSelectWinner: () => void;
   onClearWinner: () => void;
  // renderMatchInfo: () => ReactNode;

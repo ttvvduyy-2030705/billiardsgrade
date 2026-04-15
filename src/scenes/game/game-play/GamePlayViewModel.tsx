@@ -1782,6 +1782,14 @@ const GamePlayViewModel = () => {
     );
   }, []);
 
+  const onDecrementPool8FreeHole10 = useCallback((playerIndex: number) => {
+    setPool8FreeHole10Scores(prev =>
+      prev.map((score, index) =>
+        index === playerIndex ? Math.max(0, score - 1) : score,
+      ),
+    );
+  }, []);
+
   const onSwapPool8Groups = useCallback(() => {
     if (!isPool15OnlyGame(gameSettings?.category)) {
       return;
@@ -1811,7 +1819,7 @@ const GamePlayViewModel = () => {
 
       const tracker = pool8Trackers[playerIndex];
       const activeBall = tracker?.sequence?.[tracker.activeIndex];
-      if (typeof activeBall !== 'number') {
+      if (activeBall == null) {
         return;
       }
 
@@ -3089,6 +3097,7 @@ const GamePlayViewModel = () => {
       pool8FreeHole10Scores,
       pool8FreeSetWinnerIndex,
       onIncrementPool8FreeHole10,
+      onDecrementPool8FreeHole10,
       onSelectWinner,
       onClearWinner,
       onPoolBreak,
@@ -3163,6 +3172,7 @@ const GamePlayViewModel = () => {
     pool8FreeHole10Scores,
     pool8FreeSetWinnerIndex,
     onIncrementPool8FreeHole10,
+    onDecrementPool8FreeHole10,
     onSelectWinner,
     onClearWinner,
     onPoolBreak,

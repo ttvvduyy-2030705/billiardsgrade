@@ -110,6 +110,58 @@ const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
       paddingVertical: a.s(6),
       gap: design.spacing.xs,
     },
+    pool8SetOverlayBackdrop: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      zIndex: 180,
+      elevation: 30,
+      backgroundColor: 'rgba(0, 0, 0, 0.72)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: a.s(20),
+      paddingVertical: a.s(20),
+    },
+    pool8SetOverlayCard: {
+      width: '100%',
+      maxWidth: a.s(620),
+      minWidth: a.s(320),
+      borderRadius: a.s(28),
+      borderWidth: 1.2,
+      borderColor: 'rgba(255, 49, 49, 0.72)',
+      backgroundColor: 'rgba(12, 13, 18, 0.98)',
+      paddingHorizontal: a.s(32),
+      paddingVertical: a.s(28),
+      gap: design.spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#FF2D2D',
+      shadowOpacity: 0.24,
+      shadowRadius: a.s(18),
+      shadowOffset: {width: 0, height: 0},
+      elevation: 14,
+    },
+    pool8SetOverlayTitle: {
+      textAlign: 'center',
+      color: '#FFFFFF',
+      fontSize: a.fs(44, 0.82, 1.04),
+      lineHeight: a.fs(52, 0.82, 1.04),
+      fontWeight: '700',
+    },
+    pool8SetOverlayButton: {
+      alignSelf: 'center',
+      minWidth: a.s(240),
+      backgroundColor: '#E2A20A',
+      borderColor: '#F1BE4C',
+      borderRadius: a.s(18),
+    },
+    pool8SetOverlayButtonText: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+      textAlign: 'center',
+    },
   });
 
 const GamePlay = () => {
@@ -193,6 +245,24 @@ const GamePlay = () => {
   const displayProModeEnabled =
     viewModel.proModeEnabled && !(isCaromMode && totalPlayers > 2);
 
+  const pool8SetWinnerPlayer =
+    isPool15OnlyGame(category) && viewModel.pool8SetWinnerIndex != null
+      ? players[viewModel.pool8SetWinnerIndex]
+      : undefined;
+
+  const pool8FreeSetWinnerPlayer =
+    isPool15FreeGame(category) && viewModel.pool8FreeSetWinnerIndex != null
+      ? players[viewModel.pool8FreeSetWinnerIndex]
+      : undefined;
+
+  const showPool8SetOverlay =
+    !viewModel.winner &&
+    !viewModel.youtubeLiveOverlay?.visible &&
+    !isCameraFullscreen &&
+    Boolean(pool8SetWinnerPlayer || pool8FreeSetWinnerPlayer);
+
+  const setWinnerOverlayPlayer = pool8SetWinnerPlayer || pool8FreeSetWinnerPlayer;
+
   const effectivePlayerSettings = useMemo(() => {
     if (!viewModel.playerSettings) {
       return viewModel.playerSettings;
@@ -249,6 +319,7 @@ const GamePlay = () => {
     !viewModel.warmUpCountdownTime &&
     !isCameraFullscreen &&
     !viewModel.winner &&
+    !showPool8SetOverlay &&
     !viewModel.youtubeLiveOverlay?.visible;
 
   const renderPlayer = (playerIndex: number) => {
@@ -324,6 +395,7 @@ const GamePlay = () => {
         pool8FreeHole10Scores={viewModel.pool8FreeHole10Scores}
         pool8FreeSetWinnerIndex={viewModel.pool8FreeSetWinnerIndex}
         onIncrementPool8FreeHole10={viewModel.onIncrementPool8FreeHole10}
+        onDecrementPool8FreeHole10={viewModel.onDecrementPool8FreeHole10}
         renderLastPlayer={() => <View />}
         onSelectWinner={viewModel.onSelectWinner}
         onClearWinner={viewModel.onClearWinner}
@@ -597,6 +669,33 @@ const GamePlay = () => {
               currentCountdownTime={viewModel.countdownTime || 0}
               onPress={viewModel.onToggleCountDown}
             />
+          </View>
+        ) : null}
+
+
+        {showPool8SetOverlay && setWinnerOverlayPlayer ? (
+          <View style={localStyles.pool8SetOverlayBackdrop}>
+            <View style={localStyles.pool8SetOverlayCard}>
+              <Text
+                style={localStyles.pool8SetOverlayTitle}
+                color={colors.white}
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}>
+                {`${setWinnerOverlayPlayer.name} ${'thắng set này'}`}
+              </Text>
+
+              <Button
+                style={[pauseOverlayButtonStyle, localStyles.pool8SetOverlayButton]}
+                onPress={viewModel.onReset}>
+                <Text
+                  style={[{fontSize: warmButtonTextSize}, localStyles.pool8SetOverlayButtonText]}
+                  color={colors.white}
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}>
+                  {'Ván mới'}
+                </Text>
+              </Button>
+            </View>
           </View>
         ) : null}
 

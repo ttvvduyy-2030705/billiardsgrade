@@ -24,6 +24,7 @@ import {
 import i18n from 'i18n';
 import useDesignSystem from 'theme/useDesignSystem';
 import {createGameplayLayoutRules, createGameplayStyles} from '../layoutRules';
+import Pool8BlackBall from '../pool8BlackBall';
 
 type ActionButtonTone = 'dark' | 'amber' | 'red' | 'green' | 'muted';
 type PoolBallButtonSize = 'large' | 'small';
@@ -529,6 +530,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const useExtraCompact =
     adaptive.isVeryShortLandscape ||
     shortestSide <= 460 || height <= 680 || (isHandheldLandscape && height <= 620) || adaptive.aspectRatio >= 1.9;
+  const useCompactMiddleHoleCounter = useExtraCompact || useResponsiveCompact;
 
   const uiScale = useMemo(() => {
     if (isLargeDisplay) {
@@ -547,6 +549,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const isPool15 = isPool15Free;
   const isPool15Only = false;
   const usePoolBroadcastLayout = isPool && !isPool15;
+  const isPhonePreset = adaptive.layoutPreset === 'phone';
+  const isTabletPreset = adaptive.layoutPreset === 'tablet';
+  const isWideTabletPreset = adaptive.layoutPreset === 'wideTablet';
+  const isTvPreset = adaptive.layoutPreset === 'tv';
   const isFastMode = props.gameSettings?.mode?.mode === 'fast';
   const totalTimeText = viewModel.displayTotalTime();
   const players = props.playerSettings?.playingPlayers || [];
@@ -557,22 +563,102 @@ const GameConsole = (props: ConsoleViewModelProps) => {
   const rightHole10Score = Number(props.pool8FreeHole10Scores?.[1] || 0);
   const hideCaromCamera = isCarom && totalPlayers >= 5;
   const hideCaromScoreChrome = isCarom && totalPlayers >= 3;
+  const isCaromLargeCandidate =
+    isCarom &&
+    !hideCaromCamera &&
+    adaptive.isLandscape &&
+    !isLargeDisplay &&
+    (isTabletPreset || isWideTabletPreset) &&
+    shortestSide >= 600 &&
+    width >= 960 &&
+    height >= 720;
+  const useLargeCaromConsole =
+    isCaromLargeCandidate &&
+    !useExtraCompact;
   const useCaromConsoleCompact =
     isCarom &&
     !hideCaromCamera &&
     adaptive.isLandscape &&
-    !isLargeDisplay;
+    !isLargeDisplay &&
+    !useLargeCaromConsole &&
+    (useResponsiveCompact || adaptive.isConstrainedLandscape || isHandheldLandscape || isPhonePreset || height <= 900);
   const useCaromCompactButtons = isCarom
-    ? useResponsiveCompact || useCaromConsoleCompact
+    ? !useLargeCaromConsole && (useResponsiveCompact || useCaromConsoleCompact)
     : useResponsiveCompact;
   const useCaromExtraCompactButtons = isCarom
-    ? hideCaromCamera || useExtraCompact || (useCaromConsoleCompact && height <= 900)
+    ? hideCaromCamera || useExtraCompact || (!useLargeCaromConsole && useCaromConsoleCompact && height <= 780)
     : hideCaromCamera || useExtraCompact;
   const useCaromTightLayout =
-    isCarom && !hideCaromCamera && (useCaromConsoleCompact || useResponsiveCompact || height <= 900);
+    isCarom &&
+    !hideCaromCamera &&
+    !useLargeCaromConsole &&
+    (useResponsiveCompact || adaptive.isConstrainedLandscape || isHandheldLandscape || height <= 760);
   const caromExpectedButtonCount = !isCarom
     ? 0
     : (props.isStarted ? 3 : 1) + 3 + 2;
+  const caromGoalCardMinHeight = useMemo(() => {
+    if (!isCarom) {
+      return null;
+    }
+
+    if (useLargeCaromConsole) {
+      return 52;
+    }
+
+    if (hideCaromCamera) {
+      return 56;
+    }
+
+    if (useCaromTightLayout) {
+      return 34;
+    }
+
+    if (useCaromConsoleCompact) {
+      return 40;
+    }
+
+    return 44;
+  }, [hideCaromCamera, isCarom, useCaromConsoleCompact, useCaromTightLayout, useLargeCaromConsole]);
+
+  const caromActionGap = useMemo(() => {
+    if (!isCarom) {
+      return null;
+    }
+
+    if (useLargeCaromConsole) {
+      return 8;
+    }
+
+    if (useCaromTightLayout) {
+      return 2;
+    }
+
+    if (useCaromConsoleCompact) {
+      return 3;
+    }
+
+    return 4;
+  }, [isCarom, useCaromConsoleCompact, useCaromTightLayout, useLargeCaromConsole]);
+
+  const caromCameraMaxHeight = useMemo(() => {
+    if (!isCarom || hideCaromScoreChrome) {
+      return null;
+    }
+
+    if (useLargeCaromConsole) {
+      return null;
+    }
+
+    if (useCaromTightLayout) {
+      return 104;
+    }
+
+    if (useCaromConsoleCompact) {
+      return 118;
+    }
+
+    return null;
+  }, [hideCaromScoreChrome, isCarom, useCaromConsoleCompact, useCaromTightLayout, useLargeCaromConsole]);
 
   useEffect(() => {
     if (!isCarom) {
@@ -580,32 +666,64 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     debugCaromLayout('[GameConsole] carom layout branch', {
+      width,
+      height,
+      shortestSide,
+      layoutPreset: adaptive.layoutPreset,
+      widthClass: adaptive.widthClass,
+      isPhone: isPhonePreset,
+      isTablet: isTabletPreset,
+      isWideTablet: isWideTabletPreset,
+      isTv: isTvPreset,
+      isConstrainedLandscape: adaptive.isConstrainedLandscape,
+      heightTriggersResponsiveCompact: height <= 760,
+      heightTriggersLegacyTight: height <= 900,
+      useResponsiveCompact,
+      useExtraCompact,
+      isCaromLargeCandidate,
+      useLargeCaromConsole,
       isCarom,
       hideCaromCamera,
-    hideCaromScoreChrome,
+      hideCaromScoreChrome,
       useCaromConsoleCompact,
       useCaromCompactButtons,
       useCaromExtraCompactButtons,
       useCaromTightLayout,
       expectedButtonCount: caromExpectedButtonCount,
       cameraMinHeight: null,
-      hideCaromScoreChrome,
+      goalCardMinHeight: caromGoalCardMinHeight,
+      actionStackGap: caromActionGap,
+      cameraMaxHeight: caromCameraMaxHeight,
       countdownEnabled: !!props.gameSettings?.mode?.countdownTime,
       isStarted: props.isStarted,
-      width,
-      height,
     });
   }, [
+    adaptive.isConstrainedLandscape,
+    adaptive.layoutPreset,
+    adaptive.widthClass,
+    caromActionGap,
+    caromCameraMaxHeight,
+    caromExpectedButtonCount,
+    caromGoalCardMinHeight,
     height,
     hideCaromCamera,
     hideCaromScoreChrome,
     isCarom,
+    isCaromLargeCandidate,
+    isPhonePreset,
+    isTabletPreset,
+    isTvPreset,
+    isWideTabletPreset,
     props.gameSettings?.mode?.countdownTime,
+    props.isStarted,
+    shortestSide,
     useCaromCompactButtons,
     useCaromConsoleCompact,
     useCaromExtraCompactButtons,
     useCaromTightLayout,
-    caromExpectedButtonCount,
+    useExtraCompact,
+    useLargeCaromConsole,
+    useResponsiveCompact,
     width,
   ]);
 
@@ -873,23 +991,6 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
   const pool15Footer = useMemo(() => {
     if (isPool8Temp) {
-      if (pool8SetWinnerPlayer && !props.winner) {
-        return (
-          <View style={styles.pool15FooterWrap}>
-            <View style={styles.pool8FreeWinnerInline}>
-              <RNText style={styles.pool8FreeWinnerInlineText}>
-                {`${pool8SetWinnerPlayer.name} ${tr('thắng set này', 'wins this set')}`}
-              </RNText>
-              <Button style={styles.pool8FreeWinnerInlineButton} onPress={props.onReset}>
-                <RNText style={styles.pool8FreeWinnerInlineButtonText}>
-                  {tr('Ván mới', 'New game')}
-                </RNText>
-              </Button>
-            </View>
-          </View>
-        );
-      }
-
       return null;
     }
 
@@ -960,54 +1061,65 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     return (
       <View style={styles.pool15FooterWrap}>
-        <View direction={'row'} style={styles.pool8FreeFooterRow}>
-          <Button style={styles.pool8FreeSideCounter} onPress={() => props.onIncrementPool8FreeHole10?.(0)}>
-            <RNText style={styles.pool8FreeSideCounterTitle}>Lỗ 10</RNText>
-            <RNText style={styles.pool8FreeSideCounterValue}>{leftHole10Score}</RNText>
-          </Button>
-
-          <View style={styles.pool8FreeCenterWrap}>
-            {pool8FreeSetWinnerPlayer && !props.winner ? (
-              <View style={styles.pool8FreeWinnerInline}>
-                <RNText style={styles.pool8FreeWinnerInlineText}>
-                  {`${pool8FreeSetWinnerPlayer.name} ${tr('thắng set này', 'wins this set')}`}
-                </RNText>
-                <Button style={styles.pool8FreeWinnerInlineButton} onPress={props.onReset}>
-                  <RNText style={styles.pool8FreeWinnerInlineButtonText}>
-                    {tr('Ván mới', 'New game')}
-                  </RNText>
-                </Button>
-              </View>
-            ) : (
-              <View style={styles.pool8FreeRowsWrap}>
-                {freeRows.map((row, rowIndex) => (
-                  <View key={`free-row-${rowIndex}`} style={styles.pool8FreeRow}>
-                    {row.map(number => {
-                      const ball = remainingFreeBalls.find(item => item.number === number);
-                      return (
-                        <View key={`free-ball-${number}`} style={styles.pool15FreeBallWrap}>
-                          {ball ? (
-                            <PoolBallButton
-                              ball={ball}
-                              size={useExtraCompact ? 'small' : 'large'}
-                              onPress={() => props.onPoolScore(ball)}
-                            />
-                          ) : (
-                            <View style={styles.pool8FreeBallPlaceholder} />
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-            )}
+        <View direction={'row'} style={[styles.pool8FreeFooterRow, useCompactMiddleHoleCounter ? styles.pool8FreeFooterRowCompact : undefined]}>
+          <View style={[styles.pool8FreeSideCounter, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterCompact : undefined]}>
+            <Button
+              style={[styles.pool8FreeSideCounterAdjustButton, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustButtonCompact : undefined]}
+              onPress={() => props.onIncrementPool8FreeHole10?.(0)}>
+              <RNText style={[styles.pool8FreeSideCounterAdjustText, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustTextCompact : undefined]}>+</RNText>
+            </Button>
+            <View style={[styles.pool8FreeSideCounterBody, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterBodyCompact : undefined]}>
+              <RNText style={[styles.pool8FreeSideCounterTitle, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterTitleCompact : undefined]}>Lỗ giữa</RNText>
+              <RNText style={[styles.pool8FreeSideCounterValue, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterValueCompact : undefined]}>{leftHole10Score}</RNText>
+            </View>
+            <Button
+              style={[styles.pool8FreeSideCounterAdjustButton, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustButtonCompact : undefined]}
+              onPress={() => props.onDecrementPool8FreeHole10?.(0)}>
+              <RNText style={[styles.pool8FreeSideCounterAdjustText, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustTextCompact : undefined]}>-</RNText>
+            </Button>
           </View>
 
-          <Button style={styles.pool8FreeSideCounter} onPress={() => props.onIncrementPool8FreeHole10?.(1)}>
-            <RNText style={styles.pool8FreeSideCounterTitle}>Lỗ 10</RNText>
-            <RNText style={styles.pool8FreeSideCounterValue}>{rightHole10Score}</RNText>
-          </Button>
+          <View style={styles.pool8FreeCenterWrap}>
+            <View style={styles.pool8FreeRowsWrap}>
+              {freeRows.map((row, rowIndex) => (
+                <View key={`free-row-${rowIndex}`} style={styles.pool8FreeRow}>
+                  {row.map(number => {
+                    const ball = remainingFreeBalls.find(item => item.number === number);
+                    return (
+                      <View key={`free-ball-${number}`} style={styles.pool15FreeBallWrap}>
+                        {ball ? (
+                          <Pool8BlackBall
+                            number={ball.number}
+                            size={useExtraCompact ? 30 : 38}
+                            onPress={() => props.onPoolScore(ball)}
+                          />
+                        ) : (
+                          <View style={styles.pool8FreeBallPlaceholder} />
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.pool8FreeSideCounter, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterCompact : undefined]}>
+            <Button
+              style={[styles.pool8FreeSideCounterAdjustButton, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustButtonCompact : undefined]}
+              onPress={() => props.onIncrementPool8FreeHole10?.(1)}>
+              <RNText style={[styles.pool8FreeSideCounterAdjustText, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustTextCompact : undefined]}>+</RNText>
+            </Button>
+            <View style={[styles.pool8FreeSideCounterBody, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterBodyCompact : undefined]}>
+              <RNText style={[styles.pool8FreeSideCounterTitle, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterTitleCompact : undefined]}>Lỗ giữa</RNText>
+              <RNText style={[styles.pool8FreeSideCounterValue, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterValueCompact : undefined]}>{rightHole10Score}</RNText>
+            </View>
+            <Button
+              style={[styles.pool8FreeSideCounterAdjustButton, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustButtonCompact : undefined]}
+              onPress={() => props.onDecrementPool8FreeHole10?.(1)}>
+              <RNText style={[styles.pool8FreeSideCounterAdjustText, useCompactMiddleHoleCounter ? styles.pool8FreeSideCounterAdjustTextCompact : undefined]}>-</RNText>
+            </Button>
+          </View>
         </View>
       </View>
     );
@@ -1021,6 +1133,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     rightBall,
     rightScore,
     useExtraCompact,
+    useCompactMiddleHoleCounter,
     viewModel.onRestart,
     leftHole10Score,
     rightHole10Score,
@@ -1054,6 +1167,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     if (isCarom) {
       if (hideCaromScoreChrome) {
+        if (useLargeCaromConsole) {
+          return 212;
+        }
+
         if (useCaromTightLayout) {
           return isHandheldLandscape ? 118 : 136;
         }
@@ -1075,6 +1192,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         }
 
         return isLargeDisplay ? 230 : isHandheldLandscape ? 156 : adaptive.isConstrainedLandscape ? 170 : 194;
+      }
+
+      if (useLargeCaromConsole) {
+        return 164;
       }
 
       if (useCaromTightLayout) {
@@ -1122,6 +1243,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useTightLandscapeLayout,
     useCaromConsoleCompact,
     useCaromTightLayout,
+    useLargeCaromConsole,
     hideCaromScoreChrome,
   ]);
 
@@ -1132,6 +1254,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     debugCaromLayout('[GameConsole] computed carom sizes', {
       cameraMinHeight,
+      goalCardMinHeight: caromGoalCardMinHeight,
+      actionStackGap: caromActionGap,
+      cameraMaxHeight: caromCameraMaxHeight,
+      isCaromLargeCandidate,
+      useLargeCaromConsole,
       useCaromConsoleCompact,
       useCaromCompactButtons,
       useCaromExtraCompactButtons,
@@ -1142,14 +1269,19 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     });
   }, [
     cameraMinHeight,
+    caromActionGap,
+    caromCameraMaxHeight,
+    caromExpectedButtonCount,
+    caromGoalCardMinHeight,
     isCarom,
+    isCaromLargeCandidate,
     props.gameSettings?.mode?.countdownTime,
     props.isStarted,
     useCaromCompactButtons,
     useCaromConsoleCompact,
     useCaromExtraCompactButtons,
     useCaromTightLayout,
-    caromExpectedButtonCount,
+    useLargeCaromConsole,
   ]);
 
   if (isCarom) {
@@ -1162,13 +1294,15 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             : undefined,
           styles.caromWrapper,
           useResponsiveCompact ? styles.phoneWrapper : undefined,
+          useLargeCaromConsole ? styles.caromWrapperLarge : undefined,
           hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
         ]}>
         {props.gameSettings?.mode?.countdownTime && !hideCaromScoreChrome ? (
           <View
             style={[
               styles.caromInfoWrap,
-              styles.caromInfoWrapCompact,
+              (useCaromTightLayout || useCaromConsoleCompact) ? styles.caromInfoWrapCompact : undefined,
+              useLargeCaromConsole ? styles.caromInfoWrapLarge : undefined,
               hideCaromCamera ? styles.caromInfoWrapNoCamera : undefined,
             ]}>
             <CaromInfo
@@ -1198,6 +1332,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
               useCaromTightLayout ? styles.caromCameraCardTight : undefined,
               useCaromConsoleCompact ? styles.caromCameraCardCompact : undefined,
+              useLargeCaromConsole ? styles.caromCameraCardLarge : undefined,
               hideCaromScoreChrome ? styles.caromCameraCardExpanded : undefined,
               {minHeight: cameraMinHeight},
             ]}
@@ -1231,6 +1366,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             !hideCaromCamera ? styles.caromGoalCardInline : undefined,
             useCaromTightLayout ? styles.caromGoalCardTight : undefined,
             useCaromConsoleCompact ? styles.caromGoalCardCompact : undefined,
+            useLargeCaromConsole ? styles.caromGoalCardLarge : undefined,
             isLargeDisplay && !useResponsiveCompact
               ? styles.caromGoalCardLargeDisplay
               : undefined,
@@ -1325,6 +1461,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
             useResponsiveCompact ? styles.phoneActionStack : undefined,
             useCaromTightLayout ? styles.caromActionStackTight : undefined,
             useCaromConsoleCompact ? styles.caromActionStackCompact : undefined,
+            useLargeCaromConsole ? styles.caromActionStackLarge : undefined,
             hideCaromCamera ? styles.caromActionStackNoCamera : undefined,
           ]}
           onLayout={event => {
@@ -1630,6 +1767,12 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   caromWrapperNoCamera: {
     justifyContent: 'space-between',
   },
+  caromWrapperLarge: {
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
+    gap: 8,
+  },
   timeWrap: {
     width: '100%',
   },
@@ -1854,6 +1997,11 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     flex: 1.2,
     maxHeight: undefined,
   },
+  caromCameraCardLarge: {
+    flex: 1.22,
+    maxHeight: undefined,
+    borderWidth: 4,
+  },
   caromCameraCardTight: {
     flex: 0.54,
     maxHeight: 104,
@@ -1900,6 +2048,10 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   caromActionStackNoCamera: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  caromActionStackLarge: {
+    gap: 10,
+    paddingTop: 6,
   },
   topButtonRowWrap: {
     width: '100%',
@@ -2166,12 +2318,19 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingVertical: 2,
   },
   caromGoalCardLargeDisplay: {},
+  caromGoalCardLarge: {
+    minHeight: 58,
+    paddingVertical: 7,
+  },
   caromInfoWrap: {
     width: '100%',
     flexShrink: 0,
   },
   caromInfoWrapCompact: {
     marginBottom: 0,
+  },
+  caromInfoWrapLarge: {
+    marginBottom: 4,
   },
   caromInfoWrapNoCamera: {},
   poolBallButton: {
@@ -2284,30 +2443,88 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
+  },
+  pool8FreeFooterRowCompact: {
+    gap: 4,
   },
   pool8FreeSideCounter: {
-    width: 78,
-    minHeight: 112,
-    borderRadius: 14,
+    width: 64,
+    minHeight: 108,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2C2F35',
     backgroundColor: '#17181C',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    gap: 4,
+    flexShrink: 0,
+  },
+  pool8FreeSideCounterCompact: {
+    width: 48,
+    minHeight: 88,
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 3,
+    gap: 2,
+  },
+  pool8FreeSideCounterAdjustButton: {
+    width: '100%',
+    minHeight: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3A3E46',
+    backgroundColor: '#101116',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    paddingVertical: 0,
+  },
+  pool8FreeSideCounterAdjustButtonCompact: {
+    minHeight: 16,
+    borderRadius: 6,
+  },
+  pool8FreeSideCounterAdjustText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 17,
+  },
+  pool8FreeSideCounterAdjustTextCompact: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  pool8FreeSideCounterBody: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  pool8FreeSideCounterBodyCompact: {
+    paddingVertical: 1,
   },
   pool8FreeSideCounterTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  pool8FreeSideCounterTitleCompact: {
+    fontSize: 8,
+    marginBottom: 2,
   },
   pool8FreeSideCounterValue: {
     color: '#FF2525',
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '900',
+    lineHeight: 24,
+  },
+  pool8FreeSideCounterValueCompact: {
+    fontSize: 17,
+    lineHeight: 19,
   },
   pool8FreeCenterWrap: {
     flex: 1,
