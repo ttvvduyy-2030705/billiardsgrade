@@ -4,7 +4,7 @@ import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
 
-import {dims} from 'configuration';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
 import colors from 'configuration/colors';
 import i18n from 'i18n';
 import {isPoolGame} from 'utils/game';
@@ -31,6 +31,9 @@ const PoolMode = ({
   onViolate,
   onResetViolate,
 }: Props) => {
+  const adaptive = useAdaptiveLayout();
+  const buttonFontSize = adaptive.fs(26, 0.76, 1.04);
+
   if (!isPoolGame(gameSettings?.category)) {
     return <View />;
   }
@@ -46,7 +49,7 @@ const PoolMode = ({
           <Button
             style={playerStyles.buttonEndTurn}
             onPress={onEndTurn.bind(PoolMode, undefined)}>
-            <Text color={colors.white} fontSize={dims.screenWidth * 0.02}>
+            <Text color={colors.white} fontSize={buttonFontSize}>
               {isEnglish ? 'Switch turn' : 'Đổi lượt đánh'}
             </Text>
           </Button>

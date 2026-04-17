@@ -32,8 +32,9 @@ import {LIVESTREAM_ACCOUNT_STORAGE_KEY} from 'config/livestreamAuth';
 import {
   RECORDING_SEGMENT_DURATION_MS,
   MAX_REPLAY_STORAGE_BYTES,
-  buildReplayFolderPath,
-  ensureReplayFolder,
+  deleteReplayFolder,
+  exportMatchToArchive,
+  getNextReplaySegmentIndex,
   registerReplaySegment,
   pruneReplayStorage,
   listReplayFiles,
@@ -638,12 +639,13 @@ const GamePlayViewModel = () => {
       try {
         await cleanupBrokenReplayFiles(webcamFolderName);
         const existingFiles = await listReplayFiles(webcamFolderName);
+        const nextSegmentIndex = await getNextReplaySegmentIndex(webcamFolderName);
         if (!mounted) {
           return;
         }
 
-        replayCompletedSegmentsRef.current = existingFiles.length;
-        currentReplaySegmentIndexRef.current = existingFiles.length;
+        replayCompletedSegmentsRef.current = nextSegmentIndex;
+        currentReplaySegmentIndexRef.current = nextSegmentIndex;
       } catch (error) {
         console.log('[ReplayTimeline] load existing segments failed:', error);
       }
@@ -2719,6 +2721,15 @@ const GamePlayViewModel = () => {
             return;
           }
 
+          if (saveToDeviceWhileStreaming) {
+            try {
+              await exportMatchToArchive(webcamFolderName);
+              await deleteReplayFolder(webcamFolderName, {includeArchive: false});
+            } catch (exportError) {
+              console.log('[Replay] export full match failed:', exportError);
+            }
+          }
+
           dispatch(
             gameActions.endGame({
               realm,
@@ -2728,6 +2739,7 @@ const GamePlayViewModel = () => {
                 totalTime,
                 webcamFolderName,
                 replayPath: recordedPath,
+                saveToDeviceWhileStreaming,
               },
             }),
           );
@@ -2746,6 +2758,7 @@ const GamePlayViewModel = () => {
   totalTime,
   gameSettings,
   playerSettings,
+  saveToDeviceWhileStreaming,
   webcamFolderName,
 ]);
 
@@ -2875,19 +2888,6 @@ const GamePlayViewModel = () => {
 
           try {
             if (video?.path) {
-              const replayFolderPath = await ensureReplayFolder(webcamFolderName);
-              const segmentFileName = `segment_${Date.now()}.mp4`;
-              const targetPath = `${replayFolderPath}/${segmentFileName}`;
-
-              try {
-                await RNFS.moveFile(video.path, targetPath);
-                finalPath = targetPath;
-              } catch (moveError) {
-                console.log('[Replay] moveFile failed, trying copy:', moveError);
-                await RNFS.copyFile(video.path, targetPath);
-                finalPath = targetPath;
-              }
-
               if (ENABLE_SEGMENT_OVERLAY_BURN && finalPath) {
                 // Bật lại chỉ khi thực sự cần file replay có overlay cứng trong video.
                 // Mặc định tắt để ưu tiên độ mượt và tránh spike FFmpeg sau mỗi segment.
@@ -2895,7 +2895,12 @@ const GamePlayViewModel = () => {
 
               const registeredPath = await registerReplaySegment(
                 webcamFolderName,
-                finalPath,
+                video.path,
+                {
+                  keepFullMatch: saveToDeviceWhileStreaming,
+                  matchSessionId: matchSessionIdRef.current,
+                  segmentIndex: currentReplaySegmentIndexRef.current,
+                },
               );
 
               if (!registeredPath) {

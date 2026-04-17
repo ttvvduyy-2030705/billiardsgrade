@@ -7,7 +7,7 @@ import Countdown from 'components/Countdown';
 import colors from 'configuration/colors';
 import {Player} from 'types/player';
 
-import {dims} from 'configuration';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
 import images from 'assets';
 import CaromInfoViewModel, {Props} from './CaromInfoViewModel';
 import styles from './styles';
@@ -33,6 +33,7 @@ const getPlayerFlagText = (player?: {flag?: string}) => {
 
 const CaromInfo = (props: Props) => {
   const viewModel = CaromInfoViewModel(props);
+  const adaptive = useAdaptiveLayout();
   const isLibre = props.gameSettings?.category === 'libre';
 
   const getTotalPointFont = useCallback(
@@ -173,7 +174,7 @@ const CaromInfo = (props: Props) => {
     <View
       style={[styles.container, props.compact ? styles.containerCompact : undefined]}
       direction={'row'}
-      marginTop={'10'}>
+      marginTop={props.compact ? '0' : '10'}>
       <View flex={'1'}>
         <View
           collapsable={false}
@@ -184,7 +185,7 @@ const CaromInfo = (props: Props) => {
               flex={'1'}
               justify={'center'}
               style={[styles.totalTurnWrapper, props.compact ? styles.totalTurnWrapperCompact : undefined]}
-              paddingHorizontal={'20'}>
+              paddingHorizontal={props.compact ? '12' : '20'}>
               <Text
                 color={colors.white}
                 fontSize={props.compact ? 40 : 56}
@@ -207,8 +208,8 @@ const CaromInfo = (props: Props) => {
           alignItems={'center'}>
           <View
             style={[styles.countdownWrapper, props.compact ? styles.countdownWrapperCompact : undefined]}
-            paddingHorizontal={'20'}
-            marginLeft={'5'}>
+            paddingHorizontal={props.compact ? '12' : '20'}
+            marginLeft={props.compact ? '2' : '5'}>
             <Text fontSize={props.compact ? 16 : 20} color={colors.white}>
               {props.countdownTime}
             </Text>
@@ -227,8 +228,8 @@ const CaromInfo = (props: Props) => {
               <Countdown
                 originalCountdownTime={props.gameSettings.mode?.countdownTime}
                 currentCountdownTime={props.countdownTime}
-                countdownWidth={dims.screenWidth * (props.compact ? 0.18 : 0.225)}
-                heightItem={props.compact ? 14 : 27}
+                countdownWidth={adaptive.width * (props.compact ? 0.16 : 0.225)}
+                heightItem={props.compact ? 12 : 27}
                 marginHorizontal={props.compact ? 1 : 2}
                 direction="right-to-left"
                 colorMode="threshold"

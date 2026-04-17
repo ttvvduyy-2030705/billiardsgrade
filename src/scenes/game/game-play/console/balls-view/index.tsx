@@ -14,6 +14,7 @@ import images from 'assets';
 import Ball from 'components/Ball';
 import {ScrollView} from 'react-native';
 import Image from 'components/Image';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
 
 interface Props {
   isStarted: boolean;
@@ -38,6 +39,8 @@ interface Props {
 }
 
 const BallsView = (props: Props) => {
+  const adaptive = useAdaptiveLayout();
+  const arrowStyle = useMemo(() => ({width: adaptive.s(26), height: adaptive.s(26)}), [adaptive]);
   const RACE_TO_GOAL = useMemo(() => {
     return (
       <Text fontSize={48}>
@@ -108,6 +111,7 @@ const BallsView = (props: Props) => {
                     source={images.doubleArrow}
                     style={[
                       styles.doubleArrowLeft,
+                      arrowStyle,
                       {tintColor: props.arrowColorLeft},
                     ]}
                     resizeMode={'contain'}
@@ -136,6 +140,7 @@ const BallsView = (props: Props) => {
                     source={images.doubleArrow}
                     style={[
                       styles.doubleArrowRight,
+                      arrowStyle,
                       {tintColor: props.arrowColorRight},
                     ]}
                     resizeMode={'contain'}

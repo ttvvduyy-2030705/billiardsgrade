@@ -1,17 +1,31 @@
 import {Dimensions, Platform, StatusBar} from 'react-native';
 
-const {width, height} = Dimensions.get('window');
-const isPad = Platform.OS === 'ios' && Platform.isPad ? true : false;
-
-const dims = {
-  screenWidth: width,
-  screenHeight: height,
+const getWindow = () => {
+  const {width, height} = Dimensions.get('window');
+  return {
+    width: width > 0 ? width : 1,
+    height: height > 0 ? height : 1,
+  };
 };
 
-const isIPhoneX =
-  Platform.OS === 'ios' && !Platform.isPad && (height > 800 || width > 800);
+const getIsPad = () => Platform.OS === 'ios' && Platform.isPad ? true : false;
+
+const dims = {
+  get screenWidth() {
+    return getWindow().width;
+  },
+  get screenHeight() {
+    return getWindow().height;
+  },
+};
+
+const getIsIPhoneX = () => {
+  const {width, height} = getWindow();
+  return Platform.OS === 'ios' && !Platform.isPad && (height > 800 || width > 800);
+};
 
 const getStatusBarHeight = () => {
+  const isIPhoneX = getIsIPhoneX();
   return (
     Platform.select({
       ios: isIPhoneX ? 44 : 20,
@@ -22,6 +36,8 @@ const getStatusBarHeight = () => {
 
 const getHeaderHeight = () => {
   const currentHeight = StatusBar.currentHeight || 0;
+  const isPad = getIsPad();
+  const isIPhoneX = getIsIPhoneX();
 
   return (
     Platform.select({
@@ -32,13 +48,11 @@ const getHeaderHeight = () => {
 };
 
 const getBottomSpace = () => {
-  return isIPhoneX ? 34 : 0;
+  return getIsIPhoneX() ? 34 : 0;
 };
 
 export {
   dims,
-  isIPhoneX,
-  isPad,
   getStatusBarHeight,
   getHeaderHeight,
   getBottomSpace,

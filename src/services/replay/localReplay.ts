@@ -1,43 +1,51 @@
 import RNFS from 'react-native-fs';
 
-// Replay VAR trong trận:
-// - chỉ giữ đúng 5 phút gần nhất
-// - chia 5 phút / 1 clip
-// - tối đa 1 clip trong thư mục replay
-// - khi có clip mới thì xóa thẳng clip cũ để luôn giữ khoảnh khắc gần nhất
-//
-// Lưu trữ trên máy:
-// - vẫn copy đầy đủ từng clip sang kho archive
-// - khi tổng dung lượng vượt ngưỡng 50GB thì xóa dần thư mục cũ nhất
-export const RECORDING_SEGMENT_DURATION_MS = 5 * 60 * 1000;
-export const MAX_REPLAY_STORAGE_BYTES = 50 * 1024 * 1024 * 1024;
+export const RECORDING_SEGMENT_DURATION_MS = 2 * 60 * 1000;
+export const MAX_REPLAY_STORAGE_BYTES = 10 * 1024 * 1024 * 1024;
+export const REPLAY_WINDOW_SEGMENTS = 3;
 
-const APP_MEDIA_ROOT = `${RNFS.DownloadDirectoryPath}/Aplus Billiards`;
-export const REPLAY_ROOT = `${APP_MEDIA_ROOT}/Replays`;
-export const ARCHIVE_ROOT = `${APP_MEDIA_ROOT}/Saved Videos`;
+const INTERNAL_MEDIA_ROOT = `${RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath}/Aplus Billiards`;
+const PUBLIC_MEDIA_ROOT = `${RNFS.DownloadDirectoryPath}/Aplus Billiards`;
+export const REPLAY_ROOT = `${INTERNAL_MEDIA_ROOT}/ReplayBuffer`;
+export const ARCHIVE_ROOT = `${PUBLIC_MEDIA_ROOT}/Saved Videos`;
 const LEGACY_REPLAY_ROOT = RNFS.DownloadDirectoryPath;
 const VIDEO_EXTENSIONS = ['.mov', '.mp4', '.m4v', '.ts'];
-
-const MIN_VALID_VIDEO_BYTES = 1 * 1024 * 1024; // 1MB
+const MATCH_MANIFEST_FILE_NAME = 'match.json';
+const MIN_VALID_VIDEO_BYTES = 1 * 1024 * 1024;
 const FILE_SETTLE_MS = 1500;
-const MAX_REPLAY_WINDOW_MINUTES = 5;
-const REPLAY_SEGMENT_MINUTES = 5;
-const MAX_REPLAY_SEGMENTS = Math.floor(MAX_REPLAY_WINDOW_MINUTES / REPLAY_SEGMENT_MINUTES); // 1 clip
 const PRUNE_MIN_INTERVAL_MS = 15 * 60 * 1000;
+const SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 
 let lastPruneRunAt = 0;
 
-export const buildReplayFolderPath = (webcamFolderName: string) => {
-  return `${REPLAY_ROOT}/${webcamFolderName}`;
+export type ReplaySegmentEntry = {
+  segmentIndex: number;
+  fileName: string;
+  createdAt: number;
+  sizeBytes: number;
 };
 
-export const buildArchiveFolderPath = (webcamFolderName: string) => {
-  return `${ARCHIVE_ROOT}/${webcamFolderName}`;
+export type ReplayMatchManifest = {
+  version: number;
+  webcamFolderName: string;
+  matchSessionId?: string;
+  keepFullMatch: boolean;
+  createdAt: number;
+  updatedAt: number;
+  exportedAt?: number;
+  segments: ReplaySegmentEntry[];
 };
 
-export const buildLegacyReplayFolderPath = (webcamFolderName: string) => {
-  return `${LEGACY_REPLAY_ROOT}/${webcamFolderName}`;
+export type RegisterReplaySegmentOptions = {
+  keepFullMatch?: boolean;
+  matchSessionId?: string;
+  segmentIndex?: number;
 };
+
+export const buildReplayFolderPath = (webcamFolderName: string) => `${REPLAY_ROOT}/${webcamFolderName}`;
+export const buildArchiveFolderPath = (webcamFolderName: string) => `${ARCHIVE_ROOT}/${webcamFolderName}`;
+export const buildLegacyReplayFolderPath = (webcamFolderName: string) => `${LEGACY_REPLAY_ROOT}/${webcamFolderName}`;
+const buildManifestPath = (folderPath: string) => `${folderPath}/${MATCH_MANIFEST_FILE_NAME}`;
 
 const basename = (filePath: string) => filePath.split('/').pop() || `segment_${Date.now()}.mp4`;
 
@@ -46,9 +54,7 @@ const isVideoFile = (name: string) => {
   return VIDEO_EXTENSIONS.some(ext => lower.endsWith(ext));
 };
 
-const safeMtime = (item: RNFS.ReadDirItem) => {
-  return item.mtime ? new Date(item.mtime).getTime() : 0;
-};
+const safeMtime = (item: RNFS.ReadDirItem) => (item.mtime ? new Date(item.mtime).getTime() : 0);
 
 const hasValidVideoShape = (item: RNFS.ReadDirItem) => {
   if (!item.isFile() || !isVideoFile(item.name)) {
@@ -77,48 +83,85 @@ const readVideoFiles = async (folderPath: string) => {
   return items.filter(hasValidVideoShape).sort(sortByAge);
 };
 
-export const ensureReplayRoot = async () => {
-  if (!(await RNFS.exists(APP_MEDIA_ROOT))) {
-    await RNFS.mkdir(APP_MEDIA_ROOT);
-  }
-  if (!(await RNFS.exists(REPLAY_ROOT))) {
-    await RNFS.mkdir(REPLAY_ROOT);
-  }
-  if (!(await RNFS.exists(ARCHIVE_ROOT))) {
-    await RNFS.mkdir(ARCHIVE_ROOT);
-  }
-};
-
-export const ensureReplayFolder = async (webcamFolderName: string) => {
-  await ensureReplayRoot();
-  const folderPath = buildReplayFolderPath(webcamFolderName);
+const ensureDir = async (folderPath: string) => {
   if (!(await RNFS.exists(folderPath))) {
     await RNFS.mkdir(folderPath);
   }
   return folderPath;
 };
 
-export const ensureArchiveFolder = async (webcamFolderName: string) => {
-  await ensureReplayRoot();
-  const folderPath = buildArchiveFolderPath(webcamFolderName);
-  if (!(await RNFS.exists(folderPath))) {
-    await RNFS.mkdir(folderPath);
-  }
-  return folderPath;
+const normalizeManifest = (
+  webcamFolderName: string,
+  current?: Partial<ReplayMatchManifest> | null,
+): ReplayMatchManifest => {
+  const createdAt = Number(current?.createdAt || Date.now());
+  const segments = Array.isArray(current?.segments)
+    ? current!.segments
+        .map(segment => ({
+          segmentIndex: Number(segment.segmentIndex || 0),
+          fileName: String(segment.fileName || ''),
+          createdAt: Number(segment.createdAt || createdAt),
+          sizeBytes: Number(segment.sizeBytes || 0),
+        }))
+        .filter(segment => segment.fileName.length > 0)
+        .sort((a, b) => a.segmentIndex - b.segmentIndex)
+    : [];
+
+  return {
+    version: 1,
+    webcamFolderName,
+    matchSessionId: current?.matchSessionId,
+    keepFullMatch: Boolean(current?.keepFullMatch),
+    createdAt,
+    updatedAt: Date.now(),
+    exportedAt: current?.exportedAt,
+    segments,
+  };
 };
 
-export const resolveReplayFolder = async (webcamFolderName: string) => {
-  const currentPath = buildReplayFolderPath(webcamFolderName);
-  if (await RNFS.exists(currentPath)) {
-    return currentPath;
+const readManifestFromFolder = async (folderPath: string, webcamFolderName: string) => {
+  const manifestPath = buildManifestPath(folderPath);
+  if (!(await RNFS.exists(manifestPath))) {
+    return normalizeManifest(webcamFolderName, null);
   }
 
-  const legacyPath = buildLegacyReplayFolderPath(webcamFolderName);
-  if (await RNFS.exists(legacyPath)) {
-    return legacyPath;
+  try {
+    const raw = await RNFS.readFile(manifestPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return normalizeManifest(webcamFolderName, parsed);
+  } catch (error) {
+    console.log('[Replay] failed to read match manifest:', error);
+    return normalizeManifest(webcamFolderName, null);
   }
+};
 
-  return undefined;
+const writeManifestToFolder = async (folderPath: string, manifest: ReplayMatchManifest) => {
+  const normalized = normalizeManifest(manifest.webcamFolderName, manifest);
+  await RNFS.writeFile(
+    buildManifestPath(folderPath),
+    JSON.stringify(normalized, null, 2),
+    'utf8',
+  );
+  return normalized;
+};
+
+export const extractReplaySegmentIndex = (filePathOrName?: string | null) => {
+  const target = String(filePathOrName || '');
+  const match = target.match(/part_(\d+)/i);
+  if (!match?.[1]) {
+    return undefined;
+  }
+  const parsed = Number(match[1]);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+  return Math.max(0, parsed - 1);
+};
+
+const buildSegmentFileName = (segmentIndex: number, segmentPath: string) => {
+  const ext = basename(segmentPath).split('.').pop()?.toLowerCase();
+  const resolvedExt = ext && VIDEO_EXTENSIONS.includes(`.${ext}`) ? ext : 'mp4';
+  return `part_${String(segmentIndex + 1).padStart(4, '0')}.${resolvedExt}`;
 };
 
 const cleanupFolderBrokenFiles = async (folderPath?: string) => {
@@ -156,27 +199,86 @@ const cleanupFolderBrokenFiles = async (folderPath?: string) => {
   }
 };
 
+export const ensureReplayRoot = async () => {
+  await ensureDir(INTERNAL_MEDIA_ROOT);
+  await ensureDir(PUBLIC_MEDIA_ROOT);
+  await ensureDir(REPLAY_ROOT);
+  await ensureDir(ARCHIVE_ROOT);
+};
+
+export const ensureReplayFolder = async (webcamFolderName: string) => {
+  await ensureReplayRoot();
+  return ensureDir(buildReplayFolderPath(webcamFolderName));
+};
+
+export const ensureArchiveFolder = async (webcamFolderName: string) => {
+  await ensureReplayRoot();
+  return ensureDir(buildArchiveFolderPath(webcamFolderName));
+};
+
+export const resolveReplayFolder = async (webcamFolderName: string) => {
+  const currentPath = buildReplayFolderPath(webcamFolderName);
+  if (await RNFS.exists(currentPath)) {
+    return currentPath;
+  }
+
+  const archivePath = buildArchiveFolderPath(webcamFolderName);
+  if (await RNFS.exists(archivePath)) {
+    return archivePath;
+  }
+
+  const legacyPath = buildLegacyReplayFolderPath(webcamFolderName);
+  if (await RNFS.exists(legacyPath)) {
+    return legacyPath;
+  }
+
+  return undefined;
+};
+
+export const readReplayMatchManifest = async (webcamFolderName: string) => {
+  const folderPath =
+    (await resolveReplayFolder(webcamFolderName)) ||
+    (await ensureReplayFolder(webcamFolderName));
+
+  return readManifestFromFolder(folderPath, webcamFolderName);
+};
+
+export const getNextReplaySegmentIndex = async (webcamFolderName: string) => {
+  const manifest = await readReplayMatchManifest(webcamFolderName);
+  const lastSegment = manifest.segments[manifest.segments.length - 1];
+  return lastSegment ? lastSegment.segmentIndex + 1 : 0;
+};
+
 export const cleanupBrokenReplayFiles = async (webcamFolderName: string) => {
-  const replayFolderPath = await resolveReplayFolder(webcamFolderName);
+  const replayFolderPath = buildReplayFolderPath(webcamFolderName);
   const archiveFolderPath = buildArchiveFolderPath(webcamFolderName);
 
   await cleanupFolderBrokenFiles(replayFolderPath);
   await cleanupFolderBrokenFiles(archiveFolderPath);
 };
 
-const enforceReplayWindow = async (webcamFolderName: string) => {
-  const folderPath = await resolveReplayFolder(webcamFolderName);
-  if (!folderPath) {
+const pruneReplayWindowForFolder = async (
+  webcamFolderName: string,
+  keepFullMatch: boolean,
+) => {
+  if (keepFullMatch) {
+    return;
+  }
+
+  const folderPath = buildReplayFolderPath(webcamFolderName);
+  if (!(await RNFS.exists(folderPath))) {
     return;
   }
 
   const files = await readVideoFiles(folderPath);
-  const overflow = files.length - MAX_REPLAY_SEGMENTS;
+  const overflow = files.length - REPLAY_WINDOW_SEGMENTS;
   if (overflow <= 0) {
     return;
   }
 
   const staleFiles = files.slice(0, overflow);
+  const staleNames = new Set(staleFiles.map(file => file.name));
+
   for (const file of staleFiles) {
     try {
       await RNFS.unlink(file.path);
@@ -185,22 +287,48 @@ const enforceReplayWindow = async (webcamFolderName: string) => {
       console.log('[Replay] failed to drop oldest replay clip:', file.path, error);
     }
   }
+
+  const manifest = await readManifestFromFolder(folderPath, webcamFolderName);
+  manifest.segments = manifest.segments.filter(
+    segment => !staleNames.has(segment.fileName),
+  );
+  await writeManifestToFolder(folderPath, manifest);
 };
 
-export const listReplayFiles = async (webcamFolderName: string) => {
-  const folderPath = await resolveReplayFolder(webcamFolderName);
-  if (!folderPath) {
+const listVideoFilesFromFolder = async (folderPath?: string) => {
+  if (!folderPath || !(await RNFS.exists(folderPath))) {
     return [] as RNFS.ReadDirItem[];
   }
 
   const files = await readVideoFiles(folderPath);
   const settled = files.filter(item => !isSettlingVideo(item));
-  const visible = settled.length > 0 ? settled : files;
-
-  // Chỉ trả về clip mới nhất cho playback, đảm bảo VAR luôn bám sát khoảnh khắc vừa xảy ra.
-  return visible.slice(-MAX_REPLAY_SEGMENTS);
+  return settled.length > 0 ? settled : files;
 };
 
+export const listReplayFiles = async (webcamFolderName: string) => {
+  const folderPath = buildReplayFolderPath(webcamFolderName);
+  const files = await listVideoFilesFromFolder(folderPath);
+  return files.slice(-REPLAY_WINDOW_SEGMENTS);
+};
+
+export const listArchiveFiles = async (webcamFolderName: string) => {
+  const folderPath = buildArchiveFolderPath(webcamFolderName);
+  return listVideoFilesFromFolder(folderPath);
+};
+
+export const listPlayableFiles = async (
+  webcamFolderName: string,
+  preferArchive = false,
+) => {
+  if (preferArchive) {
+    const archiveFiles = await listArchiveFiles(webcamFolderName);
+    if (archiveFiles.length > 0) {
+      return archiveFiles;
+    }
+  }
+
+  return listReplayFiles(webcamFolderName);
+};
 
 export const waitForReplayFiles = async (
   webcamFolderName: string,
@@ -221,9 +349,9 @@ export const waitForReplayFiles = async (
 export const registerReplaySegment = async (
   webcamFolderName: string,
   segmentPath: string,
+  options: RegisterReplaySegmentOptions = {},
 ) => {
   const replayFolderPath = await ensureReplayFolder(webcamFolderName);
-  const archiveFolderPath = await ensureArchiveFolder(webcamFolderName);
 
   try {
     const stat = await RNFS.stat(segmentPath);
@@ -237,34 +365,89 @@ export const registerReplaySegment = async (
       return undefined;
     }
 
-    const fileName = basename(segmentPath);
-    const archiveFileName = `${Date.now()}_${fileName}`;
-    const archivePath = `${archiveFolderPath}/${archiveFileName}`;
+    const existingManifest = await readManifestFromFolder(
+      replayFolderPath,
+      webcamFolderName,
+    );
+    const nextSegmentIndex = Number.isFinite(options.segmentIndex)
+      ? Number(options.segmentIndex)
+      : existingManifest.segments.length > 0
+      ? existingManifest.segments[existingManifest.segments.length - 1].segmentIndex + 1
+      : 0;
 
-    try {
-      await RNFS.copyFile(segmentPath, archivePath);
-    } catch (archiveError) {
-      console.log('[Replay] archive copy failed:', archiveError);
-    }
+    const nextFileName = buildSegmentFileName(nextSegmentIndex, segmentPath);
+    const replayPath = `${replayFolderPath}/${nextFileName}`;
 
-    if (!segmentPath.startsWith(replayFolderPath)) {
-      const replayFileName = `${Date.now()}_${fileName}`;
-      const replayPath = `${replayFolderPath}/${replayFileName}`;
+    if (segmentPath !== replayPath) {
       try {
         await RNFS.moveFile(segmentPath, replayPath);
         segmentPath = replayPath;
       } catch (moveError) {
-        console.log('[Replay] move into replay folder failed:', moveError);
+        console.log('[Replay] move into replay folder failed, trying copy:', moveError);
+        await RNFS.copyFile(segmentPath, replayPath);
+        try {
+          await RNFS.unlink(segmentPath);
+        } catch {}
+        segmentPath = replayPath;
       }
     }
 
-    // Giữ đúng 1 clip mới nhất trong thư mục replay.
-    await enforceReplayWindow(webcamFolderName);
+    const nextManifest = normalizeManifest(webcamFolderName, {
+      ...existingManifest,
+      matchSessionId: options.matchSessionId || existingManifest.matchSessionId,
+      keepFullMatch: Boolean(options.keepFullMatch),
+      segments: [
+        ...existingManifest.segments.filter(
+          entry => entry.segmentIndex !== nextSegmentIndex && entry.fileName !== nextFileName,
+        ),
+        {
+          segmentIndex: nextSegmentIndex,
+          fileName: nextFileName,
+          createdAt: Date.now(),
+          sizeBytes: size,
+        },
+      ].sort((a, b) => a.segmentIndex - b.segmentIndex),
+    });
+
+    await writeManifestToFolder(replayFolderPath, nextManifest);
+    await pruneReplayWindowForFolder(webcamFolderName, nextManifest.keepFullMatch);
   } catch (error) {
     console.log('[Replay] stat/register failed:', error);
   }
 
   return segmentPath;
+};
+
+export const exportMatchToArchive = async (webcamFolderName: string) => {
+  const replayFolderPath = buildReplayFolderPath(webcamFolderName);
+  if (!(await RNFS.exists(replayFolderPath))) {
+    return undefined;
+  }
+
+  const archiveFolderPath = await ensureArchiveFolder(webcamFolderName);
+  const files = await listVideoFilesFromFolder(replayFolderPath);
+  if (!files.length) {
+    return undefined;
+  }
+
+  for (const file of files) {
+    const targetPath = `${archiveFolderPath}/${file.name}`;
+    if (await RNFS.exists(targetPath)) {
+      continue;
+    }
+
+    await RNFS.copyFile(file.path, targetPath);
+  }
+
+  const manifest = await readManifestFromFolder(replayFolderPath, webcamFolderName);
+  const exportedManifest = await writeManifestToFolder(archiveFolderPath, {
+    ...manifest,
+    exportedAt: Date.now(),
+    keepFullMatch: true,
+  });
+
+  await writeManifestToFolder(replayFolderPath, exportedManifest);
+  return archiveFolderPath;
 };
 
 const getDirectorySize = async (directoryPath: string): Promise<number> => {
@@ -298,6 +481,17 @@ const listChildDirectories = async (rootPath: string) => {
   return items.filter(item => item.isDirectory()).sort(sortByAge);
 };
 
+const getSessionLastActivity = async (dir: RNFS.ReadDirItem) => {
+  try {
+    const files = await readVideoFiles(dir.path);
+    const latestVideo = files[files.length - 1];
+    if (latestVideo) {
+      return safeMtime(latestVideo);
+    }
+  } catch {}
+  return safeMtime(dir);
+};
+
 export const pruneReplayStorage = async (
   maxBytes = MAX_REPLAY_STORAGE_BYTES,
   protectedFolderNames: string[] = [],
@@ -306,37 +500,23 @@ export const pruneReplayStorage = async (
 
   const now = Date.now();
   if (now - lastPruneRunAt < PRUNE_MIN_INTERVAL_MS) {
-    return {throttled: true, totalBytes: await getDirectorySize(APP_MEDIA_ROOT), deleted: [] as string[]};
+    return {
+      throttled: true,
+      totalBytes: await getDirectorySize(REPLAY_ROOT),
+      deleted: [] as string[],
+    };
   }
   lastPruneRunAt = now;
 
-  let total = await getDirectorySize(APP_MEDIA_ROOT);
+  let total = await getDirectorySize(REPLAY_ROOT);
   const deleted: string[] = [];
-
-  // Ưu tiên dọn archive cũ trước để không ảnh hưởng replay hiện tại.
-  const archiveDirs = await listChildDirectories(ARCHIVE_ROOT);
-  for (const dir of archiveDirs) {
-    if (total <= maxBytes) {
-      break;
-    }
-    if (protectedFolderNames.includes(dir.name)) {
-      continue;
-    }
-
-    try {
-      const dirSize = await getDirectorySize(dir.path);
-      await RNFS.unlink(dir.path);
-      total -= dirSize;
-      deleted.push(`archive:${dir.name}`);
-    } catch (error) {
-      console.log('[Replay] failed to prune archive folder:', dir.path, error);
-    }
-  }
-
   const replayDirs = await listChildDirectories(REPLAY_ROOT);
+
   for (const dir of replayDirs) {
-    if (total <= maxBytes) {
-      break;
+    const lastActivity = await getSessionLastActivity(dir);
+    const isStale = now - lastActivity > SESSION_STALE_MS;
+    if (total <= maxBytes && !isStale) {
+      continue;
     }
     if (protectedFolderNames.includes(dir.name)) {
       continue;
@@ -355,7 +535,10 @@ export const pruneReplayStorage = async (
   return {totalBytes: total, deleted};
 };
 
-export const deleteReplayFolder = async (webcamFolderName?: string) => {
+export const deleteReplayFolder = async (
+  webcamFolderName?: string,
+  options?: {includeArchive?: boolean},
+) => {
   if (!webcamFolderName) {
     return;
   }
@@ -368,7 +551,7 @@ export const deleteReplayFolder = async (webcamFolderName?: string) => {
     await RNFS.unlink(replayPath);
   }
 
-  if (await RNFS.exists(archivePath)) {
+  if (options?.includeArchive !== false && (await RNFS.exists(archivePath))) {
     await RNFS.unlink(archivePath);
   }
 

@@ -65,6 +65,7 @@ export interface ConsoleViewModelProps {
   isCameraReady: boolean;
   setIsCameraReady: ((isReady: boolean) => void);
   youtubeLivePreviewActive?: boolean;
+  cameraFullscreen?: boolean;
   //isPreview: boolean;
   // videoUri?: string;
   // setVideoUri: (name: string) => void;

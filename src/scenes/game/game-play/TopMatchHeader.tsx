@@ -68,6 +68,8 @@ const TopMatchHeader = ({
       adaptive.isConstrainedLandscape);
 
   const useBalancedHeader = compactTitleLeft || !!centerTimeText;
+  const showProModeToggle = !isAnyPoolMode && totalPlayers <= 2;
+  const useSingleLineSwitchRow = isHandheldLandscape && showProModeToggle;
 
   const dynamicStyles = useMemo(() => {
     const headerHeight = layoutRules.headerHeight;
@@ -77,16 +79,22 @@ const TopMatchHeader = ({
     const soundButtonSize = isHandheldLandscape ? adaptive.s(28) : adaptive.s(36);
     const soundButtonGap = isHandheldLandscape ? adaptive.s(8) : adaptive.s(12);
     const sideSlotWidth = isHandheldLandscape
-      ? adaptive.s(isAnyPoolMode ? 170 : 196)
+      ? adaptive.s(isAnyPoolMode ? 170 : useSingleLineSwitchRow ? 212 : 196)
       : adaptive.s(isAnyPoolMode ? 300 : 344);
     const switchGroupWidth = sideSlotWidth - soundButtonSize - soundButtonGap;
 
     return {
       header: {
-        minHeight: headerHeight,
+        minHeight: useSingleLineSwitchRow
+          ? adaptive.s(Math.max(40, headerHeight - 6))
+          : headerHeight,
         borderRadius: isHandheldLandscape ? design.radius.lg : layoutRules.panelRadius,
         paddingHorizontal: isHandheldLandscape ? design.spacing.sm : design.spacing.lg,
-        paddingVertical: isHandheldLandscape ? design.spacing.xs : design.spacing.sm,
+        paddingVertical: useSingleLineSwitchRow
+          ? adaptive.s(4)
+          : isHandheldLandscape
+            ? design.spacing.xs
+            : design.spacing.sm,
       },
       balancedLeftSlot: {
         width: sideSlotWidth,
@@ -139,12 +147,33 @@ const TopMatchHeader = ({
         width: switchGroupWidth,
       },
       switchRow: {
-        minHeight: isHandheldLandscape ? adaptive.s(20) : adaptive.s(30),
+        minHeight: useSingleLineSwitchRow
+          ? adaptive.s(18)
+          : isHandheldLandscape
+            ? adaptive.s(20)
+            : adaptive.s(30),
+      },
+      switchLine: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: adaptive.s(6),
+        minHeight: adaptive.s(20),
+      },
+      switchInlineItem: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: adaptive.s(4),
       },
       switchLabel: {
-        fontSize: isHandheldLandscape
-          ? adaptive.fs(10, 0.76, 0.9)
-          : adaptive.fs(14, 0.86, 1),
+        fontSize: useSingleLineSwitchRow
+          ? adaptive.fs(9, 0.74, 0.86)
+          : isHandheldLandscape
+            ? adaptive.fs(10, 0.76, 0.9)
+            : adaptive.fs(14, 0.86, 1),
       },
       soundButton: {
         width: soundButtonSize,
@@ -156,7 +185,7 @@ const TopMatchHeader = ({
         height: isHandheldLandscape ? adaptive.s(18) : adaptive.s(22),
       },
     };
-  }, [adaptive, isAnyPoolMode, isHandheldLandscape]);
+  }, [adaptive, isAnyPoolMode, isHandheldLandscape, useSingleLineSwitchRow]);
 
   return (
     <View style={[styles.header, dynamicStyles.header]}>
@@ -219,27 +248,61 @@ const TopMatchHeader = ({
 
       <View style={[styles.rightSlot, dynamicStyles.rightSlot]}>
         <View style={[styles.switchGroup, dynamicStyles.switchGroup]}>
-          {!isAnyPoolMode && totalPlayers <= 2 ? (
-            <View style={[styles.switchRow, dynamicStyles.switchRow]}>
-              <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
-                {localeText('Chuyên nghiệp', 'Pro mode')}
-              </RNText>
-              <Switch
-                defaultValue={proModeEnabled}
-                onChange={value => onToggleProMode?.(value)}
-              />
-            </View>
-          ) : null}
+          {useSingleLineSwitchRow ? (
+            <View style={[styles.switchLine, dynamicStyles.switchLine]}>
+              <View style={[styles.switchInlineItem, dynamicStyles.switchInlineItem]}>
+                <RNText
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  style={[styles.switchLabel, dynamicStyles.switchLabel]}>
+                  {localeText('Chuyên nghiệp', 'Pro mode')}
+                </RNText>
+                <Switch
+                  defaultValue={proModeEnabled}
+                  onChange={value => onToggleProMode?.(value)}
+                />
+              </View>
 
-          <View style={[styles.switchRow, dynamicStyles.switchRow]}>
-            <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
-              {localeText('Điều khiển', 'Remote')}
-            </RNText>
-            <Switch
-              defaultValue={remoteEnabled}
-              onChange={value => onToggleRemote?.(value)}
-            />
-          </View>
+              <View style={[styles.switchInlineItem, dynamicStyles.switchInlineItem]}>
+                <RNText
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  style={[styles.switchLabel, dynamicStyles.switchLabel]}>
+                  {localeText('Điều khiển', 'Remote')}
+                </RNText>
+                <Switch
+                  defaultValue={remoteEnabled}
+                  onChange={value => onToggleRemote?.(value)}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              {showProModeToggle ? (
+                <View style={[styles.switchRow, dynamicStyles.switchRow]}>
+                  <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
+                    {localeText('Chuyên nghiệp', 'Pro mode')}
+                  </RNText>
+                  <Switch
+                    defaultValue={proModeEnabled}
+                    onChange={value => onToggleProMode?.(value)}
+                  />
+                </View>
+              ) : null}
+
+              <View style={[styles.switchRow, dynamicStyles.switchRow]}>
+                <RNText style={[styles.switchLabel, dynamicStyles.switchLabel]}>
+                  {localeText('Điều khiển', 'Remote')}
+                </RNText>
+                <Switch
+                  defaultValue={remoteEnabled}
+                  onChange={value => onToggleRemote?.(value)}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         <Button onPress={onToggleSound} style={[styles.soundButton, dynamicStyles.soundButton]}>
@@ -352,6 +415,16 @@ const styles = StyleSheet.create({
   },
   switchRow: {
     minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchInlineItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

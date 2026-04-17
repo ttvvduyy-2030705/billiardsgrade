@@ -17,6 +17,7 @@ import {
   View as RNView,
 } from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFS from 'react-native-fs';
 import {Video as RNVideo} from 'react-native-video';
 import {Camera, useCameraDevice, useCameraFormat} from 'react-native-vision-camera';
@@ -60,6 +61,7 @@ const debugVideoLog = (...args: any[]) => {
 
 type PermissionState = 'loading' | 'granted' | 'denied';
 type BackendType = 'vision' | 'uvc' | 'youtube-native' | null;
+type PhoneCameraConfigMode = 'standard' | 'safe' | 'ultra-safe';
 type ZoomSnapshot = {
   supported: boolean;
   minZoom: number;
@@ -171,18 +173,68 @@ const getSelectedSourceSnapshot = (): CameraSource => {
   return value === 'front' || value === 'external' ? value : 'back';
 };
 
+const SUCCESSFUL_PHONE_MODE_STORAGE_KEY = '@aplus/successful-phone-modes';
+
+const loadSuccessfulPhoneModesFromStorage = async (): Promise<Record<string, PhoneCameraConfigMode>> => {
+  try {
+    const raw = await AsyncStorage.getItem(SUCCESSFUL_PHONE_MODE_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+
+    const next: Record<string, PhoneCameraConfigMode> = {};
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (value === 'standard' || value === 'safe' || value === 'ultra-safe') {
+        next[key] = value;
+      }
+    });
+    return next;
+  } catch {
+    return {};
+  }
+};
+
+const persistSuccessfulPhoneModesToStorage = async (
+  store: Record<string, PhoneCameraConfigMode>,
+) => {
+  try {
+    await AsyncStorage.setItem(SUCCESSFUL_PHONE_MODE_STORAGE_KEY, JSON.stringify(store));
+  } catch {}
+};
+
+const getSuccessfulPhoneModeStore = (): Record<string, PhoneCameraConfigMode> => {
+  const current = (globalThis as any).__APLUS_SUCCESSFUL_PHONE_MODES__;
+  if (current && typeof current === 'object') {
+    return current;
+  }
+
+  const next: Record<string, PhoneCameraConfigMode> = {};
+  (globalThis as any).__APLUS_SUCCESSFUL_PHONE_MODES__ = next;
+  return next;
+};
+
 const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const cameraScaleMode = props.cameraScaleMode || 'contain';
   const viewModel = VideoViewModel(props);
   const isFocused = useIsFocused();
 
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const [cameraLifecycleActive, setCameraLifecycleActive] = useState(
+    () => AppState.currentState === 'active',
+  );
   const [permissionState, setPermissionState] = useState<PermissionState>('loading');
   const [microphonePermissionState, setMicrophonePermissionState] =
     useState<PermissionState>('loading');
   const [usbDevices, setUsbDevices] = useState<any[]>([]);
   const [cameraErrorMessage, setCameraErrorMessage] = useState<string | null>(null);
-  const [phoneCameraConfigMode, setPhoneCameraConfigMode] = useState<'standard' | 'safe' | 'ultra-safe'>('standard');
+  const [phoneCameraConfigMode, setPhoneCameraConfigMode] = useState<PhoneCameraConfigMode>('standard');
+  const [preferredPhoneMode, setPreferredPhoneMode] = useState<PhoneCameraConfigMode>('standard');
+  const [phoneModeHydrated, setPhoneModeHydrated] = useState(false);
   const [selectedSource, setSelectedSource] = useState<CameraSource>(() =>
     getSelectedSourceSnapshot(),
   );
@@ -193,14 +245,16 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const [stableHasUvcWebcam, setStableHasUvcWebcam] = useState(false);
   const [externalStreamReady, setExternalStreamReady] = useState(false);
   const [phonePreviewReady, setPhonePreviewReady] = useState(false);
-  const lastSuccessfulPhoneModeRef = useRef<Record<string, 'standard' | 'safe' | 'ultra-safe'>>({});
+  const lastSuccessfulPhoneModeRef = useRef<Record<string, PhoneCameraConfigMode>>(getSuccessfulPhoneModeStore());
+  const pendingPhoneModeSourceKeyRef = useRef<string | null>(null);
+  const lifecycleReleaseTimeoutRef = useRef<any>(null);
   const getPreferredPhoneMode = useCallback((source: CameraSource, deviceId?: string | null) => {
     const directKey = `${source}:${deviceId || 'unknown'}`;
     const sourceKey = `${source}:*`;
     return (
       lastSuccessfulPhoneModeRef.current[directKey] ||
       lastSuccessfulPhoneModeRef.current[sourceKey] ||
-      'standard'
+      (Platform.OS === 'android' ? 'safe' : 'standard')
     );
   }, []);
 
@@ -279,6 +333,36 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       sub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const isScreenReady =
+      appState === 'active' && (isFocused || props.ignoreNavigationFocusLoss === true);
+
+    if (isScreenReady) {
+      if (lifecycleReleaseTimeoutRef.current) {
+        clearTimeout(lifecycleReleaseTimeoutRef.current);
+        lifecycleReleaseTimeoutRef.current = null;
+      }
+      setCameraLifecycleActive(true);
+      return;
+    }
+
+    if (lifecycleReleaseTimeoutRef.current) {
+      clearTimeout(lifecycleReleaseTimeoutRef.current);
+    }
+
+    lifecycleReleaseTimeoutRef.current = setTimeout(() => {
+      setCameraLifecycleActive(false);
+      lifecycleReleaseTimeoutRef.current = null;
+    }, 1200);
+
+    return () => {
+      if (lifecycleReleaseTimeoutRef.current) {
+        clearTimeout(lifecycleReleaseTimeoutRef.current);
+        lifecycleReleaseTimeoutRef.current = null;
+      }
+    };
+  }, [appState, isFocused]);
 
   useEffect(() => {
     const devices = Camera.getAvailableCameraDevices();
@@ -700,7 +784,10 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       name: device.name,
       physicalDevices: device.physicalDevices,
       position: device.position,
-      previewViewType: 'texture-view',
+      previewViewType:
+        Platform.OS === 'android'
+          ? props.androidPreviewViewTypeOverride || 'surface-view'
+          : 'default',
     });
   }, [resolvedSelectedSource, device?.id]);
 
@@ -783,11 +870,52 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   }, [appState, isFocused, refreshCameraPermission, refreshMicrophonePermission]);
 
   useEffect(() => {
+    const sourceKey = `${resolvedSelectedSource}:${device?.id || 'unknown'}`;
+    const sourceChanged = lastResolvedPhoneSourceKeyRef.current !== sourceKey;
+    let isCancelled = false;
+
+    lastResolvedPhoneSourceKeyRef.current = sourceKey;
     setCameraErrorMessage(null);
     setExternalStreamReady(false);
-    setPhoneCameraConfigMode(getPreferredPhoneMode(resolvedSelectedSource, device?.id));
-    props.setIsCameraReady(false);
-  }, [device?.id, getPreferredPhoneMode, resolvedSelectedSource]);
+    setPhoneModeHydrated(false);
+
+    const applyPreferredMode = async () => {
+      const persistedModes = await loadSuccessfulPhoneModesFromStorage();
+      if (isCancelled) {
+        return;
+      }
+
+      if (Object.keys(persistedModes).length > 0) {
+        lastSuccessfulPhoneModeRef.current = {
+          ...persistedModes,
+          ...lastSuccessfulPhoneModeRef.current,
+        };
+        (globalThis as any).__APLUS_SUCCESSFUL_PHONE_MODES__ =
+          lastSuccessfulPhoneModeRef.current;
+      }
+
+      const nextPreferredMode = getPreferredPhoneMode(resolvedSelectedSource, device?.id);
+      setPreferredPhoneMode(nextPreferredMode);
+      setPhoneModeHydrated(true);
+
+      if (sourceChanged) {
+        pendingPhoneModeSourceKeyRef.current = null;
+        setPhoneCameraConfigMode(nextPreferredMode);
+        props.setIsCameraReady(false);
+      }
+    };
+
+    void applyPreferredMode();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    device?.id,
+    getPreferredPhoneMode,
+    props.setIsCameraReady,
+    resolvedSelectedSource,
+  ]);
 
   useEffect(() => {
     if (effectiveWebcamType !== WebcamType.camera) {
@@ -886,12 +1014,11 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
           return;
         }
 
-        const microphoneStatus = await refreshMicrophonePermissionRef.current(true);
+        const microphoneStatus = await refreshMicrophonePermissionRef.current(false);
         if (microphoneStatus !== 'granted') {
-          const err = new Error('Ứng dụng chưa được cấp quyền micro để ghi âm.');
-          debugVideoLog('[Video] startRecording microphone permission denied');
-          options?.onRecordingError?.(err);
-          return;
+          debugVideoLog(
+            '[Video] startRecording microphone permission denied -> continue without audio',
+          );
         }
 
         recordingStateRef.current = 'starting';
@@ -1139,8 +1266,15 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     shouldUsePhoneCamera &&
     permissionState === 'granted' &&
     !!device &&
-    isFocused &&
-    appState === 'active';
+    phoneModeHydrated &&
+    cameraLifecycleActive;
+
+  const resolvedAndroidPreviewViewType =
+    Platform.OS === 'android'
+      ? props.androidPreviewViewTypeOverride === 'default'
+        ? undefined
+        : props.androidPreviewViewTypeOverride || 'surface-view'
+      : undefined;
 
   const isYouTubeNativeActive =
     Platform.OS === 'android' &&
@@ -1212,12 +1346,15 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       message: message ?? '',
       phonePreviewReady,
       externalStreamReady,
+      suppressCameraFallbackOverlay: !!props.suppressCameraFallbackOverlay,
     });
 
     return (
       <RNView pointerEvents="none" collapsable={false} style={[localStyles.fallbackOverlay, localStyles.fallbackLayer]}>
         <RNView style={localStyles.fallbackContainer}>
-          {renderFallbackContent(message)}
+          {props.suppressCameraFallbackOverlay && effectiveWebcamType === WebcamType.camera
+            ? null
+            : renderFallbackContent(message)}
         </RNView>
       </RNView>
     );
@@ -1233,6 +1370,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   ].join(':');
 
   const lastReadySignatureRef = useRef('');
+  const lastResolvedPhoneSourceKeyRef = useRef('');
 
   useEffect(() => {
     if (lastReadySignatureRef.current === readySignature) {
@@ -1261,42 +1399,45 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
       hasDevice: !!device,
       cameraErrorMessage,
       phoneCameraConfigMode,
+      preferredPhoneMode,
+      phoneModeHydrated,
       phonePreviewReady,
       externalStreamReady,
       shouldRenderExternalVideo: effectiveWebcamType !== WebcamType.camera && !!viewModel.source?.uri,
       shouldRenderPhoneCamera: effectiveWebcamType === WebcamType.camera && !usingUvc && !isYouTubeNativeActive && permissionState === 'granted' && !!device && !cameraErrorMessage,
       shouldShowPhoneFallback: !phonePreviewReady || !!cameraErrorMessage || permissionState !== 'granted' || !device,
       shouldShowExternalFallback: effectiveWebcamType !== WebcamType.camera ? (!viewModel.source?.uri || !externalStreamReady) : false,
+      cameraLifecycleActive,
       visionOutputs: {
         mode: phoneCameraConfigMode,
         video: phoneCameraConfigMode !== 'ultra-safe',
         photo: false,
         audio: phoneCameraConfigMode === 'standard' && microphonePermissionState === 'granted',
-        format: phoneCameraConfigMode === 'standard' ? 'preferredFormat' : 'default',
-        fps: phoneCameraConfigMode === 'standard' ? 30 : 'default',
+        format: phoneCameraConfigMode === 'standard' && Platform.OS !== 'android' ? 'preferredFormat' : 'default',
+        fps: phoneCameraConfigMode === 'standard' && Platform.OS !== 'android' ? 30 : 'default',
         previewViewType:
           Platform.OS === 'android'
-            ? phoneCameraConfigMode === 'ultra-safe'
-              ? 'default'
-              : device?.previewViewType === 'surface-view'
-                ? 'surface-view'
-                : 'texture-view'
+            ? resolvedAndroidPreviewViewType || 'surface-view'
             : 'default',
       },
     });
   }, [
     cameraErrorMessage,
+    cameraLifecycleActive,
     device,
     effectiveWebcamType,
     externalLiveLocked,
     isYouTubeNativeActive,
     permissionState,
     phoneCameraConfigMode,
+    preferredPhoneMode,
+    phoneModeHydrated,
     phonePreviewReady,
     externalStreamReady,
     selectedSource,
     shouldActivatePhoneCamera,
     shouldUsePhoneCamera,
+    resolvedAndroidPreviewViewType,
     usingUvc,
     viewModel.source?.uri,
     youtubeNativeCameraLocked,
@@ -1444,6 +1585,12 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     return renderFallback(cameraErrorMessage);
   }
 
+  const usePreferredVisionFormat =
+    phoneCameraConfigMode === 'standard' && Platform.OS !== 'android';
+  const resolvedVisionFormat = usePreferredVisionFormat ? preferredFormat : undefined;
+  const resolvedVisionFps = usePreferredVisionFormat ? 30 : undefined;
+  const resolvedVisionBitRate = usePreferredVisionFormat ? 10_000_000 : undefined;
+
   return (
     <View style={styles.container} collapsable={false}>
       <RNView style={localStyles.cameraSurfaceHost} collapsable={false}>
@@ -1456,20 +1603,12 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
           video={phoneCameraConfigMode !== 'ultra-safe'}
           photo={false}
           audio={phoneCameraConfigMode === 'standard' && microphonePermissionState === 'granted'}
-          format={phoneCameraConfigMode === 'standard' ? preferredFormat : undefined}
-          fps={phoneCameraConfigMode === 'standard' ? 30 : undefined}
-          videoBitRate={phoneCameraConfigMode === 'standard' ? 10_000_000 : undefined}
+          format={resolvedVisionFormat}
+          fps={resolvedVisionFps}
+          videoBitRate={resolvedVisionBitRate}
           zoom={safeZoom}
           resizeMode={cameraScaleMode}
-          androidPreviewViewType={
-            Platform.OS === 'android'
-              ? phoneCameraConfigMode === 'ultra-safe'
-                ? undefined
-                : device.previewViewType === 'surface-view'
-                  ? 'surface-view'
-                  : 'texture-view'
-              : undefined
-          }
+          androidPreviewViewType={resolvedAndroidPreviewViewType}
           onInitialized={() => {
             debugVideoLog('[Video] camera initialized');
             setPhonePreviewReady(false);
@@ -1491,6 +1630,12 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
             const successSourceKey = `${selectedSource}:${device?.id || 'unknown'}`;
             lastSuccessfulPhoneModeRef.current[successSourceKey] = phoneCameraConfigMode;
             lastSuccessfulPhoneModeRef.current[`${selectedSource}:*`] = phoneCameraConfigMode;
+            (globalThis as any).__APLUS_SUCCESSFUL_PHONE_MODES__ =
+              lastSuccessfulPhoneModeRef.current;
+            setPreferredPhoneMode(phoneCameraConfigMode);
+            setPhoneModeHydrated(true);
+            pendingPhoneModeSourceKeyRef.current = null;
+            void persistSuccessfulPhoneModesToStorage(lastSuccessfulPhoneModeRef.current);
             debugVideoLog('[Video] remember successful phone camera config', {
               selectedSource,
               deviceId: device?.id || 'unknown',
@@ -1520,6 +1665,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
               if (phoneCameraConfigMode === 'standard') {
                 debugVideoLog('[Video] retry with safe phone camera config');
                 setCameraErrorMessage(null);
+                pendingPhoneModeSourceKeyRef.current = `${selectedSource}:${device?.id || 'unknown'}`;
                 setPhoneCameraConfigMode('safe');
                 return;
               }
@@ -1527,6 +1673,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
               if (phoneCameraConfigMode === 'safe') {
                 debugVideoLog('[Video] retry with ultra-safe phone camera config');
                 setCameraErrorMessage(null);
+                pendingPhoneModeSourceKeyRef.current = `${selectedSource}:${device?.id || 'unknown'}`;
                 setPhoneCameraConfigMode('ultra-safe');
                 return;
               }

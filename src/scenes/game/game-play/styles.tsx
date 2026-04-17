@@ -50,7 +50,19 @@ const createStyles = (
 
     mainAreaFullscreen: {
       flex: 1,
+      width: '100%',
+      height: '100%',
       paddingTop: 0,
+      paddingHorizontal: 0,
+      paddingBottom: 0,
+    },
+
+    fullscreenScreen: {
+      flex: 1,
+      backgroundColor: '#000000',
+      paddingHorizontal: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
     },
 
     poolArenaScreen: {

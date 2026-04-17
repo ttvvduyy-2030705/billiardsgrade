@@ -43,6 +43,9 @@ export interface Props {
   setIsCameraReady: ((isReady: boolean) => void);
   overlayContent?: ReactNode;
   cameraScaleMode?: 'contain' | 'cover';
+  androidPreviewViewTypeOverride?: 'surface-view' | 'texture-view' | 'default';
+  suppressCameraFallbackOverlay?: boolean;
+  ignoreNavigationFocusLoss?: boolean;
 }
 
 const VideoViewModel = (props: Props) => {

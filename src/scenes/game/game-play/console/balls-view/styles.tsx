@@ -1,4 +1,3 @@
-import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
 import {scale as responsiveScale} from 'utils/responsive';
@@ -22,13 +21,13 @@ const styles = StyleSheet.create({
   },
   doubleArrowWrapper: {},
   doubleArrowLeft: {
-    width: dims.screenWidth * 0.02,
-    height: dims.screenWidth * 0.02,
+    width: responsiveScale(26),
+    height: responsiveScale(26),
     marginLeft: 10,
   },
   doubleArrowRight: {
-    width: dims.screenWidth * 0.02,
-    height: dims.screenWidth * 0.02,
+    width: responsiveScale(26),
+    height: responsiveScale(26),
     marginRight: 10,
     transform: [{rotate: '180deg'}],
   },

@@ -2,7 +2,7 @@ import React, {memo} from 'react';
 import Button from 'components/Button';
 import Text from 'components/Text';
 import View from 'components/View';
-import {dims} from 'configuration';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
 import i18n from 'i18n';
 
 import {GameSettings} from 'types/settings';
@@ -20,6 +20,9 @@ interface Props {
 }
 
 const ProMode = (props: Props) => {
+  const adaptive = useAdaptiveLayout();
+  const valueFontSize = adaptive.fs(26, 0.76, 1.04);
+
   if (
     props.gameSettings?.mode?.mode === 'fast' ||
     isPoolGame(props.gameSettings?.category)
@@ -34,13 +37,13 @@ const ProMode = (props: Props) => {
           <Button
             style={playerStyles.buttonEndTurn}
             onPress={props.onEndTurn.bind(ProMode, undefined)}>
-            <Text fontSize={dims.screenWidth * 0.02}>{i18n.t('turn')}</Text>
+            <Text fontSize={valueFontSize}>{i18n.t('turn')}</Text>
           </Button>
         ) : (
           <View style={playerStyles.buttonEndTurnEmpty} />
         )}
         <View style={styles.totalPointInTurn} paddingVertical={'10'}>
-          <Text fontSize={dims.screenWidth * 0.02} fontWeight={'bold'}>
+          <Text fontSize={valueFontSize} fontWeight={'bold'}>
             {props.totalPointInTurn}
           </Text>
         </View>

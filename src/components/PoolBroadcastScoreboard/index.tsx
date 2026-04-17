@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {PlayerSettings} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
+import useDesignSystem from 'theme/useDesignSystem';
 
 type Variant = 'camera' | 'fullscreen' | 'playback';
 
@@ -53,53 +54,110 @@ const getTimerColor = (countdownTime: number) => {
   return '#34C759';
 };
 
-const getVariantMetrics = (variant: Variant) => {
+const shouldUseCompactMetrics = (variant: Variant, adaptive?: any) => {
+  if (!adaptive?.isLandscape) {
+    return false;
+  }
+
+  const baseCompact =
+    adaptive.layoutPreset === 'phone' ||
+    adaptive.isConstrainedLandscape ||
+    adaptive.shortSide <= 620;
+
+  if (variant === 'camera') {
+    return (
+      baseCompact ||
+      adaptive.shortSide <= 780 ||
+      adaptive.height <= 840 ||
+      adaptive.width <= 1280
+    );
+  }
+
+  return baseCompact;
+};
+
+const getVariantMetrics = (variant: Variant, compact = false, adaptive?: any) => {
+  const s = adaptive?.s || ((value: number) => value);
+  const fs = adaptive?.fs || ((value: number) => value);
+
   switch (variant) {
     case 'fullscreen':
+      if (compact) {
+        return {
+          wrapperWidth: '84%',
+          barHeight: s(42),
+          bottomGap: s(12),
+          playerNameSize: fs(14, 0.78, 0.92),
+          playerScoreSize: fs(24, 0.78, 0.94),
+          centerLabelSize: fs(9, 0.76, 0.9),
+          centerValueSize: fs(17, 0.78, 0.94),
+          timerHeight: s(13),
+          timerTextSize: fs(10, 0.78, 0.92),
+          flagWidth: s(28),
+          scoreMinWidth: s(46),
+          horizontalPadding: s(10),
+        };
+      }
       return {
         wrapperWidth: '88%',
-        barHeight: 48,
-        bottomGap: 18,
-        playerNameSize: 17,
-        playerScoreSize: 27,
-        centerLabelSize: 10,
-        centerValueSize: 20,
-        timerHeight: 16,
-        timerTextSize: 11,
-        flagWidth: 34,
-        scoreMinWidth: 54,
-        horizontalPadding: 12,
+        barHeight: s(48),
+        bottomGap: s(18),
+        playerNameSize: fs(17, 0.8, 0.96),
+        playerScoreSize: fs(27, 0.82, 0.98),
+        centerLabelSize: fs(10, 0.82, 0.96),
+        centerValueSize: fs(20, 0.82, 0.98),
+        timerHeight: s(16),
+        timerTextSize: fs(11, 0.82, 0.96),
+        flagWidth: s(34),
+        scoreMinWidth: s(54),
+        horizontalPadding: s(12),
       };
     case 'playback':
       return {
-        wrapperWidth: '90%',
-        barHeight: 50,
-        bottomGap: 62,
-        playerNameSize: 17,
-        playerScoreSize: 28,
-        centerLabelSize: 10,
-        centerValueSize: 21,
-        timerHeight: 16,
-        timerTextSize: 11,
-        flagWidth: 34,
-        scoreMinWidth: 56,
-        horizontalPadding: 12,
+        wrapperWidth: compact ? '86%' : '90%',
+        barHeight: compact ? s(44) : s(50),
+        bottomGap: compact ? s(52) : s(62),
+        playerNameSize: compact ? fs(15, 0.78, 0.92) : fs(17, 0.82, 0.98),
+        playerScoreSize: compact ? fs(24, 0.78, 0.94) : fs(28, 0.82, 0.98),
+        centerLabelSize: compact ? fs(9, 0.76, 0.9) : fs(10, 0.82, 0.96),
+        centerValueSize: compact ? fs(18, 0.78, 0.94) : fs(21, 0.82, 0.98),
+        timerHeight: compact ? s(14) : s(16),
+        timerTextSize: compact ? fs(10, 0.78, 0.92) : fs(11, 0.82, 0.96),
+        flagWidth: compact ? s(29) : s(34),
+        scoreMinWidth: compact ? s(48) : s(56),
+        horizontalPadding: compact ? s(10) : s(12),
       };
     case 'camera':
     default:
+      if (compact) {
+        return {
+          wrapperWidth: '78%',
+          barHeight: s(30),
+          bottomGap: s(4),
+          playerNameSize: fs(10, 0.74, 0.86),
+          playerScoreSize: fs(15, 0.74, 0.88),
+          centerLabelSize: fs(7, 0.72, 0.84),
+          centerValueSize: fs(12, 0.74, 0.86),
+          timerHeight: s(10),
+          timerTextSize: fs(8, 0.74, 0.86),
+          flagWidth: s(20),
+          scoreMinWidth: s(32),
+          horizontalPadding: s(6),
+        };
+      }
       return {
-        wrapperWidth: '92%',
-        barHeight: 40,
-        bottomGap: 12,
-        playerNameSize: 14,
-        playerScoreSize: 22,
-        centerLabelSize: 9,
-        centerValueSize: 17,
-        timerHeight: 14,
-        timerTextSize: 10,
-        flagWidth: 28,
-        scoreMinWidth: 46,
-        horizontalPadding: 10,
+        wrapperWidth: '88%',
+        barHeight: s(36),
+        bottomGap: s(10),
+        playerNameSize: fs(13, 0.8, 0.92),
+        playerScoreSize: fs(20, 0.8, 0.94),
+        centerLabelSize: fs(8, 0.8, 0.92),
+        centerValueSize: fs(15, 0.8, 0.94),
+        timerHeight: s(12),
+        timerTextSize: fs(9, 0.8, 0.92),
+        flagWidth: s(24),
+        scoreMinWidth: s(40),
+        horizontalPadding: s(8),
       };
   }
 };
@@ -122,7 +180,10 @@ const PoolBroadcastScoreboard = ({
     return null;
   }
 
-  const metrics = getVariantMetrics(variant);
+  const {adaptive} = useDesignSystem();
+  const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
+
+  const metrics = getVariantMetrics(variant, useCompactMetrics, adaptive);
   const goal = safeNumber(
     gameSettings?.players?.goal?.goal ?? playerSettings?.goal?.goal,
     0,
@@ -312,8 +373,8 @@ const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
     alignSelf: 'center',
-    zIndex: 30,
-    elevation: 30,
+    zIndex: 12,
+    elevation: 12,
   },
   topBar: {
     flexDirection: 'row',

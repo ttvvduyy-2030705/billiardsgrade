@@ -650,11 +650,11 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     }
 
     if (useCaromTightLayout) {
-      return 104;
+      return 152;
     }
 
     if (useCaromConsoleCompact) {
-      return 118;
+      return 168;
     }
 
     return null;
@@ -1172,26 +1172,26 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         }
 
         if (useCaromTightLayout) {
-          return isHandheldLandscape ? 118 : 136;
+          return isHandheldLandscape ? 156 : 168;
         }
 
         if (useExtraCompact) {
-          return isHandheldLandscape ? 124 : 144;
+          return isHandheldLandscape ? 164 : 176;
         }
 
         if (useCaromConsoleCompact) {
-          return isHandheldLandscape ? 132 : 154;
+          return isHandheldLandscape ? 176 : 188;
         }
 
         if (useResponsiveCompact) {
-          return isHandheldLandscape ? 136 : 164;
+          return isHandheldLandscape ? 184 : 196;
         }
 
         if (useTightLandscapeLayout) {
-          return isHandheldLandscape ? 148 : 176;
+          return isHandheldLandscape ? 196 : 208;
         }
 
-        return isLargeDisplay ? 230 : isHandheldLandscape ? 156 : adaptive.isConstrainedLandscape ? 170 : 194;
+        return isLargeDisplay ? 230 : isHandheldLandscape ? 204 : adaptive.isConstrainedLandscape ? 188 : 208;
       }
 
       if (useLargeCaromConsole) {
@@ -1199,26 +1199,26 @@ const GameConsole = (props: ConsoleViewModelProps) => {
       }
 
       if (useCaromTightLayout) {
-        return isHandheldLandscape ? 64 : 72;
+        return isHandheldLandscape ? 112 : 120;
       }
 
       if (useExtraCompact) {
-        return isHandheldLandscape ? 70 : 82;
+        return isHandheldLandscape ? 124 : 132;
       }
 
       if (useCaromConsoleCompact) {
-        return isHandheldLandscape ? 78 : 90;
+        return isHandheldLandscape ? 136 : 146;
       }
 
       if (useResponsiveCompact) {
-        return isHandheldLandscape ? 86 : 100;
+        return isHandheldLandscape ? 148 : 160;
       }
 
       if (useTightLandscapeLayout) {
-        return isHandheldLandscape ? 110 : 132;
+        return isHandheldLandscape ? 160 : 176;
       }
 
-      return isLargeDisplay ? 210 : isHandheldLandscape ? 112 : adaptive.isConstrainedLandscape ? 128 : 164;
+      return isLargeDisplay ? 210 : isHandheldLandscape ? 172 : adaptive.isConstrainedLandscape ? 160 : 176;
     }
 
     if (useExtraCompact) {
@@ -1284,6 +1284,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     useLargeCaromConsole,
   ]);
 
+  const isCameraFullscreen = !!props.cameraFullscreen;
+
   if (isCarom) {
     return (
       <View
@@ -1296,11 +1298,13 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           useResponsiveCompact ? styles.phoneWrapper : undefined,
           useLargeCaromConsole ? styles.caromWrapperLarge : undefined,
           hideCaromCamera ? styles.caromWrapperNoCamera : undefined,
+          isCameraFullscreen ? styles.fullscreenWrapper : undefined,
         ]}>
         {props.gameSettings?.mode?.countdownTime && !hideCaromScoreChrome ? (
           <View
             style={[
               styles.caromInfoWrap,
+              isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
               (useCaromTightLayout || useCaromConsoleCompact) ? styles.caromInfoWrapCompact : undefined,
               useLargeCaromConsole ? styles.caromInfoWrapLarge : undefined,
               hideCaromCamera ? styles.caromInfoWrapNoCamera : undefined,
@@ -1335,6 +1339,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               useLargeCaromConsole ? styles.caromCameraCardLarge : undefined,
               hideCaromScoreChrome ? styles.caromCameraCardExpanded : undefined,
               {minHeight: cameraMinHeight},
+              isCameraFullscreen ? styles.fullscreenCameraCard : undefined,
             ]}
             onLayout={event => {
               debugCaromLayout('[GameConsole] carom cameraCard layout', event.nativeEvent.layout);
@@ -1350,6 +1355,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
               isPaused={props.isPaused}
               isStarted={props.isStarted}
               youtubeLivePreviewActive={props.youtubeLivePreviewActive}
+              forceFullscreen={isCameraFullscreen}
             />
           </View>
         ) : null}
@@ -1357,6 +1363,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         <View
           style={[
             styles.goalCardFullWidth,
+            isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
             useTightLandscapeLayout && !useResponsiveCompact
               ? styles.mediumGoalCard
               : undefined,
@@ -1454,6 +1461,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         <View
           style={[
             styles.actionStack,
+            isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
             styles.caromActionStack,
             useTightLandscapeLayout && !useResponsiveCompact
               ? styles.mediumActionStack
@@ -1482,6 +1490,8 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     textAlignVertical: 'center' as const,
   };
 
+
+
   const poolMetaValueTextStyle = {
     fontSize: Math.round(28 * uiScale),
     lineHeight: Math.round(32 * uiScale),
@@ -1498,9 +1508,10 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           : undefined,
         useResponsiveCompact ? styles.phoneWrapper : undefined,
         usePoolBroadcastLayout ? styles.poolWrapper : undefined,
+        isCameraFullscreen ? styles.fullscreenWrapper : undefined,
       ]}>
       {isPool15 ? (
-        <View style={styles.topButtonRowWrap}>
+        <View style={[styles.topButtonRowWrap, isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined]}>
           <DualButton
             leftLabel={startLabel}
             rightLabel={`✈ ${tr('Kết thúc', 'End')}`}
@@ -1514,7 +1525,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           />
         </View>
       ) : isPool8Temp && props.isStarted && !props.poolBreakEnabled ? (
-        <View style={styles.topButtonRowWrap}>
+        <View style={[styles.topButtonRowWrap, isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined]}>
           <TripleButton
             leftLabel={`${tr('Số lượt', 'Turns')} ${props.totalTurns}`}
             centerLabel={tr('Đổi bi', 'Swap balls')}
@@ -1533,6 +1544,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           direction={'row'}
           style={[
             styles.metaInlineRow,
+            isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
             useResponsiveCompact ? styles.phoneMetaInlineRow : undefined,
             usePoolBroadcastLayout ? styles.poolMetaInlineRow : undefined,
           ]}>
@@ -1609,6 +1621,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           direction={'row'}
           style={[
             styles.metaRow,
+            isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
             useTightLandscapeLayout && !useResponsiveCompact
               ? styles.mediumMetaRow
               : undefined,
@@ -1689,6 +1702,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           isPool15 ? styles.pool15CameraCard : undefined,
           usePoolBroadcastLayout ? styles.poolCameraCard : undefined,
           {minHeight: cameraMinHeight},
+          isCameraFullscreen ? styles.fullscreenCameraCard : undefined,
         ]}>
         <Webcam
           ref={webcamRef}
@@ -1701,6 +1715,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           isPaused={props.isPaused}
           isStarted={props.isStarted}
           youtubeLivePreviewActive={props.youtubeLivePreviewActive}
+          forceFullscreen={isCameraFullscreen}
         />
       </View>
 
@@ -1708,6 +1723,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         <View
           style={[
             styles.actionStack,
+            isCameraFullscreen ? styles.hiddenWhenFullscreen : undefined,
             useTightLandscapeLayout && !useResponsiveCompact
               ? styles.mediumActionStack
               : undefined,
@@ -1720,7 +1736,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
         </View>
       ) : null}
 
-      {pool15Footer}
+      {!isCameraFullscreen ? pool15Footer : null}
     </View>
   );
 };
@@ -1737,6 +1753,21 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     paddingTop: 8,
     paddingBottom: 8,
     gap: 4,
+  },
+  fullscreenWrapper: {
+    backgroundColor: '#000000',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    gap: 0,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  hiddenWhenFullscreen: {
+    display: 'none',
   },
   phoneWrapper: {
     paddingHorizontal: 5,
@@ -1975,6 +2006,24 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     borderColor: '#383B40',
     backgroundColor: '#141518',
   },
+  fullscreenCameraCard: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    minHeight: 0,
+    maxHeight: undefined,
+    flex: 1,
+    flexShrink: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: '#000000',
+    zIndex: 1000,
+    elevation: 1000,
+  },
   phoneCameraCard: {
     minHeight: 170,
     borderRadius: 16,
@@ -1991,7 +2040,7 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
   },
   caromCameraCardCompact: {
     borderWidth: 4,
-    maxHeight: 118,
+    maxHeight: 168,
   },
   caromCameraCardExpanded: {
     flex: 1.2,
@@ -2003,11 +2052,11 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     borderWidth: 4,
   },
   caromCameraCardTight: {
-    flex: 0.54,
-    maxHeight: 104,
+    flex: 0.78,
+    maxHeight: 152,
   },
   caromPhoneCameraCard: {
-    minHeight: 150,
+    minHeight: 178,
   },
   poolCameraCard: {
     flex: 1.02,

@@ -1,7 +1,7 @@
 import React, {memo, useMemo} from 'react';
 import Text from 'components/Text';
 import View from 'components/View';
-import {dims} from 'configuration';
+import useAdaptiveLayout from 'scenes/game/useAdaptiveLayout';
 import Button from 'components/Button';
 import colors from 'configuration/colors';
 import i18n from 'i18n';
@@ -26,6 +26,9 @@ interface Props {
 }
 
 const ExtraFunctions = (props: Props) => {
+  const adaptive = useAdaptiveLayout();
+  const labelFontSize = adaptive.fs(13, 0.82, 1.02);
+  const breakFontSize = adaptive.fs(16, 0.82, 1.04);
   const ADDITIONAL_POINTS = useMemo(() => {
     return (
       <View
@@ -38,7 +41,7 @@ const ExtraFunctions = (props: Props) => {
           direction={'row'}
           justify={'center'}
           alignItems={'center'}>
-          <Text fontWeight={'bold'} fontSize={dims.screenWidth * 0.01}>
+          <Text fontWeight={'bold'} fontSize={labelFontSize}>
             {'HR'}
           </Text>
           <View marginLeft={'5'}>
@@ -52,7 +55,7 @@ const ExtraFunctions = (props: Props) => {
           direction={'row'}
           justify={'center'}
           alignItems={'center'}>
-          <Text fontWeight={'bold'} fontSize={dims.screenWidth * 0.01}>
+          <Text fontWeight={'bold'} fontSize={labelFontSize}>
             {'AVG'}
           </Text>
           <View marginLeft={'5'}>
@@ -63,7 +66,7 @@ const ExtraFunctions = (props: Props) => {
         </View>
       </View>
     );
-  }, [props.averagePoint, props.highestRate]);
+  }, [adaptive, breakFontSize, labelFontSize, props.averagePoint, props.highestRate]);
 
   return (
     <View style={styles.functionWrapper} direction={'row'} justify={'between'}>
@@ -83,7 +86,7 @@ const ExtraFunctions = (props: Props) => {
           <Text
             color={colors.white}
             fontWeight={'bold'}
-            fontSize={dims.screenWidth * 0.0125}>
+            fontSize={breakFontSize}>
             {i18n.t('break')}
           </Text>
         </Button>

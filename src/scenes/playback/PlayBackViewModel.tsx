@@ -4,7 +4,7 @@ import {OnVideoErrorData, VideoRef} from 'react-native-video';
 import RNFS from 'react-native-fs';
 
 import i18n from 'i18n';
-import {listReplayFiles, resolveReplayFolder, waitForReplayFiles} from 'services/replay/localReplay';
+import {extractReplaySegmentIndex, listPlayableFiles, listReplayFiles, resolveReplayFolder, waitForReplayFiles} from 'services/replay/localReplay';
 
 export interface PlayBackWebcamViewModelProps {
   webcamFolderName: string;
@@ -26,6 +26,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [resolvedFolder, setResolvedFolder] = useState<string>();
+  const [currentSegmentNumber, setCurrentSegmentNumber] = useState<number>(0);
 
   const handleVideoLoad = useCallback((videoUri: string, duration: number) => {
     setVideoDurations(prev => ({...prev, [videoUri]: duration}));
@@ -83,8 +84,11 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
         return;
       }
 
-      const waitedFiles = await waitForReplayFiles(props.webcamFolderName, 1, 8000);
-      const files = waitedFiles.length > 0 ? waitedFiles : await listReplayFiles(props.webcamFolderName);
+      const files = props.returnToMatch
+        ? (await waitForReplayFiles(props.webcamFolderName, 1, 8000)).length > 0
+          ? await waitForReplayFiles(props.webcamFolderName, 1, 8000)
+          : await listReplayFiles(props.webcamFolderName)
+        : await listPlayableFiles(props.webcamFolderName, true);
       if (loadRequestIdRef.current !== requestId) {
         return;
       }
@@ -92,6 +96,11 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       setVideoFiles(files);
       setTotalFiles(files.length);
       setCurrentIndex(prev => (files.length === 0 ? 0 : Math.min(prev, files.length - 1)));
+      setCurrentSegmentNumber(
+        files.length > 0
+          ? extractReplaySegmentIndex(files[Math.max(0, Math.min(files.length - 1, 0))]?.name) || 0
+          : 0,
+      );
       setIsPlaying(files.length > 0);
 
       if (files.length === 0) {
@@ -117,25 +126,58 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       setIsLoading(true);
       setSelectedDurationIndex(index);
 
-      if (totalFiles > 0) {
-        const files = await listReplayFiles(props.webcamFolderName);
-        setVideoFiles(files);
-        setIsLoading(false);
-        setIsPlaying(files.length > 0);
-      } else {
+      const files = props.returnToMatch
+        ? await listReplayFiles(props.webcamFolderName)
+        : await listPlayableFiles(props.webcamFolderName, true);
+
+      if (!files.length) {
         Alert.alert(i18n.t('txtError'), i18n.t('msgWebcamVideoNotExist'));
         setIsLoading(false);
         return;
       }
 
-      setStartTime(duration * 60);
-      if (videoRef.current) {
-        videoRef.current.seek(duration);
-        setIsPlaying(true);
+      setVideoFiles(files);
+      setTotalFiles(files.length);
+      setIsLoading(false);
+
+      const targetSeconds = Math.max(0, duration * 60);
+      let remaining = targetSeconds;
+      let chosenIndex = Math.max(0, files.length - 1);
+      let chosenOffset = 0;
+
+      for (let fileIndex = files.length - 1; fileIndex >= 0; fileIndex -= 1) {
+        const filePath = files[fileIndex]?.path || '';
+        const estimatedDuration =
+          videoDurations[filePath] ||
+          (fileIndex === files.length - 1 ? Math.max(videoDurations[filePath] || 0, 1) : 120);
+
+        if (remaining <= estimatedDuration) {
+          chosenIndex = fileIndex;
+          chosenOffset = Math.max(0, estimatedDuration - remaining);
+          break;
+        }
+
+        remaining -= estimatedDuration;
+        chosenIndex = fileIndex;
+        chosenOffset = 0;
       }
+
+      setCurrentIndex(chosenIndex);
+      setCurrentSegmentNumber(extractReplaySegmentIndex(files[chosenIndex]?.name) || chosenIndex);
+      setStartTime(chosenOffset);
+      setEndTime(0);
+      setIsPlaying(true);
     },
-    [props.webcamFolderName, totalFiles],
+    [props.returnToMatch, props.webcamFolderName, videoDurations],
   );
+
+
+  useEffect(() => {
+    const currentFile = videoFiles[currentIndex];
+    setCurrentSegmentNumber(
+      currentFile ? extractReplaySegmentIndex(currentFile.name) || currentIndex : 0,
+    );
+  }, [currentIndex, videoFiles]);
 
   const onWebcamError = useCallback(
     (_e: OnVideoErrorData) => {
@@ -180,6 +222,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       totalFiles,
       loadFiles,
       resolvedFolder,
+      currentSegmentNumber,
     }),
     [
       isLoading,
@@ -198,6 +241,7 @@ const PlayBackWebcamViewModel = (props: PlayBackWebcamViewModelProps) => {
       totalFiles,
       loadFiles,
       resolvedFolder,
+      currentSegmentNumber,
     ],
   );
 };

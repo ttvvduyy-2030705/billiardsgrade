@@ -1,4 +1,3 @@
-import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
 import {scale as responsiveScale} from 'utils/responsive';
@@ -31,8 +30,8 @@ const styles = StyleSheet.create({
     marginVertical: responsiveScale(20),
   },
   logo: {
-    height: dims.screenHeight * 0.07,
-    width: dims.screenWidth * 0.1,
+    height: responsiveScale(56),
+    width: responsiveScale(128),
   },
   buttonWrapper: {
     overflow: 'hidden',

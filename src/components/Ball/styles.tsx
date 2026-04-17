@@ -1,21 +1,21 @@
-import {dims} from 'configuration';
 import colors from 'configuration/colors';
 import {StyleSheet} from 'react-native';
+import {scale as responsiveScale} from 'utils/responsive';
 
 const styles = StyleSheet.create({
   container: {
-    width: dims.screenWidth * 0.051,
-    height: dims.screenWidth * 0.051,
-    borderRadius: dims.screenWidth * 0.0255,
+    width: responsiveScale(65),
+    height: responsiveScale(65),
+    borderRadius: responsiveScale(32.5),
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
     elevation: 5,
   },
   smallContainer: {
-    width: dims.screenWidth * 0.0255,
-    height: dims.screenWidth * 0.0255,
-    borderRadius: dims.screenWidth * 0.01775,
+    width: responsiveScale(32.5),
+    height: responsiveScale(32.5),
+    borderRadius: responsiveScale(16.25),
     alignItems: 'center',
     justifyContent: 'space-between',
     overflow: 'hidden',
@@ -23,24 +23,24 @@ const styles = StyleSheet.create({
   },
   ball: {
     backgroundColor: colors.white,
-    width: dims.screenWidth * 0.03,
-    height: dims.screenWidth * 0.03,
-    borderRadius: dims.screenWidth * 0.015,
+    width: responsiveScale(38),
+    height: responsiveScale(38),
+    borderRadius: responsiveScale(19),
   },
   smallBall: {
     backgroundColor: colors.white,
-    width: dims.screenWidth * 0.015,
-    height: dims.screenWidth * 0.015,
-    borderRadius: dims.screenWidth * 0.0075,
+    width: responsiveScale(19),
+    height: responsiveScale(19),
+    borderRadius: responsiveScale(9.5),
   },
   cutWrapper: {
     backgroundColor: colors.white,
-    height: dims.screenWidth * 0.005,
+    height: responsiveScale(6.4),
     width: '100%',
   },
   smallCutWrapper: {
     backgroundColor: colors.white,
-    height: dims.screenWidth * 0.0025,
+    height: responsiveScale(3.2),
     width: '100%',
   },
 });

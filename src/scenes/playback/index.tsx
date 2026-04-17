@@ -29,6 +29,7 @@ import {RootState} from 'data/redux/reducers';
 import i18n from 'i18n';
 import {
   buildReplayFolderPath,
+  ensureArchiveFolder,
   resolveReplayFolder,
 } from 'services/replay/localReplay';
 import {
@@ -340,11 +341,13 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
           break;
         case 'onFinishTrimming': {
           const files = await listFiles();
+          const archiveFolder = await ensureArchiveFolder(props.webcamFolderName);
 
           for (let index = 0; index < files.length; index += 1) {
             try {
               const fileName = getFileName(files[index]);
-              await RNFS.moveFile(files[index], `${folder}/${fileName}`);
+              const exportPath = `${archiveFolder}/${Date.now()}_${fileName}`;
+              await RNFS.moveFile(files[index], exportPath);
               await deleteFile(files[index]);
             } catch (error) {
               console.error('Error saving video:', error);
@@ -382,7 +385,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
 
   const findTimelineEntryForPlayback = useCallback(() => {
     const currentSegmentEntries =
-      timelineBySegment.get(viewModel.currentIndex) || [];
+      timelineBySegment.get(viewModel.currentSegmentNumber) || [];
 
     if (!currentSegmentEntries.length) {
       return null;
@@ -406,7 +409,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     }
 
     return currentSegmentEntries[matchedIndex] || null;
-  }, [playbackCurrentTime, timelineBySegment, viewModel.currentIndex]);
+  }, [playbackCurrentTime, timelineBySegment, viewModel.currentSegmentNumber]);
 
   const renderOverlaySlot = useCallback(
     (imageList: string[], positionStyle: any) => {

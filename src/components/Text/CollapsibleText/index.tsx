@@ -10,13 +10,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import HTML from 'react-native-render-html';
-import { MIN_DESC_HEIGHT, SYSTEM_HTML_FONTS } from './constants';
+import { getMinDescHeight, SYSTEM_HTML_FONTS } from './constants';
 import Image from 'components/Image';
 import images from 'assets';
 
 import styles from './styles';
-import { dims } from 'configuration';
-import { LayoutChangeEvent } from 'react-native';
+import { LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { removeSpecificHtmlTag } from 'utils/string';
 import colors from 'configuration/colors';
 
@@ -34,8 +33,11 @@ const CollapsibleText = (props: Props) => {
     contentRef,
     content,
     additionalComponent,
-    minHeight = MIN_DESC_HEIGHT,
+    minHeight,
   } = props;
+
+  const {width: windowWidth, height: windowHeight} = useWindowDimensions();
+  const resolvedMinHeight = minHeight ?? getMinDescHeight(windowHeight);
 
   const arrowRef = useSharedValue(90);
 
@@ -81,17 +83,17 @@ const CollapsibleText = (props: Props) => {
   });
 
   const onSpringDescription = useCallback(() => {
-    const FINAL_HEIGHT = contentRef.value === 0 ? (descriptionHeight || 0) - minHeight : 0;
+    const FINAL_HEIGHT = contentRef.value === 0 ? (descriptionHeight || 0) - resolvedMinHeight : 0;
     const FINAL_DEG = contentRef.value === 0 ? -90 : 90;
 
     if (FINAL_HEIGHT === undefined) {
       return;
     }
 
-    setBottomHeight(contentRef.value === 0 && descriptionHeight ? descriptionHeight : minHeight);
+    setBottomHeight(contentRef.value === 0 && descriptionHeight ? descriptionHeight : resolvedMinHeight);
     arrowRef.value = withTiming(FINAL_DEG, { duration: 100 });
     contentRef.value = withSpring(FINAL_HEIGHT, { damping: 12 });
-  }, [descriptionHeight, minHeight]);
+  }, [descriptionHeight, resolvedMinHeight]);
 
   const onDescriptionLayout = useCallback((e: LayoutChangeEvent) => {
     setDescriptionHeight(e.nativeEvent.layout.height + 15);
@@ -100,10 +102,10 @@ const CollapsibleText = (props: Props) => {
   const contentStyle = useAnimatedStyle(() => {
     return {
       zIndex: 1,
-      transform: [{ translateY: minHeight + contentRef.value }],
+      transform: [{ translateY: resolvedMinHeight + contentRef.value }],
       backgroundColor: colors.white,
     };
-  }, [minHeight]);
+  }, [resolvedMinHeight]);
 
   const arrowStyle = useAnimatedStyle(() => {
     return {
@@ -112,8 +114,8 @@ const CollapsibleText = (props: Props) => {
   }, [descriptionHeight]);
 
   const scrollViewStyle = useMemo(() => {
-    return { paddingTop: minHeight + dims.screenHeight * 0.2 * 0.2 };
-  }, [minHeight]);
+    return { paddingTop: resolvedMinHeight + windowHeight * 0.04 };
+  }, [resolvedMinHeight, windowHeight]);
 
   return (
     <Animated.ScrollView
@@ -126,7 +128,7 @@ const CollapsibleText = (props: Props) => {
           <HTML
             baseStyle={styles.html}
             source={{ html: DESCRIPTION }}
-            contentWidth={dims.screenWidth - 30}
+            contentWidth={Math.max(windowWidth - 30, 0)}
             systemFonts={SYSTEM_HTML_FONTS}
           />
         </View>

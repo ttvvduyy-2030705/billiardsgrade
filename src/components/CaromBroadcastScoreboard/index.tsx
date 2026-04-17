@@ -3,6 +3,7 @@ import {StyleProp, StyleSheet, View, ViewStyle} from 'react-native';
 
 import CaromInfo from 'scenes/game/game-play/console/carom-info';
 import {isCaromGame} from 'utils/game';
+import useDesignSystem from 'theme/useDesignSystem';
 
 type Variant = 'camera' | 'fullscreen' | 'playback';
 
@@ -17,30 +18,75 @@ export interface CaromBroadcastScoreboardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const getMetrics = (variant: Variant) => {
+const shouldUseCompactMetrics = (variant: Variant, adaptive?: any) => {
+  if (!adaptive?.isLandscape) {
+    return false;
+  }
+
+  const baseCompact =
+    adaptive.layoutPreset === 'phone' ||
+    adaptive.isConstrainedLandscape ||
+    adaptive.shortSide <= 620;
+
+  if (variant === 'fullscreen') {
+    return (
+      baseCompact ||
+      adaptive.shortSide <= 780 ||
+      adaptive.height <= 840 ||
+      adaptive.width <= 1280
+    );
+  }
+
+  return baseCompact;
+};
+
+const getMetrics = (variant: Variant, compact = false, adaptive?: any) => {
+  const s = adaptive?.s || ((value: number) => value);
+
   switch (variant) {
     case 'fullscreen':
-      return {
-        left: 16,
-        bottom: 18,
-        width: 400,
-        scale: 0.64,
-      };
+      return compact
+        ? {
+            left: s(10),
+            bottom: s(8),
+            width: s(280),
+            scale: 0.46,
+          }
+        : {
+            left: s(14),
+            bottom: s(14),
+            width: s(360),
+            scale: 0.56,
+          };
     case 'playback':
-      return {
-        left: 12,
-        bottom: 58,
-        width: 470,
-        scale: 0.58,
-      };
+      return compact
+        ? {
+            left: s(10),
+            bottom: s(52),
+            width: s(360),
+            scale: 0.5,
+          }
+        : {
+            left: s(12),
+            bottom: s(58),
+            width: s(470),
+            scale: 0.58,
+          };
     case 'camera':
-default:
-  return {
-    left: 4,
-    bottom: 4,
-    width: 270,
-    scale: 0.48,
-  };
+    default:
+      return compact
+        ? {
+            left: s(6),
+            bottom: s(4),
+            width: s(186),
+            scale: 0.34,
+          }
+        : {
+            left: s(8),
+            bottom: s(10),
+            width: s(236),
+            scale: 0.42,
+          };
   }
 };
 
@@ -61,7 +107,10 @@ const CaromBroadcastScoreboard = ({
     return null;
   }
 
-  const metrics = getMetrics(variant);
+  const {adaptive} = useDesignSystem();
+  const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
+
+  const metrics = getMetrics(variant, useCompactMetrics, adaptive);
 
   return (
     <View
@@ -93,6 +142,7 @@ const CaromBroadcastScoreboard = ({
           currentPlayerIndex={Math.max(0, Number(currentPlayerIndex || 0))}
           gameSettings={gameSettings}
           playerSettings={playerSettings}
+          compact={variant === 'fullscreen' ? useCompactMetrics : false}
         />
       </View>
     </View>
@@ -103,8 +153,8 @@ const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
     overflow: 'visible',
-    zIndex: 14,
-    elevation: 14,
+    zIndex: 18,
+    elevation: 18,
     alignItems: 'flex-start',
   },
   scaleRoot: {

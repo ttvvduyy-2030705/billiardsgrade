@@ -10,10 +10,10 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Platform} from 'react-native';
+import Slider from '@react-native-community/slider';
 import {
   Image as RNImage,
   ImageBackground,
-  Modal,
   Pressable,
   StyleSheet,
   View as RNView,
@@ -44,13 +44,9 @@ import {
   subscribeCaromCameraScoreboardState,
   type CaromCameraScoreboardState,
 } from './caromScoreboardStore';
-import {
-  getCameraFullscreen,
-  setCameraFullscreen,
-  subscribeCameraFullscreen,
-} from '../../cameraFullscreenStore';
 import useSafeScreenInsets, {ZERO_INSETS} from 'theme/safeArea';
 import {WebcamType} from 'types/webcam';
+import {setCameraFullscreen} from '../../cameraFullscreenStore';
 import useDesignSystem from 'theme/useDesignSystem';
 import {createGameplayLayoutRules, createGameplayStyles} from '../../layoutRules';
 
@@ -112,6 +108,25 @@ const formatZoomLabel = (value: number) => {
   return `${value.toFixed(1)}x`;
 };
 
+
+const areNumberArraysEqual = (left: number[] = [], right: number[] = []) => {
+  if (left === right) {
+    return true;
+  }
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (Number(left[index]) !== Number(right[index])) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const getYouTubeSourceLock = (): 'back' | 'front' | 'external' | null => {
   const value = (globalThis as any).__APLUS_YOUTUBE_SOURCE_LOCK__;
   return value === 'back' || value === 'front' || value === 'external'
@@ -154,6 +169,7 @@ const getCameraRecordingInfo = (cameraRef: any): RecordingInfo => {
 type WebCamComponentProps = Props & {
   hideBottomControls?: boolean;
   cameraScaleMode?: 'contain' | 'cover';
+  forceFullscreen?: boolean;
 };
 
 export type WebCamHandle = {
@@ -212,12 +228,18 @@ const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: 
       gameSettings={state.gameSettings}
       playerSettings={state.playerSettings}
       variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={fullscreenMode ? 18 : 12}
+      bottomOffset={fullscreenMode ? 18 : 14}
     />
   );
 });
 
-const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
+const CaromScoreboardOverlay = memo(({
+  fullscreenMode = false,
+  bottomOffset,
+}: {
+  fullscreenMode?: boolean;
+  bottomOffset?: number;
+}) => {
   const [state, setState] = useState<CaromCameraScoreboardState>(
     EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
   );
@@ -248,7 +270,7 @@ const CaromScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?:
       gameSettings={state.gameSettings}
       playerSettings={state.playerSettings}
       variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={fullscreenMode ? 18 : -32}
+      bottomOffset={bottomOffset ?? (fullscreenMode ? 18 : 12)}
     />
   );
 });
@@ -264,15 +286,20 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
   const styles = useMemo(() => createStyles(adaptive, design, layoutRules, overlaySafeInsets), [adaptive.styleKey, overlaySafeInsets.top, overlaySafeInsets.right, overlaySafeInsets.bottom, overlaySafeInsets.left]);
   const cameraScaleMode = props.cameraScaleMode || 'contain';
+  const isFullscreen = !!props.forceFullscreen;
 
-  const [isFullscreen, setIsFullscreenLocal] = useState(getCameraFullscreen());
   const [cameraVisualReady, setCameraVisualReady] = useState(false);
   const [zoomSupported, setZoomSupported] = useState(false);
-  const [zoomSteps, setZoomSteps] = useState<number[]>(BASE_ZOOM_STEPS);
+  const [zoomMin, setZoomMin] = useState(1);
+  const [zoomMax, setZoomMax] = useState(1);
   const [currentZoom, setCurrentZoom] = useState(1);
   const [thumbnailOverlay, setThumbnailOverlay] =
     useState<ThumbnailOverlayData>(EMPTY_THUMBNAILS);
 
+  const zoomSupportedRef = useRef(false);
+  const zoomMinRef = useRef(1);
+  const zoomMaxRef = useRef(1);
+  const currentZoomRef = useRef(1);
   const youtubeControllerRef = useRef<any>(null);
   const lastStableZoomInfoRef = useRef<CameraZoomInfo | null>(null);
   const fullscreenSourceRef =
@@ -355,8 +382,14 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   }, []);
 
   useEffect(() => {
-    return subscribeCameraFullscreen(setIsFullscreenLocal);
-  }, []);
+    if (!isFullscreen) {
+      fullscreenSourceRef.current = null;
+    }
+
+    return () => {
+      fullscreenSourceRef.current = null;
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     loadThumbnailOverlay();
@@ -416,16 +449,21 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     viewModel.refreshing,
   ]);
 
-  const effectiveCameraReady = props.isCameraReady || cameraVisualReady;
-  const shouldShowPhonePlaceholder = false;
+  const effectiveCameraReady =
+    effectiveSourceType === 'phone'
+      ? props.isCameraReady && cameraVisualReady
+      : props.isCameraReady || cameraVisualReady;
+  const shouldShowPhonePlaceholder =
+    effectiveSourceType === 'phone' && !effectiveCameraReady;
   const shouldShowPhoneLogoOverlay = false;
   const shouldShowExternalPlaceholder =
     effectiveSourceType === 'webcam' &&
-    viewModel.refreshing;
-  const shouldShowLogoPlaceholder = shouldShowExternalPlaceholder;
-  const shouldShowOuterLogoOverlay = false;
+    (!effectiveCameraReady || viewModel.refreshing);
+  const shouldShowLogoPlaceholder =
+    shouldShowPhonePlaceholder || shouldShowExternalPlaceholder;
   const shouldRenderVideoComponent = !viewModel.refreshing || useYouTubeNativePreview;
   const shouldRenderPreview = shouldRenderVideoComponent && effectiveCameraReady;
+  const shouldShowOuterLogoOverlay = false;
 
   useEffect(() => {
     debugCameraLog('[WebCam] placeholder branch', {
@@ -468,77 +506,79 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     return (props.cameraRef as any)?.current ?? null;
   }, [props.cameraRef, props.youtubeLivePreviewActive, externalLiveLocked]);
 
-  const syncZoomInfo = useCallback(() => {
-    const cameraHandle = getCameraHandle();
-    const info = cameraHandle?.getZoomInfo?.() as CameraZoomInfo | undefined;
 
-    if (!info) {
-      const fallback = lastStableZoomInfoRef.current;
-      if (fallback) {
-        const minZoom =
-          typeof fallback.minZoom === 'number' ? fallback.minZoom : 1;
-        const maxZoom =
-          typeof fallback.maxZoom === 'number' ? fallback.maxZoom : 1;
-        const zoom = clamp(
-          typeof fallback.zoom === 'number' ? fallback.zoom : 1,
-          minZoom,
-          maxZoom,
-        );
-        const availableSteps = BASE_ZOOM_STEPS.filter(step => {
-          return step >= minZoom - 0.001 && step <= maxZoom + 0.001;
-        });
-        const mergedSteps = Array.from(
-          new Set<number>([
-            ...(availableSteps.length ? availableSteps : [minZoom, maxZoom]),
-            zoom,
-          ]),
-        ).sort((a, b) => a - b);
+const syncZoomInfo = useCallback(() => {
+  const cameraHandle = getCameraHandle();
+  const info = cameraHandle?.getZoomInfo?.() as CameraZoomInfo | undefined;
 
-        setZoomSupported(!!fallback.supported);
-        setZoomSteps(mergedSteps.length ? mergedSteps : [1]);
-        setCurrentZoom(zoom);
-        return;
-      }
+  const commitZoomState = (
+    nextZoomSupported: boolean,
+    nextMinZoom: number,
+    nextMaxZoom: number,
+    nextCurrentZoom: number,
+  ) => {
+    if (zoomSupportedRef.current !== nextZoomSupported) {
+      zoomSupportedRef.current = nextZoomSupported;
+      setZoomSupported(nextZoomSupported);
+    }
 
-      setZoomSupported(false);
-      setZoomSteps(BASE_ZOOM_STEPS);
-      setCurrentZoom(1);
+    if (Number(zoomMinRef.current) !== Number(nextMinZoom)) {
+      zoomMinRef.current = nextMinZoom;
+      setZoomMin(nextMinZoom);
+    }
+
+    if (Number(zoomMaxRef.current) !== Number(nextMaxZoom)) {
+      zoomMaxRef.current = nextMaxZoom;
+      setZoomMax(nextMaxZoom);
+    }
+
+    if (Number(currentZoomRef.current) !== Number(nextCurrentZoom)) {
+      currentZoomRef.current = nextCurrentZoom;
+      setCurrentZoom(nextCurrentZoom);
+    }
+  };
+
+  if (!info) {
+    const fallback = lastStableZoomInfoRef.current;
+    if (fallback) {
+      const minZoom =
+        typeof fallback.minZoom === 'number' ? fallback.minZoom : 1;
+      const maxZoom =
+        typeof fallback.maxZoom === 'number' ? fallback.maxZoom : 1;
+      const zoom = clamp(
+        typeof fallback.zoom === 'number' ? fallback.zoom : 1,
+        minZoom,
+        maxZoom,
+      );
+
+      commitZoomState(!!fallback.supported || maxZoom > 1.001, minZoom, maxZoom, zoom);
       return;
     }
 
-    const minZoom = typeof info.minZoom === 'number' ? info.minZoom : 1;
-    const maxZoom = typeof info.maxZoom === 'number' ? info.maxZoom : 1;
-    const zoom = clamp(
-      typeof info.zoom === 'number' ? info.zoom : 1,
+    commitZoomState(false, 1, 1, 1);
+    return;
+  }
+
+  const minZoom = typeof info.minZoom === 'number' ? info.minZoom : 1;
+  const maxZoom = typeof info.maxZoom === 'number' ? info.maxZoom : 1;
+  const zoom = clamp(
+    typeof info.zoom === 'number' ? info.zoom : 1,
+    minZoom,
+    maxZoom,
+  );
+
+  if (info.supported || maxZoom > 1.001) {
+    lastStableZoomInfoRef.current = {
+      ...info,
+      supported: true,
       minZoom,
       maxZoom,
-    );
+      zoom,
+    };
+  }
 
-    const availableSteps = BASE_ZOOM_STEPS.filter(step => {
-      return step >= minZoom - 0.001 && step <= maxZoom + 0.001;
-    });
-
-    const mergedSteps = Array.from(
-      new Set<number>([
-        ...(availableSteps.length ? availableSteps : [minZoom, maxZoom]),
-        zoom,
-      ]),
-    ).sort((a, b) => a - b);
-
-    if (info.supported || maxZoom > 1.001) {
-      lastStableZoomInfoRef.current = {
-        ...info,
-        supported: true,
-        minZoom,
-        maxZoom,
-        zoom,
-      };
-    }
-
-    setZoomSupported(!!info.supported || maxZoom > 1.001);
-    setZoomSteps(mergedSteps.length ? mergedSteps : [1]);
-    setCurrentZoom(zoom);
-  }, [getCameraHandle]);
+  commitZoomState(!!info.supported || maxZoom > 1.001, minZoom, maxZoom, zoom);
+}, [getCameraHandle]);
 
   useEffect(() => {
     syncZoomInfo();
@@ -549,87 +589,107 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
       }, delay);
     });
 
-    let interval: any = null;
-    if (isFullscreen) {
-      interval = setInterval(() => {
-        syncZoomInfo();
-      }, 800);
-    }
-
     return () => {
       timeouts.forEach(clearTimeout);
-      if (interval) {
-        clearInterval(interval);
-      }
     };
   }, [syncZoomInfo, isFullscreen, props.isCameraReady]);
 
-  const applyZoom = useCallback(
-    (nextZoom: number) => {
-      const cameraHandle = getCameraHandle();
-      if (!cameraHandle?.setZoom) {
-        return;
-      }
 
-      const info = cameraHandle?.getZoomInfo?.() as CameraZoomInfo | undefined;
-      const minZoom = typeof info?.minZoom === 'number' ? info.minZoom : 1;
-      const maxZoom = typeof info?.maxZoom === 'number' ? info.maxZoom : 1;
-      const clampedZoom = clamp(nextZoom, minZoom, maxZoom);
-      const appliedZoom = cameraHandle.setZoom(clampedZoom);
+const applyZoom = useCallback(
+  (nextZoom: number, options?: {finalize?: boolean}) => {
+    const cameraHandle = getCameraHandle();
+    if (!cameraHandle?.setZoom) {
+      return;
+    }
 
-      setCurrentZoom(
-        typeof appliedZoom === 'number' ? appliedZoom : clampedZoom,
-      );
+    const info = cameraHandle?.getZoomInfo?.() as CameraZoomInfo | undefined;
+    const minZoom = typeof info?.minZoom === 'number' ? info.minZoom : zoomMinRef.current;
+    const maxZoom = typeof info?.maxZoom === 'number' ? info.maxZoom : zoomMaxRef.current;
+    const clampedZoom = clamp(nextZoom, minZoom, maxZoom);
+    const appliedZoom = cameraHandle.setZoom(clampedZoom);
+    const resolvedZoom = typeof appliedZoom === 'number' ? appliedZoom : clampedZoom;
 
+    currentZoomRef.current = resolvedZoom;
+    setCurrentZoom(resolvedZoom);
+
+    if (lastStableZoomInfoRef.current) {
+      lastStableZoomInfoRef.current = {
+        ...lastStableZoomInfoRef.current,
+        supported: maxZoom > minZoom + 0.001,
+        minZoom,
+        maxZoom,
+        zoom: resolvedZoom,
+      };
+    } else {
+      lastStableZoomInfoRef.current = {
+        supported: maxZoom > minZoom + 0.001,
+        minZoom,
+        maxZoom,
+        zoom: resolvedZoom,
+        source: effectiveCameraSource,
+      };
+    }
+
+    if (options?.finalize) {
       syncZoomInfo();
-    },
-    [getCameraHandle, syncZoomInfo],
-  );
+    }
+  },
+  [effectiveCameraSource, getCameraHandle, syncZoomInfo],
+);
 
-  const activeZoomIndex = useMemo(() => {
-    return getNearestStepIndex(zoomSteps, currentZoom);
-  }, [zoomSteps, currentZoom]);
+const sliderMinZoom = useMemo(() => {
+  const normalizedMin = Number.isFinite(zoomMin) ? zoomMin : 1;
+  const normalizedMax = Number.isFinite(zoomMax) ? zoomMax : 1;
+  return clamp(Math.max(1, normalizedMin), 1, Math.max(1, normalizedMax));
+}, [zoomMin, zoomMax]);
+
+const sliderMaxZoom = useMemo(() => {
+  const normalizedMax = Number.isFinite(zoomMax) ? zoomMax : 1;
+  return Math.min(10, Math.max(sliderMinZoom, normalizedMax));
+}, [sliderMinZoom, zoomMax]);
+
+const sliderZoomSupported = zoomSupported && sliderMaxZoom - sliderMinZoom > 0.001;
+
+const handleZoomSliderChange = useCallback(
+  (nextValue: number) => {
+    if (!sliderZoomSupported) {
+      return;
+    }
+
+    applyZoom(nextValue);
+  },
+  [applyZoom, sliderZoomSupported],
+);
+
+const handleZoomSliderComplete = useCallback(
+  (nextValue: number) => {
+    if (!sliderZoomSupported) {
+      return;
+    }
+
+    applyZoom(nextValue, {finalize: true});
+  },
+  [applyZoom, sliderZoomSupported],
+);
 
   const openFullscreen = () => {
-    fullscreenSourceRef.current =
-      (viewModel.webcamType as 'back' | 'front' | 'external' | undefined) ||
-      currentCameraSource ||
-      liveSourceLock ||
-      'back';
+    const nextSource =
+      effectiveCameraSource === 'front' ||
+      effectiveCameraSource === 'back' ||
+      effectiveCameraSource === 'external'
+        ? effectiveCameraSource
+        : currentCameraSource ||
+          liveSourceLock ||
+          (viewModel.webcamType === WebcamType.webcam ? 'external' : 'back');
+
+    fullscreenSourceRef.current = nextSource;
     setCameraFullscreen(true);
   };
 
   const closeFullscreen = () => {
-    setCameraFullscreen(false);
     fullscreenSourceRef.current = null;
+    setCameraFullscreen(false);
   };
-
-  const zoomIn = () => {
-    if (!zoomSupported || !zoomSteps.length) {
-      return;
-    }
-
-    const nextIndex = Math.min(activeZoomIndex + 1, zoomSteps.length - 1);
-    applyZoom(zoomSteps[nextIndex]);
-  };
-
-  const zoomOut = () => {
-    if (!zoomSupported || !zoomSteps.length) {
-      return;
-    }
-
-    const nextIndex = Math.max(activeZoomIndex - 1, 0);
-    applyZoom(zoomSteps[nextIndex]);
-  };
-
-  const selectZoom = (index: number) => {
-    if (!zoomSupported || !zoomSteps[index]) {
-      return;
-    }
-
-    applyZoom(zoomSteps[index]);
-  };
-
   const onSwitchCameraPress = () => {
     if (externalLiveLocked) {
       debugCameraLog(
@@ -702,34 +762,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     return props.innerControls ? 2 : 16 / 10;
   }, [effectiveCameraSource, props.innerControls]);
 
-  const cameraStageStyle = useMemo(() => {
-    const containerWidth = Math.max(cameraStageBounds.width, 0);
-    const containerHeight = Math.max(cameraStageBounds.height, 0);
-
-    if (!containerWidth || !containerHeight) {
-      return undefined;
-    }
-
-    const containerAspect = containerWidth / Math.max(containerHeight, 1);
-
-    if (cameraScaleMode === 'cover') {
-      if (containerAspect > targetCameraAspectRatio) {
-        const height = containerWidth / targetCameraAspectRatio;
-        return {width: containerWidth, height};
-      }
-
-      const width = containerHeight * targetCameraAspectRatio;
-      return {width, height: containerHeight};
-    }
-
-    if (containerAspect > targetCameraAspectRatio) {
-      const width = containerHeight * targetCameraAspectRatio;
-      return {width, height: containerHeight};
-    }
-
-    const height = containerWidth / targetCameraAspectRatio;
-    return {width: containerWidth, height};
-  }, [cameraScaleMode, cameraStageBounds.height, cameraStageBounds.width, targetCameraAspectRatio]);
+  const cameraStageStyle = undefined;
 
   const showBottomControls =
     (!props.innerControls || viewModel.innerControlsShow) &&
@@ -770,7 +803,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const fullLogoPlaceholder = (
     <RNView style={styles.logoOnlyBackground}>
       <RNImage
-        source={images.logoSmall || images.logo}
+        source={images.logoSmall}
         style={styles.logoOnlyImage}
         resizeMode="contain"
         onLoad={() => {
@@ -802,13 +835,22 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   };
 
   const renderScoreboardOverlay = (fullscreenMode = false) => {
-    return (
-      <>
-        <PoolScoreboardOverlay fullscreenMode={fullscreenMode} />
-        <CaromScoreboardOverlay fullscreenMode={fullscreenMode} />
-      </>
-    );
-  };
+  const poolBottomOffset = fullscreenMode ? fullscreenScoreboardBottom : 10;
+  const caromBottomOffset = fullscreenMode ? undefined : -50;
+
+  return (
+    <>
+      <PoolScoreboardOverlay
+        fullscreenMode={fullscreenMode}
+        bottomOffset={poolBottomOffset}
+      />
+      <CaromScoreboardOverlay
+        fullscreenMode={fullscreenMode}
+        bottomOffset={caromBottomOffset}
+      />
+    </>
+  );
+};
 
   const renderThumbnailGroup = (
     imageUris: string[],
@@ -893,6 +935,50 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     );
   };
 
+  const renderVideoBootstrap = (fullscreenMode: boolean) => (
+    useYouTubeNativePreview ? (
+      <YouTubeAndroidLivePreview
+        controllerRef={youtubeControllerRef}
+        setIsCameraReady={handleCameraReadyChange}
+        sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
+        cameraFacing={effectiveCameraFacing}
+      />
+    ) : (
+      <Video
+        gestureDisabled
+        source={viewModel.source}
+        initialScale={viewModel.webcam?.scale}
+        initialTranslateX={viewModel.webcam?.translateX}
+        initialTranslateY={viewModel.webcam?.translateY}
+        onFullscreenPlayerDidPresent={
+          viewModel.onFullscreenPlayerDidPresent
+        }
+        onBuffer={viewModel.onBuffer}
+        onSeek={viewModel.onSeek}
+        onLoad={viewModel.onLoad}
+        onVideoTracks={viewModel.onVideoTracks}
+        onEnd={viewModel.onEnd}
+        onError={viewModel.onWebcamError}
+        loadingDisabled
+        cameraRef={props.cameraRef}
+        isPaused={props.isPaused}
+        isStarted={props.isStarted}
+        videoUri={props.videoUri}
+        webcamType={effectiveSourceType === 'webcam' ? WebcamType.webcam : WebcamType.camera}
+        setIsCameraReady={handleCameraReadyChange}
+        overlayContent={
+          effectiveCameraSource === 'external'
+            ? renderOverlay()
+            : undefined
+        }
+        cameraScaleMode={fullscreenMode ? 'cover' : cameraScaleMode}
+        androidPreviewViewTypeOverride={undefined}
+        suppressCameraFallbackOverlay={false}
+        ignoreNavigationFocusLoss={fullscreenMode || props.forceFullscreen === true}
+      />
+    )
+  );
+
   const renderCameraContent = () => {
     debugCameraLog('[WebCam] renderCameraContent branch', {
       refreshing: viewModel.refreshing,
@@ -913,60 +999,24 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
       shouldRenderPreview,
     });
 
-    if (shouldRenderVideoComponent) {
-      const contentKey = [
-        isFullscreen ? 'fullscreen' : 'embedded',
-        effectiveCameraSource,
-        externalLiveLocked ? 'external-lock' : 'normal',
-      ].join('-');
+    return (
+      <RNView style={styles.cameraStageRoot}>
+        {shouldRenderVideoComponent ? (
+          <RNView
+            pointerEvents={shouldRenderPreview ? 'auto' : 'none'}
+            style={styles.videoScaleWrap}>
+            {renderVideoBootstrap(isFullscreen)}
+            {effectiveCameraSource !== 'external' ? renderOverlay() : null}
+          </RNView>
+        ) : null}
 
-      return (
-        <RNView key={contentKey} style={styles.videoScaleWrap}>
-          {useYouTubeNativePreview ? (
-            <YouTubeAndroidLivePreview
-              controllerRef={youtubeControllerRef}
-              setIsCameraReady={handleCameraReadyChange}
-              sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
-              cameraFacing={effectiveCameraFacing}
-            />
-          ) : (
-            <Video
-              key={contentKey}
-              gestureDisabled
-              source={viewModel.source}
-              initialScale={viewModel.webcam?.scale}
-              initialTranslateX={viewModel.webcam?.translateX}
-              initialTranslateY={viewModel.webcam?.translateY}
-              onFullscreenPlayerDidPresent={
-                viewModel.onFullscreenPlayerDidPresent
-              }
-              onBuffer={viewModel.onBuffer}
-              onSeek={viewModel.onSeek}
-              onLoad={viewModel.onLoad}
-              onVideoTracks={viewModel.onVideoTracks}
-              onEnd={viewModel.onEnd}
-              onError={viewModel.onWebcamError}
-              loadingDisabled
-              cameraRef={props.cameraRef}
-              isPaused={props.isPaused}
-              isStarted={props.isStarted}
-              videoUri={props.videoUri}
-              webcamType={effectiveSourceType === 'webcam' ? WebcamType.webcam : WebcamType.camera}
-              setIsCameraReady={handleCameraReadyChange}
-              overlayContent={
-                effectiveCameraSource === 'external'
-                  ? renderOverlay()
-                  : undefined
-              }
-              cameraScaleMode={cameraScaleMode}
-            />
-          )}
-          {shouldRenderPreview && effectiveCameraSource !== 'external' ? renderOverlay() : null}
-        </RNView>
-      );
-    }
-
-    return fullLogoPlaceholder;
+        {!shouldRenderPreview && !shouldRenderVideoComponent ? (
+          <RNView pointerEvents="none" style={styles.fallbackVisibleStage}>
+            {fullLogoPlaceholder}
+          </RNView>
+        ) : null}
+      </RNView>
+    );
   };
 
   const fullscreenChromeOffsets = {
@@ -975,231 +1025,277 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     right: Math.max(16, overlaySafeInsets.right + 8),
     bottom: Math.max(24, overlaySafeInsets.bottom + 12),
   };
+  const fullscreenZoomTrackLength = Math.max(
+    adaptive.s(128),
+    Math.min(adaptive.height * 0.26, adaptive.s(220)),
+  );
+  const fullscreenZoomRailHeight = fullscreenZoomTrackLength + adaptive.s(108);
+  const fullscreenZoomRailTop = clamp(
+    (adaptive.height - fullscreenZoomRailHeight) / 2,
+    fullscreenChromeOffsets.top + adaptive.s(54),
+    Math.max(
+      fullscreenChromeOffsets.top + adaptive.s(54),
+      adaptive.height - fullscreenChromeOffsets.bottom - fullscreenZoomRailHeight - adaptive.s(18),
+    ),
+  );
+  const fullscreenScoreboardBottom = Math.max(
+    fullscreenChromeOffsets.bottom + adaptive.s(10),
+    adaptive.s(26),
+  );
 
-  const renderCameraChrome = () => {
-    if (!isFullscreen) {
-      return (
-        <Pressable style={styles.fullscreenFab} onPress={openFullscreen}>
-          <Text color={colors.white} fontSize={20}>
-            ⛶
-          </Text>
-        </Pressable>
-      );
-    }
-
-    return (
-      <>
-        <Pressable style={[styles.closeButton, {top: fullscreenChromeOffsets.top, left: fullscreenChromeOffsets.left}]} onPress={closeFullscreen}>
-          <Text color={colors.white} fontSize={16}>
-            Đóng
-          </Text>
-        </Pressable>
-
-        <RNView style={[styles.zoomRail, {top: fullscreenChromeOffsets.top + 52, right: fullscreenChromeOffsets.right, bottom: fullscreenChromeOffsets.bottom}]}>
-          <Pressable
-            style={[
-              styles.zoomControlButton,
-              (!zoomSupported || activeZoomIndex === zoomSteps.length - 1) &&
-                styles.zoomControlDisabled,
-            ]}
-            onPress={zoomIn}>
-            <Text color={colors.white} fontSize={20}>
-              +
-            </Text>
-          </Pressable>
-
-          <RNView style={styles.zoomStepsWrap}>
-            <RNView style={styles.currentZoomBadge}>
-              <Text color={colors.white} fontSize={12}>
-                {formatZoomLabel(currentZoom)}
-              </Text>
-            </RNView>
-
-            {zoomSupported ? (
-              zoomSteps.map((item, index) => {
-                const active = index === activeZoomIndex;
-                return (
-                  <Pressable
-                    key={`zoom-${item}`}
-                    style={[
-                      styles.zoomStepButton,
-                      active && styles.zoomStepButtonActive,
-                    ]}
-                    onPress={() => selectZoom(index)}>
-                    <Text
-                      color={active ? colors.black : colors.white}
-                      fontSize={12}>
-                      {formatZoomLabel(item)}
-                    </Text>
-                  </Pressable>
-                );
-              })
-            ) : (
-              <RNView style={styles.zoomUnsupportedBadge}>
-                <Text color={colors.white} fontSize={11}>
-                  Không hỗ trợ zoom
-                </Text>
-              </RNView>
-            )}
-          </RNView>
-
-          <Pressable
-            style={[
-              styles.zoomControlButton,
-              (!zoomSupported || activeZoomIndex === 0) &&
-                styles.zoomControlDisabled,
-            ]}
-            onPress={zoomOut}>
-            <Text color={colors.white} fontSize={20}>
-              −
-            </Text>
-          </Pressable>
-        </RNView>
-      </>
-    );
-  };
-
-  const renderCameraView = (fullscreenMode: boolean) => {
-    if (shouldShowLogoPlaceholder) {
-      return (
-        <RNView
-          style={fullscreenMode ? styles.fullscreenVideoClipPlaceholder : styles.videoClipPlaceholder}
-          onLayout={event => {
-            debugCameraLog('[WebCam] placeholder surface layout', event.nativeEvent.layout);
-          }}>
-          {fullLogoPlaceholder}
-        </RNView>
-      );
+  const renderFullscreenBranding = () => {
+    const source = images.logoSmall || images.logo;
+    if (!source) {
+      return null;
     }
 
     return (
       <RNView
+        pointerEvents="none"
+        style={[
+          styles.fullscreenBrandWrap,
+          {
+            top: fullscreenChromeOffsets.top,
+            left: fullscreenChromeOffsets.left,
+          },
+        ]}>
+        <RNImage
+          source={source}
+          resizeMode="contain"
+          style={styles.fullscreenBrandImage}
+        />
+      </RNView>
+    );
+  };
+
+  const renderEmbeddedChrome = () => {
+    return (
+      <Pressable style={styles.fullscreenFab} onPress={openFullscreen}>
+        <Text color={colors.white} fontSize={20}>
+          ⛶
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const renderFullscreenClose = () => {
+    const closeTop = fullscreenChromeOffsets.top + adaptive.s(44);
+
+    return (
+      <Pressable
+        style={[
+          styles.closeButton,
+          {
+            top: closeTop,
+            left: fullscreenChromeOffsets.left,
+          },
+        ]}
+        onPress={closeFullscreen}>
+        <Text color={colors.white} fontSize={15}>
+          Đóng
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const renderFullscreenZoomRail = () => {
+    return (
+      <RNView
+        style={[
+          styles.zoomRailVertical,
+          {
+            top: fullscreenZoomRailTop,
+            height: fullscreenZoomRailHeight,
+            right: Math.max(overlaySafeInsets.right + adaptive.s(6), adaptive.s(8)),
+          },
+        ]}>
+        <RNView style={styles.currentZoomBadgeVertical}>
+          <Text color={colors.white} fontSize={13}>
+            {formatZoomLabel(currentZoom)}
+          </Text>
+        </RNView>
+
+        {sliderZoomSupported ? (
+          <>
+            <Text color={'rgba(255,255,255,0.82)'} fontSize={12}>
+              {formatZoomLabel(sliderMaxZoom)}
+            </Text>
+            <RNView style={styles.zoomSliderVerticalWrap}>
+              <Slider
+                style={[
+                  styles.zoomSliderVertical,
+                  {width: fullscreenZoomTrackLength},
+                ]}
+                minimumValue={sliderMinZoom}
+                maximumValue={sliderMaxZoom}
+                value={clamp(currentZoom, sliderMinZoom, sliderMaxZoom)}
+                minimumTrackTintColor={'#FFFFFF'}
+                maximumTrackTintColor={'rgba(255,255,255,0.28)'}
+                thumbTintColor={'#FFFFFF'}
+                step={0}
+                onValueChange={handleZoomSliderChange}
+                onSlidingComplete={handleZoomSliderComplete}
+              />
+            </RNView>
+            <Text color={'rgba(255,255,255,0.82)'} fontSize={12}>
+              {formatZoomLabel(sliderMinZoom)}
+            </Text>
+          </>
+        ) : (
+          <RNView style={styles.zoomUnsupportedBadgeVertical}>
+            <Text color={colors.white} fontSize={11}>
+              Không hỗ trợ zoom
+            </Text>
+          </RNView>
+        )}
+      </RNView>
+    );
+  };
+
+  const renderFullscreenHud = () => {
+    return (
+      <RNView pointerEvents="box-none" style={styles.fullscreenHud}>
+        {renderFullscreenBranding()}
+        {renderFullscreenClose()}
+        <RNView
+          pointerEvents="none"
+          style={[
+            styles.fullscreenScoreboardWrap,
+            {
+              left: Math.max(overlaySafeInsets.left + adaptive.s(10), adaptive.s(10)),
+              right: Math.max(overlaySafeInsets.right + adaptive.s(56), adaptive.s(60)),
+              bottom: Math.max(overlaySafeInsets.bottom + adaptive.s(12), adaptive.s(12)),
+            },
+          ]}>
+          <PoolScoreboardOverlay
+            fullscreenMode
+            bottomOffset={fullscreenScoreboardBottom}
+          />
+        </RNView>
+        <CaromScoreboardOverlay fullscreenMode />
+        {renderFullscreenZoomRail()}
+      </RNView>
+    );
+  };
+
+  const renderCameraView = (fullscreenMode: boolean) => {
+    return (
+      <RNView
         collapsable={false}
-        style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
+        style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}
+        onLayout={event => {
+          if (!shouldShowLogoPlaceholder) {
+            return;
+          }
+
+          debugCameraLog('[WebCam] placeholder surface layout', event.nativeEvent.layout);
+        }}>
         {renderCameraContent()}
-        {shouldRenderPreview ? renderThumbnailOverlay(fullscreenMode) : null}
-        {shouldRenderPreview ? renderScoreboardOverlay(fullscreenMode) : null}
+        {!fullscreenMode && shouldRenderPreview ? renderThumbnailOverlay(false) : null}
+        {!fullscreenMode ? renderScoreboardOverlay(false) : null}
         {shouldShowOuterLogoOverlay ? (
           <RNView
             pointerEvents="none"
-            style={styles.logoOnlyOverlay}>
-            <RNImage
-              source={images.logoSmall || images.logo}
-              style={styles.logoOnlyOverlayImage}
-              resizeMode="contain"
-              onLoad={() => {
-                debugCameraLog('[WebCam] outer logo overlay loaded', {
-                  source: effectiveCameraSource,
-                  type: effectiveSourceType,
-                  effectiveCameraReady,
-                  shouldShowOuterLogoOverlay,
-                });
-              }}
-            />
-          </RNView>
+            style={styles.logoOnlyOverlayLogProbe}
+            onLayout={() => {
+              debugCameraLog('[WebCam] outer logo overlay loaded', {
+                source: effectiveCameraSource,
+                type: effectiveSourceType,
+                effectiveCameraReady,
+                shouldShowOuterLogoOverlay,
+              });
+            }}
+          />
         ) : null}
-        {shouldRenderPreview ? renderCameraChrome() : null}
+        {!fullscreenMode && shouldRenderPreview ? renderEmbeddedChrome() : null}
       </RNView>
     );
   };
 
   return (
-    <>
-      {!isFullscreen ? (
-        <RNView style={styles.embeddedRoot} pointerEvents="box-none">
-          <RNView
-            style={styles.videoStageSlot}
-            pointerEvents="box-none"
-            onLayout={event => {
-              const {width: nextWidth, height: nextHeight} = event.nativeEvent.layout;
-              setCameraStageBounds(prev => {
-                if (prev.width === nextWidth && prev.height === nextHeight) {
-                  return prev;
-                }
+    <RNView
+      style={[styles.embeddedRoot, props.forceFullscreen ? styles.fullscreenRoot : null]}
+      pointerEvents="box-none">
+      <RNView
+        style={[styles.videoStageSlot, props.forceFullscreen ? styles.fullscreenStageSlot : null]}
+        pointerEvents="box-none"
+        onLayout={event => {
+          const {width: nextWidth, height: nextHeight} = event.nativeEvent.layout;
+          setCameraStageBounds(prev => {
+            if (prev.width === nextWidth && prev.height === nextHeight) {
+              return prev;
+            }
 
-                return {width: nextWidth, height: nextHeight};
-              });
-            }}>
-            <RNView
-              collapsable={false}
-              style={shouldShowLogoPlaceholder
-                ? [styles.videoHost, styles.placeholderStageHost]
-                : [styles.videoHost, styles.videoStage, cameraStageStyle]}
-              pointerEvents="box-none">
-              {renderCameraView(false)}
+            return {width: nextWidth, height: nextHeight};
+          });
+        }}>
+        <RNView
+          collapsable={false}
+          style={[
+            styles.videoHost,
+            styles.videoStageFill,
+            props.forceFullscreen ? styles.fullscreenVideoHost : null,
+          ]}
+          pointerEvents="box-none">
+          {renderCameraView(!!props.forceFullscreen)}
 
-              {props.innerControls && !shouldShowLogoPlaceholder ? (
-                <Pressable
-                  style={styles.overlayTouch}
-                  pointerEvents="box-only"
-                  onPress={viewModel.onToggleInnerControls}
-                />
-              ) : null}
-            </RNView>
-          </RNView>
-
-          {showBottomControls && !shouldShowLogoPlaceholder ? (
-            <RNView style={styles.bottomBar} pointerEvents="box-none">
-              <Pressable
-                onPress={() => {
-                  if (!allowRefresh) {
-                    return;
-                  }
-                  viewModel.onRefresh();
-                }}
-                style={[
-                  styles.actionButton,
-                  !allowRefresh && styles.actionButtonDisabled,
-                ]}>
-                <Text color={colors.white} fontSize={14}>↻ Làm mới</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  if (!allowSwitchCamera) {
-                    return;
-                  }
-                  onSwitchCameraPress();
-                }}
-                style={[
-                  styles.actionButton,
-                  styles.switchButton,
-                  !allowSwitchCamera && styles.actionButtonDisabled,
-                ]}>
-                <Text color={colors.white} fontSize={14}>⇄ Chuyển camera</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={viewModel.onReWatch}
-                disabled={!canRewatch}
-                style={[
-                  styles.actionButton,
-                  !canRewatch && styles.actionButtonDisabled,
-                ]}>
-                <Text color={colors.white} fontSize={14}>
-                  ▶ {i18n.t('reWatch')}
-                </Text>
-              </Pressable>
-            </RNView>
+          {props.innerControls && !shouldShowLogoPlaceholder && !props.forceFullscreen ? (
+            <Pressable
+              style={styles.overlayTouch}
+              pointerEvents="box-only"
+              onPress={viewModel.onToggleInnerControls}
+            />
           ) : null}
         </RNView>
-      ) : null}
+      </RNView>
 
-      <Modal
-        visible={isFullscreen}
-        transparent={false}
-        animationType="fade"
-        presentationStyle="fullScreen"
-        supportedOrientations={['portrait', 'landscape']}
-        statusBarTranslucent
-        onRequestClose={closeFullscreen}>
-        <RNView style={styles.fullscreenRoot}>
-          <RNView style={styles.fullscreenVideoHost}>
-            {renderCameraView(true)}
-          </RNView>
+      {props.forceFullscreen ? renderFullscreenHud() : null}
+
+      {showBottomControls && !shouldShowLogoPlaceholder && !props.forceFullscreen ? (
+        <RNView style={styles.bottomBar} pointerEvents="box-none">
+          <Pressable
+            onPress={() => {
+              if (!allowRefresh) {
+                return;
+              }
+              viewModel.onRefresh();
+            }}
+            style={[
+              styles.actionButton,
+              !allowRefresh && styles.actionButtonDisabled,
+            ]}>
+            <Text color={colors.white} fontSize={14}>↻ Làm mới</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (!allowSwitchCamera) {
+                return;
+              }
+              onSwitchCameraPress();
+            }}
+            style={[
+              styles.actionButton,
+              styles.switchButton,
+              !allowSwitchCamera && styles.actionButtonDisabled,
+            ]}>
+            <Text color={colors.white} fontSize={14}>⇄ Chuyển camera</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={viewModel.onReWatch}
+            disabled={!canRewatch}
+            style={[
+              styles.actionButton,
+              !canRewatch && styles.actionButtonDisabled,
+            ]}>
+            <Text color={colors.white} fontSize={14}>
+              ▶ {i18n.t('reWatch')}
+            </Text>
+          </Pressable>
         </RNView>
-      </Modal>
-    </>
+      ) : null}
+    </RNView>
   );
 });
 
@@ -1219,18 +1315,26 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.black,
-    overflow: 'hidden',
+  },
+
+  fullscreenStageSlot: {
+    width: '100%',
+    height: '100%',
+    minHeight: 0,
+    alignSelf: 'stretch',
   },
 
   fullscreenRoot: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#000',
+    alignSelf: 'stretch',
   },
 
   videoHost: {
     flex: 1,
     backgroundColor: '#000',
-    overflow: 'hidden',
   },
 
   videoStage: {
@@ -1241,8 +1345,19 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     flexShrink: 0,
   },
 
+  videoStageFill: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch',
+    minHeight: 0,
+  },
+
   fullscreenVideoHost: {
     flex: 1,
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch',
     backgroundColor: '#000',
   },
 
@@ -1260,7 +1375,6 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     height: '100%',
     minHeight: adaptive.s(96),
     backgroundColor: '#000',
-    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1270,7 +1384,6 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     width: '100%',
     height: '100%',
     backgroundColor: '#000',
-    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1278,24 +1391,40 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   videoClip: {
     flex: 1,
     backgroundColor: '#000',
-    overflow: 'hidden',
   },
 
   fullscreenVideoClip: {
     flex: 1,
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch',
     backgroundColor: '#000',
     overflow: 'hidden',
   },
 
-  videoScaleWrap: {
+  cameraStageRoot: {
     flex: 1,
     backgroundColor: '#000',
+  },
+
+  videoScaleWrap: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
+
+  videoScaleWrapHidden: {
+    opacity: 1,
   },
 
   background: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  fallbackVisibleStage: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
   },
 
   logoOnlyBackground: {
@@ -1305,30 +1434,23 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
   },
 
   logoOnlyImage: {
-    width: '72%',
-    height: '72%',
+    width: '62%',
+    height: '32%',
     alignSelf: 'center',
-    opacity: 0.98,
   },
 
-  logoOnlyOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#000',
-    zIndex: 999,
-    elevation: 999,
-  },
-
-  logoOnlyOverlayImage: {
-    width: '76%',
-    height: '76%',
-    alignSelf: 'center',
+  logoOnlyOverlayLogProbe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 
   fullWidth: {
@@ -1337,8 +1459,8 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
 
   thumbnailOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 12,
-    elevation: 12,
+    zIndex: 46,
+    elevation: 46,
   },
 
   thumbnailSlot: {
@@ -1349,24 +1471,24 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   },
 
   thumbnailTopLeft: {
-    top: 12,
-    left: 12,
+    top: 10,
+    left: 10,
   },
 
   thumbnailTopRight: {
-    top: 12,
-    right: 12,
+    top: 10,
+    right: 10,
     justifyContent: 'flex-end',
   },
 
   thumbnailBottomLeft: {
-    bottom: 12,
-    left: 12,
+    bottom: 10,
+    left: 10,
   },
 
   thumbnailBottomRight: {
-    bottom: 12,
-    right: 12,
+    bottom: 10,
+    right: 10,
     justifyContent: 'flex-end',
   },
 
@@ -1382,60 +1504,145 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     marginRight: 10,
   },
 
+  fullscreenHud: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
+    pointerEvents: 'box-none',
+  },
+
+  fullscreenScoreboardWrap: {
+    position: 'absolute',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    zIndex: 10000,
+    elevation: 10000,
+  },
+
+  fullscreenBrandWrap: {
+    position: 'absolute',
+    zIndex: 10001,
+    elevation: 10001,
+    pointerEvents: 'none',
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    borderRadius: adaptive.s(12),
+    paddingHorizontal: adaptive.s(10),
+    paddingVertical: adaptive.s(8),
+  },
+
+  fullscreenBrandImage: {
+    width: adaptive.s(126),
+    height: adaptive.s(42),
+    tintColor: '#FFFFFF',
+  },
+
   fullscreenFab: {
     position: 'absolute',
-    top: rules.camera.overlayInset,
-    right: rules.camera.overlayInset,
+    top: Math.max(10, rules.camera.overlayInset),
+    right: Math.max(10, rules.camera.overlayInset),
     width: adaptive.s(42),
     height: adaptive.s(42),
     borderRadius: adaptive.s(21),
     backgroundColor: 'rgba(0,0,0,0.76)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
+    zIndex: 60,
+    elevation: 60,
   },
 
   closeButton: {
     position: 'absolute',
     top: Math.max(rules.camera.overlayInset + safeInsets.top, adaptive.s(18)),
     left: Math.max(rules.camera.overlayInset + safeInsets.left, adaptive.s(18)),
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    zIndex: 30,
+    paddingHorizontal: adaptive.s(16),
+    paddingVertical: adaptive.s(10),
+    borderRadius: adaptive.s(22),
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    zIndex: 10002,
+    elevation: 10002,
   },
 
   zoomRail: {
     position: 'absolute',
-    right: Math.max(rules.camera.overlayInset + safeInsets.right, adaptive.s(16)),
-    top: Math.max(safeInsets.top + adaptive.s(70), adaptive.s(70)),
+    left: Math.max(rules.camera.overlayInset + safeInsets.left, adaptive.s(18)),
+    right: Math.max(rules.camera.overlayInset + safeInsets.right, adaptive.s(18)),
     bottom: Math.max(safeInsets.bottom + adaptive.s(24), adaptive.s(24)),
-    width: rules.camera.fullscreenRailWidth,
-    borderRadius: adaptive.s(28),
+    minHeight: adaptive.s(84),
+    borderRadius: adaptive.s(22),
     backgroundColor: 'rgba(0,0,0,0.72)',
-    paddingVertical: 14,
+    paddingHorizontal: adaptive.s(16),
+    paddingVertical: adaptive.s(12),
+    justifyContent: 'center',
+    zIndex: 42,
+    elevation: 42,
+  },
+
+  zoomRailVertical: {
+    position: 'absolute',
+    width: adaptive.s(56),
+    borderRadius: adaptive.s(28),
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.26)',
+    paddingVertical: adaptive.s(14),
+    paddingHorizontal: adaptive.s(6),
     alignItems: 'center',
     justifyContent: 'space-between',
-    zIndex: 30,
+    zIndex: 10003,
+    elevation: 10003,
   },
 
-  zoomControlButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  zoomSliderVerticalWrap: {
+    flex: 1,
+    width: adaptive.s(40),
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: adaptive.s(160),
   },
 
-  zoomControlDisabled: {
-    opacity: 0.4,
+  zoomSliderVertical: {
+    height: adaptive.s(40),
+    transform: [{rotate: '-90deg'}],
   },
 
-  zoomStepsWrap: {
+  currentZoomBadgeVertical: {
+    minWidth: adaptive.s(44),
+    paddingVertical: adaptive.s(6),
+    paddingHorizontal: adaptive.s(6),
+    borderRadius: rules.camera.cardRadius,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
+    marginBottom: adaptive.s(8),
+  },
+
+  zoomUnsupportedBadgeVertical: {
+    paddingVertical: adaptive.s(8),
+    paddingHorizontal: adaptive.s(6),
+    borderRadius: rules.camera.cardRadius,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+  },
+
+  zoomHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 10,
+    marginBottom: 8,
+  },
+
+  zoomSlider: {
+    width: '100%',
+    height: 36,
+  },
+
+  zoomRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
 
   currentZoomBadge: {

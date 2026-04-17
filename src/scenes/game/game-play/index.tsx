@@ -16,6 +16,7 @@ import TopMatchHeader from './TopMatchHeader';
 import PoolShotClock from './PoolShotClock';
 import {
   getCameraFullscreen,
+  setCameraFullscreen,
   subscribeCameraFullscreen,
 } from './cameraFullscreenStore';
 import {
@@ -27,7 +28,7 @@ import {
 } from 'utils/game';
 import useAdaptiveLayout, {AdaptiveLayout} from '../useAdaptiveLayout';
 import useDesignSystem from 'theme/useDesignSystem';
-import useScreenSystemUI from 'theme/systemUI';
+import useScreenSystemUI, {configureSystemUI} from 'theme/systemUI';
 import {createGameplayLayoutRules} from './layoutRules';
 
 const buildTitle = (category?: string, mode?: string) => {
@@ -110,6 +111,31 @@ const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
       paddingVertical: a.s(6),
       gap: design.spacing.xs,
     },
+    hiddenFullscreenSlot: {
+      display: 'none',
+    },
+    fullscreenConsoleSlot: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      minWidth: 0,
+      minHeight: 0,
+      zIndex: 260,
+      elevation: 260,
+    },
+    fullscreenMainArea: {
+      flex: 1,
+      width: '100%',
+      height: '100%',
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      gap: 0,
+      position: 'relative',
+    },
     pool8SetOverlayBackdrop: {
       position: 'absolute',
       top: 0,
@@ -183,6 +209,29 @@ const GamePlay = () => {
     return subscribeCameraFullscreen(setIsCameraFullscreen);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      setCameraFullscreen(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isCameraFullscreen) {
+      return;
+    }
+
+    configureSystemUI({barStyle: 'light-content', backgroundColor: 'transparent', animated: false});
+    const timers = [80, 220, 480].map(delay =>
+      setTimeout(() => {
+        configureSystemUI({barStyle: 'light-content', backgroundColor: 'transparent', animated: false});
+      }, delay),
+    );
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [isCameraFullscreen]);
+
   const isLargeDisplay = adaptive.layoutPreset === 'tv';
   const isWideTabletTwoPlayer =
     adaptive.isLandscape && adaptive.layoutPreset === 'wideTablet';
@@ -227,18 +276,21 @@ const GamePlay = () => {
   const useCompactResponsiveLayout =
     useMultiPlayerLayout || (!isCameraFullscreen && useCompactTwoPlayerLayout);
 
-  const responsivePlayerSlotStyle =
-    !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
+  const responsivePlayerSlotStyle = isCameraFullscreen
+    ? localStyles.hiddenFullscreenSlot
+    : !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
       ? localStyles.tabletPlayerSlot
       : undefined;
 
-  const responsiveConsoleSlotStyle =
-    !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
+  const responsiveConsoleSlotStyle = isCameraFullscreen
+    ? localStyles.fullscreenConsoleSlot
+    : !isCameraFullscreen && useTightTwoPlayerLayout && !useMultiPlayerLayout
       ? localStyles.tabletConsoleSlot
       : undefined;
 
-  const compactMainAreaStyle =
-    !isCameraFullscreen && useTightTwoPlayerLayout
+  const compactMainAreaStyle = isCameraFullscreen
+    ? localStyles.fullscreenMainArea
+    : !isCameraFullscreen && useTightTwoPlayerLayout
       ? localStyles.compactMainArea
       : undefined;
 
@@ -409,32 +461,12 @@ const GamePlay = () => {
         isCameraReady={viewModel.isCameraReady}
         setIsCameraReady={viewModel.setIsCameraReady}
         youtubeLivePreviewActive={viewModel.youtubeLivePreviewActive}
+        cameraFullscreen={isCameraFullscreen}
       />
     );
   };
 
   const renderMainBoard = () => {
-    if (isCameraFullscreen) {
-      return (
-        <View
-          flex={'1'}
-          direction={'row'}
-          style={[
-            styles.poolArenaBoard,
-            styles.mainAreaFullscreen,
-            compactMainAreaStyle,
-          ]}>
-          <View
-            style={[
-              styles.poolArenaConsoleWrapper,
-              responsiveConsoleSlotStyle,
-            ]}>
-            {renderConsole()}
-          </View>
-        </View>
-      );
-    }
-
     if (useFivePlayerCaromLayout) {
       return (
         <View
@@ -630,8 +662,8 @@ const GamePlay = () => {
     <Container variant="fullscreen">
       <View
         style={[
-          useDarkPoolBackground ? styles.poolArenaScreen : undefined,
-          isCaromMode ? localStyles.lightScreen : undefined,
+          isCameraFullscreen ? styles.fullscreenScreen : useDarkPoolBackground ? styles.poolArenaScreen : undefined,
+          !isCameraFullscreen && isCaromMode ? localStyles.lightScreen : undefined,
         ]}
         flex={'1'}>
         {!isCameraFullscreen ? (
