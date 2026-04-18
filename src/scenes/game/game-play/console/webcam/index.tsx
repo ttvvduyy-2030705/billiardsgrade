@@ -879,7 +879,7 @@ const handleZoomSliderComplete = useCallback(
   };
 
   const renderFallbackThumbnail = (fullscreenMode: boolean) => {
-    const fallbackSource = images.logoSmall || images.logo;
+    const fallbackSource = images.logoFilled || images.logo;
     if (!fallbackSource) {
       return null;
     }
@@ -900,7 +900,10 @@ const handleZoomSliderComplete = useCallback(
     );
   };
 
-  const renderThumbnailOverlay = (fullscreenMode: boolean) => {
+  const renderThumbnailOverlay = (
+    fullscreenMode: boolean,
+    options?: {skipTopLeft?: boolean},
+  ) => {
     if (!thumbnailOverlay.enabled) {
       return null;
     }
@@ -911,11 +914,13 @@ const handleZoomSliderComplete = useCallback(
 
     return (
       <RNView pointerEvents="none" style={styles.thumbnailOverlay}>
-        {renderThumbnailGroup(
-          thumbnailOverlay.topLeft,
-          styles.thumbnailTopLeft,
-          fullscreenMode,
-        )}
+        {options?.skipTopLeft
+          ? null
+          : renderThumbnailGroup(
+              thumbnailOverlay.topLeft,
+              styles.thumbnailTopLeft,
+              fullscreenMode,
+            )}
         {renderThumbnailGroup(
           thumbnailOverlay.topRight,
           styles.thumbnailTopRight,
@@ -1044,7 +1049,7 @@ const handleZoomSliderComplete = useCallback(
   );
 
   const renderFullscreenBranding = () => {
-    const source = images.logoSmall || images.logo;
+    const source = images.logoFilled || images.logo;
     if (!source) {
       return null;
     }
@@ -1191,7 +1196,11 @@ const handleZoomSliderComplete = useCallback(
           debugCameraLog('[WebCam] placeholder surface layout', event.nativeEvent.layout);
         }}>
         {renderCameraContent()}
-        {!fullscreenMode && shouldRenderPreview ? renderThumbnailOverlay(false) : null}
+        {shouldRenderPreview
+          ? fullscreenMode
+            ? renderThumbnailOverlay(true, {skipTopLeft: true})
+            : renderThumbnailOverlay(false)
+          : null}
         {!fullscreenMode ? renderScoreboardOverlay(false) : null}
         {shouldShowOuterLogoOverlay ? (
           <RNView

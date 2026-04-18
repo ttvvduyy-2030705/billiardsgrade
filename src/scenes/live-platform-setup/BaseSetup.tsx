@@ -13,7 +13,7 @@ import {
   Linking,
   Pressable,
   ScrollView,
-    StyleSheet,
+  StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -54,6 +54,7 @@ type StoredSetup = {
   accountName?: string;
   accountId?: string;
   visibility?: Visibility;
+  setupToken?: string;
 };
 
 type StorageShape = {
@@ -115,7 +116,7 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       flex: 1,
     },
     mutedText: {
-      color: 'rgba(255,255,255,0.72)',
+      color: '#FFFFFF',
       marginTop: metrics.s(4),
       lineHeight: metrics.fs(18),
     },
@@ -133,7 +134,7 @@ const createStyles = (adaptive: ReturnType<typeof useAdaptiveLayout>) => {
       alignSelf: 'stretch',
       alignItems: 'center',
       justifyContent: 'center',
-      borderColor: 'rgba(255,255,255,0.2)',
+      borderColor: '#FF174F',
       backgroundColor: '#0A0A0A',
     },
     optionRow: {
@@ -183,6 +184,7 @@ const LivePlatformSetup = (props: Props) => {
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [accountName, setAccountName] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [setupToken, setSetupToken] = useState('');
   const [visibility, setVisibility] = useState<Visibility>('public');
 
   const autoAuthTriggeredRef = useRef(false);
@@ -230,15 +232,22 @@ const LivePlatformSetup = (props: Props) => {
       nextAccountName: string,
       nextAccountId: string,
       nextVisibility: Visibility,
+      nextSetupToken?: string,
     ) => {
       const stored = await readStorage();
+      const previousSetup = stored[nextPlatform];
+      const resolvedSetupToken =
+        nextSetupToken !== undefined
+          ? nextSetupToken
+          : previousSetup?.setupToken || '';
       const nextValue: StorageShape = {
         ...stored,
         [nextPlatform]: {
-          ...stored[nextPlatform],
+          ...previousSetup,
           accountName: nextAccountName,
           accountId: nextAccountId,
           visibility: nextVisibility,
+          setupToken: resolvedSetupToken,
         },
       };
       await writeStorage(nextValue);
@@ -277,6 +286,7 @@ const LivePlatformSetup = (props: Props) => {
 
           setAccountName(current?.accountName || '');
           setAccountId(current?.accountId || '');
+          setSetupToken(current?.setupToken || props.route?.params?.setupToken || '');
           setVisibility(current?.visibility || 'public');
           autoAuthTriggeredRef.current = false;
         } finally {
@@ -410,15 +420,18 @@ const LivePlatformSetup = (props: Props) => {
 
       const nextAccountName = payload.accountName || `${platformName} Account`;
       const nextAccountId = payload.accountId || '';
+      const nextSetupToken = payload.setupToken || setupToken;
 
       setAccountName(nextAccountName);
       setAccountId(nextAccountId);
+      setSetupToken(nextSetupToken);
 
       await persistLocalState(
         platform,
         nextAccountName,
         nextAccountId,
         visibility,
+        nextSetupToken,
       );
 
       Alert.alert('Kết nối thành công', `Đã kết nối với ${platformName}.`);
@@ -435,7 +448,7 @@ const LivePlatformSetup = (props: Props) => {
     return () => {
       subscription.remove();
     };
-  }, [persistLocalState, platform, platformName, visibility]);
+  }, [persistLocalState, platform, platformName, setupToken, visibility]);
 
   useEffect(() => {
     if (
@@ -453,9 +466,10 @@ const LivePlatformSetup = (props: Props) => {
 
   const onLogout = useCallback(async () => {
     try {
-      await persistLocalState(platform, '', '', visibility);
+      await persistLocalState(platform, '', '', visibility, '');
       setAccountName('');
       setAccountId('');
+      setSetupToken('');
       autoAuthTriggeredRef.current = false;
       Alert.alert('Đã đăng xuất', `Đã gỡ ${platformName} khỏi giao diện này.`);
     } catch (_error) {
@@ -475,7 +489,7 @@ const LivePlatformSetup = (props: Props) => {
     }
 
     try {
-      await persistLocalState(platform, accountName, accountId, visibility);
+      await persistLocalState(platform, accountName, accountId, visibility, setupToken);
 
       props.navigate(screens.gameSettings, {
         livestreamPlatform: platform,
@@ -483,6 +497,7 @@ const LivePlatformSetup = (props: Props) => {
         liveVisibility: visibility,
         liveAccountName: accountName,
         liveAccountId: accountId,
+        liveSetupToken: setupToken,
       });
     } catch (_error) {
       Alert.alert('Lỗi', 'Không thể lưu thiết lập livestream.');
@@ -495,6 +510,7 @@ const LivePlatformSetup = (props: Props) => {
     platformName,
     props,
     saveToDeviceWhileStreaming,
+    setupToken,
     startBrowserAuth,
     visibility,
   ]);
@@ -573,7 +589,7 @@ const LivePlatformSetup = (props: Props) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         <View style={styles.contentInner}>
-        <Text fontSize={ui.titleSize} style={styles.sectionLabel}>
+        <Text fontSize={ui.titleSize} color={'#FFFFFF'} style={styles.sectionLabel}>
           {accountSectionTitle}
         </Text>
 
@@ -581,11 +597,15 @@ const LivePlatformSetup = (props: Props) => {
           {renderRadio(true)}
 
           <View style={styles.accountTextWrap}>
-            <Text fontSize={ui.bodySize} fontWeight={'bold'} style={styles.primaryText}>
+            <Text
+              fontSize={ui.bodySize}
+              fontWeight={'bold'}
+              color={'#FFFFFF'}
+              style={styles.primaryText}>
               {accountOptionTitle}
             </Text>
 
-            <Text fontSize={ui.subSize} style={styles.mutedText}>
+            <Text fontSize={ui.subSize} color={'#FFFFFF'} style={styles.mutedText}>
               Đang chọn:{' '}
               {accountName && accountName.trim().length > 0
                 ? accountName
@@ -606,13 +626,17 @@ const LivePlatformSetup = (props: Props) => {
               borderWidth: ui.outlineWidth,
             },
           ]}>
-          <Text fontSize={ui.buttonSize} fontWeight={'bold'} style={styles.logoutText}>
+          <Text
+            fontSize={ui.buttonSize}
+            fontWeight={'bold'}
+            color={'#FFFFFF'}
+            style={styles.logoutText}>
             ĐĂNG XUẤT
           </Text>
         </TouchableOpacity>
 
         <View style={{marginTop: ui.sectionGap * 1.5}}>
-          <Text fontSize={ui.titleSize} style={styles.sectionLabel}>
+          <Text fontSize={ui.titleSize} color={'#FFFFFF'} style={styles.sectionLabel}>
             Quyền riêng tư
           </Text>
 
@@ -621,7 +645,7 @@ const LivePlatformSetup = (props: Props) => {
             style={[styles.optionRow, {marginTop: ui.optionGap}]}
             onPress={() => setVisibility('public')}>
             {renderRadio(visibility === 'public')}
-            <Text fontSize={ui.bodySize} style={styles.optionLabel}>
+            <Text fontSize={ui.bodySize} color={'#FFFFFF'} style={styles.optionLabel}>
               Công khai
             </Text>
           </TouchableOpacity>
@@ -631,7 +655,7 @@ const LivePlatformSetup = (props: Props) => {
             style={[styles.optionRow, {marginTop: ui.optionGap}]}
             onPress={() => setVisibility('private')}>
             {renderRadio(visibility === 'private')}
-            <Text fontSize={ui.bodySize} style={styles.optionLabel}>
+            <Text fontSize={ui.bodySize} color={'#FFFFFF'} style={styles.optionLabel}>
               Riêng tư
             </Text>
           </TouchableOpacity>
@@ -641,7 +665,7 @@ const LivePlatformSetup = (props: Props) => {
             style={[styles.optionRow, {marginTop: ui.optionGap}]}
             onPress={() => setVisibility('unlisted')}>
             {renderRadio(visibility === 'unlisted')}
-            <Text fontSize={ui.bodySize} style={styles.optionLabel}>
+            <Text fontSize={ui.bodySize} color={'#FFFFFF'} style={styles.optionLabel}>
               Không công khai
             </Text>
           </TouchableOpacity>

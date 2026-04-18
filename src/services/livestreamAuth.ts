@@ -2,6 +2,8 @@ import {Linking} from 'react-native';
 import {
   APP_OAUTH_CALLBACK_URL,
   LIVESTREAM_AUTH_BASE_URL,
+  normalizeLivestreamBaseUrl,
+  isConfiguredLivestreamBaseUrl,
 } from 'config/livestreamAuth';
 
 export type LivestreamPlatform = 'facebook' | 'youtube' | 'tiktok';
@@ -11,6 +13,7 @@ export type OAuthCallbackPayload = {
   status?: 'success' | 'error' | string;
   accountName?: string;
   accountId?: string;
+  setupToken?: string;
   errorCode?: string;
   errorMessage?: string;
   rawUrl: string;
@@ -46,31 +49,31 @@ const parseQueryString = (queryString: string): Record<string, string> => {
     }, {});
 };
 
-const normalizeBaseUrl = (value: string) => value.trim().replace(/\/+$/, '');
-
-const isConfiguredBaseUrl = (value: string) => {
-  if (!value) {
-    return false;
-  }
-
-  if (value.includes('YOUR_PUBLIC_BACKEND_OR_NGROK_URL')) {
-    return false;
-  }
-
-  return /^https?:\/\/.+/i.test(value);
+const resolveSetupToken = (params: Record<string, string>) => {
+  return (
+    params.setupToken ||
+    params.setup_token ||
+    params.sessionToken ||
+    params.session_token ||
+    params.token ||
+    ''
+  );
 };
 
 export const buildPlatformAuthUrl = (platform: LivestreamPlatform) => {
-  const baseUrl = normalizeBaseUrl(LIVESTREAM_AUTH_BASE_URL);
+  const baseUrl = normalizeLivestreamBaseUrl(LIVESTREAM_AUTH_BASE_URL);
 
-  if (!isConfiguredBaseUrl(baseUrl)) {
+  if (!isConfiguredLivestreamBaseUrl(baseUrl)) {
     throw new Error(
       'Bạn chưa cấu hình URL backend public cho livestream auth.',
     );
   }
 
   const route = PLATFORM_ROUTE_MAP[platform];
-  return `${baseUrl}/auth/${route}/start`;
+  const callbackParam = `appCallback=${encodeURIComponent(
+    APP_OAUTH_CALLBACK_URL,
+  )}`;
+  return `${baseUrl}/auth/${route}/start?${callbackParam}`;
 };
 
 export const openPlatformOAuth = async (platform: LivestreamPlatform) => {
@@ -104,6 +107,7 @@ export const parseOAuthCallback = (
     status: params.status,
     accountName: params.accountName,
     accountId: params.accountId,
+    setupToken: resolveSetupToken(params),
     errorCode: params.errorCode,
     errorMessage: params.errorMessage,
     rawUrl: url,

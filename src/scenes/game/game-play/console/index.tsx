@@ -1328,17 +1328,17 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           <View
             style={[
               styles.cameraCard,
-              useTightLandscapeLayout && !useResponsiveCompact
+              !isCameraFullscreen && useTightLandscapeLayout && !useResponsiveCompact
                 ? styles.mediumCameraCard
                 : undefined,
-              useResponsiveCompact ? styles.phoneCameraCard : undefined,
-              styles.caromCameraCard,
-              useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
-              useCaromTightLayout ? styles.caromCameraCardTight : undefined,
-              useCaromConsoleCompact ? styles.caromCameraCardCompact : undefined,
-              useLargeCaromConsole ? styles.caromCameraCardLarge : undefined,
-              hideCaromScoreChrome ? styles.caromCameraCardExpanded : undefined,
-              {minHeight: cameraMinHeight},
+              !isCameraFullscreen && useResponsiveCompact ? styles.phoneCameraCard : undefined,
+              !isCameraFullscreen ? styles.caromCameraCard : undefined,
+              !isCameraFullscreen && useResponsiveCompact ? styles.caromPhoneCameraCard : undefined,
+              !isCameraFullscreen && useCaromTightLayout ? styles.caromCameraCardTight : undefined,
+              !isCameraFullscreen && useCaromConsoleCompact ? styles.caromCameraCardCompact : undefined,
+              !isCameraFullscreen && useLargeCaromConsole ? styles.caromCameraCardLarge : undefined,
+              !isCameraFullscreen && hideCaromScoreChrome ? styles.caromCameraCardExpanded : undefined,
+              {minHeight: isCameraFullscreen ? 0 : cameraMinHeight},
               isCameraFullscreen ? styles.fullscreenCameraCard : undefined,
             ]}
             onLayout={event => {
@@ -2015,7 +2015,8 @@ const createStyles = (adaptive: any, design: any, rules: any) => createGameplayS
     width: '100%',
     height: '100%',
     minHeight: 0,
-    maxHeight: undefined,
+    maxHeight: adaptive.height,
+    maxWidth: adaptive.width,
     flex: 1,
     flexShrink: 0,
     borderRadius: 0,

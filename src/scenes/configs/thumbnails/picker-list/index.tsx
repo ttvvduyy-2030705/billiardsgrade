@@ -16,12 +16,12 @@ const PickerList = (props: Props) => {
         : {uri: image};
 
       return (
-        <View key={index}>
+        <View key={`${image}-${index}`}>
           <View
             style={styles.item}
             marginHorizontal={'10'}
             marginVertical={'10'}>
-            <Image source={imageSource as any} style={styles.image} />
+            <Image source={imageSource as any} style={styles.image} resizeMode={'contain'} />
             <Button
               disabled={viewModel.locked}
               style={[styles.closeButton, viewModel.locked && {opacity: 0.45}]}

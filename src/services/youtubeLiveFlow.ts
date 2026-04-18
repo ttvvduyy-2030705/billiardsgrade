@@ -1,4 +1,10 @@
-import {LIVESTREAM_AUTH_BASE_URL} from 'config/livestreamAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  LIVESTREAM_ACCOUNT_STORAGE_KEY,
+  LIVESTREAM_AUTH_BASE_URL,
+  isConfiguredLivestreamBaseUrl,
+  normalizeLivestreamBaseUrl,
+} from 'config/livestreamAuth';
 
 export type YouTubeEligibilityCheck = {
   key: 'subscribers' | 'liveEnabled';
@@ -38,13 +44,49 @@ export type YouTubeCreateLivePayload = {
   frameRate?: string;
 };
 
-const normalizeBaseUrl = (value: string) => value.trim().replace(/\/+$/, '');
+type StoredSetup = {
+  setupToken?: string;
+};
+
+type StorageShape = {
+  youtube?: StoredSetup;
+};
+
+const getYouTubeSetupToken = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(LIVESTREAM_ACCOUNT_STORAGE_KEY);
+    if (!raw) {
+      return '';
+    }
+
+    const parsed = JSON.parse(raw) as StorageShape;
+    return parsed?.youtube?.setupToken || '';
+  } catch (_error) {
+    return '';
+  }
+};
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(
-    `${normalizeBaseUrl(LIVESTREAM_AUTH_BASE_URL)}${path}`,
-    init,
-  );
+  const baseUrl = normalizeLivestreamBaseUrl(LIVESTREAM_AUTH_BASE_URL);
+
+  if (!isConfiguredLivestreamBaseUrl(baseUrl)) {
+    throw new Error(
+      'Bạn chưa cấu hình production backend cho YouTube Live trên bản release.',
+    );
+  }
+
+  const setupToken = await getYouTubeSetupToken();
+  const headers = new Headers(init?.headers || {});
+
+  if (setupToken) {
+    headers.set('Authorization', `Bearer ${setupToken}`);
+    headers.set('X-Livestream-Setup-Token', setupToken);
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers,
+  });
 
   const text = await response.text();
 

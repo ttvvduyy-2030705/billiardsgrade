@@ -440,7 +440,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     thumbnailOverlay.bottomRight.length > 0;
 
   const renderFallbackPlaybackLogo = useCallback(() => {
-    const fallbackSource = images.logoSmall || images.logo;
+    const fallbackSource = images.logoFilled || images.logo;
 
     if (!thumbnailOverlay.enabled || hasThumbnailImages || !fallbackSource) {
       return null;

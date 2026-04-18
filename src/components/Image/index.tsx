@@ -28,8 +28,7 @@ const CustomImage = (props: Props) => {
     if (source) {
       setInternalSource(source);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [source]);
 
   const onError = useCallback((e: any) => {
     console.log('Image error', e);

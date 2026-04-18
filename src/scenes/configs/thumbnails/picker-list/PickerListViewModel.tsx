@@ -2,12 +2,80 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image as RNImage} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
+import RNFS from 'react-native-fs';
 
 export interface Props {
   saveKey: string;
   fixedImageSource?: number;
   locked?: boolean;
 }
+
+
+const THUMBNAIL_STORAGE_DIR = `${RNFS.DocumentDirectoryPath}/thumbnail-overlays`;
+
+const getImageExtension = (mimeType?: string | null) => {
+  const normalized = (mimeType || '').toLowerCase();
+  if (normalized.includes('png')) {
+    return 'png';
+  }
+  if (normalized.includes('webp')) {
+    return 'webp';
+  }
+  return 'jpg';
+};
+
+const normalizeLocalFileUri = (path: string) =>
+  path.startsWith('file://') ? path : `file://${path}`;
+
+const persistPickedImage = async (saveKey: string, asset: any) => {
+  const mimeType =
+    typeof asset.type === 'string' && asset.type.length > 0
+      ? asset.type
+      : 'image/jpeg';
+  const extension = getImageExtension(mimeType);
+  const safeKey = saveKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const destinationPath = `${THUMBNAIL_STORAGE_DIR}/${safeKey}-${Date.now()}.${extension}`;
+
+  const dirExists = await RNFS.exists(THUMBNAIL_STORAGE_DIR);
+  if (!dirExists) {
+    await RNFS.mkdir(THUMBNAIL_STORAGE_DIR);
+  }
+
+  if (asset.base64 && asset.base64.length > 0) {
+    await RNFS.writeFile(destinationPath, asset.base64, 'base64');
+    return normalizeLocalFileUri(destinationPath);
+  }
+
+  if (asset.uri) {
+    const sourcePath = asset.uri.startsWith('file://')
+      ? asset.uri.replace('file://', '')
+      : asset.uri;
+    await RNFS.copyFile(sourcePath, destinationPath);
+    return normalizeLocalFileUri(destinationPath);
+  }
+
+  return undefined;
+};
+
+const removePersistedImage = async (imageUri?: string) => {
+  if (!imageUri || !imageUri.startsWith('file://')) {
+    return;
+  }
+
+  const imagePath = imageUri.replace('file://', '');
+  if (!imagePath.includes('/thumbnail-overlays/')) {
+    return;
+  }
+
+  try {
+    const exists = await RNFS.exists(imagePath);
+    if (exists) {
+      await RNFS.unlink(imagePath);
+    }
+  } catch (error) {
+    console.log('[Thumbnails] Failed to remove persisted thumbnail', error);
+  }
+};
 
 const PickerListViewModel = (props: Props) => {
   const [images, setImages] = useState<string[]>([]);
@@ -79,8 +147,8 @@ const PickerListViewModel = (props: Props) => {
       mediaType: 'photo',
       selectionLimit: 1,
       includeBase64: true,
-      maxWidth: 720,
-      maxHeight: 1280,
+      maxWidth: 960,
+      maxHeight: 960,
       quality: 0.9,
     });
 
@@ -89,25 +157,23 @@ const PickerListViewModel = (props: Props) => {
       return;
     }
 
-    const mimeType =
-      typeof asset.type === 'string' && asset.type.length > 0
-        ? asset.type
-        : 'image/jpeg';
+    try {
+      const normalizedImage = await persistPickedImage(props.saveKey, asset);
 
-    const normalizedImage =
-      asset.base64 && asset.base64.length > 0
-        ? `data:${mimeType};base64,${asset.base64}`
-        : asset.uri;
+      if (!normalizedImage) {
+        console.log('[Thumbnails] Pick image failed: no base64 and no uri');
+        return;
+      }
 
-    if (!normalizedImage) {
-      console.log('[Thumbnails] Pick image failed: no base64 and no uri');
-      return;
+      await Promise.all(images.map(removePersistedImage));
+
+      const nextImages = [normalizedImage];
+      setImages(nextImages);
+      await AsyncStorage.setItem(props.saveKey, JSON.stringify(nextImages));
+    } catch (error) {
+      console.log('[Thumbnails] Pick image failed:', error);
     }
-
-    const nextImages = [normalizedImage];
-    setImages(nextImages);
-    await AsyncStorage.setItem(props.saveKey, JSON.stringify(nextImages));
-  }, [fixedImageUri, props.locked, props.saveKey]);
+  }, [images, props.locked, props.saveKey]);
 
   const onDeleteImage = useCallback(
     async (deleteIndex: number) => {
@@ -115,6 +181,7 @@ const PickerListViewModel = (props: Props) => {
         return;
       }
 
+      await removePersistedImage(images[deleteIndex]);
       const nextImages = images.filter((_image, index) => index !== deleteIndex);
       setImages(nextImages);
       await AsyncStorage.setItem(props.saveKey, JSON.stringify(nextImages));

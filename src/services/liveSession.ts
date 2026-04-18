@@ -1,4 +1,10 @@
-import {LIVESTREAM_AUTH_BASE_URL} from 'config/livestreamAuth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  LIVESTREAM_ACCOUNT_STORAGE_KEY,
+  LIVESTREAM_AUTH_BASE_URL,
+  isConfiguredLivestreamBaseUrl,
+  normalizeLivestreamBaseUrl,
+} from 'config/livestreamAuth';
 
 export type LivePlatform = 'youtube' | 'facebook';
 
@@ -30,13 +36,54 @@ export type FacebookCreateLivePayload = {
   targetId?: string;
 };
 
-const normalizeBaseUrl = (value: string) => value.trim().replace(/\/+$/, '');
+type StoredSetup = {
+  setupToken?: string;
+};
 
-const requestJson = async (path: string, init?: RequestInit) => {
-  const response = await fetch(
-    `${normalizeBaseUrl(LIVESTREAM_AUTH_BASE_URL)}${path}`,
-    init,
-  );
+type StorageShape = {
+  youtube?: StoredSetup;
+  facebook?: StoredSetup;
+};
+
+const getSetupToken = async (platform: LivePlatform) => {
+  try {
+    const raw = await AsyncStorage.getItem(LIVESTREAM_ACCOUNT_STORAGE_KEY);
+    if (!raw) {
+      return '';
+    }
+
+    const parsed = JSON.parse(raw) as StorageShape;
+    return parsed?.[platform]?.setupToken || '';
+  } catch (_error) {
+    return '';
+  }
+};
+
+const requestJson = async (
+  path: string,
+  init?: RequestInit,
+  platform: LivePlatform = 'youtube',
+) => {
+  const baseUrl = normalizeLivestreamBaseUrl(LIVESTREAM_AUTH_BASE_URL);
+
+  if (!isConfiguredLivestreamBaseUrl(baseUrl)) {
+    throw new Error(
+      'Bạn chưa cấu hình production backend cho livestream trên bản release.',
+    );
+  }
+
+  const setupToken = await getSetupToken(platform);
+  const headers = new Headers(init?.headers || {});
+
+  if (setupToken) {
+    headers.set('Authorization', `Bearer ${setupToken}`);
+    headers.set('X-Livestream-Setup-Token', setupToken);
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers,
+  });
 
   const text = await response.text();
 
@@ -61,58 +108,80 @@ export const getLiveConnections = async () => {
 };
 
 export const getFacebookPages = async (): Promise<FacebookPage[]> => {
-  const data = await requestJson('/live/facebook/pages');
+  const data = await requestJson('/live/facebook/pages', undefined, 'facebook');
   return Array.isArray(data?.pages) ? data.pages : [];
 };
 
 export const createYouTubeLive = async (payload: YouTubeCreateLivePayload) => {
-  return requestJson('/live/youtube/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return requestJson(
+    '/live/youtube/create',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    'youtube',
+  );
 };
 
 export const getYouTubeLiveStatus = async (broadcastId: string) => {
-  return requestJson(`/live/youtube/status/${encodeURIComponent(broadcastId)}`);
+  return requestJson(
+    `/live/youtube/status/${encodeURIComponent(broadcastId)}`,
+    undefined,
+    'youtube',
+  );
 };
 
 export const stopYouTubeLive = async (broadcastId: string) => {
-  return requestJson('/live/youtube/stop', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return requestJson(
+    '/live/youtube/stop',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({broadcastId}),
     },
-    body: JSON.stringify({broadcastId}),
-  });
+    'youtube',
+  );
 };
 
 export const createFacebookLive = async (
   payload: FacebookCreateLivePayload,
 ) => {
-  return requestJson('/live/facebook/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return requestJson(
+    '/live/facebook/create',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    'facebook',
+  );
 };
 
 export const getFacebookLiveStatus = async (liveVideoId: string) => {
   return requestJson(
     `/live/facebook/status/${encodeURIComponent(liveVideoId)}`,
+    undefined,
+    'facebook',
   );
 };
 
 export const stopFacebookLive = async (liveVideoId: string) => {
-  return requestJson('/live/facebook/stop', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  return requestJson(
+    '/live/facebook/stop',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({liveVideoId}),
     },
-    body: JSON.stringify({liveVideoId}),
-  });
+    'facebook',
+  );
 };
