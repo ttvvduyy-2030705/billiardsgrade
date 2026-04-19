@@ -27,6 +27,7 @@ import java.io.File
 
 object YouTubeLiveEngine : ConnectCheckerRtmp {
   private const val TAG = "YouTubeLiveEngine"
+  private const val LIVE_OVERLAY_VERBOSE_LOGS = false
 
   private var reactContext: ReactApplicationContext? = null
   private var previewView: OpenGlView? = null
@@ -44,6 +45,8 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private var overlayFilterRegistered: Boolean = false
   private var lastAppliedOverlaySignature: String = ""
   private var lastOverlayApplyMs: Long = 0L
+  private var lastOverlaySummaryLogSignature: String = ""
+  private var lastOverlaySummaryLogMs: Long = 0L
 
   data class StreamConfig(
     val url: String,
@@ -108,7 +111,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   @Synchronized
   fun updateOverlay(model: LiveOverlayModel) {
     overlayModel = model
-    Log.i(TAG, "[Live Overlay Native] update overlay model enabled=${model.enabled} mode=${model.mode} players=${model.players.size}")
+    logOverlayModelSummary(model)
     emitState("overlay_model", "enabled=${model.enabled} mode=${model.mode}")
 
     val camera = rtmpCamera
@@ -572,7 +575,9 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       recycleBitmapLater(previousBitmap)
 
       if (overlayModel.enabled) {
-        Log.i(TAG, "[Live Overlay Native] draw overlay frame mode=${overlayModel.mode} ${width}x${height}")
+        if (LIVE_OVERLAY_VERBOSE_LOGS) {
+          Log.i(TAG, "[Live Overlay Native] draw overlay frame mode=${overlayModel.mode} ${width}x${height}")
+        }
         emitState("overlay_ready", "mode=${overlayModel.mode} ${width}x${height}")
       } else {
         emitState("overlay_disabled", "disabled")
@@ -941,6 +946,36 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     }
   }
 
+  private fun logOverlayModelSummary(model: LiveOverlayModel) {
+    val signature = buildString {
+      append(model.enabled).append('|')
+      append(model.mode).append('|')
+      append(model.currentPlayerIndex).append('|')
+      append(model.target).append('|')
+      append(model.inning).append('|')
+      model.players.forEach { player ->
+        append('|').append(player.name)
+        append(':').append(player.score)
+        append(':').append(player.countryCode)
+        append(':').append(player.isActive)
+      }
+      model.logos.forEach { logo ->
+        append('|').append(logo.slot)
+        append(':').append(logo.uri.isNotBlank())
+        append(':').append(logo.locked)
+        append(':').append(logo.showOnLivestream)
+        append(':').append(logo.showOnSavedVideo)
+      }
+    }
+    val now = System.currentTimeMillis()
+    if (!LIVE_OVERLAY_VERBOSE_LOGS && signature == lastOverlaySummaryLogSignature && now - lastOverlaySummaryLogMs < 30000L) {
+      return
+    }
+    lastOverlaySummaryLogSignature = signature
+    lastOverlaySummaryLogMs = now
+    Log.i(TAG, "[Live Overlay Native] overlay model enabled=${model.enabled} mode=${model.mode} players=${model.players.size}")
+  }
+
   private fun scheduleOverlayApply(reason: String, delayMs: Long = 900L) {
     val view = previewView ?: return
     if (overlayApplyScheduled) {
@@ -962,7 +997,9 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       emitState("overlay_deferred", reason)
       return
     }
-    Log.i(TAG, "[Live Overlay Native] applying overlay after stream connected reason=$reason")
+    if (LIVE_OVERLAY_VERBOSE_LOGS) {
+      Log.i(TAG, "[Live Overlay Native] applying overlay after stream connected reason=$reason")
+    }
     applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
   }
 

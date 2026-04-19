@@ -293,6 +293,13 @@ const normalizeGameplayLivestreamPlatform = (value: any) => {
 };
 
 
+const LIVE_OVERLAY_VERBOSE_LOGS = false;
+const liveOverlayDebugLog = (...args: any[]) => {
+  if (__DEV__ && LIVE_OVERLAY_VERBOSE_LOGS) {
+    console.log(...args);
+  }
+};
+
 const DEBUG_MATCH_RESTORE = false;
 const debugMatchRestoreLog = (...args: any[]) => {
   if (__DEV__ && DEBUG_MATCH_RESTORE) {
@@ -1001,12 +1008,12 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    console.log('[Live Overlay] enabled=true');
-    console.log('[Live Overlay] source=config-thumbnail');
-    console.log('[Live Overlay] mode=' + String(liveOverlayModel.mode || 'unknown'));
-    console.log('[Live Overlay] poolStore=PoolScoreBoardStore');
-    console.log('[Live Overlay] caromStore=CaromScoreBroadStore');
-    console.log('[Live Overlay] update score from store=' + liveOverlaySourceState.source);
+    liveOverlayDebugLog('[Live Overlay] enabled=true');
+    liveOverlayDebugLog('[Live Overlay] source=config-thumbnail');
+    liveOverlayDebugLog('[Live Overlay] mode=' + String(liveOverlayModel.mode || 'unknown'));
+    liveOverlayDebugLog('[Live Overlay] poolStore=PoolScoreBoardStore');
+    liveOverlayDebugLog('[Live Overlay] caromStore=CaromScoreBroadStore');
+    liveOverlayDebugLog('[Live Overlay] update score from store=' + liveOverlaySourceState.source);
     void updateYouTubeLiveOverlay(liveOverlayModel);
   }, [
     liveOverlaySignature,

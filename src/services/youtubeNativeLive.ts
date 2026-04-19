@@ -54,6 +54,70 @@ type ZoomInfo = {
 
 const moduleRef = NativeModules.YouTubeLiveModule;
 
+const LIVE_OVERLAY_VERBOSE_LOGS = false;
+let nativeOverlayUnavailableLogged = false;
+let lastOverlaySendLogSignature = '';
+let lastOverlaySendLogAt = 0;
+
+const liveOverlayLog = (...args: any[]) => {
+  if (LIVE_OVERLAY_VERBOSE_LOGS) {
+    console.log(...args);
+  }
+};
+
+const buildOverlaySendLogSignature = (overlay: YouTubeLiveOverlayModel) =>
+  JSON.stringify({
+    enabled: overlay.enabled,
+    mode: overlay.mode || 'unknown',
+    players: (overlay.players || []).map(player => ({
+      name: player.name || '',
+      score: player.score ?? 0,
+      active: player.isActive === true,
+    })),
+    target: overlay.target ?? '',
+    inning: overlay.inning ?? '',
+    logos: (overlay.logos || []).map(logo => ({
+      slot: logo.slot || '',
+      hasUri: Boolean(logo.uri),
+      locked: logo.locked === true,
+      showOnLivestream: logo.showOnLivestream === true,
+      showOnSavedVideo: logo.showOnSavedVideo !== false,
+    })),
+  });
+
+const maybeLogOverlaySend = (overlay: YouTubeLiveOverlayModel) => {
+  if (!LIVE_OVERLAY_VERBOSE_LOGS) {
+    return;
+  }
+  const signature = buildOverlaySendLogSignature(overlay);
+  const now = Date.now();
+  if (signature === lastOverlaySendLogSignature && now - lastOverlaySendLogAt < 30000) {
+    return;
+  }
+  lastOverlaySendLogSignature = signature;
+  lastOverlaySendLogAt = now;
+  console.log('[Live Overlay] send overlay model to native', {
+    enabled: overlay.enabled,
+    mode: overlay.mode || 'unknown',
+    players: overlay.players?.map(player => ({
+      name: player.name,
+      score: player.score,
+      active: player.isActive,
+    })),
+    target: overlay.target,
+    inning: overlay.inning,
+    timer: overlay.timer,
+    logos: overlay.logos?.map(logo => ({
+      slot: logo.slot,
+      uri: logo.uri ? '[configured]' : '',
+      locked: logo.locked === true,
+      showOnLivestream: logo.showOnLivestream === true,
+      showOnSavedVideo: logo.showOnSavedVideo !== false,
+    })),
+  });
+};
+
+
 export const isYouTubeNativeLiveEngineMounted = () =>
   Platform.OS === 'android' && Boolean(moduleRef);
 
@@ -116,29 +180,14 @@ export const updateYouTubeLiveOverlay = async (
   overlay: YouTubeLiveOverlayModel,
 ) => {
   if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
-    console.log('[Live Overlay] overlay disabled reason=native updateOverlay unavailable');
+    if (!nativeOverlayUnavailableLogged) {
+      nativeOverlayUnavailableLogged = true;
+      console.log('[Live Overlay] overlay disabled reason=native updateOverlay unavailable');
+    }
     return false;
   }
 
-  console.log('[Live Overlay] send overlay model to native', {
-    enabled: overlay.enabled,
-    mode: overlay.mode || 'unknown',
-    players: overlay.players?.map(player => ({
-      name: player.name,
-      score: player.score,
-      active: player.isActive,
-    })),
-    target: overlay.target,
-    inning: overlay.inning,
-    timer: overlay.timer,
-    logos: overlay.logos?.map(logo => ({
-      slot: logo.slot,
-      uri: logo.uri ? '[configured]' : '',
-      locked: logo.locked === true,
-      showOnLivestream: logo.showOnLivestream === true,
-      showOnSavedVideo: logo.showOnSavedVideo !== false,
-    })),
-  });
+  maybeLogOverlaySend(overlay);
 
   return moduleRef.updateOverlay(overlay);
 };
@@ -148,7 +197,7 @@ export const clearYouTubeLiveOverlay = async () => {
     return false;
   }
 
-  console.log('[Live Overlay] enabled=false');
+  liveOverlayLog('[Live Overlay] enabled=false');
   return moduleRef.updateOverlay({enabled: false});
 };
 
