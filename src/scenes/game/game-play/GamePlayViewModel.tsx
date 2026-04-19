@@ -1193,11 +1193,6 @@ const GamePlayViewModel = () => {
       return;
     }
 
-    if (youtubeLiveNativeMode) {
-      clearRecordingStartRetry();
-      return;
-    }
-
     if (!shouldStartRecordingRef.current && !pendingStartRecordingRef.current) {
       return;
     }
@@ -2514,14 +2509,11 @@ const GamePlayViewModel = () => {
         activeYouTubeBroadcastIdRef.current =
           liveResponse?.session?.broadcastId || liveResponse?.session?.id || '';
         console.log('[YouTube Live] active broadcast:', activeYouTubeBroadcastIdRef.current);
-
-        const shouldRotatePhoneLive = nativeSourceType === 'phone';
-
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
           options: {
-            width: shouldRotatePhoneLive ? 720 : 1280,
-            height: shouldRotatePhoneLive ? 1280 : 720,
+            width: 1280,
+            height: 720,
             fps: 30,
             bitrate: 4500 * 1024,
             audioBitrate: 128 * 1024,
@@ -2529,7 +2521,7 @@ const GamePlayViewModel = () => {
             isStereo: true,
             cameraFacing: nativePhoneFacing,
             sourceType: nativeSourceType,
-            rotationDegrees: shouldRotatePhoneLive ? 90 : 0,
+            rotationDegrees: 0,
           },
         };
 
@@ -2657,20 +2649,16 @@ const GamePlayViewModel = () => {
         startNewGameAfterViolate();
         setIsPaused(false);
 
-        if (!youtubeLiveNativeMode) {
-          shouldStartRecordingRef.current = true;
-          pendingStartRecordingRef.current = true;
-        }
+        shouldStartRecordingRef.current = true;
+        pendingStartRecordingRef.current = true;
         return;
       }
 
       _resetCountdown(true);
       setIsPaused(false);
 
-      if (!youtubeLiveNativeMode) {
-        shouldStartRecordingRef.current = true;
-        pendingStartRecordingRef.current = true;
-      }
+      shouldStartRecordingRef.current = true;
+      pendingStartRecordingRef.current = true;
       return;
     }
 
@@ -2679,15 +2667,13 @@ const GamePlayViewModel = () => {
     pendingStartRecordingRef.current = false;
     setIsPaused(true);
 
-    if (!youtubeLiveNativeMode) {
-      void stopVideoRecording(false).catch(error => {
-        console.log('[Replay] async stop on pause failed:', error);
-      });
-    }
+    void stopVideoRecording(false).catch(error => {
+      console.log('[Replay] async stop on pause failed:', error);
+    });
   }, [isPaused, _resetCountdown, startNewGameAfterViolate, youtubeLiveNativeMode]);
 
   const onReplay = useCallback(async () => {
-    if (!isStarted || !isPaused || youtubeLivePreviewActive || !webcamFolderName) {
+    if (!isStarted || !isPaused || !webcamFolderName) {
       return;
     }
 
@@ -2699,7 +2685,9 @@ const GamePlayViewModel = () => {
 
       // Chỉ mở replay khi clip gần nhất đã finalize xong.
       // Đây là chỗ dễ gây crash/blank replay nhất nếu bấm replay quá nhanh ngay sau khi pause.
-      const recordedPath = await stopVideoRecording(false);
+      const recordedPath = youtubeLivePreviewActive
+        ? null
+        : await stopVideoRecording(false);
       const replayFiles = await waitForReplayFiles(webcamFolderName, 1, 8000);
 
       if (!recordedPath && replayFiles.length === 0) {

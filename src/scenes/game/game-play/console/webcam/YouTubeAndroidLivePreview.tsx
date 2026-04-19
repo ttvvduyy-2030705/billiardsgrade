@@ -12,6 +12,8 @@ import {
   isYouTubeNativePreviewViewAvailable,
   prepareYouTubeNativePreview,
   setYouTubeNativeZoom,
+  startYouTubeNativeRecord,
+  stopYouTubeNativeRecord,
   switchYouTubeNativeCamera,
 } from 'services/youtubeNativeLive';
 
@@ -44,6 +46,7 @@ type PreviewLayout = {
 
 type Props = {
   controllerRef?: React.MutableRefObject<any>;
+  mirrorControllerRef?: React.MutableRefObject<any>;
   setIsCameraReady: (isReady: boolean) => void;
   sourceType?: 'phone' | 'webcam';
   cameraFacing?: 'front' | 'back';
@@ -107,6 +110,7 @@ const buildCoverStyle = (
 
 const YouTubeAndroidLivePreview = ({
   controllerRef,
+  mirrorControllerRef,
   setIsCameraReady,
   sourceType = 'phone',
   cameraFacing = 'back',
@@ -114,6 +118,14 @@ const YouTubeAndroidLivePreview = ({
   rotatePreview = sourceType === 'phone',
 }: Props) => {
   const [layout, setLayout] = useState<PreviewLayout>({width: 0, height: 0});
+  const nativeRecordingRef = React.useRef<{
+    path: string;
+    callbacks?: {
+      onRecordingFinished?: (video: {path?: string}) => void;
+      onRecordingError?: (error: unknown) => void;
+    };
+    recording: boolean;
+  }>({path: '', callbacks: undefined, recording: false});
 
   const coverStyle = useMemo(
     () => buildCoverStyle(layout, sourceAspectRatio, rotatePreview),
@@ -191,20 +203,62 @@ const YouTubeAndroidLivePreview = ({
           controller.zoomInfo = await getYouTubeNativeZoomInfo();
           return true;
         },
+        startRecording: async (options: any = {}) => {
+          const path = String(options?.path || '');
+          nativeRecordingRef.current = {
+            path,
+            callbacks: {
+              onRecordingFinished: options?.onRecordingFinished,
+              onRecordingError: options?.onRecordingError,
+            },
+            recording: true,
+          };
+
+          try {
+            await startYouTubeNativeRecord(path);
+          } catch (error) {
+            nativeRecordingRef.current.recording = false;
+            nativeRecordingRef.current.callbacks?.onRecordingError?.(error);
+          }
+        },
+        stopRecording: async () => {
+          const snapshot = nativeRecordingRef.current;
+          try {
+            const recordedPath = await stopYouTubeNativeRecord();
+            snapshot.recording = false;
+            snapshot.callbacks?.onRecordingFinished?.({
+              path: recordedPath || snapshot.path,
+            });
+            nativeRecordingRef.current = {path: '', callbacks: undefined, recording: false};
+            return recordedPath || snapshot.path;
+          } catch (error) {
+            snapshot.recording = false;
+            snapshot.callbacks?.onRecordingError?.(error);
+            nativeRecordingRef.current = {path: '', callbacks: undefined, recording: false};
+            throw error;
+          }
+        },
       };
       controllerRef.current = controller;
+      if (mirrorControllerRef) {
+        mirrorControllerRef.current = controller;
+      }
     }
 
     return () => {
       console.log('[YouTube Live] native preview unmount');
       mounted = false;
       clearTimeout(timer);
+      const activeController = controllerRef?.current;
+      if (mirrorControllerRef && mirrorControllerRef.current === activeController) {
+        mirrorControllerRef.current = null;
+      }
       if (controllerRef) {
         controllerRef.current = null;
       }
       setIsCameraReady(false);
     };
-  }, [cameraFacing, controllerRef, rotatePreview, setIsCameraReady, sourceType]);
+  }, [cameraFacing, controllerRef, mirrorControllerRef, rotatePreview, setIsCameraReady, sourceType]);
 
   if (!NativePreview) {
     console.log('[YouTube Live] fallback reason=native preview view is not mounted');

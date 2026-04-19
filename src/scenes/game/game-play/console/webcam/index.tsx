@@ -31,6 +31,7 @@ import {keys} from 'configuration/keys';
 
 import WebCamViewModel, {Props} from './WebCamViewModel';
 import YouTubeAndroidLivePreview from './YouTubeAndroidLivePreview';
+import {updateYouTubeNativeOverlay} from 'services/youtubeNativeLive';
 import LiveStreamImages from '../../livestream-images';
 import PoolBroadcastScoreboard from 'components/PoolBroadcastScoreboard';
 import CaromBroadcastScoreboard from 'components/CaromBroadcastScoreboard';
@@ -46,6 +47,10 @@ import {
   subscribeCaromCameraScoreboardState,
   type CaromCameraScoreboardState,
 } from './caromScoreboardStore';
+import {
+  buildMatchOverlayModelFromScoreBoardStore,
+  createMatchOverlayModelSignature,
+} from './matchOverlayModel';
 import useSafeScreenInsets, {ZERO_INSETS} from 'theme/safeArea';
 import {WebcamType} from 'types/webcam';
 import {setCameraFullscreen} from '../../cameraFullscreenStore';
@@ -303,9 +308,23 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     useState<ThumbnailOverlayData>(EMPTY_THUMBNAILS);
   const [matchOverlayState, setMatchOverlayState] =
     useState<PoolCameraScoreboardState>(EMPTY_POOL_CAMERA_SCOREBOARD_STATE);
+  const [caromOverlayState, setCaromOverlayState] =
+    useState<CaromCameraScoreboardState>(EMPTY_CAROM_CAMERA_SCOREBOARD_STATE);
+  const nativeOverlayLastSignatureRef = useRef('');
+  const nativeOverlayLastVisibleRef = useRef(false);
+  const nativeOverlayDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const youtubeLivePreviewActiveRef = useRef(false);
+
+  useEffect(() => {
+    youtubeLivePreviewActiveRef.current = !!props.youtubeLivePreviewActive;
+  }, [props.youtubeLivePreviewActive]);
 
   useEffect(() => {
     return subscribePoolCameraScoreboardState(setMatchOverlayState);
+  }, []);
+
+  useEffect(() => {
+    return subscribeCaromCameraScoreboardState(setCaromOverlayState);
   }, []);
 
   const shouldShowCameraMatchOverlay = shouldShowMatchOverlay(
@@ -434,7 +453,89 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
 
   useEffect(() => {
     loadThumbnailOverlay();
+    const thumbnailSync = setInterval(loadThumbnailOverlay, 1000);
+
+    return () => {
+      clearInterval(thumbnailSync);
+    };
   }, [loadThumbnailOverlay]);
+
+  const nativeLiveOverlayPayload = useMemo(
+    () =>
+      buildMatchOverlayModelFromScoreBoardStore({
+        activeForNativeStream: !!props.youtubeLivePreviewActive,
+        poolState: matchOverlayState,
+        caromState: caromOverlayState,
+        thumbnails: thumbnailOverlay,
+      }),
+    [
+      props.youtubeLivePreviewActive,
+      matchOverlayState,
+      caromOverlayState,
+      thumbnailOverlay,
+    ],
+  );
+
+  const nativeLiveOverlaySignature = useMemo(() => {
+    return createMatchOverlayModelSignature(nativeLiveOverlayPayload);
+  }, [nativeLiveOverlayPayload]);
+
+  useEffect(() => {
+    if (nativeOverlayDebounceRef.current) {
+      clearTimeout(nativeOverlayDebounceRef.current);
+      nativeOverlayDebounceRef.current = null;
+    }
+
+    if (!props.youtubeLivePreviewActive) {
+      if (
+        nativeOverlayLastVisibleRef.current ||
+        nativeOverlayLastSignatureRef.current !== ''
+      ) {
+        nativeOverlayLastVisibleRef.current = false;
+        nativeOverlayLastSignatureRef.current = '';
+        updateYouTubeNativeOverlay({visible: false}).catch(error => {
+          console.log('[YouTube Live] clear native overlay failed:', error);
+        });
+      }
+      return;
+    }
+
+    if (nativeOverlayLastSignatureRef.current === nativeLiveOverlaySignature) {
+      return;
+    }
+
+    nativeOverlayDebounceRef.current = setTimeout(() => {
+      nativeOverlayDebounceRef.current = null;
+      nativeOverlayLastSignatureRef.current = nativeLiveOverlaySignature;
+      nativeOverlayLastVisibleRef.current = !!nativeLiveOverlayPayload.visible;
+
+      updateYouTubeNativeOverlay(nativeLiveOverlayPayload).catch(error => {
+        console.log('[YouTube Live] update native overlay failed:', error);
+      });
+    }, 80);
+
+    return () => {
+      if (nativeOverlayDebounceRef.current) {
+        clearTimeout(nativeOverlayDebounceRef.current);
+        nativeOverlayDebounceRef.current = null;
+      }
+    };
+  }, [nativeLiveOverlayPayload, nativeLiveOverlaySignature, props.youtubeLivePreviewActive]);
+
+  useEffect(() => {
+    return () => {
+      if (nativeOverlayDebounceRef.current) {
+        clearTimeout(nativeOverlayDebounceRef.current);
+        nativeOverlayDebounceRef.current = null;
+      }
+
+      // Do not clear the native live overlay from a React unmount/remount.
+      // Fullscreen transitions and replay navigation can remount this component
+      // while the native RTMP encoder is still alive; clearing here causes the
+      // visible=false/players=0 flash seen in adb logs. Stop live/end game still
+      // cleans the native filter through stopYouTubeNativeLive().
+    };
+  }, []);
 
   const liveSourceLock = getYouTubeSourceLock();
   const currentCameraSource = getCurrentCameraSourceSnapshot();
@@ -537,8 +638,8 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   ]);
 
   const canRewatch = useMemo(() => {
-    return props.isStarted && props.isPaused && !props.youtubeLivePreviewActive;
-  }, [props.isStarted, props.isPaused, props.youtubeLivePreviewActive]);
+    return props.isStarted && props.isPaused;
+  }, [props.isStarted, props.isPaused]);
 
   const getCameraHandle = useCallback(() => {
     if (props.youtubeLivePreviewActive && !externalLiveLocked) {
@@ -746,6 +847,10 @@ const handleZoomSliderComplete = useCallback(
     props.youtubeLivePreviewActive &&
     Platform.OS === 'android' &&
     !externalLiveLocked;
+  // RootEncoder's ImageObjectFilterRender is applied to the OpenGlView pipeline.
+  // During native live, that compositor is the single visible overlay on the
+  // preview + encoder; keeping the RN overlay enabled here would duplicate it.
+  const suppressReactMatchOverlayForNativeLive = useYouTubeNativePreview;
 
   const isExplicitRecording =
     recordingInfo?.isRecording === true ||
@@ -868,7 +973,11 @@ const handleZoomSliderComplete = useCallback(
     thumbnailOverlay.bottomRight.length > 0;
 
   const renderOverlay = () => {
-    if (thumbnailOverlay.enabled || !shouldShowCameraMatchOverlay) {
+    if (
+      suppressReactMatchOverlayForNativeLive ||
+      thumbnailOverlay.enabled ||
+      !shouldShowCameraMatchOverlay
+    ) {
       return null;
     }
 
@@ -876,6 +985,10 @@ const handleZoomSliderComplete = useCallback(
   };
 
   const renderScoreboardOverlay = (fullscreenMode = false) => {
+  if (suppressReactMatchOverlayForNativeLive) {
+    return null;
+  }
+
   const poolBottomOffset = fullscreenMode ? fullscreenScoreboardBottom : 10;
   const caromBottomOffset = fullscreenMode ? undefined : -50;
 
@@ -945,7 +1058,11 @@ const handleZoomSliderComplete = useCallback(
     fullscreenMode: boolean,
     options?: {skipTopLeft?: boolean},
   ) => {
-    if (!thumbnailOverlay.enabled || !shouldShowCameraMatchOverlay) {
+    if (
+      suppressReactMatchOverlayForNativeLive ||
+      !thumbnailOverlay.enabled ||
+      !shouldShowCameraMatchOverlay
+    ) {
       return null;
     }
 
@@ -985,6 +1102,7 @@ const handleZoomSliderComplete = useCallback(
     useYouTubeNativePreview ? (
       <YouTubeAndroidLivePreview
         controllerRef={youtubeControllerRef}
+        mirrorControllerRef={props.cameraRef as any}
         setIsCameraReady={handleCameraReadyChange}
         sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
         cameraFacing={effectiveCameraFacing}
@@ -1092,7 +1210,11 @@ const handleZoomSliderComplete = useCallback(
 
   const renderFullscreenBranding = () => {
     const source = images.logoFilled || images.logo;
-    if (!source || !shouldShowCameraMatchOverlay) {
+    if (
+      suppressReactMatchOverlayForNativeLive ||
+      !source ||
+      !shouldShowCameraMatchOverlay
+    ) {
       return null;
     }
 

@@ -88,6 +88,44 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun updateOverlay(options: ReadableMap?, promise: Promise) {
+    try {
+      YouTubeLiveEngine.updateOverlay(options)
+      promise.resolve(true)
+    } catch (error: Throwable) {
+      promise.reject("UPDATE_OVERLAY_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun startRecord(path: String?, promise: Promise) {
+    if (activeSourceType == "webcam") {
+      promise.resolve(false)
+      return
+    }
+
+    try {
+      promise.resolve(YouTubeLiveEngine.startRecord(path ?: ""))
+    } catch (error: Throwable) {
+      promise.reject("START_RECORD_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
+  fun stopRecord(promise: Promise) {
+    if (activeSourceType == "webcam") {
+      promise.resolve(null)
+      return
+    }
+
+    try {
+      promise.resolve(YouTubeLiveEngine.stopRecord())
+    } catch (error: Throwable) {
+      promise.reject("STOP_RECORD_FAILED", error.message, error)
+    }
+  }
+
+  @ReactMethod
   fun stopStream(promise: Promise) {
     if (activeSourceType == "webcam") {
       UvcYouTubeLiveEngine.stopStream()

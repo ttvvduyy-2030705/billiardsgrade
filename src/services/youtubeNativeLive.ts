@@ -2,6 +2,33 @@ import {DeviceEventEmitter, NativeModules, Platform, UIManager} from 'react-nati
 
 type SourceType = 'phone' | 'webcam';
 
+export type YouTubeNativeOverlayPlayer = {
+  name?: string;
+  flag?: string;
+  score?: number;
+  currentPoint?: number;
+};
+
+export type YouTubeNativeOverlayThumbnails = {
+  enabled?: boolean;
+  topLeft?: string[];
+  topRight?: string[];
+  bottomLeft?: string[];
+  bottomRight?: string[];
+};
+
+export type YouTubeNativeOverlayPayload = {
+  visible?: boolean;
+  variant?: 'pool' | 'carom';
+  currentPlayerIndex?: number;
+  countdownTime?: number;
+  baseCountdown?: number;
+  goal?: number;
+  totalTurns?: number;
+  players?: YouTubeNativeOverlayPlayer[];
+  thumbnails?: YouTubeNativeOverlayThumbnails;
+};
+
 type StartOptions = {
   width?: number;
   height?: number;
@@ -88,6 +115,28 @@ export const stopYouTubeNativeLive = async () => {
     return false;
   }
   return moduleRef.stopStream();
+};
+
+export const startYouTubeNativeRecord = async (path: string) => {
+  assertAndroid();
+  return moduleRef.startRecord?.(path);
+};
+
+export const stopYouTubeNativeRecord = async (): Promise<string | null> => {
+  if (Platform.OS !== 'android' || !moduleRef) {
+    return null;
+  }
+  return (await moduleRef.stopRecord?.()) ?? null;
+};
+
+export const updateYouTubeNativeOverlay = async (
+  payload: YouTubeNativeOverlayPayload,
+) => {
+  if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
+    return false;
+  }
+
+  return moduleRef.updateOverlay(payload);
 };
 
 export const switchYouTubeNativeCamera = async () => {
