@@ -38,6 +38,10 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private var overlayBitmap: Bitmap? = null
   private var overlayStreamWidth: Int = 1280
   private var overlayStreamHeight: Int = 720
+  private var rtmpConnected: Boolean = false
+  private var overlayApplyScheduled: Boolean = false
+  private var lastAppliedOverlaySignature: String = ""
+  private var lastOverlayApplyMs: Long = 0L
 
   data class StreamConfig(
     val url: String,
@@ -97,10 +101,10 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     emitState("overlay_model", "enabled=${model.enabled} mode=${model.mode}")
 
     val camera = rtmpCamera
-    if (camera != null && camera.isStreaming) {
-      applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
+    if (camera != null && camera.isStreaming && rtmpConnected) {
+      scheduleOverlayApply("model_update", 650L)
     } else {
-      emitState("overlay_deferred", "waiting_stream")
+      emitState("overlay_deferred", "waiting_connected_stream")
     }
   }
 
@@ -263,10 +267,12 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       overlayStreamHeight = selectedAttempt.height
 
       emitState("camera_orientation", config.orientation)
+      rtmpConnected = false
+      lastAppliedOverlaySignature = ""
       camera.startStream(config.url)
       emitState("audio_live", "microphone audio enabled")
       emitState("starting", null)
-      scheduleOverlayApply("post_start")
+      emitState("overlay_deferred", "waiting_rtmp_connected")
     } catch (error: Throwable) {
       Log.e(TAG, "startStream failed", error)
       emitState("error", error.message ?: "startStream failed")
@@ -361,6 +367,9 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   @Synchronized
   fun stopStream() {
     pendingConfig = null
+    rtmpConnected = false
+    overlayApplyScheduled = false
+    lastAppliedOverlaySignature = ""
     overlayModel = overlayModel.copy(enabled = false)
     val camera = rtmpCamera ?: return
     try {
@@ -507,8 +516,25 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
   private fun applyOverlayFilter(camera: RtmpCamera2, streamWidth: Int, streamHeight: Int) {
     try {
+      if (!camera.isStreaming || !rtmpConnected) {
+        emitState("overlay_deferred", "stream_not_connected")
+        return
+      }
+
       val width = streamWidth.coerceAtLeast(1)
       val height = streamHeight.coerceAtLeast(1)
+      val signature = buildOverlaySignature(width, height, overlayModel)
+      val now = System.currentTimeMillis()
+      if (signature == lastAppliedOverlaySignature && overlayFilter != null) {
+        emitState("overlay_skipped", "same_model")
+        return
+      }
+      if (now - lastOverlayApplyMs < 900L && overlayFilter != null) {
+        scheduleOverlayApply("throttled", 950L)
+        emitState("overlay_deferred", "throttled")
+        return
+      }
+
       val bitmap = buildOverlayBitmap(width, height, overlayModel)
       val filter = overlayFilter ?: ImageObjectFilterRender().also {
         overlayFilter = it
@@ -519,8 +545,11 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       filter.setDefaultScale(width, height)
       filter.setPosition(TranslateTo.CENTER)
 
-      overlayBitmap?.recycle()
+      val previousBitmap = overlayBitmap
       overlayBitmap = bitmap
+      lastAppliedOverlaySignature = signature
+      lastOverlayApplyMs = now
+      recycleBitmapLater(previousBitmap)
 
       if (overlayModel.enabled) {
         Log.i(TAG, "[Live Overlay Native] draw overlay frame mode=${overlayModel.mode} ${width}x${height}")
@@ -761,23 +790,65 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     }
   }
 
-  private fun scheduleOverlayApply(reason: String) {
+  private fun scheduleOverlayApply(reason: String, delayMs: Long = 900L) {
     val view = previewView ?: return
+    if (overlayApplyScheduled) {
+      emitState("overlay_deferred", "already_scheduled:$reason")
+      return
+    }
+    overlayApplyScheduled = true
     view.postDelayed({
       synchronized(this) {
+        overlayApplyScheduled = false
         applyOverlayIfStreaming(reason)
       }
-    }, 250)
+    }, delayMs.coerceAtLeast(250L))
   }
 
   private fun applyOverlayIfStreaming(reason: String) {
     val camera = rtmpCamera ?: return
-    if (!camera.isStreaming) {
+    if (!camera.isStreaming || !rtmpConnected) {
       emitState("overlay_deferred", reason)
       return
     }
-    Log.i(TAG, "[Live Overlay Native] applying overlay after stream start reason=$reason")
+    Log.i(TAG, "[Live Overlay Native] applying overlay after stream connected reason=$reason")
     applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
+  }
+
+  private fun buildOverlaySignature(width: Int, height: Int, model: LiveOverlayModel): String {
+    return buildString {
+      append(width).append('x').append(height)
+      append('|').append(model.enabled)
+      append('|').append(model.mode)
+      append('|').append(model.currentPlayerIndex)
+      append('|').append(model.target)
+      append('|').append(model.inning)
+      append('|').append(model.timer)
+      model.players.forEach { player ->
+        append('|').append(player.name)
+        append(':').append(player.score)
+        append(':').append(player.countryCode)
+        append(':').append(player.isActive)
+      }
+    }
+  }
+
+  private fun recycleBitmapLater(bitmap: Bitmap?) {
+    if (bitmap == null || bitmap.isRecycled) return
+    val view = previewView
+    if (view == null) {
+      try {
+        bitmap.recycle()
+      } catch (_: Throwable) {
+      }
+      return
+    }
+    view.postDelayed({
+      try {
+        if (!bitmap.isRecycled) bitmap.recycle()
+      } catch (_: Throwable) {
+      }
+    }, 8_000L)
   }
 
   private fun ensureCamera(): RtmpCamera2? {
@@ -809,15 +880,17 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
   override fun onConnectionStartedRtmp(rtmpUrl: String) {
     emitState("connection_started", rtmpUrl)
-    scheduleOverlayApply("connection_started")
+    emitState("overlay_deferred", "waiting_connection_success")
   }
 
   override fun onConnectionSuccessRtmp() {
+    rtmpConnected = true
     emitState("connected", null)
-    scheduleOverlayApply("connected")
+    scheduleOverlayApply("connected", 1_400L)
   }
 
   override fun onConnectionFailedRtmp(reason: String) {
+    rtmpConnected = false
     emitState("error", reason)
   }
 
@@ -826,6 +899,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   }
 
   override fun onDisconnectRtmp() {
+    rtmpConnected = false
     emitState("disconnected", null)
   }
 
