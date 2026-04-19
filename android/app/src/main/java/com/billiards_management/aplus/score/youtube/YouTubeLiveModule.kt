@@ -55,6 +55,7 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
     val sampleRate = options?.getInt("sampleRate") ?: 44100
     val isStereo = options?.getBoolean("isStereo") ?: true
     val sourceType = options?.getString("sourceType") ?: activeSourceType
+    val orientation = options?.getString("orientation") ?: "landscape"
 
     activeSourceType = if (sourceType == "webcam") "webcam" else "phone"
 
@@ -82,6 +83,7 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
         sampleRate = sampleRate,
         isStereo = isStereo,
         facing = facing,
+        orientation = orientation,
       ),
     )
     promise.resolve(true)

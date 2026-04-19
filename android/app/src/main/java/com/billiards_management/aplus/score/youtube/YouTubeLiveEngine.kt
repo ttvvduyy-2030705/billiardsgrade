@@ -34,6 +34,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     val sampleRate: Int,
     val isStereo: Boolean,
     val facing: Int,
+    val orientation: String = "landscape",
   )
 
   private data class VideoProfile(
@@ -211,6 +212,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
         "${selectedProfile.width}x${selectedProfile.height}@${selectedProfile.fps} ${selectedProfile.bitrate}",
       )
 
+      emitState("camera_orientation", config.orientation)
       camera.startStream(config.url)
       emitState("audio_live", "microphone audio enabled")
       emitState("starting", null)
@@ -277,20 +279,18 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     profile: VideoProfile,
   ): List<VideoAttempt> {
     val autoRotation = normalizeRotation(CameraHelper.getCameraOrientation(ctx))
-    val isLandscape = profile.width >= profile.height
+    val forceLandscape = profile.width >= profile.height
     val attempts = mutableListOf<VideoAttempt>()
 
-    if (isLandscape) {
-      // Với device của bạn, 1280x720 rot=0 đang live ra "ngang nhưng bị xoay dọc".
-      // Vì thư viện sẽ tự swap width/height khi rotation=90/270,
-      // nên ưu tiên khung sensor-native 720x1280 + rot=90/270 để vừa xoay đúng 90° vừa fill ra 16:9.
-      attempts += VideoAttempt(profile.height, profile.width, profile.fps, profile.bitrate, 90, "sensor-90-fill")
-      attempts += VideoAttempt(profile.height, profile.width, profile.fps, profile.bitrate, 270, "sensor-270-fill")
-
-      // Fallback phụ nếu máy không nhận cấu hình sensor-native.
+    if (forceLandscape) {
+      // App chạy landscape nên ưu tiên output encoder 16:9 thật sự trước.
+      // Các cấu hình sensor-native 720x1280 + 90/270 chỉ còn là fallback để tránh máy
+      // không hỗ trợ profile 1280x720 bị fail hoàn toàn.
+      attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, 0, "landscape-0-fill")
+      attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, 180, "landscape-180-fill")
       attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, autoRotation, "landscape-auto")
-      attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, 0, "landscape-0")
-      attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, 180, "landscape-180")
+      attempts += VideoAttempt(profile.height, profile.width, profile.fps, profile.bitrate, 90, "sensor-90-fallback")
+      attempts += VideoAttempt(profile.height, profile.width, profile.fps, profile.bitrate, 270, "sensor-270-fallback")
     } else {
       attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, autoRotation, "portrait-auto")
       attempts += VideoAttempt(profile.width, profile.height, profile.fps, profile.bitrate, 90, "portrait-90")
