@@ -25,7 +25,6 @@ import com.pedro.rtplibrary.view.OpenGlView
 
 object YouTubeLiveEngine : ConnectCheckerRtmp {
   private const val TAG = "YouTubeLiveEngine"
-  private const val OVERLAY_FILTER_INDEX = 8
 
   private var reactContext: ReactApplicationContext? = null
   private var previewView: OpenGlView? = null
@@ -538,12 +537,17 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       val bitmap = buildOverlayBitmap(width, height, overlayModel)
       val filter = overlayFilter ?: ImageObjectFilterRender().also {
         overlayFilter = it
-        camera.glInterface.setFilter(OVERLAY_FILTER_INDEX, it)
       }
 
       filter.setImage(bitmap)
       filter.setDefaultScale(width, height)
       filter.setPosition(TranslateTo.CENTER)
+
+      if (overlayFilter === filter && lastAppliedOverlaySignature.isBlank()) {
+        applySingleOverlayFilter(camera, filter)
+      } else if (overlayFilter !== filter) {
+        applySingleOverlayFilter(camera, filter)
+      }
 
       val previousBitmap = overlayBitmap
       overlayBitmap = bitmap
@@ -560,6 +564,21 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     } catch (error: Throwable) {
       Log.e(TAG, "[Live Overlay Native] apply overlay failed", error)
       emitState("overlay_error", error.message ?: "overlay failed")
+    }
+  }
+
+  private fun applySingleOverlayFilter(camera: RtmpCamera2, filter: ImageObjectFilterRender) {
+    try {
+      // IMPORTANT: Do not use glInterface.setFilter(index, filter) here.
+      // In RootEncoder 2.2.x, the indexed filter list can be empty during the GL thread
+      // update cycle, causing ManagerRender.setFilter(index) to crash with
+      // IndexOutOfBoundsException. Camera2Base.setFilter(filter) is the safe single-filter
+      // path recommended by RootEncoder for realtime filters.
+      camera.setFilter(filter)
+      emitState("overlay_filter", "single_filter_applied")
+    } catch (error: Throwable) {
+      Log.e(TAG, "[Live Overlay Native] set overlay filter failed", error)
+      emitState("overlay_error", error.message ?: "set overlay filter failed")
     }
   }
 
