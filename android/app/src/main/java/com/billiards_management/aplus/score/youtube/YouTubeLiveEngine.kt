@@ -1,6 +1,13 @@
 package com.aplus.score.youtube
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
@@ -10,12 +17,15 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.pedro.encoder.input.video.CameraHelper
+import com.pedro.encoder.input.gl.render.filters.object.ImageObjectFilterRender
+import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.rtmp.RtmpCamera2
 import com.pedro.rtplibrary.view.OpenGlView
 
 object YouTubeLiveEngine : ConnectCheckerRtmp {
   private const val TAG = "YouTubeLiveEngine"
+  private const val OVERLAY_FILTER_INDEX = 8
 
   private var reactContext: ReactApplicationContext? = null
   private var previewView: OpenGlView? = null
@@ -23,6 +33,11 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private var pendingConfig: StreamConfig? = null
   private var currentFacing: Int = CameraMetadata.LENS_FACING_BACK
   private var surfaceReady: Boolean = false
+  private var overlayModel: LiveOverlayModel = LiveOverlayModel(enabled = false)
+  private var overlayFilter: ImageObjectFilterRender? = null
+  private var overlayBitmap: Bitmap? = null
+  private var overlayStreamWidth: Int = 1280
+  private var overlayStreamHeight: Int = 720
 
   data class StreamConfig(
     val url: String,
@@ -44,6 +59,24 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     val bitrate: Int,
   )
 
+  data class LiveOverlayPlayer(
+    val name: String,
+    val score: Int,
+    val countryCode: String = "",
+    val isActive: Boolean = false,
+  )
+
+  data class LiveOverlayModel(
+    val enabled: Boolean,
+    val mode: String = "unknown",
+    val currentPlayerIndex: Int = 0,
+    val players: List<LiveOverlayPlayer> = emptyList(),
+    val target: String = "",
+    val inning: String = "",
+    val timer: String = "",
+    val logo: String = "logo-small",
+  )
+
   private data class VideoAttempt(
     val width: Int,
     val height: Int,
@@ -55,6 +88,18 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
   fun init(context: ReactApplicationContext) {
     reactContext = context
+  }
+
+  @Synchronized
+  fun updateOverlay(model: LiveOverlayModel) {
+    overlayModel = model
+    Log.i(TAG, "[Live Overlay Native] update overlay model enabled=${model.enabled} mode=${model.mode} players=${model.players.size}")
+    emitState("overlay_model", "enabled=${model.enabled} mode=${model.mode}")
+
+    val camera = rtmpCamera
+    if (camera != null) {
+      applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
+    }
   }
 
   @Synchronized
@@ -212,6 +257,10 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
         "${selectedProfile.width}x${selectedProfile.height}@${selectedProfile.fps} ${selectedProfile.bitrate}",
       )
 
+      overlayStreamWidth = selectedAttempt.width
+      overlayStreamHeight = selectedAttempt.height
+      applyOverlayFilter(camera, selectedAttempt.width, selectedAttempt.height)
+
       emitState("camera_orientation", config.orientation)
       camera.startStream(config.url)
       emitState("audio_live", "microphone audio enabled")
@@ -310,6 +359,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   @Synchronized
   fun stopStream() {
     pendingConfig = null
+    overlayModel = overlayModel.copy(enabled = false)
     val camera = rtmpCamera ?: return
     try {
       if (camera.isStreaming) {
@@ -451,6 +501,238 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     } catch (_: Throwable) {
       emptyList()
     }
+  }
+
+  private fun applyOverlayFilter(camera: RtmpCamera2, streamWidth: Int, streamHeight: Int) {
+    try {
+      val width = streamWidth.coerceAtLeast(1)
+      val height = streamHeight.coerceAtLeast(1)
+      val bitmap = buildOverlayBitmap(width, height, overlayModel)
+      val filter = overlayFilter ?: ImageObjectFilterRender().also {
+        overlayFilter = it
+        camera.glInterface.setFilter(OVERLAY_FILTER_INDEX, it)
+      }
+
+      filter.setImage(bitmap)
+      filter.setDefaultScale(width, height)
+      filter.setPosition(TranslateTo.CENTER)
+
+      overlayBitmap?.recycle()
+      overlayBitmap = bitmap
+
+      if (overlayModel.enabled) {
+        Log.i(TAG, "[Live Overlay Native] draw overlay frame mode=${overlayModel.mode} ${width}x${height}")
+        emitState("overlay_ready", "mode=${overlayModel.mode} ${width}x${height}")
+      } else {
+        emitState("overlay_disabled", "disabled")
+      }
+    } catch (error: Throwable) {
+      Log.e(TAG, "[Live Overlay Native] apply overlay failed", error)
+      emitState("overlay_error", error.message ?: "overlay failed")
+    }
+  }
+
+  private fun buildOverlayBitmap(width: Int, height: Int, model: LiveOverlayModel): Bitmap {
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    canvas.drawColor(Color.TRANSPARENT)
+
+    if (!model.enabled) {
+      return bitmap
+    }
+
+    val density = width / 1280f
+    val scale = density.coerceAtLeast(0.72f)
+
+    val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.WHITE
+      typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+      textAlign = Paint.Align.CENTER
+    }
+    val smallTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.rgb(210, 210, 210)
+      typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+      textAlign = Paint.Align.CENTER
+    }
+    val scorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.WHITE
+      typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+      textAlign = Paint.Align.CENTER
+    }
+    val redPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.rgb(180, 24, 30)
+      style = Paint.Style.FILL
+    }
+    val darkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.argb(208, 8, 8, 10)
+      style = Paint.Style.FILL
+    }
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.argb(230, 210, 210, 210)
+      style = Paint.Style.STROKE
+      strokeWidth = 2.4f * scale
+    }
+    val activePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.rgb(225, 32, 42)
+      style = Paint.Style.STROKE
+      strokeWidth = 4.2f * scale
+    }
+
+    drawNativeLogo(canvas, width, height, scale, redPaint, textPaint)
+
+    val boardWidth = (width * 0.88f).coerceAtMost(1120f * scale)
+    val boardHeight = 92f * scale
+    val left = (width - boardWidth) / 2f
+    val top = height - boardHeight - 18f * scale
+    val board = RectF(left, top, left + boardWidth, top + boardHeight)
+    val radius = 22f * scale
+    canvas.drawRoundRect(board, radius, radius, darkPaint)
+    canvas.drawRoundRect(board, radius, radius, borderPaint)
+
+    val centerWidth = 180f * scale
+    val playerWidth = (boardWidth - centerWidth) / 2f
+    val leftBox = RectF(board.left + 10f * scale, board.top + 10f * scale, board.left + playerWidth - 5f * scale, board.bottom - 10f * scale)
+    val centerBox = RectF(leftBox.right + 10f * scale, board.top + 10f * scale, leftBox.right + 10f * scale + centerWidth, board.bottom - 10f * scale)
+    val rightBox = RectF(centerBox.right + 10f * scale, board.top + 10f * scale, board.right - 10f * scale, board.bottom - 10f * scale)
+
+    val leftPlayer = model.players.getOrNull(0) ?: LiveOverlayPlayer("Người chơi 1", 0, isActive = model.currentPlayerIndex == 0)
+    val rightPlayer = model.players.getOrNull(1) ?: LiveOverlayPlayer("Người chơi 2", 0, isActive = model.currentPlayerIndex == 1)
+
+    drawPlayerBox(canvas, leftBox, leftPlayer, scale, darkPaint, redPaint, borderPaint, activePaint, textPaint, scorePaint, alignLeft = true)
+    drawCenterBox(canvas, centerBox, model, scale, redPaint, smallTextPaint, scorePaint)
+    drawPlayerBox(canvas, rightBox, rightPlayer, scale, darkPaint, redPaint, borderPaint, activePaint, textPaint, scorePaint, alignLeft = false)
+
+    return bitmap
+  }
+
+  private fun drawNativeLogo(
+    canvas: Canvas,
+    width: Int,
+    height: Int,
+    scale: Float,
+    redPaint: Paint,
+    textPaint: Paint,
+  ) {
+    val logoBitmap = loadLogoBitmap()
+    val logoWidth = 116f * scale
+    val logoHeight = 52f * scale
+    val logoLeft = (width - logoWidth) / 2f
+    val logoTop = 18f * scale
+    val dst = RectF(logoLeft, logoTop, logoLeft + logoWidth, logoTop + logoHeight)
+
+    if (logoBitmap != null) {
+      canvas.drawBitmap(logoBitmap, null, dst, Paint(Paint.ANTI_ALIAS_FLAG))
+      emitState("overlay_logo", "loaded=true")
+      return
+    }
+
+    val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      color = Color.argb(210, 10, 10, 12)
+      style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(dst, 18f * scale, 18f * scale, pillPaint)
+    canvas.drawRoundRect(dst, 18f * scale, 18f * scale, redPaint)
+    textPaint.textSize = 22f * scale
+    textPaint.color = Color.WHITE
+    canvas.drawText("APLUS", dst.centerX(), dst.centerY() + 8f * scale, textPaint)
+    emitState("overlay_logo", "loaded=false")
+  }
+
+  private fun drawPlayerBox(
+    canvas: Canvas,
+    rect: RectF,
+    player: LiveOverlayPlayer,
+    scale: Float,
+    darkPaint: Paint,
+    redPaint: Paint,
+    borderPaint: Paint,
+    activePaint: Paint,
+    textPaint: Paint,
+    scorePaint: Paint,
+    alignLeft: Boolean,
+  ) {
+    canvas.drawRoundRect(rect, 16f * scale, 16f * scale, darkPaint)
+    canvas.drawRoundRect(rect, 16f * scale, 16f * scale, borderPaint)
+    if (player.isActive) {
+      canvas.drawRoundRect(rect, 16f * scale, 16f * scale, activePaint)
+    }
+
+    val scoreW = 88f * scale
+    val scoreRect = if (alignLeft) {
+      RectF(rect.right - scoreW, rect.top, rect.right, rect.bottom)
+    } else {
+      RectF(rect.left, rect.top, rect.left + scoreW, rect.bottom)
+    }
+    canvas.drawRoundRect(scoreRect, 14f * scale, 14f * scale, redPaint)
+
+    scorePaint.textSize = 42f * scale
+    scorePaint.color = Color.WHITE
+    canvas.drawText(player.score.toString(), scoreRect.centerX(), scoreRect.centerY() + 15f * scale, scorePaint)
+
+    textPaint.textSize = 24f * scale
+    textPaint.color = Color.WHITE
+    textPaint.textAlign = if (alignLeft) Paint.Align.LEFT else Paint.Align.RIGHT
+    val nameX = if (alignLeft) rect.left + 22f * scale else rect.right - 22f * scale
+    val availableWidth = rect.width() - scoreW - 34f * scale
+    val name = ellipsizeForPaint(player.name, textPaint, availableWidth)
+    canvas.drawText(name, nameX, rect.centerY() + 9f * scale, textPaint)
+    textPaint.textAlign = Paint.Align.CENTER
+  }
+
+  private fun drawCenterBox(
+    canvas: Canvas,
+    rect: RectF,
+    model: LiveOverlayModel,
+    scale: Float,
+    redPaint: Paint,
+    smallTextPaint: Paint,
+    scorePaint: Paint,
+  ) {
+    canvas.drawRoundRect(rect, 16f * scale, 16f * scale, redPaint)
+    scorePaint.textSize = 20f * scale
+    scorePaint.color = Color.WHITE
+    val modeLabel = if (model.mode == "carom") "CAROM" else "POOL"
+    val target = if (model.target.isNotBlank()) "Mục tiêu ${model.target}" else modeLabel
+    canvas.drawText(target, rect.centerX(), rect.top + 27f * scale, scorePaint)
+
+    smallTextPaint.textSize = 17f * scale
+    smallTextPaint.color = Color.WHITE
+    val bottom = buildString {
+      if (model.timer.isNotBlank()) append(model.timer)
+      if (model.inning.isNotBlank()) {
+        if (isNotEmpty()) append("  •  ")
+        append("Lượt ${model.inning}")
+      }
+    }
+    canvas.drawText(bottom.ifBlank { modeLabel }, rect.centerX(), rect.bottom - 20f * scale, smallTextPaint)
+  }
+
+  private fun ellipsizeForPaint(text: String, paint: Paint, maxWidth: Float): String {
+    if (paint.measureText(text) <= maxWidth) return text
+    var value = text
+    while (value.length > 1 && paint.measureText("$value…") > maxWidth) {
+      value = value.dropLast(1)
+    }
+    return "$value…"
+  }
+
+  private fun loadLogoBitmap(): Bitmap? {
+    val context = reactContext ?: return null
+    val names = listOf(
+      "src_assets_images_logo_small",
+      "assets_images_logo_small",
+      "logo_small",
+      "logo_small_png",
+      "src_assets_images_logo",
+      "logo",
+    )
+    for (name in names) {
+      val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
+      if (resId != 0) {
+        return BitmapFactory.decodeResource(context.resources, resId)
+      }
+    }
+    return null
   }
 
   private fun invoke(target: Any, methodName: String, vararg args: Any): Any? {
