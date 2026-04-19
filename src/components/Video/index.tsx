@@ -422,8 +422,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
 }, []);
 
   useEffect(() => {
-    
-    ('mount');
+    void refreshUsbDevices('mount');
   }, [refreshUsbDevices]);
 
   useEffect(() => {
