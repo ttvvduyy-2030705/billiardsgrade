@@ -22,6 +22,14 @@ export type YouTubeLiveOverlayPlayer = {
   isActive?: boolean;
 };
 
+export type YouTubeLiveOverlayLogo = {
+  slot?: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+  uri?: string;
+  locked?: boolean;
+  showOnLivestream?: boolean;
+  showOnSavedVideo?: boolean;
+};
+
 export type YouTubeLiveOverlayModel = {
   enabled: boolean;
   mode?: 'pool' | 'carom' | 'unknown';
@@ -33,6 +41,7 @@ export type YouTubeLiveOverlayModel = {
   timer?: number | string;
   title?: string;
   logo?: string;
+  logos?: YouTubeLiveOverlayLogo[];
 };
 
 type ZoomInfo = {
@@ -122,6 +131,13 @@ export const updateYouTubeLiveOverlay = async (
     target: overlay.target,
     inning: overlay.inning,
     timer: overlay.timer,
+    logos: overlay.logos?.map(logo => ({
+      slot: logo.slot,
+      uri: logo.uri ? '[configured]' : '',
+      locked: logo.locked === true,
+      showOnLivestream: logo.showOnLivestream === true,
+      showOnSavedVideo: logo.showOnSavedVideo !== false,
+    })),
   });
 
   return moduleRef.updateOverlay(overlay);

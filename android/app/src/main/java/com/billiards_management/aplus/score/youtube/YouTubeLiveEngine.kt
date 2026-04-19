@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
+import android.net.Uri
 import android.util.Log
 import android.util.Range
 import com.facebook.react.bridge.Arguments
@@ -22,6 +23,7 @@ import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.rtmp.RtmpCamera2
 import com.pedro.rtplibrary.view.OpenGlView
+import java.io.File
 
 object YouTubeLiveEngine : ConnectCheckerRtmp {
   private const val TAG = "YouTubeLiveEngine"
@@ -70,6 +72,14 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     val isActive: Boolean = false,
   )
 
+  data class LiveOverlayLogo(
+    val slot: String,
+    val uri: String,
+    val locked: Boolean = false,
+    val showOnLivestream: Boolean = false,
+    val showOnSavedVideo: Boolean = true,
+  )
+
   data class LiveOverlayModel(
     val enabled: Boolean,
     val mode: String = "unknown",
@@ -78,7 +88,8 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     val target: String = "",
     val inning: String = "",
     val timer: String = "",
-    val logo: String = "logo-small",
+    val logo: String = "config-thumbnail",
+    val logos: List<LiveOverlayLogo> = emptyList(),
   )
 
   private data class VideoAttempt(
@@ -669,7 +680,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       strokeWidth = 4.2f * scale
     }
 
-    drawNativeLogo(canvas, width, height, scale, redPaint, textPaint)
+    drawConfiguredLogos(canvas, width, height, scale, model, redPaint, textPaint)
 
     val boardWidth = (width * 0.88f).coerceAtMost(1120f * scale)
     val boardHeight = 92f * scale
@@ -694,6 +705,86 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     drawPlayerBox(canvas, rightBox, rightPlayer, scale, darkPaint, redPaint, borderPaint, activePaint, textPaint, scorePaint, alignLeft = false)
 
     return bitmap
+  }
+
+  private fun drawConfiguredLogos(
+    canvas: Canvas,
+    width: Int,
+    height: Int,
+    scale: Float,
+    model: LiveOverlayModel,
+    redPaint: Paint,
+    textPaint: Paint,
+  ) {
+    val livestreamLogos = model.logos.filter { logo ->
+      logo.uri.isNotBlank() && (logo.locked || logo.showOnLivestream)
+    }
+
+    if (livestreamLogos.isEmpty()) {
+      drawNativeLogo(canvas, width, height, scale, redPaint, textPaint)
+      emitState("overlay_logo", "source=fallback_builtin")
+      return
+    }
+
+    livestreamLogos.forEach { logo ->
+      val dst = logoDestination(width, height, scale, logo.slot)
+      val bitmap = loadOverlayLogoBitmap(logo.uri) ?: if (logo.locked) loadLogoBitmap() else null
+      if (bitmap != null) {
+        canvas.drawBitmap(bitmap, null, dst, Paint(Paint.ANTI_ALIAS_FLAG))
+        emitState("overlay_logo", "slot=${logo.slot} loaded=true locked=${logo.locked}")
+      } else {
+        emitState("overlay_logo", "slot=${logo.slot} loaded=false locked=${logo.locked}")
+        if (logo.locked) {
+          drawNativeLogo(canvas, width, height, scale, redPaint, textPaint)
+        }
+      }
+    }
+  }
+
+  private fun logoDestination(width: Int, height: Int, scale: Float, slot: String): RectF {
+    val logoWidth = 120f * scale
+    val logoHeight = 54f * scale
+    val margin = 22f * scale
+    return when (slot) {
+      "topRight" -> RectF(width - logoWidth - margin, margin, width - margin, margin + logoHeight)
+      "bottomLeft" -> RectF(margin, height - logoHeight - margin, margin + logoWidth, height - margin)
+      "bottomRight" -> RectF(width - logoWidth - margin, height - logoHeight - margin, width - margin, height - margin)
+      else -> RectF(margin, margin, margin + logoWidth, margin + logoHeight)
+    }
+  }
+
+  private fun loadOverlayLogoBitmap(uriValue: String): Bitmap? {
+    val context = reactContext ?: return null
+    if (uriValue.isBlank()) return null
+
+    return try {
+      when {
+        uriValue.startsWith("file://") -> BitmapFactory.decodeFile(uriValue.removePrefix("file://"))
+        uriValue.startsWith("/") -> BitmapFactory.decodeFile(uriValue)
+        uriValue.startsWith("content://") || uriValue.startsWith("android.resource://") -> {
+          context.contentResolver.openInputStream(Uri.parse(uriValue))?.use { stream ->
+            BitmapFactory.decodeStream(stream)
+          }
+        }
+        uriValue.startsWith("asset:/") -> {
+          val assetPath = uriValue.removePrefix("asset:/").removePrefix("/")
+          context.assets.open(assetPath).use { stream -> BitmapFactory.decodeStream(stream) }
+        }
+        uriValue.startsWith("res:/") -> {
+          val resourceName = File(uriValue).nameWithoutExtension
+          val resId = context.resources.getIdentifier(resourceName, "drawable", context.packageName)
+          if (resId != 0) BitmapFactory.decodeResource(context.resources, resId) else null
+        }
+        else -> {
+          val resourceName = File(uriValue).nameWithoutExtension
+          val resId = context.resources.getIdentifier(resourceName, "drawable", context.packageName)
+          if (resId != 0) BitmapFactory.decodeResource(context.resources, resId) else null
+        }
+      }
+    } catch (error: Throwable) {
+      Log.w(TAG, "[Live Overlay Native] logo decode failed uri=$uriValue", error)
+      null
+    }
   }
 
   private fun drawNativeLogo(
@@ -884,6 +975,12 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       append('|').append(model.target)
       append('|').append(model.inning)
       append('|').append(model.timer)
+      model.logos.forEach { logo ->
+        append('|').append(logo.slot)
+        append(':').append(logo.uri)
+        append(':').append(logo.locked)
+        append(':').append(logo.showOnLivestream)
+      }
       model.players.forEach { player ->
         append('|').append(player.name)
         append(':').append(player.score)

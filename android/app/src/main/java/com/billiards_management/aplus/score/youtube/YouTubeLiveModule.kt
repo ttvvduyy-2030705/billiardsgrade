@@ -104,7 +104,8 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
       val target = readOverlayValue(model, "target")
       val inning = readOverlayValue(model, "inning")
       val timer = readOverlayValue(model, "timer")
-      val logo = if (model?.hasKey("logo") == true && !model.isNull("logo")) model.getString("logo") ?: "logo-small" else "logo-small"
+      val logo = if (model?.hasKey("logo") == true && !model.isNull("logo")) model.getString("logo") ?: "config-thumbnail" else "config-thumbnail"
+      val logos = parseOverlayLogos(model?.getArray("logos"))
 
       val overlay = YouTubeLiveEngine.LiveOverlayModel(
         enabled = enabled,
@@ -115,6 +116,7 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
         inning = inning,
         timer = timer,
         logo = logo,
+        logos = logos,
       )
 
       YouTubeLiveEngine.updateOverlay(overlay)
@@ -160,6 +162,27 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
       )
     }
     return players
+  }
+
+  private fun parseOverlayLogos(array: ReadableArray?): List<YouTubeLiveEngine.LiveOverlayLogo> {
+    if (array == null) return emptyList()
+    val logos = mutableListOf<YouTubeLiveEngine.LiveOverlayLogo>()
+    for (index in 0 until minOf(array.size(), 4)) {
+      val item = array.getMap(index) ?: continue
+      val uri = if (item.hasKey("uri") && !item.isNull("uri")) item.getString("uri") ?: "" else ""
+      if (uri.isBlank()) continue
+      val slot = if (item.hasKey("slot") && !item.isNull("slot")) item.getString("slot") ?: "" else ""
+      logos.add(
+        YouTubeLiveEngine.LiveOverlayLogo(
+          slot = slot,
+          uri = uri,
+          locked = if (item.hasKey("locked") && !item.isNull("locked")) item.getBoolean("locked") else false,
+          showOnLivestream = if (item.hasKey("showOnLivestream") && !item.isNull("showOnLivestream")) item.getBoolean("showOnLivestream") else false,
+          showOnSavedVideo = if (item.hasKey("showOnSavedVideo") && !item.isNull("showOnSavedVideo")) item.getBoolean("showOnSavedVideo") else true,
+        ),
+      )
+    }
+    return logos
   }
 
   @ReactMethod
