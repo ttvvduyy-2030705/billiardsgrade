@@ -85,7 +85,6 @@ type GameplayLiveRouteParams = {
   liveAccountName?: string;
   liveAccountId?: string;
   liveSetupToken?: string;
-  autoStartOnEnter?: boolean;
 };
 
 const normalizeGameplayLivestreamPlatform = (value: any) => {
@@ -462,7 +461,6 @@ const GamePlayViewModel = () => {
       false,
   );
   const shouldUseYouTubeLive = selectedLivestreamPlatform === 'youtube';
-  const autoStartOnEnter = routeParams.autoStartOnEnter === true;
   const shouldUseLocalRecordingOnly = selectedLivestreamPlatform !== 'youtube';
   const gameSettingsSignature = useMemo(() => {
     return buildGameSettingsSignature(gameSettings);
@@ -477,7 +475,6 @@ const GamePlayViewModel = () => {
   const recordingRotateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recordingStartRetryRef = useRef<NodeJS.Timeout | null>(null);
   const restartAfterStopRef = useRef(false);
-  const autoStartRouteConsumedRef = useRef(false);
   const isRecordingRef = useRef(false);
   const isStoppingRecordingRef = useRef(false);
   const pendingStartRecordingRef = useRef(false);
@@ -687,9 +684,7 @@ const GamePlayViewModel = () => {
 
 
   const [isStarted, setIsStarted] = useState(
-    gameSettings?.mode?.mode === 'fast' &&
-      selectedLivestreamPlatform !== 'youtube' &&
-      routeParams.autoStartOnEnter !== true
+    gameSettings?.mode?.mode === 'fast' && selectedLivestreamPlatform !== 'youtube'
       ? true
       : false,
   );
@@ -2516,10 +2511,6 @@ const GamePlayViewModel = () => {
           liveResponse?.session?.broadcastId || liveResponse?.session?.id || '';
         console.log('[YouTube Live] active broadcast:', activeYouTubeBroadcastIdRef.current);
 
-        console.log('[Camera Orientation] appOrientation=landscape');
-        console.log('[YouTube Live] cameraOrientation=landscape');
-        console.log('[YouTube Live] final endpoint=' + String(liveResponse.session.streamUrlWithKey || ''));
-
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
           options: {
@@ -2532,7 +2523,6 @@ const GamePlayViewModel = () => {
             isStereo: true,
             cameraFacing: nativePhoneFacing,
             sourceType: nativeSourceType,
-            orientation: 'landscape',
           },
         };
 
@@ -2591,39 +2581,6 @@ const GamePlayViewModel = () => {
     shouldUseLocalRecordingOnly,
     shouldUseYouTubeLive,
     showYouTubeLiveFailure,
-  ]);
-
-
-  useEffect(() => {
-    if (!autoStartOnEnter || autoStartRouteConsumedRef.current) {
-      return;
-    }
-
-    if (!gameSettings || !playerSettings) {
-      return;
-    }
-
-    autoStartRouteConsumedRef.current = true;
-
-    console.log('[Settings Start] auto start consumed in gameplay', {
-      selectedPlatform: selectedLivestreamPlatform,
-      youtubeLiveEnabled: shouldUseYouTubeLive,
-      hasGameSettings: Boolean(gameSettings),
-      hasPlayerSettings: Boolean(playerSettings),
-    });
-
-    const timer = setTimeout(() => {
-      void onStart();
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [
-    autoStartOnEnter,
-    gameSettings,
-    onStart,
-    playerSettings,
-    selectedLivestreamPlatform,
-    shouldUseYouTubeLive,
   ]);
 
   const onToggleCountDown = useCallback(() => {

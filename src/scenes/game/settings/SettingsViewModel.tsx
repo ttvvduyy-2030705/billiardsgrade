@@ -28,7 +28,6 @@ type LivestreamRouteParams = {
   liveAccountName?: string;
   liveAccountId?: string;
   liveSetupToken?: string;
-  autoStartOnEnter?: boolean;
 };
 
 export interface Props extends Navigation, LivestreamRouteParams {
@@ -347,13 +346,6 @@ const GameSettingsViewModel = (props: Props) => {
 
     const shouldCreateYouTubeLive = livestreamPlatform === 'youtube';
 
-    console.log('[Settings Start] pressed');
-    console.log('[Settings Start] selectedPlatform=' + String(livestreamPlatform || 'none'));
-    console.log('[Settings Start] youtubeLiveEnabled=' + String(shouldCreateYouTubeLive));
-    console.log('[Settings Start] create live requested=' + String(shouldCreateYouTubeLive));
-    console.log('[Settings Start] start live requested=true');
-    console.log('[Settings Start] local recording requested=' + String(!shouldCreateYouTubeLive));
-
     console.log('[Live Flow] start pressed', {
       selectedPlatform: livestreamPlatform,
       youtubeConnected: Boolean(liveAccountName || liveAccountId || liveSetupToken),
@@ -392,7 +384,6 @@ const GameSettingsViewModel = (props: Props) => {
       liveAccountName,
       liveAccountId,
       liveSetupToken,
-      autoStartOnEnter: true,
     });
 
     _resetData();
