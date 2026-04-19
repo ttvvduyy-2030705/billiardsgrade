@@ -1257,11 +1257,20 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     Platform.OS === 'android' && isYouTubeNativeCameraLocked();
   const externalLiveLocked = youtubeSourceLock === 'external';
 
-  const shouldUsePhoneCamera =
+  const shouldUseCameraSource =
     effectiveWebcamType === WebcamType.camera &&
     !usingUvc &&
-    !youtubeNativeCameraLocked &&
     !externalLiveLocked;
+
+  const isYouTubeNativeActive =
+    Platform.OS === 'android' &&
+    shouldUseCameraSource &&
+    isYouTubeNativeCameraEnabled();
+
+  const shouldUsePhoneCamera =
+    shouldUseCameraSource &&
+    !youtubeNativeCameraLocked &&
+    !isYouTubeNativeActive;
   const shouldActivatePhoneCamera =
     shouldUsePhoneCamera &&
     permissionState === 'granted' &&
@@ -1276,19 +1285,14 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
         : props.androidPreviewViewTypeOverride || 'surface-view'
       : undefined;
 
-  const isYouTubeNativeActive =
-    Platform.OS === 'android' &&
-    shouldUsePhoneCamera &&
-    isYouTubeNativeCameraEnabled();
-
   useEffect(() => {
-    if (!youtubeNativeCameraLocked) {
+    if (!youtubeNativeCameraLocked || isYouTubeNativeActive) {
       return;
     }
 
     setCameraErrorMessage(null);
     props.setIsCameraReady(false);
-  }, [props.setIsCameraReady, youtubeNativeCameraLocked]);
+  }, [isYouTubeNativeActive, props.setIsCameraReady, youtubeNativeCameraLocked]);
 
   useEffect(() => {
     if (
@@ -1500,7 +1504,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     setCameraErrorMessage,
   ]);
 
-  if (youtubeNativeCameraLocked && !externalLiveLocked) {
+  if (youtubeNativeCameraLocked && !externalLiveLocked && !isYouTubeNativeActive) {
     return renderFallback();
   }
 
@@ -1543,14 +1547,6 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     );
   }
 
-  if (permissionState === 'loading') {
-    return renderFallback('Đang kiểm tra quyền camera...');
-  }
-
-  if (permissionState === 'denied') {
-    return renderFallback('Bạn chưa cấp quyền camera cho ứng dụng.');
-  }
-
   if (isYouTubeNativeActive) {
     if (cameraErrorMessage) {
       return renderFallback(cameraErrorMessage);
@@ -1571,6 +1567,14 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
         }}
       />
     );
+  }
+
+  if (permissionState === 'loading') {
+    return renderFallback('Đang kiểm tra quyền camera...');
+  }
+
+  if (permissionState === 'denied') {
+    return renderFallback('Bạn chưa cấp quyền camera cho ứng dụng.');
   }
 
   if (availableSources.length > 0 && !availableSources.includes(selectedSource)) {
