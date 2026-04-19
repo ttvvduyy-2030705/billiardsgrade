@@ -124,6 +124,9 @@ const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
       height: '100%',
       minWidth: 0,
       minHeight: 0,
+      alignSelf: 'stretch',
+      alignItems: 'stretch',
+      justifyContent: 'flex-start',
       zIndex: 260,
       elevation: 260,
     },
@@ -131,10 +134,28 @@ const createLocalStyles = (a: AdaptiveLayout, design: any, rules: any) =>
       flex: 1,
       width: '100%',
       height: '100%',
+      minWidth: 0,
+      minHeight: 0,
+      alignSelf: 'stretch',
+      alignItems: 'stretch',
+      justifyContent: 'flex-start',
       paddingHorizontal: 0,
       paddingVertical: 0,
       gap: 0,
       position: 'relative',
+      overflow: 'hidden',
+    },
+    fullscreenFill: {
+      flex: 1,
+      width: '100%',
+      height: '100%',
+      minWidth: 0,
+      minHeight: 0,
+      alignSelf: 'stretch',
+      alignItems: 'stretch',
+      justifyContent: 'flex-start',
+      backgroundColor: '#000000',
+      overflow: 'hidden',
     },
     pool8SetOverlayBackdrop: {
       position: 'absolute',
@@ -659,10 +680,11 @@ const GamePlay = () => {
   );
 
   return (
-    <Container variant="fullscreen">
+    <Container variant="fullscreen" safeAreaDisabled={isCameraFullscreen}>
       <View
         style={[
           isCameraFullscreen ? styles.fullscreenScreen : useDarkPoolBackground ? styles.poolArenaScreen : undefined,
+          isCameraFullscreen ? localStyles.fullscreenFill : undefined,
           !isCameraFullscreen && isCaromMode ? localStyles.lightScreen : undefined,
         ]}
         flex={'1'}>
@@ -682,7 +704,7 @@ const GamePlay = () => {
           />
         ) : null}
 
-        <View flex={'1'}>
+        <View flex={'1'} style={isCameraFullscreen ? localStyles.fullscreenFill : undefined}>
           {renderMainBoard()}
         </View>
 

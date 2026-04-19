@@ -15,6 +15,7 @@ import {
   Image as RNImage,
   ImageBackground,
   Pressable,
+  StatusBar,
   StyleSheet,
   View as RNView,
 } from 'react-native';
@@ -285,7 +286,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   }), [safeInsets.bottom, safeInsets.left, safeInsets.right, safeInsets.top]);
   const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
   const styles = useMemo(() => createStyles(adaptive, design, layoutRules, overlaySafeInsets), [adaptive.styleKey, overlaySafeInsets.top, overlaySafeInsets.right, overlaySafeInsets.bottom, overlaySafeInsets.left]);
-  const cameraScaleMode = props.cameraScaleMode || 'contain';
+  const cameraScaleMode = props.cameraScaleMode || 'cover';
   const isFullscreen = !!props.forceFullscreen;
 
   const [cameraVisualReady, setCameraVisualReady] = useState(false);
@@ -295,6 +296,30 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const [currentZoom, setCurrentZoom] = useState(1);
   const [thumbnailOverlay, setThumbnailOverlay] =
     useState<ThumbnailOverlayData>(EMPTY_THUMBNAILS);
+
+  useEffect(() => {
+    if (!props.forceFullscreen) {
+      return;
+    }
+
+    const applyFullscreenSystemChrome = () => {
+      StatusBar.setHidden(true, 'none');
+
+      if (Platform.OS === 'android') {
+        StatusBar.setTranslucent(true);
+        StatusBar.setBackgroundColor('transparent', false);
+      }
+    };
+
+    applyFullscreenSystemChrome();
+    const timers = [80, 220, 500, 900].map(delay =>
+      setTimeout(applyFullscreenSystemChrome, delay),
+    );
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [props.forceFullscreen]);
 
   const zoomSupportedRef = useRef(false);
   const zoomMinRef = useRef(1);
@@ -909,7 +934,7 @@ const handleZoomSliderComplete = useCallback(
     }
 
     if (!hasThumbnailImages) {
-      return renderFallbackThumbnail(fullscreenMode);
+      return options?.skipTopLeft ? null : renderFallbackThumbnail(fullscreenMode);
     }
 
     return (
@@ -947,6 +972,7 @@ const handleZoomSliderComplete = useCallback(
         setIsCameraReady={handleCameraReadyChange}
         sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
         cameraFacing={effectiveCameraFacing}
+        rotatePreview={!externalLiveLocked && effectiveSourceType === 'phone'}
       />
     ) : (
       <Video
@@ -972,11 +998,11 @@ const handleZoomSliderComplete = useCallback(
         webcamType={effectiveSourceType === 'webcam' ? WebcamType.webcam : WebcamType.camera}
         setIsCameraReady={handleCameraReadyChange}
         overlayContent={
-          effectiveCameraSource === 'external'
+          !fullscreenMode && effectiveCameraSource === 'external'
             ? renderOverlay()
             : undefined
         }
-        cameraScaleMode={fullscreenMode ? 'cover' : cameraScaleMode}
+        cameraScaleMode={cameraScaleMode}
         androidPreviewViewTypeOverride={undefined}
         suppressCameraFallbackOverlay={false}
         ignoreNavigationFocusLoss={fullscreenMode || props.forceFullscreen === true}
@@ -1011,7 +1037,7 @@ const handleZoomSliderComplete = useCallback(
             pointerEvents={shouldRenderPreview ? 'auto' : 'none'}
             style={styles.videoScaleWrap}>
             {renderVideoBootstrap(isFullscreen)}
-            {effectiveCameraSource !== 'external' ? renderOverlay() : null}
+            {!isFullscreen && effectiveCameraSource !== 'external' ? renderOverlay() : null}
           </RNView>
         ) : null}
 
@@ -1160,7 +1186,7 @@ const handleZoomSliderComplete = useCallback(
   const renderFullscreenHud = () => {
     return (
       <RNView pointerEvents="box-none" style={styles.fullscreenHud}>
-        {renderFullscreenBranding()}
+        {shouldRenderPreview ? renderFullscreenBranding() : null}
         {renderFullscreenClose()}
         <RNView
           pointerEvents="none"
@@ -1221,7 +1247,7 @@ const handleZoomSliderComplete = useCallback(
     );
   };
 
-  return (
+  const content = (
     <RNView
       style={[styles.embeddedRoot, props.forceFullscreen ? styles.fullscreenRoot : null]}
       pointerEvents="box-none">
@@ -1306,6 +1332,8 @@ const handleZoomSliderComplete = useCallback(
       ) : null}
     </RNView>
   );
+
+  return content;
 });
 
 const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) => createGameplayStyles(adaptive, {
@@ -1327,18 +1355,50 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   },
 
   fullscreenStageSlot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     width: '100%',
     height: '100%',
+    minWidth: 0,
     minHeight: 0,
+    margin: 0,
+    padding: 0,
     alignSelf: 'stretch',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
   },
 
-  fullscreenRoot: {
+  fullscreenModalRoot: {
     flex: 1,
     width: '100%',
     height: '100%',
+    margin: 0,
+    padding: 0,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+
+  fullscreenRoot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+    minHeight: 0,
+    margin: 0,
+    padding: 0,
     backgroundColor: '#000',
     alignSelf: 'stretch',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
 
   videoHost: {
@@ -1363,11 +1423,21 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   },
 
   fullscreenVideoHost: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     flex: 1,
     width: '100%',
     height: '100%',
+    minWidth: 0,
+    minHeight: 0,
+    margin: 0,
+    padding: 0,
     alignSelf: 'stretch',
     backgroundColor: '#000',
+    overflow: 'hidden',
   },
 
   placeholderStageHost: {
@@ -1403,17 +1473,27 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
   },
 
   fullscreenVideoClip: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
     width: '100%',
     height: '100%',
+    minWidth: 0,
+    minHeight: 0,
     alignSelf: 'stretch',
     backgroundColor: '#000',
     overflow: 'hidden',
   },
 
   cameraStageRoot: {
+    ...StyleSheet.absoluteFillObject,
     flex: 1,
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+    minHeight: 0,
+    alignSelf: 'stretch',
     backgroundColor: '#000',
+    overflow: 'hidden',
   },
 
   videoScaleWrap: {
@@ -1533,10 +1613,14 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     zIndex: 10001,
     elevation: 10001,
     pointerEvents: 'none',
-    backgroundColor: 'rgba(0,0,0,0.32)',
-    borderRadius: adaptive.s(12),
-    paddingHorizontal: adaptive.s(10),
-    paddingVertical: adaptive.s(8),
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    margin: 0,
+    shadowOpacity: 0,
   },
 
   fullscreenBrandImage: {

@@ -12,6 +12,7 @@ type StartOptions = {
   isStereo?: boolean;
   cameraFacing?: 'front' | 'back';
   sourceType?: SourceType;
+  rotationDegrees?: number;
 };
 
 type ZoomInfo = {
@@ -78,6 +79,7 @@ export const startYouTubeNativeLive = async (
     isStereo: options.isStereo ?? true,
     cameraFacing: options.cameraFacing ?? 'back',
     sourceType: options.sourceType ?? 'phone',
+    rotationDegrees: options.rotationDegrees ?? 0,
   });
 };
 

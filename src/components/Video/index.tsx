@@ -219,7 +219,7 @@ const getSuccessfulPhoneModeStore = (): Record<string, PhoneCameraConfigMode> =>
 };
 
 const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
-  const cameraScaleMode = props.cameraScaleMode || 'contain';
+  const cameraScaleMode = props.cameraScaleMode || 'cover';
   const viewModel = VideoViewModel(props);
   const isFocused = useIsFocused();
 

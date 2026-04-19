@@ -515,6 +515,7 @@ const GamePlayViewModel = () => {
       isStereo: boolean;
       cameraFacing: 'front' | 'back';
       sourceType: 'phone' | 'webcam';
+      rotationDegrees: number;
     };
   } | null>(null);
   const activeYouTubeBroadcastIdRef = useRef<string>('');
@@ -2511,11 +2512,13 @@ const GamePlayViewModel = () => {
           liveResponse?.session?.broadcastId || liveResponse?.session?.id || '';
         console.log('[YouTube Live] active broadcast:', activeYouTubeBroadcastIdRef.current);
 
+        const shouldRotatePhoneLive = nativeSourceType === 'phone';
+
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
           options: {
-            width: 1280,
-            height: 720,
+            width: shouldRotatePhoneLive ? 720 : 1280,
+            height: shouldRotatePhoneLive ? 1280 : 720,
             fps: 30,
             bitrate: 4500 * 1024,
             audioBitrate: 128 * 1024,
@@ -2523,6 +2526,7 @@ const GamePlayViewModel = () => {
             isStereo: true,
             cameraFacing: nativePhoneFacing,
             sourceType: nativeSourceType,
+            rotationDegrees: shouldRotatePhoneLive ? 90 : 0,
           },
         };
 
