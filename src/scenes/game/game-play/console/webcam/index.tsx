@@ -285,7 +285,13 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   }), [safeInsets.bottom, safeInsets.left, safeInsets.right, safeInsets.top]);
   const layoutRules = useMemo(() => createGameplayLayoutRules(adaptive, design), [adaptive.styleKey]);
   const styles = useMemo(() => createStyles(adaptive, design, layoutRules, overlaySafeInsets), [adaptive.styleKey, overlaySafeInsets.top, overlaySafeInsets.right, overlaySafeInsets.bottom, overlaySafeInsets.left]);
-  const cameraScaleMode = props.cameraScaleMode || 'contain';
+  const cameraScaleMode = props.cameraScaleMode || 'cover';
+
+  useEffect(() => {
+    console.log('[Camera Orientation] appOrientation=landscape');
+    console.log('[Camera Orientation] previewOrientation=landscape');
+    console.log('[Camera Orientation] recordingOrientation=landscape');
+  }, []);
   const isFullscreen = !!props.forceFullscreen;
 
   const [cameraVisualReady, setCameraVisualReady] = useState(false);

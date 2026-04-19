@@ -1,4 +1,4 @@
-import {DeviceEventEmitter, NativeModules, Platform} from 'react-native';
+import {DeviceEventEmitter, NativeModules, Platform, UIManager} from 'react-native';
 
 type SourceType = 'phone' | 'webcam';
 
@@ -12,6 +12,27 @@ type StartOptions = {
   isStereo?: boolean;
   cameraFacing?: 'front' | 'back';
   sourceType?: SourceType;
+  orientation?: 'landscape' | 'portrait';
+};
+
+export type YouTubeLiveOverlayPlayer = {
+  name?: string;
+  score?: number;
+  countryCode?: string;
+  isActive?: boolean;
+};
+
+export type YouTubeLiveOverlayModel = {
+  enabled: boolean;
+  mode?: 'pool' | 'carom' | 'unknown';
+  layout?: 'landscape';
+  currentPlayerIndex?: number;
+  players?: YouTubeLiveOverlayPlayer[];
+  target?: number | string;
+  inning?: number | string;
+  timer?: number | string;
+  title?: string;
+  logo?: string;
 };
 
 type ZoomInfo = {
@@ -26,6 +47,22 @@ const moduleRef = NativeModules.YouTubeLiveModule;
 
 export const isYouTubeNativeLiveEngineMounted = () =>
   Platform.OS === 'android' && Boolean(moduleRef);
+
+export const isYouTubeNativePreviewViewAvailable = () => {
+  if (Platform.OS !== 'android') {
+    return false;
+  }
+
+  try {
+    return Boolean(UIManager.getViewManagerConfig?.('YouTubeLivePreviewView'));
+  } catch (error) {
+    console.log('[YouTube Live] native preview view check failed:', error);
+    return false;
+  }
+};
+
+export const isYouTubeNativeLiveReady = () =>
+  isYouTubeNativeLiveEngineMounted() && isYouTubeNativePreviewViewAvailable();
 
 const assertAndroid = () => {
   if (Platform.OS !== 'android' || !moduleRef) {
@@ -62,7 +99,41 @@ export const startYouTubeNativeLive = async (
     isStereo: options.isStereo ?? true,
     cameraFacing: options.cameraFacing ?? 'back',
     sourceType: options.sourceType ?? 'phone',
+    orientation: options.orientation ?? 'landscape',
   });
+};
+
+export const updateYouTubeLiveOverlay = async (
+  overlay: YouTubeLiveOverlayModel,
+) => {
+  if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
+    console.log('[Live Overlay] overlay disabled reason=native updateOverlay unavailable');
+    return false;
+  }
+
+  console.log('[Live Overlay] send overlay model to native', {
+    enabled: overlay.enabled,
+    mode: overlay.mode || 'unknown',
+    players: overlay.players?.map(player => ({
+      name: player.name,
+      score: player.score,
+      active: player.isActive,
+    })),
+    target: overlay.target,
+    inning: overlay.inning,
+    timer: overlay.timer,
+  });
+
+  return moduleRef.updateOverlay(overlay);
+};
+
+export const clearYouTubeLiveOverlay = async () => {
+  if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
+    return false;
+  }
+
+  console.log('[Live Overlay] enabled=false');
+  return moduleRef.updateOverlay({enabled: false});
 };
 
 export const stopYouTubeNativeLive = async () => {

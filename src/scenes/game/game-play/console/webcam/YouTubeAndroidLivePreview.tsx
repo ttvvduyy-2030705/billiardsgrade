@@ -4,15 +4,31 @@ import {Platform, requireNativeComponent, StyleSheet} from 'react-native';
 import View from 'components/View';
 import {
   getYouTubeNativeZoomInfo,
+  isYouTubeNativePreviewViewAvailable,
   prepareYouTubeNativePreview,
   setYouTubeNativeZoom,
   switchYouTubeNativeCamera,
 } from 'services/youtubeNativeLive';
 
-const NativePreview =
-  Platform.OS === 'android'
-    ? requireNativeComponent<any>('YouTubeLivePreviewView')
-    : null;
+const getNativePreviewComponent = () => {
+  if (Platform.OS !== 'android') {
+    return null;
+  }
+
+  if (!isYouTubeNativePreviewViewAvailable()) {
+    console.log('[YouTube Live] fallback reason=native preview view manager missing');
+    return null;
+  }
+
+  try {
+    return requireNativeComponent<any>('YouTubeLivePreviewView');
+  } catch (error) {
+    console.log('[YouTube Live] fallback reason=requireNativeComponent failed', error);
+    return null;
+  }
+};
+
+const NativePreview = getNativePreviewComponent();
 
 type Props = {
   controllerRef?: React.MutableRefObject<any>;

@@ -1608,6 +1608,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
           videoBitRate={resolvedVisionBitRate}
           zoom={safeZoom}
           resizeMode={cameraScaleMode}
+          outputOrientation="preview"
           androidPreviewViewType={resolvedAndroidPreviewViewType}
           onInitialized={() => {
             debugVideoLog('[Video] camera initialized');
@@ -1698,6 +1699,7 @@ const localStyles = StyleSheet.create({
   uvcFill: {
     flex: 1,
     width: '100%',
+    height: '100%',
   },
   cameraSurfaceHost: {
     ...StyleSheet.absoluteFillObject,

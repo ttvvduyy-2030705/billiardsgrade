@@ -53,9 +53,14 @@ import {
 } from 'services/youtubeLiveFlow';
 import {
   isYouTubeNativeLiveEngineMounted,
+  isYouTubeNativeLiveReady,
+  isYouTubeNativePreviewViewAvailable,
+  clearYouTubeLiveOverlay,
   startYouTubeNativeLive,
   stopYouTubeNativeLive,
   subscribeYouTubeNativeLiveState,
+  updateYouTubeLiveOverlay,
+  type YouTubeLiveOverlayModel,
 } from 'services/youtubeNativeLive';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
@@ -76,6 +81,83 @@ type StorageShape = {
   tiktok?: StoredSetup;
 };
 
+const toOverlayScore = (player: any): number => {
+  const value = player?.totalPoint ?? player?.point ?? player?.score ?? 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+};
+
+const formatOverlayTimer = (seconds?: number): string => {
+  const rawSeconds = Number(seconds || 0);
+  if (!Number.isFinite(rawSeconds) || rawSeconds <= 0) {
+    return '';
+  }
+
+  const total = Math.max(0, Math.floor(rawSeconds));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+};
+
+const resolveLiveOverlayMode = (category: any): 'pool' | 'carom' | 'unknown' => {
+  if (isCaromGame(category)) {
+    return 'carom';
+  }
+
+  if (
+    isPool9Game(category) ||
+    isPool10Game(category) ||
+    isPool15Game(category) ||
+    isPoolGame(category)
+  ) {
+    return 'pool';
+  }
+
+  return 'unknown';
+};
+
+const buildYouTubeLiveOverlayModel = ({
+  gameSettings,
+  playerSettings,
+  currentPlayerIndex,
+  countdownTime,
+  totalTurns,
+}: {
+  gameSettings?: any;
+  playerSettings?: PlayerSettings;
+  currentPlayerIndex?: number;
+  countdownTime?: number;
+  totalTurns?: number;
+}): YouTubeLiveOverlayModel => {
+  const players = Array.isArray(playerSettings?.playingPlayers)
+    ? playerSettings?.playingPlayers.slice(0, 2)
+    : [];
+
+  const goal =
+    gameSettings?.players?.goal?.goal ??
+    gameSettings?.players?.goal ??
+    gameSettings?.mode?.goal ??
+    gameSettings?.goal ??
+    '';
+
+  return {
+    enabled: true,
+    mode: resolveLiveOverlayMode(gameSettings?.category),
+    layout: 'landscape',
+    currentPlayerIndex: Number(currentPlayerIndex || 0),
+    players: players.map((player: any, index: number) => ({
+      name: String(player?.name || 'Người chơi ' + (index + 1)),
+      score: toOverlayScore(player),
+      countryCode: String(player?.country?.code || player?.countryCode || ''),
+      isActive: Number(currentPlayerIndex || 0) === index,
+    })),
+    target: goal === undefined || goal === null ? '' : String(goal),
+    inning: totalTurns === undefined || totalTurns === null ? '' : String(totalTurns),
+    timer: formatOverlayTimer(countdownTime),
+    logo: 'logo-small',
+  };
+};
+
 type GameplayLiveRouteParams = {
   livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
   saveToDeviceWhileStreaming?: boolean;
@@ -83,6 +165,7 @@ type GameplayLiveRouteParams = {
   liveAccountName?: string;
   liveAccountId?: string;
   liveSetupToken?: string;
+  autoStartOnEnter?: boolean;
 };
 
 const normalizeGameplayLivestreamPlatform = (value: any) => {
@@ -459,6 +542,7 @@ const GamePlayViewModel = () => {
       false,
   );
   const shouldUseYouTubeLive = selectedLivestreamPlatform === 'youtube';
+  const autoStartOnEnter = routeParams.autoStartOnEnter === true;
   const shouldUseLocalRecordingOnly = selectedLivestreamPlatform !== 'youtube';
   const gameSettingsSignature = useMemo(() => {
     return buildGameSettingsSignature(gameSettings);
@@ -473,6 +557,7 @@ const GamePlayViewModel = () => {
   const recordingRotateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recordingStartRetryRef = useRef<NodeJS.Timeout | null>(null);
   const restartAfterStopRef = useRef(false);
+  const autoStartRouteConsumedRef = useRef(false);
   const isRecordingRef = useRef(false);
   const isStoppingRecordingRef = useRef(false);
   const pendingStartRecordingRef = useRef(false);
@@ -682,7 +767,9 @@ const GamePlayViewModel = () => {
 
 
   const [isStarted, setIsStarted] = useState(
-    gameSettings?.mode?.mode === 'fast' && selectedLivestreamPlatform !== 'youtube'
+    gameSettings?.mode?.mode === 'fast' &&
+      selectedLivestreamPlatform !== 'youtube' &&
+      routeParams.autoStartOnEnter !== true
       ? true
       : false,
   );
@@ -701,6 +788,32 @@ const GamePlayViewModel = () => {
   const [youtubeLivePreparing, setYoutubeLivePreparing] = useState(false);
   const [youtubeNativeStartNonce, setYoutubeNativeStartNonce] = useState(0);
   const youtubeLiveNativeMode = youtubeLivePreviewActive || youtubeLivePreparing;
+  const liveOverlayModel = useMemo(
+    () =>
+      buildYouTubeLiveOverlayModel({
+        gameSettings,
+        playerSettings,
+        currentPlayerIndex,
+        countdownTime,
+        totalTurns,
+      }),
+    [gameSettings, playerSettings, currentPlayerIndex, countdownTime, totalTurns],
+  );
+  const liveOverlaySignature = useMemo(
+    () => JSON.stringify(liveOverlayModel),
+    [liveOverlayModel],
+  );
+
+  useEffect(() => {
+    if (!shouldUseYouTubeLive || !youtubeLiveNativeMode) {
+      void clearYouTubeLiveOverlay();
+      return;
+    }
+
+    console.log('[Live Overlay] enabled=true');
+    console.log('[Live Overlay] mode=' + String(liveOverlayModel.mode || 'unknown'));
+    void updateYouTubeLiveOverlay(liveOverlayModel);
+  }, [liveOverlaySignature, liveOverlayModel, shouldUseYouTubeLive, youtubeLiveNativeMode]);
 
   useEffect(() => {
     setYouTubeNativeCameraLock(youtubeLiveNativeMode);
@@ -2415,6 +2528,7 @@ const GamePlayViewModel = () => {
       });
 
       pendingYouTubeNativeStartRef.current = null;
+      void clearYouTubeLiveOverlay();
       activeYouTubeBroadcastIdRef.current = '';
       setYoutubeLiveOverlay(null);
       setYoutubeLivePreparing(false);
@@ -2435,7 +2549,36 @@ const GamePlayViewModel = () => {
       nativeSourceType,
       nativePhoneFacing,
     });
-    console.log('[YouTube Live] native engine mounted=' + isYouTubeNativeLiveEngineMounted());
+    const youtubeNativeModuleMounted = isYouTubeNativeLiveEngineMounted();
+    const youtubeNativePreviewAvailable = isYouTubeNativePreviewViewAvailable();
+    const youtubeNativeReady = isYouTubeNativeLiveReady();
+
+    console.log('[YouTube Live] native engine mounted=' + youtubeNativeModuleMounted);
+    console.log('[YouTube Live] native preview view available=' + youtubeNativePreviewAvailable);
+    console.log('[YouTube Live] native ready=' + youtubeNativeReady);
+
+    if (!youtubeNativeReady) {
+      console.log('[YouTube Live] fallback reason=native module/view manager missing', {
+        youtubeNativeModuleMounted,
+        youtubeNativePreviewAvailable,
+      });
+      pendingYouTubeNativeStartRef.current = null;
+      activeYouTubeBroadcastIdRef.current = '';
+      setYoutubeLivePreparing(false);
+      setYoutubeLivePreviewActive(false);
+      setIsCameraReady(false);
+      setIsStarted(false);
+      setYouTubeNativeCameraLock(false);
+      setYouTubeSourceLock(null);
+      setYoutubeLiveOverlay({
+        visible: true,
+        title: 'Live YouTube chưa sẵn sàng',
+        message:
+          'Thiếu native YouTube live module hoặc preview view manager. Hãy rebuild APK sau khi đăng ký YouTubeLiveModulePackage và YouTubeLivePreviewViewPackage trong MainApplication.',
+        checks: [],
+      });
+      return;
+    }
 
     shouldStartRecordingRef.current = false;
     pendingStartRecordingRef.current = false;
@@ -2470,11 +2613,21 @@ const GamePlayViewModel = () => {
         });
 
         console.log('[YouTube Live] created:', liveResponse?.session);
+        console.log('[YouTube Live] broadcastId=' + String(liveResponse?.session?.broadcastId || ''));
+        console.log('[YouTube Live] streamId=' + String(liveResponse?.session?.streamId || ''));
+        console.log('[YouTube Live] rtmpUrl exists=' + Boolean(liveResponse?.session?.streamUrl));
+        console.log('[YouTube Live] streamKey exists=' + Boolean(liveResponse?.session?.streamName));
         console.log('[YouTube Live] rtmpUrl received=' + Boolean(liveResponse?.session?.streamUrlWithKey));
 
         activeYouTubeBroadcastIdRef.current =
           liveResponse?.session?.broadcastId || liveResponse?.session?.id || '';
         console.log('[YouTube Live] active broadcast:', activeYouTubeBroadcastIdRef.current);
+
+        console.log('[Camera Orientation] appOrientation=landscape');
+        console.log('[YouTube Live] cameraOrientation=landscape');
+        console.log('[YouTube Live] final endpoint=' + String(liveResponse.session.streamUrlWithKey || ''));
+        console.log('[Live Overlay] create flow initial overlay push');
+        void updateYouTubeLiveOverlay(liveOverlayModel);
 
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
@@ -2488,6 +2641,7 @@ const GamePlayViewModel = () => {
             isStereo: true,
             cameraFacing: nativePhoneFacing,
             sourceType: nativeSourceType,
+            orientation: 'landscape',
           },
         };
 
@@ -2543,9 +2697,43 @@ const GamePlayViewModel = () => {
     saveToDeviceWhileStreaming,
     routeParams.livestreamPlatform,
     selectedLivestreamPlatform,
+    liveOverlayModel,
     shouldUseLocalRecordingOnly,
     shouldUseYouTubeLive,
     showYouTubeLiveFailure,
+  ]);
+
+
+  useEffect(() => {
+    if (!autoStartOnEnter || autoStartRouteConsumedRef.current) {
+      return;
+    }
+
+    if (!gameSettings || !playerSettings) {
+      return;
+    }
+
+    autoStartRouteConsumedRef.current = true;
+
+    console.log('[Settings Start] auto start consumed in gameplay', {
+      selectedPlatform: selectedLivestreamPlatform,
+      youtubeLiveEnabled: shouldUseYouTubeLive,
+      hasGameSettings: Boolean(gameSettings),
+      hasPlayerSettings: Boolean(playerSettings),
+    });
+
+    const timer = setTimeout(() => {
+      void onStart();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [
+    autoStartOnEnter,
+    gameSettings,
+    onStart,
+    playerSettings,
+    selectedLivestreamPlatform,
+    shouldUseYouTubeLive,
   ]);
 
   const onToggleCountDown = useCallback(() => {
