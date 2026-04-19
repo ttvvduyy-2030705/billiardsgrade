@@ -39,6 +39,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private var overlayStreamHeight: Int = 720
   private var rtmpConnected: Boolean = false
   private var overlayApplyScheduled: Boolean = false
+  private var overlayFilterRegistered: Boolean = false
   private var lastAppliedOverlaySignature: String = ""
   private var lastOverlayApplyMs: Long = 0L
 
@@ -267,6 +268,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
       emitState("camera_orientation", config.orientation)
       rtmpConnected = false
+      overlayFilterRegistered = false
       lastAppliedOverlaySignature = ""
       camera.startStream(config.url)
       emitState("audio_live", "microphone audio enabled")
@@ -368,6 +370,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     pendingConfig = null
     rtmpConnected = false
     overlayApplyScheduled = false
+    overlayFilterRegistered = false
     lastAppliedOverlaySignature = ""
     overlayModel = overlayModel.copy(enabled = false)
     val camera = rtmpCamera ?: return
@@ -543,10 +546,12 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       filter.setDefaultScale(width, height)
       filter.setPosition(TranslateTo.CENTER)
 
-      if (overlayFilter === filter && lastAppliedOverlaySignature.isBlank()) {
-        applySingleOverlayFilter(camera, filter)
-      } else if (overlayFilter !== filter) {
-        applySingleOverlayFilter(camera, filter)
+      if (!overlayFilterRegistered) {
+        val registered = applySingleOverlayFilter(camera, filter)
+        if (!registered) {
+          recycleBitmapLater(bitmap)
+          return
+        }
       }
 
       val previousBitmap = overlayBitmap
@@ -567,18 +572,54 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     }
   }
 
-  private fun applySingleOverlayFilter(camera: RtmpCamera2, filter: ImageObjectFilterRender) {
-    try {
-      // IMPORTANT: Do not use glInterface.setFilter(index, filter) here.
-      // In RootEncoder 2.2.x, the indexed filter list can be empty during the GL thread
-      // update cycle, causing ManagerRender.setFilter(index) to crash with
-      // IndexOutOfBoundsException. Camera2Base.setFilter(filter) is the safe single-filter
-      // path recommended by RootEncoder for realtime filters.
-      camera.setFilter(filter)
-      emitState("overlay_filter", "single_filter_applied")
+  private fun applySingleOverlayFilter(camera: RtmpCamera2, filter: ImageObjectFilterRender): Boolean {
+    return try {
+      // IMPORTANT:
+      // - Do NOT call camera.setFilter(filter) directly: this RootEncoder version used in
+      //   the project does not expose that method, so release build fails.
+      // - Do NOT call glInterface.setFilter(index, filter): if the internal filter list is
+      //   empty, ManagerRender.setFilter(index) throws IndexOutOfBoundsException on glThread
+      //   and kills the app.
+      //
+      // Use the non-indexed API when it exists, otherwise append the filter once. If the
+      // current RootEncoder build does not expose a safe API, disable overlay and keep the
+      // YouTube camera stream alive instead of crashing the match.
+      val glInterface = camera.glInterface
+      val applied = invokeFilterMethod(glInterface, "setFilter", filter)
+        || if (!overlayFilterRegistered) invokeFilterMethod(glInterface, "addFilter", filter) else true
+
+      if (!applied) {
+        Log.w(TAG, "[Live Overlay Native] overlay disabled: no safe non-indexed filter API")
+        emitState("overlay_disabled", "no_safe_filter_api")
+        overlayFilterRegistered = false
+        return false
+      }
+
+      overlayFilterRegistered = true
+      emitState("overlay_filter", "safe_filter_applied")
+      true
     } catch (error: Throwable) {
+      overlayFilterRegistered = false
       Log.e(TAG, "[Live Overlay Native] set overlay filter failed", error)
       emitState("overlay_error", error.message ?: "set overlay filter failed")
+      false
+    }
+  }
+
+  private fun invokeFilterMethod(target: Any?, methodName: String, filter: ImageObjectFilterRender): Boolean {
+    if (target == null) return false
+    return try {
+      val method = target.javaClass.methods.firstOrNull { method ->
+        method.name == methodName &&
+          method.parameterTypes.size == 1 &&
+          method.parameterTypes[0].isAssignableFrom(filter.javaClass)
+      } ?: return false
+
+      method.invoke(target, filter)
+      true
+    } catch (error: Throwable) {
+      Log.w(TAG, "[Live Overlay Native] $methodName(filter) unavailable", error)
+      false
     }
   }
 
