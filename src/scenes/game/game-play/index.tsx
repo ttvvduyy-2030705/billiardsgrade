@@ -460,7 +460,7 @@ const GamePlay = () => {
         cameraRef={viewModel.cameraRef}
         isCameraReady={viewModel.isCameraReady}
         setIsCameraReady={viewModel.setIsCameraReady}
-        youtubeLivePreviewActive={viewModel.youtubeLiveNativeMode || viewModel.youtubeLivePreviewActive}
+        youtubeLivePreviewActive={viewModel.youtubeLivePreviewActive}
         cameraFullscreen={isCameraFullscreen}
       />
     );

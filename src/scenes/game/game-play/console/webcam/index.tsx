@@ -455,26 +455,10 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     viewModel.refreshing,
   ]);
 
-  const useYouTubeNativePreview =
-    props.youtubeLivePreviewActive &&
-    Platform.OS === 'android' &&
-    !externalLiveLocked;
-
-  const isExplicitRecording =
-    recordingInfo?.isRecording === true ||
-    recordingInfo?.state === 'starting' ||
-    recordingInfo?.state === 'recording' ||
-    recordingInfo?.state === 'stopping';
-
-  const isVideoSessionLocked =
-    isExplicitRecording || !!props.youtubeLivePreviewActive || externalLiveLocked;
-
   const effectiveCameraReady =
-    useYouTubeNativePreview
-      ? cameraVisualReady || props.isCameraReady
-      : effectiveSourceType === 'phone'
-        ? props.isCameraReady && cameraVisualReady
-        : props.isCameraReady || cameraVisualReady;
+    effectiveSourceType === 'phone'
+      ? props.isCameraReady && cameraVisualReady
+      : props.isCameraReady || cameraVisualReady;
   const shouldShowPhonePlaceholder =
     effectiveSourceType === 'phone' && !effectiveCameraReady;
   const shouldShowPhoneLogoOverlay = false;
@@ -723,6 +707,20 @@ const handleZoomSliderComplete = useCallback(
     viewModel.onSwitchCamera();
   };
 
+  const useYouTubeNativePreview =
+    props.youtubeLivePreviewActive &&
+    Platform.OS === 'android' &&
+    !externalLiveLocked;
+
+  const isExplicitRecording =
+    recordingInfo?.isRecording === true ||
+    recordingInfo?.state === 'starting' ||
+    recordingInfo?.state === 'recording' ||
+    recordingInfo?.state === 'stopping';
+
+  const isVideoSessionLocked =
+    isExplicitRecording || !!props.youtubeLivePreviewActive || externalLiveLocked;
+
   const allowRefresh = !viewModel.refreshing && !isVideoSessionLocked;
 
   const allowSwitchCamera = !isVideoSessionLocked;
@@ -948,34 +946,15 @@ const handleZoomSliderComplete = useCallback(
     );
   };
 
-  const renderVideoBootstrap = (fullscreenMode: boolean) => {
-    if (useYouTubeNativePreview) {
-      debugCameraLog('[Camera Preview] mount requested', {
-        branch: 'youtube-native',
-        effectiveCameraSource,
-        effectiveSourceType,
-        cameraFacing: effectiveCameraFacing,
-        externalLiveLocked,
-      });
-
-      return (
-        <YouTubeAndroidLivePreview
-          controllerRef={youtubeControllerRef}
-          setIsCameraReady={handleCameraReadyChange}
-          sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
-          cameraFacing={effectiveCameraFacing}
-        />
-      );
-    }
-
-    debugCameraLog('[Camera Preview] mount requested', {
-      branch: 'video-component',
-      effectiveCameraSource,
-      effectiveSourceType,
-      externalLiveLocked,
-    });
-
-    return (
+  const renderVideoBootstrap = (fullscreenMode: boolean) => (
+    useYouTubeNativePreview ? (
+      <YouTubeAndroidLivePreview
+        controllerRef={youtubeControllerRef}
+        setIsCameraReady={handleCameraReadyChange}
+        sourceType={externalLiveLocked ? 'webcam' : effectiveSourceType}
+        cameraFacing={effectiveCameraFacing}
+      />
+    ) : (
       <Video
         gestureDisabled
         source={viewModel.source}
@@ -1008,8 +987,8 @@ const handleZoomSliderComplete = useCallback(
         suppressCameraFallbackOverlay={false}
         ignoreNavigationFocusLoss={fullscreenMode || props.forceFullscreen === true}
       />
-    );
-  };
+    )
+  );
 
   const renderCameraContent = () => {
     debugCameraLog('[WebCam] renderCameraContent branch', {

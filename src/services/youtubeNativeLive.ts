@@ -15,35 +15,6 @@ type StartOptions = {
   orientation?: 'landscape' | 'portrait';
 };
 
-export type YouTubeLiveOverlayPlayer = {
-  name?: string;
-  score?: number;
-  countryCode?: string;
-  isActive?: boolean;
-};
-
-export type YouTubeLiveOverlayLogo = {
-  slot?: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
-  uri?: string;
-  locked?: boolean;
-  showOnLivestream?: boolean;
-  showOnSavedVideo?: boolean;
-};
-
-export type YouTubeLiveOverlayModel = {
-  enabled: boolean;
-  mode?: 'pool' | 'carom' | 'unknown';
-  layout?: 'landscape';
-  currentPlayerIndex?: number;
-  players?: YouTubeLiveOverlayPlayer[];
-  target?: number | string;
-  inning?: number | string;
-  timer?: number | string;
-  title?: string;
-  logo?: string;
-  logos?: YouTubeLiveOverlayLogo[];
-};
-
 type ZoomInfo = {
   supported?: boolean;
   minZoom?: number;
@@ -53,70 +24,6 @@ type ZoomInfo = {
 };
 
 const moduleRef = NativeModules.YouTubeLiveModule;
-
-const LIVE_OVERLAY_VERBOSE_LOGS = false;
-let nativeOverlayUnavailableLogged = false;
-let lastOverlaySendLogSignature = '';
-let lastOverlaySendLogAt = 0;
-
-const liveOverlayLog = (...args: any[]) => {
-  if (LIVE_OVERLAY_VERBOSE_LOGS) {
-    console.log(...args);
-  }
-};
-
-const buildOverlaySendLogSignature = (overlay: YouTubeLiveOverlayModel) =>
-  JSON.stringify({
-    enabled: overlay.enabled,
-    mode: overlay.mode || 'unknown',
-    players: (overlay.players || []).map(player => ({
-      name: player.name || '',
-      score: player.score ?? 0,
-      active: player.isActive === true,
-    })),
-    target: overlay.target ?? '',
-    inning: overlay.inning ?? '',
-    logos: (overlay.logos || []).map(logo => ({
-      slot: logo.slot || '',
-      hasUri: Boolean(logo.uri),
-      locked: logo.locked === true,
-      showOnLivestream: logo.showOnLivestream === true,
-      showOnSavedVideo: logo.showOnSavedVideo !== false,
-    })),
-  });
-
-const maybeLogOverlaySend = (overlay: YouTubeLiveOverlayModel) => {
-  if (!LIVE_OVERLAY_VERBOSE_LOGS) {
-    return;
-  }
-  const signature = buildOverlaySendLogSignature(overlay);
-  const now = Date.now();
-  if (signature === lastOverlaySendLogSignature && now - lastOverlaySendLogAt < 30000) {
-    return;
-  }
-  lastOverlaySendLogSignature = signature;
-  lastOverlaySendLogAt = now;
-  console.log('[Live Overlay] send overlay model to native', {
-    enabled: overlay.enabled,
-    mode: overlay.mode || 'unknown',
-    players: overlay.players?.map(player => ({
-      name: player.name,
-      score: player.score,
-      active: player.isActive,
-    })),
-    target: overlay.target,
-    inning: overlay.inning,
-    timer: overlay.timer,
-    logos: overlay.logos?.map(logo => ({
-      slot: logo.slot,
-      uri: logo.uri ? '[configured]' : '',
-      locked: logo.locked === true,
-      showOnLivestream: logo.showOnLivestream === true,
-      showOnSavedVideo: logo.showOnSavedVideo !== false,
-    })),
-  });
-};
-
 
 export const isYouTubeNativeLiveEngineMounted = () =>
   Platform.OS === 'android' && Boolean(moduleRef);
@@ -174,31 +81,6 @@ export const startYouTubeNativeLive = async (
     sourceType: options.sourceType ?? 'phone',
     orientation: options.orientation ?? 'landscape',
   });
-};
-
-export const updateYouTubeLiveOverlay = async (
-  overlay: YouTubeLiveOverlayModel,
-) => {
-  if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
-    if (!nativeOverlayUnavailableLogged) {
-      nativeOverlayUnavailableLogged = true;
-      console.log('[Live Overlay] overlay disabled reason=native updateOverlay unavailable');
-    }
-    return false;
-  }
-
-  maybeLogOverlaySend(overlay);
-
-  return moduleRef.updateOverlay(overlay);
-};
-
-export const clearYouTubeLiveOverlay = async () => {
-  if (Platform.OS !== 'android' || !moduleRef?.updateOverlay) {
-    return false;
-  }
-
-  liveOverlayLog('[Live Overlay] enabled=false');
-  return moduleRef.updateOverlay({enabled: false});
 };
 
 export const stopYouTubeNativeLive = async () => {

@@ -104,35 +104,6 @@ const DEFAULT_YOUTUBE_NATIVE_ZOOM: YouTubeNativeZoomInfo = {
   source: 'youtube-native',
 };
 
-const PERMISSION_CHECK_TIMEOUT_MS = 2500;
-
-type CameraPermissionLike = 'loading' | 'granted' | 'denied' | 'not-determined' | 'restricted' | string;
-
-const normalizeCameraPermission = (status: CameraPermissionLike | null | undefined): PermissionState | null => {
-  if (status === 'granted' || status === 'authorized') {
-    return 'granted';
-  }
-
-  if (status === 'denied' || status === 'restricted' || status === 'blocked') {
-    return 'denied';
-  }
-
-  return null;
-};
-
-const getInitialCameraPermissionState = (): PermissionState => {
-  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
-    return 'granted';
-  }
-
-  try {
-    const status = Camera.getCameraPermissionStatus() as CameraPermissionLike;
-    return normalizeCameraPermission(status) || 'loading';
-  } catch {
-    return 'loading';
-  }
-};
-
 const USB_RESCAN_INTERVAL_MS = 4000;
 const UVC_PRESENCE_GRACE_MS = 3000;
 const UVC_ZOOM_REFRESH_INTERVAL_MS = 2500;
@@ -256,7 +227,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const [cameraLifecycleActive, setCameraLifecycleActive] = useState(
     () => AppState.currentState === 'active',
   );
-  const [permissionState, setPermissionState] = useState<PermissionState>(getInitialCameraPermissionState);
+  const [permissionState, setPermissionState] = useState<PermissionState>('loading');
   const [microphonePermissionState, setMicrophonePermissionState] =
     useState<PermissionState>('loading');
   const [usbDevices, setUsbDevices] = useState<any[]>([]);
@@ -267,8 +238,6 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   const [selectedSource, setSelectedSource] = useState<CameraSource>(() =>
     getSelectedSourceSnapshot(),
   );
-  const permissionCheckSeqRef = useRef(0);
-  const lastCameraRenderBranchRef = useRef('');
   const [zoom, setZoom] = useState(1);
   const [uvcZoomInfoState, setUvcZoomInfoState] = useState<UvcZoomInfo>(DEFAULT_UVC_ZOOM);
   const [youtubeNativeZoomInfoState, setYoutubeNativeZoomInfoState] =
@@ -422,7 +391,8 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
 }, []);
 
   useEffect(() => {
-    void refreshUsbDevices('mount');
+    
+    ('mount');
   }, [refreshUsbDevices]);
 
   useEffect(() => {
@@ -821,109 +791,31 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     });
   }, [resolvedSelectedSource, device?.id]);
 
-  const refreshCameraPermission = useCallback(async (reason: string = 'effect') => {
-    const seq = permissionCheckSeqRef.current + 1;
-    permissionCheckSeqRef.current = seq;
-
-    console.log('[Camera Permission] check start', {
-      reason,
-      effectiveWebcamType,
-      usingUvc,
-    });
-
+  const refreshCameraPermission = useCallback(async () => {
     if (effectiveWebcamType !== WebcamType.camera || usingUvc) {
-      if (permissionCheckSeqRef.current === seq) {
-        setPermissionState('granted');
-      }
-      console.log('[Camera Permission] check finish', {reason, status: 'granted', source: 'non-phone'});
+      setPermissionState('granted');
       return;
     }
 
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
     try {
-      const current = await Promise.race<CameraPermissionLike>([
-        Promise.resolve(Camera.getCameraPermissionStatus() as CameraPermissionLike),
-        new Promise<CameraPermissionLike>(resolve => {
-          timeoutId = setTimeout(() => resolve('timeout'), PERMISSION_CHECK_TIMEOUT_MS);
-        }),
-      ]);
-
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-
-      if (permissionCheckSeqRef.current !== seq) {
-        return;
-      }
-
-      console.log('[Camera Permission] status=' + String(current), {reason});
-
-      const normalized = normalizeCameraPermission(current);
-      if (normalized) {
-        setPermissionState(normalized);
-        console.log('[Camera Permission] check finish', {reason, status: normalized});
+      const current = await Camera.getCameraPermissionStatus();
+      debugVideoLog('[Video] camera permission status:', current);
+      if (current === 'granted') {
+        setPermissionState('granted');
         return;
       }
 
       if (current === 'not-determined') {
-        const next = await Promise.race<CameraPermissionLike>([
-          Promise.resolve(Camera.requestCameraPermission() as Promise<CameraPermissionLike> | CameraPermissionLike),
-          new Promise<CameraPermissionLike>(resolve => {
-            timeoutId = setTimeout(() => resolve('timeout'), PERMISSION_CHECK_TIMEOUT_MS);
-          }),
-        ]);
-
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-
-        if (permissionCheckSeqRef.current !== seq) {
-          return;
-        }
-
-        const nextState = normalizeCameraPermission(next) || 'denied';
-        setPermissionState(nextState);
-        console.log('[Camera Permission] check finish', {reason, status: nextState, requestResult: next});
-        return;
-      }
-
-      if (current === 'timeout') {
-        // VisionCamera permission checks can occasionally hang on some Android ROMs after
-        // switching between native live/preview surfaces. Re-read synchronously once; if
-        // the app already has permission, unblock the preview instead of leaving the UI
-        // stuck forever at "Đang kiểm tra quyền camera...".
-        try {
-          const fallbackStatus = Camera.getCameraPermissionStatus() as CameraPermissionLike;
-          const fallbackState = normalizeCameraPermission(fallbackStatus);
-          if (fallbackState) {
-            setPermissionState(fallbackState);
-            console.log('[Camera Permission] check finish', {reason, status: fallbackState, fallbackStatus});
-            return;
-          }
-        } catch {}
-
-        setPermissionState('granted');
-        console.log('[Camera Permission] check finish', {reason, status: 'granted', fallbackStatus: 'timeout-unblocked'});
+        const next = await Camera.requestCameraPermission();
+        debugVideoLog('[Video] camera permission request result:', next);
+        setPermissionState(next === 'granted' ? 'granted' : 'denied');
         return;
       }
 
       setPermissionState('denied');
-      console.log('[Camera Permission] check finish', {reason, status: 'denied', rawStatus: current});
     } catch (error) {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-
-      if (permissionCheckSeqRef.current !== seq) {
-        return;
-      }
-
-      console.log('[Camera Permission] error=', error);
+      debugVideoLog('[Video] camera permission error:', error);
       setPermissionState('denied');
-      console.log('[Camera Permission] check finish', {reason, status: 'denied', error: String(error)});
     }
   }, [effectiveWebcamType, usingUvc]);
 
@@ -966,32 +858,16 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
   }, [refreshMicrophonePermission]);
 
   useEffect(() => {
-    void refreshCameraPermission('mount-or-source-change');
+    void refreshCameraPermission();
     void refreshMicrophonePermission();
   }, [refreshCameraPermission, refreshMicrophonePermission]);
 
   useEffect(() => {
     if (appState === 'active' && isFocused) {
-      void refreshCameraPermission('focus-active');
+      void refreshCameraPermission();
       void refreshMicrophonePermission(false);
     }
   }, [appState, isFocused, refreshCameraPermission, refreshMicrophonePermission]);
-
-  useEffect(() => {
-    if (permissionState !== 'loading' || effectiveWebcamType !== WebcamType.camera || usingUvc) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      if (permissionState !== 'loading') {
-        return;
-      }
-      console.log('[Camera Permission] loading timeout guard fired');
-      void refreshCameraPermission('loading-timeout-guard');
-    }, PERMISSION_CHECK_TIMEOUT_MS + 800);
-
-    return () => clearTimeout(timer);
-  }, [effectiveWebcamType, permissionState, refreshCameraPermission, usingUvc]);
 
   useEffect(() => {
     const sourceKey = `${resolvedSelectedSource}:${device?.id || 'unknown'}`;
@@ -1381,20 +1257,11 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     Platform.OS === 'android' && isYouTubeNativeCameraLocked();
   const externalLiveLocked = youtubeSourceLock === 'external';
 
-  const shouldUseCameraSource =
+  const shouldUsePhoneCamera =
     effectiveWebcamType === WebcamType.camera &&
     !usingUvc &&
-    !externalLiveLocked;
-
-  const isYouTubeNativeActive =
-    Platform.OS === 'android' &&
-    shouldUseCameraSource &&
-    isYouTubeNativeCameraEnabled();
-
-  const shouldUsePhoneCamera =
-    shouldUseCameraSource &&
     !youtubeNativeCameraLocked &&
-    !isYouTubeNativeActive;
+    !externalLiveLocked;
   const shouldActivatePhoneCamera =
     shouldUsePhoneCamera &&
     permissionState === 'granted' &&
@@ -1409,14 +1276,19 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
         : props.androidPreviewViewTypeOverride || 'surface-view'
       : undefined;
 
+  const isYouTubeNativeActive =
+    Platform.OS === 'android' &&
+    shouldUsePhoneCamera &&
+    isYouTubeNativeCameraEnabled();
+
   useEffect(() => {
-    if (!youtubeNativeCameraLocked || isYouTubeNativeActive) {
+    if (!youtubeNativeCameraLocked) {
       return;
     }
 
     setCameraErrorMessage(null);
     props.setIsCameraReady(false);
-  }, [isYouTubeNativeActive, props.setIsCameraReady, youtubeNativeCameraLocked]);
+  }, [props.setIsCameraReady, youtubeNativeCameraLocked]);
 
   useEffect(() => {
     if (
@@ -1628,43 +1500,7 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     setCameraErrorMessage,
   ]);
 
-  const cameraRenderBranch = isYouTubeNativeActive
-    ? 'youtube-native'
-    : youtubeNativeCameraLocked && !externalLiveLocked
-      ? 'native-lock-fallback'
-      : effectiveWebcamType !== WebcamType.camera
-        ? 'external-video'
-        : usingUvc
-          ? 'uvc'
-          : permissionState === 'loading'
-            ? 'permission-loading'
-            : permissionState === 'denied'
-              ? 'permission-denied'
-              : !device
-                ? 'no-device'
-                : cameraErrorMessage
-                  ? 'camera-error'
-                  : 'vision-camera';
-
-  if (lastCameraRenderBranchRef.current !== cameraRenderBranch) {
-    lastCameraRenderBranchRef.current = cameraRenderBranch;
-    console.log('[Camera Render] branch=' + cameraRenderBranch, {
-      effectiveWebcamType,
-      selectedSource,
-      resolvedSelectedSource,
-      usingUvc,
-      permissionState,
-      hasDevice: !!device,
-      cameraErrorMessage,
-      isYouTubeNativeActive,
-      youtubeNativeCameraLocked,
-      externalLiveLocked,
-      phoneModeHydrated,
-      cameraLifecycleActive,
-    });
-  }
-
-  if (youtubeNativeCameraLocked && !externalLiveLocked && !isYouTubeNativeActive) {
+  if (youtubeNativeCameraLocked && !externalLiveLocked) {
     return renderFallback();
   }
 
@@ -1707,6 +1543,14 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
     );
   }
 
+  if (permissionState === 'loading') {
+    return renderFallback('Đang kiểm tra quyền camera...');
+  }
+
+  if (permissionState === 'denied') {
+    return renderFallback('Bạn chưa cấp quyền camera cho ứng dụng.');
+  }
+
   if (isYouTubeNativeActive) {
     if (cameraErrorMessage) {
       return renderFallback(cameraErrorMessage);
@@ -1727,14 +1571,6 @@ const AplusVideo = (props: Props, ref: React.LegacyRef<any>) => {
         }}
       />
     );
-  }
-
-  if (permissionState === 'loading') {
-    return renderFallback('Đang kiểm tra quyền camera...');
-  }
-
-  if (permissionState === 'denied') {
-    return renderFallback('Bạn chưa cấp quyền camera cho ứng dụng.');
   }
 
   if (availableSources.length > 0 && !availableSources.includes(selectedSource)) {

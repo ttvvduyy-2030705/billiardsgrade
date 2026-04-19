@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect, useNavigation, useRoute} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert, Image as RNImage} from 'react-native';
+import {Alert} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
 import RNFS from 'react-native-fs';
 // import {captureRef} from 'react-native-view-shot';
@@ -29,8 +29,6 @@ import {BallType, PoolBallType} from 'types/ball';
 import {NativeModules} from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import {LIVESTREAM_ACCOUNT_STORAGE_KEY} from 'config/livestreamAuth';
-import images from 'assets';
-import {keys} from 'configuration/keys';
 import {
   RECORDING_SEGMENT_DURATION_MS,
   MAX_REPLAY_STORAGE_BYTES,
@@ -57,24 +55,10 @@ import {
   isYouTubeNativeLiveEngineMounted,
   isYouTubeNativeLiveReady,
   isYouTubeNativePreviewViewAvailable,
-  clearYouTubeLiveOverlay,
   startYouTubeNativeLive,
   stopYouTubeNativeLive,
   subscribeYouTubeNativeLiveState,
-  updateYouTubeLiveOverlay,
-  type YouTubeLiveOverlayLogo,
-  type YouTubeLiveOverlayModel,
 } from 'services/youtubeNativeLive';
-import {
-  getPoolCameraScoreboardState,
-  subscribePoolCameraScoreboardState,
-  type PoolCameraScoreboardState,
-} from './console/webcam/poolScoreboardStore';
-import {
-  getCaromCameraScoreboardState,
-  subscribeCaromCameraScoreboardState,
-  type CaromCameraScoreboardState,
-} from './console/webcam/caromScoreboardStore';
 
 let countdownInterval: NodeJS.Timeout, warmUpCountdownInterval: NodeJS.Timeout;
 const {CameraService} = NativeModules;
@@ -92,185 +76,6 @@ type StorageShape = {
   facebook?: StoredSetup;
   youtube?: StoredSetup;
   tiktok?: StoredSetup;
-};
-
-const toOverlayScore = (player: any): number => {
-  const value = player?.totalPoint ?? player?.point ?? player?.score ?? 0;
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : 0;
-};
-
-const formatOverlayTimer = (seconds?: number): string => {
-  const rawSeconds = Number(seconds || 0);
-  if (!Number.isFinite(rawSeconds) || rawSeconds <= 0) {
-    return '';
-  }
-
-  const total = Math.max(0, Math.floor(rawSeconds));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-};
-
-const resolveLiveOverlayMode = (category: any): 'pool' | 'carom' | 'unknown' => {
-  if (isCaromGame(category)) {
-    return 'carom';
-  }
-
-  if (
-    isPool9Game(category) ||
-    isPool10Game(category) ||
-    isPool15Game(category) ||
-    isPoolGame(category)
-  ) {
-    return 'pool';
-  }
-
-  return 'unknown';
-};
-
-const getResolvedLiveOverlayLogoUri = (assetSource?: number) => {
-  if (typeof assetSource !== 'number') {
-    return '';
-  }
-
-  try {
-    return RNImage.resolveAssetSource(assetSource)?.uri || '';
-  } catch {
-    return '';
-  }
-};
-
-const parseStoredThumbnailUris = (value?: string | null): string[] => {
-  if (!value) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-      : [];
-  } catch {
-    return [];
-  }
-};
-
-const readConfiguredLiveOverlayLogos = async (): Promise<YouTubeLiveOverlayLogo[]> => {
-  const fallbackLockedLogo =
-    getResolvedLiveOverlayLogoUri((images as any).logoFilled) ||
-    getResolvedLiveOverlayLogoUri((images as any).logoSmall) ||
-    getResolvedLiveOverlayLogoUri((images as any).logo) ||
-    '';
-
-  const result = await AsyncStorage.multiGet([
-    keys.SHOW_THUMBNAILS_ON_LIVESTREAM,
-    keys.THUMBNAILS_TOP_LEFT,
-    keys.THUMBNAILS_TOP_RIGHT,
-    keys.THUMBNAILS_BOTTOM_LEFT,
-    keys.THUMBNAILS_BOTTOM_RIGHT,
-  ]);
-
-  const showRaw = result?.[0]?.[1];
-  const showCustomLogosOnLivestream =
-    typeof showRaw === 'string' ? showRaw === '1' || showRaw.toLowerCase() === 'true' : true;
-
-  const topLeft = parseStoredThumbnailUris(result?.[1]?.[1]);
-  const topRight = parseStoredThumbnailUris(result?.[2]?.[1]);
-  const bottomLeft = parseStoredThumbnailUris(result?.[3]?.[1]);
-  const bottomRight = parseStoredThumbnailUris(result?.[4]?.[1]);
-
-  const lockedUri = topLeft[0] || fallbackLockedLogo;
-  const logos: YouTubeLiveOverlayLogo[] = [];
-
-  if (lockedUri) {
-    logos.push({
-      slot: 'topLeft',
-      uri: lockedUri,
-      locked: true,
-      showOnLivestream: true,
-      showOnSavedVideo: true,
-    });
-  }
-
-  const addCustomSlot = (
-    slot: 'topRight' | 'bottomLeft' | 'bottomRight',
-    uris: string[],
-  ) => {
-    const uri = uris[0];
-    if (!uri) {
-      return;
-    }
-
-    console.log(
-      `[Live Overlay] customLogo slot=${slot} showOnLivestream=${showCustomLogosOnLivestream} showOnSavedVideo=true`,
-    );
-
-    if (!showCustomLogosOnLivestream) {
-      return;
-    }
-
-    logos.push({
-      slot,
-      uri,
-      locked: false,
-      showOnLivestream: true,
-      showOnSavedVideo: true,
-    });
-  };
-
-  console.log('[Live Overlay] source=config-thumbnail');
-  console.log('[Live Overlay] lockedLogo showOnLive=true');
-  addCustomSlot('topRight', topRight);
-  addCustomSlot('bottomLeft', bottomLeft);
-  addCustomSlot('bottomRight', bottomRight);
-
-  return logos;
-};
-
-const buildYouTubeLiveOverlayModel = ({
-  gameSettings,
-  playerSettings,
-  currentPlayerIndex,
-  countdownTime,
-  totalTurns,
-  logos = [],
-}: {
-  gameSettings?: any;
-  playerSettings?: PlayerSettings;
-  currentPlayerIndex?: number;
-  countdownTime?: number;
-  totalTurns?: number;
-  logos?: YouTubeLiveOverlayLogo[];
-}): YouTubeLiveOverlayModel => {
-  const players = Array.isArray(playerSettings?.playingPlayers)
-    ? playerSettings?.playingPlayers.slice(0, 2)
-    : [];
-
-  const goal =
-    gameSettings?.players?.goal?.goal ??
-    gameSettings?.players?.goal ??
-    gameSettings?.mode?.goal ??
-    gameSettings?.goal ??
-    '';
-
-  return {
-    enabled: true,
-    mode: resolveLiveOverlayMode(gameSettings?.category),
-    layout: 'landscape',
-    currentPlayerIndex: Number(currentPlayerIndex || 0),
-    players: players.map((player: any, index: number) => ({
-      name: String(player?.name || 'Người chơi ' + (index + 1)),
-      score: toOverlayScore(player),
-      countryCode: String(player?.country?.code || player?.countryCode || ''),
-      isActive: Number(currentPlayerIndex || 0) === index,
-    })),
-    target: goal === undefined || goal === null ? '' : String(goal),
-    inning: totalTurns === undefined || totalTurns === null ? '' : String(totalTurns),
-    timer: formatOverlayTimer(countdownTime),
-    logo: 'config-thumbnail',
-    logos,
-  };
 };
 
 type GameplayLiveRouteParams = {
@@ -292,13 +97,6 @@ const normalizeGameplayLivestreamPlatform = (value: any) => {
     : null;
 };
 
-
-const LIVE_OVERLAY_VERBOSE_LOGS = false;
-const liveOverlayDebugLog = (...args: any[]) => {
-  if (__DEV__ && LIVE_OVERLAY_VERBOSE_LOGS) {
-    console.log(...args);
-  }
-};
 
 const DEBUG_MATCH_RESTORE = false;
 const debugMatchRestoreLog = (...args: any[]) => {
@@ -910,133 +708,6 @@ const GamePlayViewModel = () => {
   const [youtubeLivePreparing, setYoutubeLivePreparing] = useState(false);
   const [youtubeNativeStartNonce, setYoutubeNativeStartNonce] = useState(0);
   const youtubeLiveNativeMode = youtubeLivePreviewActive || youtubeLivePreparing;
-  const [liveOverlayLogos, setLiveOverlayLogos] = useState<YouTubeLiveOverlayLogo[]>([]);
-  const liveOverlayLogosRef = useRef<YouTubeLiveOverlayLogo[]>([]);
-  const [poolStoreState, setPoolStoreState] = useState<PoolCameraScoreboardState>(
-    getPoolCameraScoreboardState(),
-  );
-  const [caromStoreState, setCaromStoreState] = useState<CaromCameraScoreboardState>(
-    getCaromCameraScoreboardState(),
-  );
-
-  useEffect(() => subscribePoolCameraScoreboardState(setPoolStoreState), []);
-  useEffect(() => subscribeCaromCameraScoreboardState(setCaromStoreState), []);
-
-  const refreshLiveOverlayLogos = useCallback(async () => {
-    try {
-      const logos = await readConfiguredLiveOverlayLogos();
-      liveOverlayLogosRef.current = logos;
-      setLiveOverlayLogos(logos);
-      return logos;
-    } catch (error) {
-      console.log('[Live Overlay] disabled reason=config-thumbnail-load-failed', error);
-      liveOverlayLogosRef.current = [];
-      setLiveOverlayLogos([]);
-      return [];
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshLiveOverlayLogos();
-  }, [refreshLiveOverlayLogos]);
-
-  const liveOverlaySourceState = useMemo(() => {
-    const carom = isCaromGame(caromStoreState.gameSettings?.category)
-      ? caromStoreState
-      : isCaromGame(gameSettings?.category)
-        ? {
-            ...caromStoreState,
-            gameSettings: caromStoreState.gameSettings || gameSettings,
-            playerSettings: caromStoreState.playerSettings || playerSettings,
-            currentPlayerIndex: caromStoreState.currentPlayerIndex ?? currentPlayerIndex,
-            countdownTime: caromStoreState.countdownTime ?? countdownTime,
-            totalTurns: caromStoreState.totalTurns ?? totalTurns,
-          }
-        : null;
-
-    if (carom) {
-      return {
-        source: 'CaromScoreBroadStore',
-        mode: 'carom',
-        gameSettings: carom.gameSettings,
-        playerSettings: carom.playerSettings,
-        currentPlayerIndex: carom.currentPlayerIndex,
-        countdownTime: carom.countdownTime,
-        totalTurns: carom.totalTurns,
-      };
-    }
-
-    return {
-      source: 'PoolScoreBoardStore',
-      mode: 'pool',
-      gameSettings: poolStoreState.gameSettings || gameSettings,
-      playerSettings: poolStoreState.playerSettings || playerSettings,
-      currentPlayerIndex: poolStoreState.currentPlayerIndex ?? currentPlayerIndex,
-      countdownTime: poolStoreState.countdownTime ?? countdownTime,
-      totalTurns,
-    };
-  }, [
-    caromStoreState,
-    countdownTime,
-    currentPlayerIndex,
-    gameSettings,
-    playerSettings,
-    poolStoreState,
-    totalTurns,
-  ]);
-
-  const liveOverlayModel = useMemo(
-    () =>
-      buildYouTubeLiveOverlayModel({
-        gameSettings: liveOverlaySourceState.gameSettings,
-        playerSettings: liveOverlaySourceState.playerSettings,
-        currentPlayerIndex: liveOverlaySourceState.currentPlayerIndex,
-        countdownTime: liveOverlaySourceState.countdownTime,
-        totalTurns: liveOverlaySourceState.totalTurns,
-        logos: liveOverlayLogos,
-      }),
-    [liveOverlaySourceState, liveOverlayLogos],
-  );
-  const liveOverlaySignature = useMemo(
-    () => JSON.stringify(liveOverlayModel),
-    [liveOverlayModel],
-  );
-  const hasSentLiveOverlayRef = useRef(false);
-
-  useEffect(() => {
-    const modelValid =
-      liveOverlayModel.enabled === true &&
-      (liveOverlayModel.mode === 'pool' || liveOverlayModel.mode === 'carom') &&
-      Array.isArray(liveOverlayModel.players) &&
-      liveOverlayModel.players.length > 0;
-
-    if (!shouldUseYouTubeLive || !youtubeLiveNativeMode || !modelValid) {
-      if (shouldUseYouTubeLive && youtubeLiveNativeMode && !modelValid) {
-        liveOverlayDebugLog('[Live Overlay] disabled reason=invalid model');
-      }
-
-      if (hasSentLiveOverlayRef.current) {
-        hasSentLiveOverlayRef.current = false;
-        void clearYouTubeLiveOverlay();
-      }
-      return;
-    }
-
-    liveOverlayDebugLog('[Live Overlay] enabled=true');
-    liveOverlayDebugLog('[Live Overlay] source=config-thumbnail');
-    liveOverlayDebugLog('[Live Overlay] mode=' + String(liveOverlayModel.mode || 'unknown'));
-    liveOverlayDebugLog('[Live Overlay] poolStore=PoolScoreBoardStore');
-    liveOverlayDebugLog('[Live Overlay] caromStore=CaromScoreBroadStore');
-    liveOverlayDebugLog('[Live Overlay] update score from store=' + liveOverlaySourceState.source);
-    hasSentLiveOverlayRef.current = true;
-    void updateYouTubeLiveOverlay(liveOverlayModel);
-  }, [
-    liveOverlaySignature,
-    liveOverlayModel,
-    liveOverlaySourceState.source,
-    shouldUseYouTubeLive,
-    youtubeLiveNativeMode,
-  ]);
 
   useEffect(() => {
     setYouTubeNativeCameraLock(youtubeLiveNativeMode);
@@ -2751,7 +2422,6 @@ const GamePlayViewModel = () => {
       });
 
       pendingYouTubeNativeStartRef.current = null;
-      void clearYouTubeLiveOverlay();
       activeYouTubeBroadcastIdRef.current = '';
       setYoutubeLiveOverlay(null);
       setYoutubeLivePreparing(false);
@@ -2849,18 +2519,6 @@ const GamePlayViewModel = () => {
         console.log('[Camera Orientation] appOrientation=landscape');
         console.log('[YouTube Live] cameraOrientation=landscape');
         console.log('[YouTube Live] final endpoint=' + String(liveResponse.session.streamUrlWithKey || ''));
-        const configuredLiveLogos = await refreshLiveOverlayLogos();
-        const initialLiveOverlayModel = buildYouTubeLiveOverlayModel({
-          gameSettings: liveOverlaySourceState.gameSettings,
-          playerSettings: liveOverlaySourceState.playerSettings,
-          currentPlayerIndex: liveOverlaySourceState.currentPlayerIndex,
-          countdownTime: liveOverlaySourceState.countdownTime,
-          totalTurns: liveOverlaySourceState.totalTurns,
-          logos: configuredLiveLogos,
-        });
-        console.log('[Live Overlay] create flow initial overlay push');
-        console.log('[Live Overlay] send model to native');
-        void updateYouTubeLiveOverlay(initialLiveOverlayModel);
 
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
@@ -2930,9 +2588,6 @@ const GamePlayViewModel = () => {
     saveToDeviceWhileStreaming,
     routeParams.livestreamPlatform,
     selectedLivestreamPlatform,
-    liveOverlayModel,
-    liveOverlaySourceState,
-    refreshLiveOverlayLogos,
     shouldUseLocalRecordingOnly,
     shouldUseYouTubeLive,
     showYouTubeLiveFailure,
@@ -3608,7 +3263,6 @@ const GamePlayViewModel = () => {
       onResetTurn,
       youtubeLiveOverlay,
       youtubeLivePreviewActive,
-      youtubeLiveNativeMode,
       dismissYouTubeLiveOverlay,
       openYouTubeLiveLogin,
       cameraRef,
@@ -3684,7 +3338,6 @@ const GamePlayViewModel = () => {
     onResetTurn,
     youtubeLiveOverlay,
     youtubeLivePreviewActive,
-    youtubeLiveNativeMode,
     dismissYouTubeLiveOverlay,
     openYouTubeLiveLogin,
     cameraRef,

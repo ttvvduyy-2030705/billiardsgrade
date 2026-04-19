@@ -4,7 +4,6 @@ import android.hardware.camera2.CameraMetadata
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -88,101 +87,6 @@ class YouTubeLiveModule(reactContext: ReactApplicationContext) :
       ),
     )
     promise.resolve(true)
-  }
-
-  @ReactMethod
-  fun updateOverlay(model: ReadableMap?, promise: Promise) {
-    try {
-      val enabled = if (model?.hasKey("enabled") == true && !model.isNull("enabled")) model.getBoolean("enabled") else false
-      val mode = if (model?.hasKey("mode") == true && !model.isNull("mode")) model.getString("mode") ?: "unknown" else "unknown"
-      val currentPlayerIndex = if (model?.hasKey("currentPlayerIndex") == true) {
-        model.getInt("currentPlayerIndex")
-      } else {
-        0
-      }
-      val players = parseOverlayPlayers(model?.getArray("players"), currentPlayerIndex)
-      val target = readOverlayValue(model, "target")
-      val inning = readOverlayValue(model, "inning")
-      val timer = readOverlayValue(model, "timer")
-      val logo = if (model?.hasKey("logo") == true && !model.isNull("logo")) model.getString("logo") ?: "config-thumbnail" else "config-thumbnail"
-      val logos = parseOverlayLogos(model?.getArray("logos"))
-
-      val overlay = YouTubeLiveEngine.LiveOverlayModel(
-        enabled = enabled,
-        mode = mode,
-        currentPlayerIndex = currentPlayerIndex,
-        players = players,
-        target = target,
-        inning = inning,
-        timer = timer,
-        logo = logo,
-        logos = logos,
-      )
-
-      YouTubeLiveEngine.updateOverlay(overlay)
-      promise.resolve(true)
-    } catch (error: Throwable) {
-      promise.reject("YOUTUBE_OVERLAY_FAILED", error.message, error)
-    }
-  }
-
-  private fun readOverlayValue(model: ReadableMap?, key: String): String {
-    if (model == null || !model.hasKey(key) || model.isNull(key)) return ""
-    return try {
-      model.getString(key) ?: ""
-    } catch (_: Throwable) {
-      try {
-        model.getDouble(key).toInt().toString()
-      } catch (_: Throwable) {
-        ""
-      }
-    }
-  }
-
-  private fun parseOverlayPlayers(
-    array: ReadableArray?,
-    currentPlayerIndex: Int,
-  ): List<YouTubeLiveEngine.LiveOverlayPlayer> {
-    if (array == null) return emptyList()
-    val players = mutableListOf<YouTubeLiveEngine.LiveOverlayPlayer>()
-    for (index in 0 until minOf(array.size(), 2)) {
-      val item = array.getMap(index) ?: continue
-      val score = try {
-        item.getDouble("score").toInt()
-      } catch (_: Throwable) {
-        0
-      }
-      players.add(
-        YouTubeLiveEngine.LiveOverlayPlayer(
-          name = if (item.hasKey("name") && !item.isNull("name")) item.getString("name") ?: "Người chơi ${index + 1}" else "Người chơi ${index + 1}",
-          score = score,
-          countryCode = if (item.hasKey("countryCode") && !item.isNull("countryCode")) item.getString("countryCode") ?: "" else "",
-          isActive = if (item.hasKey("isActive") && !item.isNull("isActive")) item.getBoolean("isActive") else currentPlayerIndex == index,
-        ),
-      )
-    }
-    return players
-  }
-
-  private fun parseOverlayLogos(array: ReadableArray?): List<YouTubeLiveEngine.LiveOverlayLogo> {
-    if (array == null) return emptyList()
-    val logos = mutableListOf<YouTubeLiveEngine.LiveOverlayLogo>()
-    for (index in 0 until minOf(array.size(), 4)) {
-      val item = array.getMap(index) ?: continue
-      val uri = if (item.hasKey("uri") && !item.isNull("uri")) item.getString("uri") ?: "" else ""
-      if (uri.isBlank()) continue
-      val slot = if (item.hasKey("slot") && !item.isNull("slot")) item.getString("slot") ?: "" else ""
-      logos.add(
-        YouTubeLiveEngine.LiveOverlayLogo(
-          slot = slot,
-          uri = uri,
-          locked = if (item.hasKey("locked") && !item.isNull("locked")) item.getBoolean("locked") else false,
-          showOnLivestream = if (item.hasKey("showOnLivestream") && !item.isNull("showOnLivestream")) item.getBoolean("showOnLivestream") else false,
-          showOnSavedVideo = if (item.hasKey("showOnSavedVideo") && !item.isNull("showOnSavedVideo")) item.getBoolean("showOnSavedVideo") else true,
-        ),
-      )
-    }
-    return logos
   }
 
   @ReactMethod
