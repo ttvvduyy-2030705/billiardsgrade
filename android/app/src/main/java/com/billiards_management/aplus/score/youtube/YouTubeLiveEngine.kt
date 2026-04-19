@@ -97,8 +97,10 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     emitState("overlay_model", "enabled=${model.enabled} mode=${model.mode}")
 
     val camera = rtmpCamera
-    if (camera != null) {
+    if (camera != null && camera.isStreaming) {
       applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
+    } else {
+      emitState("overlay_deferred", "waiting_stream")
     }
   }
 
@@ -259,12 +261,12 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
       overlayStreamWidth = selectedAttempt.width
       overlayStreamHeight = selectedAttempt.height
-      applyOverlayFilter(camera, selectedAttempt.width, selectedAttempt.height)
 
       emitState("camera_orientation", config.orientation)
       camera.startStream(config.url)
       emitState("audio_live", "microphone audio enabled")
       emitState("starting", null)
+      scheduleOverlayApply("post_start")
     } catch (error: Throwable) {
       Log.e(TAG, "startStream failed", error)
       emitState("error", error.message ?: "startStream failed")
@@ -745,12 +747,37 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private fun replaceViewIfPossible(camera: RtmpCamera2, view: OpenGlView) {
     try {
       val method = camera.javaClass.methods.firstOrNull {
-        it.name == "replaceView" && it.parameterTypes.size == 1
+        it.name == "replaceView" &&
+          it.parameterTypes.size == 1 &&
+          it.parameterTypes[0].isAssignableFrom(view.javaClass)
       }
-      method?.invoke(camera, view)
+      if (method != null) {
+        method.invoke(camera, view)
+      } else {
+        Log.i(TAG, "replaceView compatible overload not found; keeping existing preview view")
+      }
     } catch (error: Throwable) {
-      Log.w(TAG, "replaceView not available", error)
+      Log.w(TAG, "replaceView invoke failed", error)
     }
+  }
+
+  private fun scheduleOverlayApply(reason: String) {
+    val view = previewView ?: return
+    view.postDelayed({
+      synchronized(this) {
+        applyOverlayIfStreaming(reason)
+      }
+    }, 250)
+  }
+
+  private fun applyOverlayIfStreaming(reason: String) {
+    val camera = rtmpCamera ?: return
+    if (!camera.isStreaming) {
+      emitState("overlay_deferred", reason)
+      return
+    }
+    Log.i(TAG, "[Live Overlay Native] applying overlay after stream start reason=$reason")
+    applyOverlayFilter(camera, overlayStreamWidth, overlayStreamHeight)
   }
 
   private fun ensureCamera(): RtmpCamera2? {
@@ -782,10 +809,12 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
   override fun onConnectionStartedRtmp(rtmpUrl: String) {
     emitState("connection_started", rtmpUrl)
+    scheduleOverlayApply("connection_started")
   }
 
   override fun onConnectionSuccessRtmp() {
     emitState("connected", null)
+    scheduleOverlayApply("connected")
   }
 
   override fun onConnectionFailedRtmp(reason: String) {
