@@ -1001,10 +1001,24 @@ const GamePlayViewModel = () => {
     () => JSON.stringify(liveOverlayModel),
     [liveOverlayModel],
   );
+  const hasSentLiveOverlayRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldUseYouTubeLive || !youtubeLiveNativeMode) {
-      void clearYouTubeLiveOverlay();
+    const modelValid =
+      liveOverlayModel.enabled === true &&
+      (liveOverlayModel.mode === 'pool' || liveOverlayModel.mode === 'carom') &&
+      Array.isArray(liveOverlayModel.players) &&
+      liveOverlayModel.players.length > 0;
+
+    if (!shouldUseYouTubeLive || !youtubeLiveNativeMode || !modelValid) {
+      if (shouldUseYouTubeLive && youtubeLiveNativeMode && !modelValid) {
+        liveOverlayDebugLog('[Live Overlay] disabled reason=invalid model');
+      }
+
+      if (hasSentLiveOverlayRef.current) {
+        hasSentLiveOverlayRef.current = false;
+        void clearYouTubeLiveOverlay();
+      }
       return;
     }
 
@@ -1014,6 +1028,7 @@ const GamePlayViewModel = () => {
     liveOverlayDebugLog('[Live Overlay] poolStore=PoolScoreBoardStore');
     liveOverlayDebugLog('[Live Overlay] caromStore=CaromScoreBroadStore');
     liveOverlayDebugLog('[Live Overlay] update score from store=' + liveOverlaySourceState.source);
+    hasSentLiveOverlayRef.current = true;
     void updateYouTubeLiveOverlay(liveOverlayModel);
   }, [
     liveOverlaySignature,
