@@ -35,6 +35,7 @@ import LiveStreamImages from '../../livestream-images';
 import PoolBroadcastScoreboard from 'components/PoolBroadcastScoreboard';
 import CaromBroadcastScoreboard from 'components/CaromBroadcastScoreboard';
 import {isCaromGame, isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
+import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 import {
   EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
   subscribePoolCameraScoreboardState,
@@ -191,6 +192,10 @@ const LiveStreamImagesOverlay = memo(() => {
     return subscribePoolCameraScoreboardState(setState);
   }, []);
 
+  if (!shouldShowMatchOverlay(state.gameSettings, state.playerSettings)) {
+    return null;
+  }
+
   return (
     <RNView pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LiveStreamImages
@@ -203,7 +208,15 @@ const LiveStreamImagesOverlay = memo(() => {
   );
 });
 
-const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: boolean}) => {
+type CameraScoreboardOverlayProps = {
+  fullscreenMode?: boolean;
+  bottomOffset?: number;
+};
+
+const PoolScoreboardOverlay = memo(({
+  fullscreenMode = false,
+  bottomOffset,
+}: CameraScoreboardOverlayProps) => {
   const [state, setState] = useState<PoolCameraScoreboardState>(
     EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
   );
@@ -214,9 +227,10 @@ const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: 
 
   const poolCategory = state.gameSettings?.category;
   const shouldShowPool =
-    isPool9Game(poolCategory) ||
-    isPool10Game(poolCategory) ||
-    isPool15Game(poolCategory);
+    shouldShowMatchOverlay(state.gameSettings, state.playerSettings) &&
+    (isPool9Game(poolCategory) ||
+      isPool10Game(poolCategory) ||
+      isPool15Game(poolCategory));
 
   if (!shouldShowPool) {
     return null;
@@ -229,7 +243,7 @@ const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: 
       gameSettings={state.gameSettings}
       playerSettings={state.playerSettings}
       variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={fullscreenMode ? 18 : 14}
+      bottomOffset={bottomOffset ?? (fullscreenMode ? 18 : 14)}
     />
   );
 });
@@ -237,10 +251,7 @@ const PoolScoreboardOverlay = memo(({fullscreenMode = false}: {fullscreenMode?: 
 const CaromScoreboardOverlay = memo(({
   fullscreenMode = false,
   bottomOffset,
-}: {
-  fullscreenMode?: boolean;
-  bottomOffset?: number;
-}) => {
+}: CameraScoreboardOverlayProps) => {
   const [state, setState] = useState<CaromCameraScoreboardState>(
     EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
   );
@@ -249,16 +260,10 @@ const CaromScoreboardOverlay = memo(({
     return subscribeCaromCameraScoreboardState(setState);
   }, []);
 
-  const totalPlayers = Math.max(
-    Number((state.playerSettings as any)?.playerNumber || 0),
-    Array.isArray((state.playerSettings as any)?.playingPlayers)
-      ? (state.playerSettings as any).playingPlayers.length
-      : 0,
-    2,
-  );
-
   const shouldShowCarom =
-    isCaromGame(state.gameSettings?.category) && totalPlayers <= 2;
+    shouldShowMatchOverlay(state.gameSettings, state.playerSettings) &&
+    isCaromGame(state.gameSettings?.category);
+
   if (!shouldShowCarom) {
     return null;
   }
@@ -296,6 +301,17 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const [currentZoom, setCurrentZoom] = useState(1);
   const [thumbnailOverlay, setThumbnailOverlay] =
     useState<ThumbnailOverlayData>(EMPTY_THUMBNAILS);
+  const [matchOverlayState, setMatchOverlayState] =
+    useState<PoolCameraScoreboardState>(EMPTY_POOL_CAMERA_SCOREBOARD_STATE);
+
+  useEffect(() => {
+    return subscribePoolCameraScoreboardState(setMatchOverlayState);
+  }, []);
+
+  const shouldShowCameraMatchOverlay = shouldShowMatchOverlay(
+    matchOverlayState.gameSettings,
+    matchOverlayState.playerSettings,
+  );
 
   useEffect(() => {
     if (!props.forceFullscreen) {
@@ -852,7 +868,7 @@ const handleZoomSliderComplete = useCallback(
     thumbnailOverlay.bottomRight.length > 0;
 
   const renderOverlay = () => {
-    if (thumbnailOverlay.enabled) {
+    if (thumbnailOverlay.enabled || !shouldShowCameraMatchOverlay) {
       return null;
     }
 
@@ -929,7 +945,7 @@ const handleZoomSliderComplete = useCallback(
     fullscreenMode: boolean,
     options?: {skipTopLeft?: boolean},
   ) => {
-    if (!thumbnailOverlay.enabled) {
+    if (!thumbnailOverlay.enabled || !shouldShowCameraMatchOverlay) {
       return null;
     }
 
@@ -1076,7 +1092,7 @@ const handleZoomSliderComplete = useCallback(
 
   const renderFullscreenBranding = () => {
     const source = images.logoFilled || images.logo;
-    if (!source) {
+    if (!source || !shouldShowCameraMatchOverlay) {
       return null;
     }
 

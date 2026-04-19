@@ -38,6 +38,7 @@ import {
 } from 'services/replay/replayTimeline';
 import {goBack} from 'utils/navigation';
 import {isCaromGame, isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
+import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 
 import PlayBackWebcamViewModel, {
   PlayBackWebcamViewModelProps,
@@ -496,6 +497,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
         gameSettings: {
           category: resolvedCategory,
           mode: {
+            mode: timelineEntry.gameMode ?? gameSettings?.mode?.mode,
             countdownTime:
               timelineEntry.baseCountdown ?? gameSettings?.mode?.countdownTime ?? 0,
           },
@@ -543,8 +545,19 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     replaySnapshot,
   ]);
 
-  const renderPlaybackScoreboard = useCallback(() => {
+  const shouldShowPlaybackMatchOverlay = useMemo(() => {
     if (!playbackScoreboardProps) {
+      return false;
+    }
+
+    return shouldShowMatchOverlay(
+      playbackScoreboardProps.gameSettings,
+      playbackScoreboardProps.playerSettings,
+    );
+  }, [playbackScoreboardProps]);
+
+  const renderPlaybackScoreboard = useCallback(() => {
+    if (!playbackScoreboardProps || !shouldShowPlaybackMatchOverlay) {
       return null;
     }
 
@@ -582,7 +595,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
     }
 
     return null;
-  }, [playbackScoreboardProps]);
+  }, [playbackScoreboardProps, shouldShowPlaybackMatchOverlay]);
 
   return (
     <Container>
@@ -681,7 +694,7 @@ const PlayBackWebcam = (props: PlayBackWebcamViewModelProps) => {
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
               />
-              {renderPlaybackLogoOverlay()}
+              {shouldShowPlaybackMatchOverlay ? renderPlaybackLogoOverlay() : null}
               {renderPlaybackScoreboard()}
               <View style={overlayStyles.transportBar} pointerEvents={'box-none'}>
                 <View style={overlayStyles.transportButtons}>

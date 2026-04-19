@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {PlayerSettings} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
+import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 import useDesignSystem from 'theme/useDesignSystem';
 
 type Variant = 'camera' | 'fullscreen' | 'playback';
@@ -175,14 +176,8 @@ const PoolBroadcastScoreboard = ({
   const isSupportedCategory =
     isPool9Game(category) || isPool10Game(category) || isPool15Game(category);
   const playingPlayers = playerSettings?.playingPlayers || [];
-
-  if (!isSupportedCategory || playingPlayers.length < 2) {
-    return null;
-  }
-
   const {adaptive} = useDesignSystem();
   const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
-
   const metrics = getVariantMetrics(variant, useCompactMetrics, adaptive);
   const goal = safeNumber(
     gameSettings?.players?.goal?.goal ?? playerSettings?.goal?.goal,
@@ -209,6 +204,14 @@ const PoolBroadcastScoreboard = ({
     () => [styles.playerScore, {fontSize: metrics.playerScoreSize}],
     [metrics.playerScoreSize],
   );
+
+  if (
+    !isSupportedCategory ||
+    playingPlayers.length < 2 ||
+    !shouldShowMatchOverlay(gameSettings, playerSettings)
+  ) {
+    return null;
+  }
 
   return (
     <View

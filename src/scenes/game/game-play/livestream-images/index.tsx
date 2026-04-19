@@ -1,6 +1,7 @@
 import React, {memo, useCallback, useEffect, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Image, StyleSheet, View} from 'react-native';
+import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 
 export interface Props {
   currentPlayerIndex: number;
@@ -71,7 +72,7 @@ const LiveStreamImages = (props: Props) => {
     };
   }, [loadImages]);
 
-  if (!props.playerSettings || props.playerSettings.playingPlayers?.length > 2) {
+  if (!shouldShowMatchOverlay(props.gameSettings, props.playerSettings)) {
     return null;
   }
 

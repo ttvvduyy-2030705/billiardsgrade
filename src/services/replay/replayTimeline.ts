@@ -11,6 +11,7 @@ export type ReplayScoreboardTimelineEntry = {
   countdownTime: number;
   baseCountdown?: number;
   category?: any;
+  gameMode?: any;
   goal?: number;
   playerSettings?: any;
   totalTurns?: number;
@@ -67,6 +68,7 @@ const normalizeTimeline = (
           baseCountdown:
             item.baseCountdown == null ? undefined : Number(item.baseCountdown),
           category: item.category,
+          gameMode: item.gameMode,
           goal: item.goal == null ? undefined : Number(item.goal),
           playerSettings: clone(item.playerSettings),
           totalTurns: item.totalTurns == null ? undefined : Number(item.totalTurns),
@@ -201,6 +203,7 @@ export const appendReplayScoreboardTimelineEntry = async (
     baseCountdown:
       entry.baseCountdown == null ? undefined : Number(entry.baseCountdown),
     category: entry.category,
+    gameMode: entry.gameMode,
     goal: entry.goal == null ? undefined : Number(entry.goal),
     playerSettings: clone(entry.playerSettings),
     totalTurns: entry.totalTurns == null ? undefined : Number(entry.totalTurns),

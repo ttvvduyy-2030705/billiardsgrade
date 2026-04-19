@@ -3,6 +3,7 @@ import {StyleProp, StyleSheet, View, ViewStyle} from 'react-native';
 
 import CaromInfo from 'scenes/game/game-play/console/carom-info';
 import {isCaromGame} from 'utils/game';
+import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 import useDesignSystem from 'theme/useDesignSystem';
 
 type Variant = 'camera' | 'fullscreen' | 'playback';
@@ -102,15 +103,17 @@ const CaromBroadcastScoreboard = ({
 }: CaromBroadcastScoreboardProps) => {
   const category = gameSettings?.category;
   const players = playerSettings?.playingPlayers || [];
-
-  if (!isCaromGame(category) || players.length < 2) {
-    return null;
-  }
-
   const {adaptive} = useDesignSystem();
   const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
-
   const metrics = getMetrics(variant, useCompactMetrics, adaptive);
+
+  if (
+    !isCaromGame(category) ||
+    players.length < 2 ||
+    !shouldShowMatchOverlay(gameSettings, playerSettings)
+  ) {
+    return null;
+  }
 
   return (
     <View
