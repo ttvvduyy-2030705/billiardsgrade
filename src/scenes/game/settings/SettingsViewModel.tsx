@@ -21,7 +21,18 @@ import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
 import {COUNTRIES, CountryItem} from './player/countries';
 
-export interface Props extends Navigation {}
+export interface Props extends Navigation {
+  route?: {
+    params?: {
+      livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
+      saveToDeviceWhileStreaming?: boolean;
+      liveVisibility?: 'public' | 'private' | 'unlisted';
+      liveAccountName?: string;
+      liveAccountId?: string;
+      liveSetupToken?: string;
+    };
+  };
+}
 
 
 type SettingsDraftSnapshot = {
@@ -29,6 +40,21 @@ type SettingsDraftSnapshot = {
   gameSettingsMode: GameSettingsMode;
   playerSettings: PlayerSettings;
   savedAt?: number;
+};
+
+const normalizeLivestreamPlatform = (
+  value?: string | null,
+): 'facebook' | 'youtube' | 'tiktok' | 'device' | null => {
+  if (
+    value === 'facebook' ||
+    value === 'youtube' ||
+    value === 'tiktok' ||
+    value === 'device'
+  ) {
+    return value;
+  }
+
+  return null;
 };
 
 const SETTINGS_DRAFT_STORAGE_KEY = '@APLUS_GAME_SETTINGS_DRAFT_V1';
@@ -193,6 +219,17 @@ const sanitizePlayerSettings = (
 
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
+  const routeParams = props.route?.params || {};
+  const livestreamPlatform = normalizeLivestreamPlatform(
+    routeParams.livestreamPlatform,
+  );
+  const saveToDeviceWhileStreaming = Boolean(
+    routeParams.saveToDeviceWhileStreaming ?? false,
+  );
+  const liveVisibility = routeParams.liveVisibility || 'public';
+  const liveAccountName = routeParams.liveAccountName || '';
+  const liveAccountId = routeParams.liveAccountId || '';
+  const liveSetupToken = routeParams.liveSetupToken || '';
   const restoredDraftRef = useRef(false);
   const runtimeDraft = getSettingsDraftSync();
 
@@ -303,17 +340,52 @@ const GameSettingsViewModel = (props: Props) => {
 
     clearSettingsDraft();
 
+    const shouldCreateYouTubeLive = livestreamPlatform === 'youtube';
+
+    console.log('[Live Flow] start pressed', {
+      selectedPlatform: livestreamPlatform,
+      youtubeConnected: Boolean(liveAccountName || liveAccountId || liveSetupToken),
+      shouldCreateYouTubeLive,
+      saveToDeviceWhileStreaming,
+      liveVisibility,
+    });
+
+    if (!shouldCreateYouTubeLive) {
+      console.log('[Live Flow] local recording active reason=selectedPlatform is not youtube', {
+        selectedPlatform: livestreamPlatform,
+      });
+    }
+
     dispatch(
       gameActions.updateGameSettings({
         category,
         mode: gameSettingsMode,
         players: {...playerSettings, playingPlayers: _playingPlayers},
+        livestreamPlatform,
+        saveToDeviceWhileStreaming,
+        liveVisibility,
+        liveAccountName,
+        liveAccountId,
+        liveSetupToken,
       }),
     );
     props.navigate(screens.gamePlay);
 
     _resetData();
-  }, [dispatch, _resetData, props, category, gameSettingsMode, playerSettings]);
+  }, [
+    dispatch,
+    _resetData,
+    props,
+    category,
+    gameSettingsMode,
+    playerSettings,
+    livestreamPlatform,
+    saveToDeviceWhileStreaming,
+    liveVisibility,
+    liveAccountName,
+    liveAccountId,
+    liveSetupToken,
+  ]);
 
   const onSelectCategory = useCallback(
   (selectedCategory: BilliardCategory) => {

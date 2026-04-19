@@ -2,7 +2,7 @@ export const LIVESTREAM_AUTH_DEV_BASE_URL =
   'https://vania-worthwhile-ontogenetically.ngrok-free.dev';
 
 export const LIVESTREAM_AUTH_RELEASE_BASE_URL =
-  'https://YOUR_PRODUCTION_LIVESTREAM_BACKEND_URL';
+  'https://aplus-live-backend.onrender.com';
 
 export const LIVESTREAM_AUTH_BASE_URL = __DEV__
   ? LIVESTREAM_AUTH_DEV_BASE_URL

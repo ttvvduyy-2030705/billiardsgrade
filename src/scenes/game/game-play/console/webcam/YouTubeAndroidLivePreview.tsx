@@ -28,10 +28,18 @@ const YouTubeAndroidLivePreview = ({
   cameraFacing = 'back',
 }: Props) => {
   useEffect(() => {
+    console.log('[YouTube Live] native preview mount requested', {
+      sourceType,
+      cameraFacing,
+    });
     let mounted = true;
     const timer = setTimeout(() => {
       prepareYouTubeNativePreview(cameraFacing, sourceType)
         .then(async () => {
+          console.log('[YouTube Live] native preview prepared', {
+            sourceType,
+            cameraFacing,
+          });
           if (mounted) {
             setIsCameraReady(true);
           }
@@ -40,6 +48,7 @@ const YouTubeAndroidLivePreview = ({
           }
         })
         .catch(error => {
+          console.log('[YouTube Live] fallback reason=native preview prepare failed', error);
           console.log('[YouTubeNativePreview] prepare failed:', error);
           if (mounted) {
             setIsCameraReady(false);
@@ -81,6 +90,7 @@ const YouTubeAndroidLivePreview = ({
     }
 
     return () => {
+      console.log('[YouTube Live] native preview unmount');
       mounted = false;
       clearTimeout(timer);
       if (controllerRef) {
@@ -91,6 +101,7 @@ const YouTubeAndroidLivePreview = ({
   }, [cameraFacing, controllerRef, setIsCameraReady, sourceType]);
 
   if (!NativePreview) {
+    console.log('[YouTube Live] fallback reason=native preview view is not mounted');
     return <View style={styles.fallback} />;
   }
 

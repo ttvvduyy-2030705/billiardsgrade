@@ -47,10 +47,12 @@ import {navigate, push} from 'utils/navigation';
 import {
   createYouTubeLiveSession,
   getYouTubeLiveEligibility,
+  stopYouTubeLiveSession,
   type YouTubeEligibilityCheck,
   type YouTubeEligibilityResponse,
 } from 'services/youtubeLiveFlow';
 import {
+  isYouTubeNativeLiveEngineMounted,
   startYouTubeNativeLive,
   stopYouTubeNativeLive,
   subscribeYouTubeNativeLiveState,
@@ -65,6 +67,7 @@ type StoredSetup = {
   accountName?: string;
   visibility?: Visibility;
   accountId?: string;
+  setupToken?: string;
 };
 
 type StorageShape = {
@@ -492,6 +495,7 @@ const GamePlayViewModel = () => {
       sourceType: 'phone' | 'webcam';
     };
   } | null>(null);
+  const activeYouTubeBroadcastIdRef = useRef<string>('');
   const isEndingGameRef = useRef(false);
   const appliedReplayResumeSnapshotRef = useRef(false);
   const initializedGameStateRef = useRef(false);
@@ -725,6 +729,16 @@ const GamePlayViewModel = () => {
           await startYouTubeNativeLive(pending.url, pending.options);
         } catch (error: any) {
           console.log('[YouTube Live] native start failed:', error);
+          const activeYouTubeBroadcastId = activeYouTubeBroadcastIdRef.current;
+          activeYouTubeBroadcastIdRef.current = '';
+          if (activeYouTubeBroadcastId) {
+            try {
+              await stopYouTubeLiveSession(activeYouTubeBroadcastId);
+              console.log('[YouTube Live] stopped broadcast after native start failed:', activeYouTubeBroadcastId);
+            } catch (youtubeStopError) {
+              console.log('[YouTube Live] stop after native start failed:', youtubeStopError);
+            }
+          }
           pendingYouTubeNativeStartRef.current = null;
           setYoutubeLivePreparing(false);
           setYoutubeLivePreviewActive(false);
@@ -2320,6 +2334,10 @@ const GamePlayViewModel = () => {
     }
 
     console.log('[Replay] onStart pressed');
+    console.log('[Live Flow] start pressed');
+    console.log('[Live Flow] selectedPlatform=' + String(selectedLivestreamPlatform || 'none'));
+    console.log('[Live Flow] youtubeConnected=unknown-before-api-check');
+    console.log('[Live Flow] shouldCreateYouTubeLive=' + String(shouldUseYouTubeLive));
     console.log('[Live] selected platform:', selectedLivestreamPlatform, {
       saveToDeviceWhileStreaming,
       shouldUseYouTubeLive,
@@ -2359,6 +2377,13 @@ const GamePlayViewModel = () => {
     const nativePhoneFacing = lockedLiveSource === 'front' ? 'front' : 'back';
 
     if (!shouldUseYouTubeLive) {
+      console.log('[Live Flow] skip create reason=selectedPlatform is not youtube', {
+        selectedLivestreamPlatform,
+        currentSource,
+        availableSources,
+        lockedLiveSource,
+      });
+      console.log('[Live Flow] local recording active reason=selectedPlatform is not youtube');
       console.log('[Live] local recording mode only:', {
         selectedLivestreamPlatform,
         currentSource,
@@ -2367,6 +2392,7 @@ const GamePlayViewModel = () => {
       });
 
       pendingYouTubeNativeStartRef.current = null;
+      activeYouTubeBroadcastIdRef.current = '';
       setYoutubeLiveOverlay(null);
       setYoutubeLivePreparing(false);
       setYoutubeLivePreviewActive(false);
@@ -2386,6 +2412,7 @@ const GamePlayViewModel = () => {
       nativeSourceType,
       nativePhoneFacing,
     });
+    console.log('[YouTube Live] native engine mounted=' + isYouTubeNativeLiveEngineMounted());
 
     shouldStartRecordingRef.current = false;
     pendingStartRecordingRef.current = false;
@@ -2420,6 +2447,11 @@ const GamePlayViewModel = () => {
         });
 
         console.log('[YouTube Live] created:', liveResponse?.session);
+        console.log('[YouTube Live] rtmpUrl received=' + Boolean(liveResponse?.session?.streamUrlWithKey));
+
+        activeYouTubeBroadcastIdRef.current =
+          liveResponse?.session?.broadcastId || liveResponse?.session?.id || '';
+        console.log('[YouTube Live] active broadcast:', activeYouTubeBroadcastIdRef.current);
 
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
@@ -2443,6 +2475,7 @@ const GamePlayViewModel = () => {
         console.log('[YouTube Live] create failed:', error);
 
         pendingYouTubeNativeStartRef.current = null;
+        activeYouTubeBroadcastIdRef.current = '';
         setYoutubeLivePreparing(false);
         setYoutubeLivePreviewActive(false);
         setIsCameraReady(false);
@@ -2686,6 +2719,18 @@ const GamePlayViewModel = () => {
           pendingYouTubeNativeStartRef.current = null;
           setYoutubeLivePreparing(false);
           await stopYouTubeNativeLive();
+
+          const activeYouTubeBroadcastId = activeYouTubeBroadcastIdRef.current;
+          activeYouTubeBroadcastIdRef.current = '';
+          if (activeYouTubeBroadcastId) {
+            try {
+              await stopYouTubeLiveSession(activeYouTubeBroadcastId);
+              console.log('[YouTube Live] stopped broadcast:', activeYouTubeBroadcastId);
+            } catch (youtubeStopError) {
+              console.log('[YouTube Live] stop broadcast failed:', youtubeStopError);
+            }
+          }
+
           setYoutubeLivePreviewActive(false);
           setIsCameraReady(false);
 

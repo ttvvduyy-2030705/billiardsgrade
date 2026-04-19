@@ -4,6 +4,7 @@ import {
   createNativeStackNavigator,
 } from '@react-navigation/native-stack';
 import {StyleSheet} from 'react-native';
+import DeviceInfo from 'react-native-device-info';
 
 import Text from 'components/Text';
 import Button from 'components/Button';
@@ -20,6 +21,7 @@ import {goBack} from 'utils/navigation';
 
 import {screens} from './screens';
 import {configureSystemUI} from 'theme/systemUI';
+import {LIVESTREAM_AUTH_BASE_URL} from 'config/livestreamAuth';
 
 const Stack = createNativeStackNavigator();
 
@@ -122,6 +124,11 @@ const getWrappedConfigs = () =>
 
 const StackScreens = () => {
   useEffect(() => {
+    console.log('[Build Info] app started');
+    console.log('[Build Info] apiBaseUrl=' + LIVESTREAM_AUTH_BASE_URL);
+    console.log('[Build Info] package=' + DeviceInfo.getBundleId());
+    console.log('[Build Info] versionName=' + DeviceInfo.getVersion());
+    console.log('[Build Info] versionCode=' + DeviceInfo.getBuildNumber());
     configureSystemUI({animated: false});
   }, []);
 

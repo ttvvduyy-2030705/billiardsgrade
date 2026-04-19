@@ -1,6 +1,7 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
@@ -10,14 +11,37 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const TOKENS_PATH = path.join(DATA_DIR, 'tokens.json');
+const TOKEN_STORE_PATH = process.env.TOKEN_STORE_PATH || '';
+const DATA_DIR = process.env.DATA_DIR ||
+  (TOKEN_STORE_PATH
+    ? path.dirname(TOKEN_STORE_PATH)
+    : path.join(__dirname, '..', 'data'));
+const TOKENS_PATH = TOKEN_STORE_PATH || path.join(DATA_DIR, 'tokens.json');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
+
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  console.log("[HTTP] " + req.method + " " + req.originalUrl + " start");
+  res.on("finish", () => {
+    console.log(
+      "[HTTP] " +
+        req.method +
+        " " +
+        req.originalUrl +
+        " -> " +
+        res.statusCode +
+        " " +
+        (Date.now() - startedAt) +
+        "ms",
+    );
+  });
+  next();
+});
 
 const PORT = Number(process.env.PORT || 8787);
 
@@ -59,6 +83,38 @@ const readTokenStore = () => {
 
 const writeTokenStore = value => {
   fs.writeFileSync(TOKENS_PATH, JSON.stringify(value, null, 2), 'utf8');
+};
+
+const createSetupToken = () => crypto.randomBytes(24).toString('base64url');
+
+const getRequestSetupToken = req => {
+  const authHeader = req.get('authorization') || '';
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  return (
+    (bearerMatch ? bearerMatch[1] : '') ||
+    req.get('x-livestream-setup-token') ||
+    ''
+  );
+};
+
+const ensureValidSetupToken = (req, res, record, platform = 'youtube') => {
+  if (!record?.setupToken) {
+    return true;
+  }
+
+  const incomingToken = getRequestSetupToken(req);
+  if (incomingToken && incomingToken === record.setupToken) {
+    return true;
+  }
+
+  res.status(401).json({
+    ok: false,
+    platform,
+    errorCode: 'invalid_setup_token',
+    message: 'Phiên kết nối livestream không hợp lệ hoặc đã hết hạn. Vui lòng kết nối lại YouTube.',
+  });
+
+  return false;
 };
 
 const createState = platform => {
@@ -987,8 +1043,10 @@ app.get('/auth/google/callback', async (req, res) => {
     const channelSnapshot = await getYouTubeChannelSnapshot(tokenData.access_token);
 
     const store = readTokenStore();
+    const setupToken = store.youtube?.setupToken || createSetupToken();
     store.youtube = {
       ...store.youtube,
+      setupToken,
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token || store.youtube?.refreshToken || '',
       expiresIn: tokenData.expires_in,
@@ -1018,6 +1076,7 @@ app.get('/auth/google/callback', async (req, res) => {
       status: 'success',
       accountName: store.youtube.profile.name,
       accountId: store.youtube.profile.id,
+      setupToken: store.youtube.setupToken,
     });
   } catch (oauthError) {
     redirectToApp(res, {
@@ -1450,12 +1509,16 @@ app.get('/auth/tiktok/callback', async (req, res) => {
   }
 });
 
-app.get('/live/youtube/eligibility', async (_req, res) => {
+app.get('/live/youtube/eligibility', async (req, res) => {
   try {
     const store = readTokenStore();
     const record = ensureConnectedPlatform(res, 'youtube', store);
 
     if (!record) {
+      return;
+    }
+
+    if (!ensureValidSetupToken(req, res, record, 'youtube')) {
       return;
     }
 
@@ -1499,6 +1562,10 @@ app.post('/live/youtube/create', async (req, res) => {
     const record = ensureConnectedPlatform(res, 'youtube', store);
 
     if (!record) {
+      return;
+    }
+
+    if (!ensureValidSetupToken(req, res, record, 'youtube')) {
       return;
     }
 
@@ -1679,6 +1746,10 @@ app.get('/live/youtube/status/:broadcastId', async (req, res) => {
       return;
     }
 
+    if (!ensureValidSetupToken(req, res, record, 'youtube')) {
+      return;
+    }
+
     const accessToken = await ensureYouTubeAccessToken(store);
     const {broadcastId} = req.params;
     const storedSession = store.youtube?.liveSessions?.[broadcastId];
@@ -1709,6 +1780,10 @@ app.post('/live/youtube/go-live', async (req, res) => {
     const record = ensureConnectedPlatform(res, 'youtube', store);
 
     if (!record) {
+      return;
+    }
+
+    if (!ensureValidSetupToken(req, res, record, 'youtube')) {
       return;
     }
 
@@ -1748,6 +1823,10 @@ app.post('/live/youtube/stop', async (req, res) => {
     const record = ensureConnectedPlatform(res, 'youtube', store);
 
     if (!record) {
+      return;
+    }
+
+    if (!ensureValidSetupToken(req, res, record, 'youtube')) {
       return;
     }
 

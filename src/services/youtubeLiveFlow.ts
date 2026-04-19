@@ -52,6 +52,24 @@ type StorageShape = {
   youtube?: StoredSetup;
 };
 
+type YouTubeLiveSession = {
+  id: string;
+  broadcastId: string;
+  streamId: string;
+  title: string;
+  description: string;
+  privacyStatus: string;
+  scheduledStartTime: string;
+  streamUrl: string;
+  streamName: string;
+  streamUrlWithKey: string;
+  watchUrl: string;
+  streamStatus: string;
+  broadcastStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 const getYouTubeSetupToken = async () => {
   try {
     const raw = await AsyncStorage.getItem(LIVESTREAM_ACCOUNT_STORAGE_KEY);
@@ -83,6 +101,17 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers.set('X-Livestream-Setup-Token', setupToken);
   }
 
+  const method = init?.method || 'GET';
+
+  console.log(`[YouTube Live API] request ${method} ${path}`);
+  console.log('[YouTube Live API] baseUrl=' + baseUrl);
+  console.log('[YouTube Live API] request meta:', {
+    path,
+    baseUrl,
+    method,
+    hasSetupToken: Boolean(setupToken),
+  });
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers,
@@ -98,6 +127,16 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
       data = {message: text};
     }
   }
+
+  console.log('[YouTube Live API] response status=' + response.status);
+  console.log('[YouTube Live API] response body=', data);
+  console.log('[YouTube Live API] response:', {
+    path,
+    status: response.status,
+    ok: response.ok,
+    apiOk: data?.ok,
+    errorCode: data?.errorCode,
+  });
 
   if (!response.ok || data?.ok === false) {
     const error = new Error(data?.message || 'Live API request failed');
@@ -116,26 +155,10 @@ export const getYouTubeLiveEligibility =
 export const createYouTubeLiveSession = async (
   payload: YouTubeCreateLivePayload,
 ) => {
-  return requestJson<{
+  const data = await requestJson<{
     ok: boolean;
     platform: 'youtube';
-    session: {
-      id: string;
-      broadcastId: string;
-      streamId: string;
-      title: string;
-      description: string;
-      privacyStatus: string;
-      scheduledStartTime: string;
-      streamUrl: string;
-      streamName: string;
-      streamUrlWithKey: string;
-      watchUrl: string;
-      streamStatus: string;
-      broadcastStatus: string;
-      createdAt: string;
-      updatedAt: string;
-    };
+    session: YouTubeLiveSession;
     raw: any;
   }>('/live/youtube/create', {
     method: 'POST',
@@ -143,5 +166,31 @@ export const createYouTubeLiveSession = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+  });
+
+  if (!data?.session?.streamUrlWithKey) {
+    throw new Error(
+      'Backend đã tạo phiên YouTube nhưng chưa trả về RTMP URL/stream key.',
+    );
+  }
+
+  return data;
+};
+
+export const getYouTubeLiveStatus = async (broadcastId: string) => {
+  return requestJson(`/live/youtube/status/${encodeURIComponent(broadcastId)}`);
+};
+
+export const stopYouTubeLiveSession = async (broadcastId: string) => {
+  if (!broadcastId) {
+    return null;
+  }
+
+  return requestJson('/live/youtube/stop', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({broadcastId}),
   });
 };

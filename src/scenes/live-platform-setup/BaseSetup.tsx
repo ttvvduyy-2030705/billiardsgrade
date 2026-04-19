@@ -393,6 +393,9 @@ const LivePlatformSetup = (props: Props) => {
   const startBrowserAuth = useCallback(async () => {
     try {
       setIsAuthorizing(true);
+      if (platform === 'youtube') {
+        console.log('[YouTube OAuth] opening browser auth');
+      }
       await openPlatformOAuth(platform as LivestreamPlatform);
     } catch (_error) {
       setIsAuthorizing(false);
@@ -402,6 +405,10 @@ const LivePlatformSetup = (props: Props) => {
 
   useEffect(() => {
     const handleUrl = async ({url}: {url: string}) => {
+      if (url?.toLowerCase().startsWith('aplusscore://oauth/callback')) {
+        console.log('[YouTube OAuth] deep link received:', url);
+      }
+
       const payload = parseOAuthCallback(url);
 
       if (!payload || payload.platform !== platform) {
@@ -416,6 +423,14 @@ const LivePlatformSetup = (props: Props) => {
           payload.errorMessage || 'Không thể kết nối tài khoản lúc này.',
         );
         return;
+      }
+
+      if (platform === 'youtube') {
+        console.log('[YouTube OAuth] connected state refresh start', {
+          hasSetupToken: Boolean(payload.setupToken || setupToken),
+          accountName: payload.accountName || '',
+          accountId: payload.accountId || '',
+        });
       }
 
       const nextAccountName = payload.accountName || `${platformName} Account`;
@@ -433,6 +448,14 @@ const LivePlatformSetup = (props: Props) => {
         visibility,
         nextSetupToken,
       );
+
+      if (platform === 'youtube') {
+        console.log('[YouTube OAuth] connected state refresh success', {
+          accountName: nextAccountName,
+          accountId: nextAccountId,
+          hasSetupToken: Boolean(nextSetupToken),
+        });
+      }
 
       Alert.alert('Kết nối thành công', `Đã kết nối với ${platformName}.`);
     };

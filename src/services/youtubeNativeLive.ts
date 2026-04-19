@@ -24,6 +24,9 @@ type ZoomInfo = {
 
 const moduleRef = NativeModules.YouTubeLiveModule;
 
+export const isYouTubeNativeLiveEngineMounted = () =>
+  Platform.OS === 'android' && Boolean(moduleRef);
+
 const assertAndroid = () => {
   if (Platform.OS !== 'android' || !moduleRef) {
     throw new Error('YouTube native live chỉ hỗ trợ Android.');
@@ -42,7 +45,13 @@ export const startYouTubeNativeLive = async (
   url: string,
   options: StartOptions = {},
 ) => {
+  console.log('[YouTube Live] native engine mounted=' + isYouTubeNativeLiveEngineMounted());
   assertAndroid();
+  console.log('[YouTube Live] startStream call', {
+    hasUrl: Boolean(url),
+    sourceType: options.sourceType || 'phone',
+    cameraFacing: options.cameraFacing || 'back',
+  });
   return moduleRef.startStream(url, {
     width: options.width ?? 1280,
     height: options.height ?? 720,
