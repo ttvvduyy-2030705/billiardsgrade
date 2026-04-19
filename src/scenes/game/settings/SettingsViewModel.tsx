@@ -21,19 +21,20 @@ import {DEFAULT_PLAYERS, GAME_SETTINGS, PLAYER_SETTINGS} from './constants';
 import {GAME_EXTRA_TIME_BONUS} from 'constants/game-settings';
 import {COUNTRIES, CountryItem} from './player/countries';
 
-export interface Props extends Navigation {
+type LivestreamRouteParams = {
+  livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
+  saveToDeviceWhileStreaming?: boolean;
+  liveVisibility?: 'public' | 'private' | 'unlisted';
+  liveAccountName?: string;
+  liveAccountId?: string;
+  liveSetupToken?: string;
+};
+
+export interface Props extends Navigation, LivestreamRouteParams {
   route?: {
-    params?: {
-      livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
-      saveToDeviceWhileStreaming?: boolean;
-      liveVisibility?: 'public' | 'private' | 'unlisted';
-      liveAccountName?: string;
-      liveAccountId?: string;
-      liveSetupToken?: string;
-    };
+    params?: LivestreamRouteParams;
   };
 }
-
 
 type SettingsDraftSnapshot = {
   category: BilliardCategory;
@@ -219,7 +220,10 @@ const sanitizePlayerSettings = (
 
 const GameSettingsViewModel = (props: Props) => {
   const dispatch = useDispatch();
-  const routeParams = props.route?.params || {};
+  // withWrapper spreads route.params directly into props, so reading only
+  // props.route?.params silently drops livestreamPlatform in release builds.
+  // Keep the route fallback for future direct React Navigation usage.
+  const routeParams = (props.route?.params || props || {}) as LivestreamRouteParams;
   const livestreamPlatform = normalizeLivestreamPlatform(
     routeParams.livestreamPlatform,
   );
@@ -356,20 +360,31 @@ const GameSettingsViewModel = (props: Props) => {
       });
     }
 
-    dispatch(
-      gameActions.updateGameSettings({
-        category,
-        mode: gameSettingsMode,
-        players: {...playerSettings, playingPlayers: _playingPlayers},
-        livestreamPlatform,
-        saveToDeviceWhileStreaming,
-        liveVisibility,
-        liveAccountName,
-        liveAccountId,
-        liveSetupToken,
-      }),
-    );
-    props.navigate(screens.gamePlay);
+    const nextGameSettings = {
+      category,
+      mode: gameSettingsMode,
+      players: {...playerSettings, playingPlayers: _playingPlayers},
+      livestreamPlatform,
+      saveToDeviceWhileStreaming,
+      liveVisibility,
+      liveAccountName,
+      liveAccountId,
+      liveSetupToken,
+    };
+
+    dispatch(gameActions.updateGameSettings(nextGameSettings));
+
+    // Also pass the live params directly to gameplay. The Redux update is saga-based
+    // and can arrive after the gameplay screen mounts; route params are available
+    // immediately and prevent the YouTube flow from falling back to local recording.
+    props.navigate(screens.gamePlay, {
+      livestreamPlatform,
+      saveToDeviceWhileStreaming,
+      liveVisibility,
+      liveAccountName,
+      liveAccountId,
+      liveSetupToken,
+    });
 
     _resetData();
   }, [

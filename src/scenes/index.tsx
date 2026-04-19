@@ -122,13 +122,24 @@ const getWrappedPlayback = () =>
 const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
 
+const LIVE_FIX_BUILD = '20260419-0226-route-props-create-flow';
+
 const StackScreens = () => {
   useEffect(() => {
-    console.log('[Build Info] app started');
-    console.log('[Build Info] apiBaseUrl=' + LIVESTREAM_AUTH_BASE_URL);
-    console.log('[Build Info] package=' + DeviceInfo.getBundleId());
-    console.log('[Build Info] versionName=' + DeviceInfo.getVersion());
-    console.log('[Build Info] versionCode=' + DeviceInfo.getBuildNumber());
+    const buildInfoLines = [
+      '[Build Info] app started',
+      '[Build Info] live-fix-build=' + LIVE_FIX_BUILD,
+      '[Build Info] apiBaseUrl=' + LIVESTREAM_AUTH_BASE_URL,
+      '[Build Info] package=' + DeviceInfo.getBundleId(),
+      '[Build Info] versionName=' + DeviceInfo.getVersion(),
+      '[Build Info] versionCode=' + DeviceInfo.getBuildNumber(),
+    ];
+
+    buildInfoLines.forEach(line => {
+      console.log(line);
+      console.warn(line);
+    });
+
     configureSystemUI({animated: false});
   }, []);
 

@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {useFocusEffect, useNavigation, useRoute} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Alert} from 'react-native';
 import {useSelector, useDispatch} from 'react-redux';
@@ -74,6 +74,24 @@ type StorageShape = {
   facebook?: StoredSetup;
   youtube?: StoredSetup;
   tiktok?: StoredSetup;
+};
+
+type GameplayLiveRouteParams = {
+  livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
+  saveToDeviceWhileStreaming?: boolean;
+  liveVisibility?: 'public' | 'private' | 'unlisted';
+  liveAccountName?: string;
+  liveAccountId?: string;
+  liveSetupToken?: string;
+};
+
+const normalizeGameplayLivestreamPlatform = (value: any) => {
+  return value === 'facebook' ||
+    value === 'youtube' ||
+    value === 'tiktok' ||
+    value === 'device'
+    ? value
+    : null;
 };
 
 
@@ -425,16 +443,18 @@ const isReplayResumeSnapshotMatch = (
 
 const GamePlayViewModel = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const routeParams = (route?.params || {}) as GameplayLiveRouteParams;
   const realm = useRealm();
   const dispatch = useDispatch();
   const {updateGameSettings} = useSelector((state: RootState) => state.UI.game);
   const {gameSettings} = useSelector((state: RootState) => state.game);
   const selectedLivestreamPlatform =
-    ((updateGameSettings as any)?.livestreamPlatform ||
-      (gameSettings as any)?.livestreamPlatform ||
+    (normalizeGameplayLivestreamPlatform(routeParams.livestreamPlatform) ||
+      normalizeGameplayLivestreamPlatform((gameSettings as any)?.livestreamPlatform) ||
       null) as 'facebook' | 'youtube' | 'tiktok' | 'device' | null;
   const saveToDeviceWhileStreaming = Boolean(
-    (updateGameSettings as any)?.saveToDeviceWhileStreaming ??
+    routeParams.saveToDeviceWhileStreaming ??
       (gameSettings as any)?.saveToDeviceWhileStreaming ??
       false,
   );
@@ -662,7 +682,9 @@ const GamePlayViewModel = () => {
 
 
   const [isStarted, setIsStarted] = useState(
-    gameSettings?.mode?.mode === 'fast' ? true : false,
+    gameSettings?.mode?.mode === 'fast' && selectedLivestreamPlatform !== 'youtube'
+      ? true
+      : false,
   );
 
   type YouTubeLiveOverlayState = {
@@ -2338,6 +2360,7 @@ const GamePlayViewModel = () => {
     console.log('[Live Flow] selectedPlatform=' + String(selectedLivestreamPlatform || 'none'));
     console.log('[Live Flow] youtubeConnected=unknown-before-api-check');
     console.log('[Live Flow] shouldCreateYouTubeLive=' + String(shouldUseYouTubeLive));
+    console.log('[Live Flow] routePlatform=' + String(routeParams.livestreamPlatform || 'none'));
     console.log('[Live] selected platform:', selectedLivestreamPlatform, {
       saveToDeviceWhileStreaming,
       shouldUseYouTubeLive,
@@ -2518,6 +2541,7 @@ const GamePlayViewModel = () => {
     playerSettings,
     readYouTubeVisibilityFromStorage,
     saveToDeviceWhileStreaming,
+    routeParams.livestreamPlatform,
     selectedLivestreamPlatform,
     shouldUseLocalRecordingOnly,
     shouldUseYouTubeLive,

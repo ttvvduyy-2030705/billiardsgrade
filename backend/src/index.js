@@ -932,14 +932,17 @@ const buildYouTubeEligibilityPayload = ({
   };
 };
 
-app.get('/health', (_req, res) => {
+const sendHealth = (_req, res) => {
   res.json({
     ok: true,
     appBaseUrl: APP_BASE_URL,
     callback: APP_CALLBACK_URL,
     now: new Date().toISOString(),
   });
-});
+};
+
+app.get('/', sendHealth);
+app.get('/health', sendHealth);
 
 app.get('/live/connections', (_req, res) => {
   const store = readTokenStore();
@@ -1070,6 +1073,14 @@ app.get('/auth/google/callback', async (req, res) => {
     };
 
     writeTokenStore(store);
+
+    console.log('[YouTube OAuth] connected', {
+      accountName: store.youtube.profile.name,
+      accountId: store.youtube.profile.id,
+      hasAccessToken: Boolean(store.youtube.accessToken),
+      hasRefreshToken: Boolean(store.youtube.refreshToken),
+      hasSetupToken: Boolean(store.youtube.setupToken),
+    });
 
     redirectToApp(res, {
       platform: 'youtube',
@@ -1558,14 +1569,28 @@ app.get('/live/youtube/eligibility', async (req, res) => {
 
 app.post('/live/youtube/create', async (req, res) => {
   try {
+    console.log('[YouTube Live Create] request received', {
+      hasAuthorization: Boolean(req.get('authorization')),
+      hasSetupHeader: Boolean(req.get('x-livestream-setup-token')),
+      title: req.body?.title || '',
+      privacyStatus: req.body?.privacyStatus || '',
+    });
+
     const store = readTokenStore();
     const record = ensureConnectedPlatform(res, 'youtube', store);
+
+    console.log('[YouTube Live Create] token exists=' + Boolean(record?.accessToken || record?.refreshToken), {
+      hasAccessToken: Boolean(record?.accessToken),
+      hasRefreshToken: Boolean(record?.refreshToken),
+      hasSetupToken: Boolean(record?.setupToken),
+    });
 
     if (!record) {
       return;
     }
 
     if (!ensureValidSetupToken(req, res, record, 'youtube')) {
+      console.log('[YouTube Live Create] rejected invalid setup token');
       return;
     }
 
@@ -1594,6 +1619,7 @@ app.post('/live/youtube/create', async (req, res) => {
 
     const normalizedStartTime = normalizeIsoDate(scheduledStartTime);
 
+    console.log('[YouTube Live Create] inserting broadcast');
     const broadcast = await postJson(
       buildYouTubeApiUrl('/youtube/v3/liveBroadcasts', {
         part: 'snippet,contentDetails,status',
@@ -1623,6 +1649,7 @@ app.post('/live/youtube/create', async (req, res) => {
       },
     );
 
+    console.log('[YouTube Live Create] inserting stream');
     const stream = await postJson(
       buildYouTubeApiUrl('/youtube/v3/liveStreams', {
         part: 'snippet,cdn,contentDetails,status',
@@ -1646,6 +1673,7 @@ app.post('/live/youtube/create', async (req, res) => {
       },
     );
 
+    console.log('[YouTube Live Create] binding broadcast');
     const boundBroadcast = await fetch(
       buildYouTubeApiUrl('/youtube/v3/liveBroadcasts/bind', {
         id: broadcast.id,
@@ -1696,6 +1724,11 @@ app.post('/live/youtube/create', async (req, res) => {
       streamId: stream.id,
     });
 
+    console.log('[YouTube Live Create] success broadcastId=' + broadcast.id + ' streamId=' + stream.id, {
+      hasStreamUrl: Boolean(ingestBase),
+      hasStreamName: Boolean(streamName),
+    });
+
     res.json({
       ok: true,
       platform: 'youtube',
@@ -1706,6 +1739,11 @@ app.post('/live/youtube/create', async (req, res) => {
       },
     });
   } catch (error) {
+    console.log('[YouTube Live Create] error', {
+      message: error?.message || '',
+      status: error?.status || error?.statusCode || '',
+      body: error?.body || error?.response || '',
+    });
     const message = error?.message || 'Không thể tạo phiên live YouTube.';
     if (
       message.includes('not enabled for live streaming') ||

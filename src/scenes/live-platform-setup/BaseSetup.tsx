@@ -37,13 +37,15 @@ import {Navigation} from 'types/navigation';
 
 import {CURRENT_PLATFORM_KEY} from '../live-platform';
 
-export interface Props extends Navigation {
+type LivePlatformSetupRouteParams = {
+  livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok';
+  saveToDeviceWhileStreaming?: boolean;
+  setupToken?: string;
+};
+
+export interface Props extends Navigation, LivePlatformSetupRouteParams {
   route?: {
-    params?: {
-      livestreamPlatform?: 'facebook' | 'youtube' | 'tiktok';
-      saveToDeviceWhileStreaming?: boolean;
-      setupToken?: string;
-    };
+    params?: LivePlatformSetupRouteParams;
   };
 }
 
@@ -176,8 +178,9 @@ const LivePlatformSetup = (props: Props) => {
   const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
   const metrics = useMemo(() => getBrandedScreenMetrics(adaptive), [adaptive.styleKey]);
 
+  const routeParams = (props.route?.params || props || {}) as LivePlatformSetupRouteParams;
   const saveToDeviceWhileStreaming =
-    props.route?.params?.saveToDeviceWhileStreaming || false;
+    routeParams.saveToDeviceWhileStreaming || false;
 
   const [platform, setPlatform] = useState<Platform>('youtube');
   const [isLoading, setIsLoading] = useState(true);
@@ -264,7 +267,7 @@ const LivePlatformSetup = (props: Props) => {
           setIsLoading(true);
 
           const fromRoute = normalizePlatform(
-            props.route?.params?.livestreamPlatform,
+            routeParams.livestreamPlatform,
           );
           const fromStorage = normalizePlatform(
             await AsyncStorage.getItem(CURRENT_PLATFORM_KEY),
@@ -286,7 +289,7 @@ const LivePlatformSetup = (props: Props) => {
 
           setAccountName(current?.accountName || '');
           setAccountId(current?.accountId || '');
-          setSetupToken(current?.setupToken || props.route?.params?.setupToken || '');
+          setSetupToken(current?.setupToken || routeParams.setupToken || '');
           setVisibility(current?.visibility || 'public');
           autoAuthTriggeredRef.current = false;
         } finally {
@@ -302,8 +305,8 @@ const LivePlatformSetup = (props: Props) => {
         active = false;
       };
     }, [
-      props.route?.params?.livestreamPlatform,
-      props.route?.params?.setupToken,
+      routeParams.livestreamPlatform,
+      routeParams.setupToken,
       readStorage,
     ]),
   );
