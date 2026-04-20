@@ -20,6 +20,11 @@ export type YouTubeNativeOverlayThumbnails = {
 export type YouTubeNativeOverlayPayload = {
   visible?: boolean;
   variant?: 'pool' | 'carom';
+  source?: 'gameplay-shared-overlay-snapshot' | string;
+  snapshotUri?: string;
+  snapshotWidth?: number;
+  snapshotHeight?: number;
+  updatedAt?: number;
   currentPlayerIndex?: number;
   countdownTime?: number;
   baseCountdown?: number;
@@ -91,23 +96,73 @@ export const startYouTubeNativeLive = async (
 ) => {
   console.log('[YouTube Live] native engine mounted=' + isYouTubeNativeLiveEngineMounted());
   assertAndroid();
-  console.log('[YouTube Live] startStream call', {
-    hasUrl: Boolean(url),
+
+  const width = Number.isFinite(options.width) && Number(options.width) > 0
+    ? Math.round(Number(options.width))
+    : 1920;
+  const height = Number.isFinite(options.height) && Number(options.height) > 0
+    ? Math.round(Number(options.height))
+    : 1080;
+  const fps = Number.isFinite(options.fps) && Number(options.fps) > 0
+    ? Math.round(Number(options.fps))
+    : 30;
+  const bitrate = Number.isFinite(options.bitrate) && Number(options.bitrate) > 0
+    ? Math.round(Number(options.bitrate))
+    : 8000 * 1024;
+  const audioBitrate = Number.isFinite(options.audioBitrate) && Number(options.audioBitrate) > 0
+    ? Math.round(Number(options.audioBitrate))
+    : 128 * 1024;
+  const sampleRate = Number.isFinite(options.sampleRate) && Number(options.sampleRate) > 0
+    ? Math.round(Number(options.sampleRate))
+    : 44100;
+
+  const hasUrl = typeof url === 'string' && url.trim().length > 0;
+  const hasStreamKey = hasUrl && /rtmps?:\/\//i.test(url) && url.length > 24;
+  console.log('[YouTube Live] validating params', {
+    hasUrl,
+    hasStreamKey,
+    width,
+    height,
+    fps,
+    bitrate,
     sourceType: options.sourceType || 'phone',
     cameraFacing: options.cameraFacing || 'back',
   });
-  return moduleRef.startStream(url, {
-    width: options.width ?? 1280,
-    height: options.height ?? 720,
-    fps: options.fps ?? 30,
-    bitrate: options.bitrate ?? 4500 * 1024,
-    audioBitrate: options.audioBitrate ?? 128 * 1024,
-    sampleRate: options.sampleRate ?? 44100,
+
+  if (!hasUrl) {
+    const error = new Error('Thiếu RTMP URL/stream key, không thể bắt đầu live YouTube.');
+    console.log('[YouTube Live] start rejected, not crashing reason=' + error.message);
+    throw error;
+  }
+
+  if (width <= 0 || height <= 0) {
+    const error = new Error(`Kích thước encoder không hợp lệ: ${width}x${height}.`);
+    console.log('[YouTube Live] start rejected, not crashing reason=' + error.message);
+    throw error;
+  }
+
+  const payload = {
+    width,
+    height,
+    fps,
+    bitrate,
+    audioBitrate,
+    sampleRate,
     isStereo: options.isStereo ?? true,
     cameraFacing: options.cameraFacing ?? 'back',
     sourceType: options.sourceType ?? 'phone',
     rotationDegrees: options.rotationDegrees ?? 0,
-  });
+  };
+
+  try {
+    console.log('[YouTube Live] calling native startStream');
+    const result = await moduleRef.startStream(url.trim(), payload);
+    console.log('[YouTube Live] native start resolved');
+    return result;
+  } catch (error: any) {
+    console.log('[YouTube Live] start rejected, not crashing reason=', error?.message || error);
+    throw error;
+  }
 };
 
 export const stopYouTubeNativeLive = async () => {
@@ -136,7 +191,23 @@ export const updateYouTubeNativeOverlay = async (
     return false;
   }
 
-  return moduleRef.updateOverlay(payload);
+  const hasSnapshot = Boolean(payload?.visible && payload?.snapshotUri);
+  console.log('[Live Overlay] source=gameplay-shared-overlay', {
+    visible: !!payload?.visible,
+    mode: payload?.variant || 'unknown',
+    hasSnapshot,
+    snapshotCaptured: hasSnapshot,
+    width: payload?.snapshotWidth,
+    height: payload?.snapshotHeight,
+  });
+  console.log(
+    `[Live Overlay] snapshotCaptured=${hasSnapshot} desiredSource=gameplay-shared-overlay mode=${payload?.variant || 'unknown'} size=${payload?.snapshotWidth || 0}x${payload?.snapshotHeight || 0}`,
+  );
+
+  return moduleRef.updateOverlay({
+    ...payload,
+    source: payload?.source || 'gameplay-shared-overlay-snapshot',
+  });
 };
 
 export const switchYouTubeNativeCamera = async () => {

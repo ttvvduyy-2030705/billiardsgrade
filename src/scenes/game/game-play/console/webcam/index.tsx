@@ -9,11 +9,10 @@ import React, {
   useState,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Platform} from 'react-native';
+import {findNodeHandle, NativeModules, PixelRatio, Platform} from 'react-native';
 import Slider from '@react-native-community/slider';
 import {
   Image as RNImage,
-  ImageBackground,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -31,7 +30,6 @@ import {keys} from 'configuration/keys';
 
 import WebCamViewModel, {Props} from './WebCamViewModel';
 import YouTubeAndroidLivePreview from './YouTubeAndroidLivePreview';
-import {updateYouTubeNativeOverlay} from 'services/youtubeNativeLive';
 import LiveStreamImages from '../../livestream-images';
 import PoolBroadcastScoreboard from 'components/PoolBroadcastScoreboard';
 import CaromBroadcastScoreboard from 'components/CaromBroadcastScoreboard';
@@ -47,19 +45,160 @@ import {
   subscribeCaromCameraScoreboardState,
   type CaromCameraScoreboardState,
 } from './caromScoreboardStore';
-import {
-  buildMatchOverlayModelFromScoreBoardStore,
-  createMatchOverlayModelSignature,
-} from './matchOverlayModel';
 import useSafeScreenInsets, {ZERO_INSETS} from 'theme/safeArea';
 import {WebcamType} from 'types/webcam';
 import {setCameraFullscreen} from '../../cameraFullscreenStore';
+import {updateYouTubeNativeOverlay} from 'services/youtubeNativeLive';
 import useDesignSystem from 'theme/useDesignSystem';
 import {createGameplayLayoutRules, createGameplayStyles} from '../../layoutRules';
 
 const BASE_ZOOM_STEPS = [1, 2, 5, 10];
 
 const DEBUG_CAMERA = true;
+const LIVE_OVERLAY_SNAPSHOT_WIDTH = 1920;
+const LIVE_OVERLAY_SNAPSHOT_HEIGHT = 1080;
+const LIVE_OVERLAY_SNAPSHOT_MIN_INTERVAL_MS = 450;
+const ENABLE_YOUTUBE_OVERLAY_SNAPSHOT_CAPTURE = true;
+
+// Sample-image sizing ratios for the encoded YouTube overlay only.
+// Keep gameplay camera/fullscreen/replay metrics untouched.
+const LIVE_OVERLAY_LOGO_WIDTH_RATIO = 0.13;
+const LIVE_OVERLAY_LOGO_HEIGHT_RATIO = 0.085;
+const LIVE_OVERLAY_LOGO_MARGIN_X_RATIO = 0.025;
+const LIVE_OVERLAY_LOGO_MARGIN_TOP_RATIO = 0.03;
+const LIVE_OVERLAY_LOGO_MARGIN_BOTTOM_RATIO = 0.04;
+const LIVE_OVERLAY_POOL_WIDTH_RATIO = 0.86;
+const LIVE_OVERLAY_POOL_BOTTOM_RATIO = 0.052;
+const LIVE_OVERLAY_POOL_HEIGHT_RATIO = 0.096;
+const LIVE_OVERLAY_CAROM_SAMPLE_WIDTH_RATIO = 0.28;
+const LIVE_OVERLAY_CAROM_ONLY_WIDTH_SCALE = 0.5;
+const LIVE_OVERLAY_CAROM_WIDTH_RATIO =
+  LIVE_OVERLAY_CAROM_SAMPLE_WIDTH_RATIO * LIVE_OVERLAY_CAROM_ONLY_WIDTH_SCALE;
+const LIVE_OVERLAY_CAROM_HEIGHT_RATIO = 0.145;
+const LIVE_OVERLAY_CAROM_LEFT_RATIO = 0.024;
+const LIVE_OVERLAY_CAROM_BOTTOM_RATIO = 0.04;
+
+const liveOverlayPx = (value: number) => Math.round(value);
+
+const LIVE_OVERLAY_LOGO_WIDTH = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_WIDTH * LIVE_OVERLAY_LOGO_WIDTH_RATIO,
+);
+const LIVE_OVERLAY_LOGO_HEIGHT = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_HEIGHT * LIVE_OVERLAY_LOGO_HEIGHT_RATIO,
+);
+const LIVE_OVERLAY_LOGO_MARGIN_X = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_WIDTH * LIVE_OVERLAY_LOGO_MARGIN_X_RATIO,
+);
+const LIVE_OVERLAY_LOGO_MARGIN_TOP = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_HEIGHT * LIVE_OVERLAY_LOGO_MARGIN_TOP_RATIO,
+);
+const LIVE_OVERLAY_LOGO_MARGIN_BOTTOM = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_HEIGHT * LIVE_OVERLAY_LOGO_MARGIN_BOTTOM_RATIO,
+);
+const LIVE_OVERLAY_POOL_BOTTOM = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_HEIGHT * LIVE_OVERLAY_POOL_BOTTOM_RATIO,
+);
+const LIVE_OVERLAY_CAROM_LEFT = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_WIDTH * LIVE_OVERLAY_CAROM_LEFT_RATIO,
+);
+const LIVE_OVERLAY_CAROM_BOTTOM = liveOverlayPx(
+  LIVE_OVERLAY_SNAPSHOT_HEIGHT * LIVE_OVERLAY_CAROM_BOTTOM_RATIO,
+);
+
+type LiveOverlayMode = 'pool' | 'carom';
+
+const getLiveOverlayLayoutSpec = (mode: LiveOverlayMode) => {
+  const videoWidth = LIVE_OVERLAY_SNAPSHOT_WIDTH;
+  const videoHeight = LIVE_OVERLAY_SNAPSHOT_HEIGHT;
+  const logoRect = {
+    x: LIVE_OVERLAY_LOGO_MARGIN_X,
+    y: LIVE_OVERLAY_LOGO_MARGIN_TOP,
+    w: LIVE_OVERLAY_LOGO_WIDTH,
+    h: LIVE_OVERLAY_LOGO_HEIGHT,
+  };
+  const caromSampleScoreboardWidth = liveOverlayPx(
+    videoWidth * LIVE_OVERLAY_CAROM_SAMPLE_WIDTH_RATIO,
+  );
+  const caromScoreboardWidth = liveOverlayPx(
+    caromSampleScoreboardWidth * LIVE_OVERLAY_CAROM_ONLY_WIDTH_SCALE,
+  );
+  const scoreboardWidth =
+    mode === 'carom'
+      ? caromScoreboardWidth
+      : liveOverlayPx(videoWidth * LIVE_OVERLAY_POOL_WIDTH_RATIO);
+  const scoreboardHeight =
+    mode === 'carom'
+      ? liveOverlayPx(videoHeight * LIVE_OVERLAY_CAROM_HEIGHT_RATIO)
+      : liveOverlayPx(videoHeight * LIVE_OVERLAY_POOL_HEIGHT_RATIO);
+  const bottomMargin =
+    mode === 'carom' ? LIVE_OVERLAY_CAROM_BOTTOM : LIVE_OVERLAY_POOL_BOTTOM;
+  const scoreboardRect = {
+    x:
+      mode === 'carom'
+        ? LIVE_OVERLAY_CAROM_LEFT
+        : liveOverlayPx((videoWidth - scoreboardWidth) / 2),
+    y: liveOverlayPx(videoHeight - bottomMargin - scoreboardHeight),
+    w: scoreboardWidth,
+    h: scoreboardHeight,
+  };
+
+  return {
+    videoWidth,
+    videoHeight,
+    logoRect,
+    scoreboardRect,
+    bottomMargin,
+    gap: liveOverlayPx(videoHeight * 0.018),
+    snapshotSize: `${videoWidth}x${videoHeight}`,
+    scaleFactor: 1,
+    caromOnlyWidthScale:
+      mode === 'carom' ? LIVE_OVERLAY_CAROM_ONLY_WIDTH_SCALE : undefined,
+    caromSampleScoreboardWidth:
+      mode === 'carom' ? caromSampleScoreboardWidth : undefined,
+    caromLeftAnchored: mode === 'carom',
+  };
+};
+
+const formatLiveOverlayRect = (rect: {x: number; y: number; w: number; h: number}) => {
+  return `${rect.x},${rect.y},${rect.w},${rect.h}`;
+};
+
+type YouTubeNativeCaptureModule = {
+  captureOverlayView?: (
+    nativeTag: number,
+    width: number,
+    height: number,
+  ) => Promise<string> | string;
+};
+
+const getYouTubeNativeCaptureModule = (): YouTubeNativeCaptureModule | null => {
+  const modules = NativeModules as any;
+  return modules?.YouTubeLiveModule || null;
+};
+
+const captureNativeYouTubeOverlayRef = async (viewRef: any): Promise<string> => {
+  const nativeTag = findNodeHandle(viewRef);
+  if (!nativeTag) {
+    throw new Error('overlay snapshot ref is not attached to native view');
+  }
+
+  const captureModule = getYouTubeNativeCaptureModule();
+  if (!captureModule?.captureOverlayView) {
+    throw new Error('YouTubeLiveModule.captureOverlayView is not available');
+  }
+
+  const capturedUri = await captureModule.captureOverlayView(
+    nativeTag,
+    LIVE_OVERLAY_SNAPSHOT_WIDTH,
+    LIVE_OVERLAY_SNAPSHOT_HEIGHT,
+  );
+
+  if (!capturedUri) {
+    throw new Error('native overlay capture returned an empty snapshot uri');
+  }
+
+  return String(capturedUri);
+};
 
 type ThumbnailOverlayData = {
   enabled: boolean;
@@ -216,11 +355,17 @@ const LiveStreamImagesOverlay = memo(() => {
 type CameraScoreboardOverlayProps = {
   fullscreenMode?: boolean;
   bottomOffset?: number;
+  liveOutput?: boolean;
+  liveVideoWidth?: number;
+  liveVideoHeight?: number;
 };
 
 const PoolScoreboardOverlay = memo(({
   fullscreenMode = false,
   bottomOffset,
+  liveOutput = false,
+  liveVideoWidth = LIVE_OVERLAY_SNAPSHOT_WIDTH,
+  liveVideoHeight = LIVE_OVERLAY_SNAPSHOT_HEIGHT,
 }: CameraScoreboardOverlayProps) => {
   const [state, setState] = useState<PoolCameraScoreboardState>(
     EMPTY_POOL_CAMERA_SCOREBOARD_STATE,
@@ -247,8 +392,10 @@ const PoolScoreboardOverlay = memo(({
       countdownTime={state.countdownTime}
       gameSettings={state.gameSettings}
       playerSettings={state.playerSettings}
-      variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={bottomOffset ?? (fullscreenMode ? 18 : 14)}
+      variant={liveOutput ? 'live' : fullscreenMode ? 'fullscreen' : 'camera'}
+      bottomOffset={bottomOffset ?? (liveOutput ? LIVE_OVERLAY_POOL_BOTTOM : fullscreenMode ? 18 : 14)}
+      liveVideoWidth={liveVideoWidth}
+      liveVideoHeight={liveVideoHeight}
     />
   );
 });
@@ -256,6 +403,9 @@ const PoolScoreboardOverlay = memo(({
 const CaromScoreboardOverlay = memo(({
   fullscreenMode = false,
   bottomOffset,
+  liveOutput = false,
+  liveVideoWidth = LIVE_OVERLAY_SNAPSHOT_WIDTH,
+  liveVideoHeight = LIVE_OVERLAY_SNAPSHOT_HEIGHT,
 }: CameraScoreboardOverlayProps) => {
   const [state, setState] = useState<CaromCameraScoreboardState>(
     EMPTY_CAROM_CAMERA_SCOREBOARD_STATE,
@@ -280,8 +430,10 @@ const CaromScoreboardOverlay = memo(({
       totalTurns={state.totalTurns}
       gameSettings={state.gameSettings}
       playerSettings={state.playerSettings}
-      variant={fullscreenMode ? 'fullscreen' : 'camera'}
-      bottomOffset={bottomOffset ?? (fullscreenMode ? 18 : 12)}
+      variant={liveOutput ? 'live' : fullscreenMode ? 'fullscreen' : 'camera'}
+      bottomOffset={bottomOffset ?? (liveOutput ? LIVE_OVERLAY_CAROM_BOTTOM : fullscreenMode ? 18 : 12)}
+      liveVideoWidth={liveVideoWidth}
+      liveVideoHeight={liveVideoHeight}
     />
   );
 });
@@ -310,14 +462,14 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     useState<PoolCameraScoreboardState>(EMPTY_POOL_CAMERA_SCOREBOARD_STATE);
   const [caromOverlayState, setCaromOverlayState] =
     useState<CaromCameraScoreboardState>(EMPTY_CAROM_CAMERA_SCOREBOARD_STATE);
-  const nativeOverlayLastSignatureRef = useRef('');
-  const nativeOverlayLastVisibleRef = useRef(false);
-  const nativeOverlayDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const youtubeLivePreviewActiveRef = useRef(false);
-
-  useEffect(() => {
-    youtubeLivePreviewActiveRef.current = !!props.youtubeLivePreviewActive;
-  }, [props.youtubeLivePreviewActive]);
+  const liveOverlaySnapshotRef = useRef<RNView | null>(null);
+  const liveOverlaySnapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLiveOverlaySnapshotSignatureRef = useRef('');
+  const lastLiveOverlaySnapshotAtRef = useRef(0);
+  const [liveOverlaySnapshotLayout, setLiveOverlaySnapshotLayout] = useState({
+    width: LIVE_OVERLAY_SNAPSHOT_WIDTH,
+    height: LIVE_OVERLAY_SNAPSHOT_HEIGHT,
+  });
 
   useEffect(() => {
     return subscribePoolCameraScoreboardState(setMatchOverlayState);
@@ -331,6 +483,15 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     matchOverlayState.gameSettings,
     matchOverlayState.playerSettings,
   );
+  const poolOverlayCategory = matchOverlayState.gameSettings?.category;
+  const shouldShowPoolSnapshotOverlay =
+    shouldShowCameraMatchOverlay &&
+    (isPool9Game(poolOverlayCategory) ||
+      isPool10Game(poolOverlayCategory) ||
+      isPool15Game(poolOverlayCategory));
+  const shouldShowCaromSnapshotOverlay =
+    shouldShowMatchOverlay(caromOverlayState.gameSettings, caromOverlayState.playerSettings) &&
+    isCaromGame(caromOverlayState.gameSettings?.category);
 
   useEffect(() => {
     if (!props.forceFullscreen) {
@@ -460,82 +621,9 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     };
   }, [loadThumbnailOverlay]);
 
-  const nativeLiveOverlayPayload = useMemo(
-    () =>
-      buildMatchOverlayModelFromScoreBoardStore({
-        activeForNativeStream: !!props.youtubeLivePreviewActive,
-        poolState: matchOverlayState,
-        caromState: caromOverlayState,
-        thumbnails: thumbnailOverlay,
-      }),
-    [
-      props.youtubeLivePreviewActive,
-      matchOverlayState,
-      caromOverlayState,
-      thumbnailOverlay,
-    ],
-  );
-
-  const nativeLiveOverlaySignature = useMemo(() => {
-    return createMatchOverlayModelSignature(nativeLiveOverlayPayload);
-  }, [nativeLiveOverlayPayload]);
-
-  useEffect(() => {
-    if (nativeOverlayDebounceRef.current) {
-      clearTimeout(nativeOverlayDebounceRef.current);
-      nativeOverlayDebounceRef.current = null;
-    }
-
-    if (!props.youtubeLivePreviewActive) {
-      if (
-        nativeOverlayLastVisibleRef.current ||
-        nativeOverlayLastSignatureRef.current !== ''
-      ) {
-        nativeOverlayLastVisibleRef.current = false;
-        nativeOverlayLastSignatureRef.current = '';
-        updateYouTubeNativeOverlay({visible: false}).catch(error => {
-          console.log('[YouTube Live] clear native overlay failed:', error);
-        });
-      }
-      return;
-    }
-
-    if (nativeOverlayLastSignatureRef.current === nativeLiveOverlaySignature) {
-      return;
-    }
-
-    nativeOverlayDebounceRef.current = setTimeout(() => {
-      nativeOverlayDebounceRef.current = null;
-      nativeOverlayLastSignatureRef.current = nativeLiveOverlaySignature;
-      nativeOverlayLastVisibleRef.current = !!nativeLiveOverlayPayload.visible;
-
-      updateYouTubeNativeOverlay(nativeLiveOverlayPayload).catch(error => {
-        console.log('[YouTube Live] update native overlay failed:', error);
-      });
-    }, 80);
-
-    return () => {
-      if (nativeOverlayDebounceRef.current) {
-        clearTimeout(nativeOverlayDebounceRef.current);
-        nativeOverlayDebounceRef.current = null;
-      }
-    };
-  }, [nativeLiveOverlayPayload, nativeLiveOverlaySignature, props.youtubeLivePreviewActive]);
-
-  useEffect(() => {
-    return () => {
-      if (nativeOverlayDebounceRef.current) {
-        clearTimeout(nativeOverlayDebounceRef.current);
-        nativeOverlayDebounceRef.current = null;
-      }
-
-      // Do not clear the native live overlay from a React unmount/remount.
-      // Fullscreen transitions and replay navigation can remount this component
-      // while the native RTMP encoder is still alive; clearing here causes the
-      // visible=false/players=0 flash seen in adb logs. Stop live/end game still
-      // cleans the native filter through stopYouTubeNativeLive().
-    };
-  }, []);
+  // Livestream must not push a separate native/canvas scoreboard model.
+  // The React camera overlay below is the single source of truth for
+  // embedded camera, fullscreen, replay, and local live preview.
 
   const liveSourceLock = getYouTubeSourceLock();
   const currentCameraSource = getCurrentCameraSourceSnapshot();
@@ -847,10 +935,17 @@ const handleZoomSliderComplete = useCallback(
     props.youtubeLivePreviewActive &&
     Platform.OS === 'android' &&
     !externalLiveLocked;
-  // RootEncoder's ImageObjectFilterRender is applied to the OpenGlView pipeline.
-  // During native live, that compositor is the single visible overlay on the
-  // preview + encoder; keeping the RN overlay enabled here would duplicate it.
-  const suppressReactMatchOverlayForNativeLive = useYouTubeNativePreview;
+  // Native live no longer owns any scoreboard/logo overlay. Keep the same
+  // React overlay used by normal camera/fullscreen/replay visible during live.
+  const suppressReactMatchOverlayForNativeLive = false;
+  const shouldPublishGameplayOverlaySnapshot =
+    ENABLE_YOUTUBE_OVERLAY_SNAPSHOT_CAPTURE &&
+    useYouTubeNativePreview &&
+    (shouldShowPoolSnapshotOverlay || shouldShowCaromSnapshotOverlay);
+  const liveOverlaySnapshotReady =
+    liveOverlaySnapshotLayout.width > 0 && liveOverlaySnapshotLayout.height > 0;
+  const shouldShowSmallFullscreenLiveOverlay =
+    !!props.forceFullscreen && shouldPublishGameplayOverlaySnapshot;
 
   const isExplicitRecording =
     recordingInfo?.isRecording === true ||
@@ -972,6 +1067,174 @@ const handleZoomSliderComplete = useCallback(
     thumbnailOverlay.bottomLeft.length > 0 ||
     thumbnailOverlay.bottomRight.length > 0;
 
+  const liveOverlaySnapshotSignature = useMemo(() => {
+    if (!shouldPublishGameplayOverlaySnapshot) {
+      return 'hidden';
+    }
+
+    const mode = shouldShowCaromSnapshotOverlay ? 'carom' : 'pool';
+    const poolPlayers = matchOverlayState.playerSettings?.playingPlayers || [];
+    const caromPlayers = caromOverlayState.playerSettings?.playingPlayers || [];
+    const players = mode === 'carom' ? caromPlayers : poolPlayers;
+
+    return JSON.stringify({
+      mode,
+      currentPlayerIndex: mode === 'carom'
+        ? caromOverlayState.currentPlayerIndex
+        : matchOverlayState.currentPlayerIndex,
+      countdownTime: mode === 'carom'
+        ? caromOverlayState.countdownTime
+        : matchOverlayState.countdownTime,
+      totalTurns: caromOverlayState.totalTurns,
+      poolGoal: matchOverlayState.gameSettings?.players?.goal?.goal ?? matchOverlayState.playerSettings?.goal?.goal,
+      caromGoal: caromOverlayState.gameSettings?.players?.goal?.goal ?? caromOverlayState.playerSettings?.goal?.goal,
+      players: players.map((player: any) => ({
+        name: player?.name,
+        flag: player?.flag,
+        totalPoint: player?.totalPoint,
+        currentPoint: player?.proMode?.currentPoint,
+        highestRate: player?.proMode?.highestRate,
+        average: player?.proMode?.average,
+      })),
+      thumbnails: thumbnailOverlay,
+      hasThumbnailImages,
+    });
+  }, [
+    caromOverlayState,
+    hasThumbnailImages,
+    matchOverlayState,
+    shouldPublishGameplayOverlaySnapshot,
+    shouldShowCaromSnapshotOverlay,
+    thumbnailOverlay,
+  ]);
+
+  useEffect(() => {
+    if (liveOverlaySnapshotTimerRef.current) {
+      clearTimeout(liveOverlaySnapshotTimerRef.current);
+      liveOverlaySnapshotTimerRef.current = null;
+    }
+
+    if (!useYouTubeNativePreview) {
+      lastLiveOverlaySnapshotSignatureRef.current = '';
+      lastLiveOverlaySnapshotAtRef.current = 0;
+      void updateYouTubeNativeOverlay({
+        visible: false,
+        source: 'gameplay-shared-overlay-snapshot',
+      } as any);
+      return;
+    }
+
+    if (!shouldPublishGameplayOverlaySnapshot) {
+      lastLiveOverlaySnapshotSignatureRef.current = 'hidden';
+      void updateYouTubeNativeOverlay({
+        visible: false,
+        source: 'gameplay-shared-overlay-snapshot',
+      } as any);
+      return;
+    }
+
+    if (!liveOverlaySnapshotReady) {
+      lastLiveOverlaySnapshotSignatureRef.current = 'waiting-layout';
+      console.log(
+        '[Live Overlay] desiredSource=gameplay-shared-overlay mounted=false snapshotEnabled=true overlaySkipReason=snapshot-view-not-laid-out',
+      );
+      void updateYouTubeNativeOverlay({
+        visible: false,
+        source: 'gameplay-shared-overlay-snapshot',
+      } as any);
+      return;
+    }
+
+    if (liveOverlaySnapshotSignature === lastLiveOverlaySnapshotSignatureRef.current) {
+      return;
+    }
+
+    const delayMs = Math.max(
+      80,
+      LIVE_OVERLAY_SNAPSHOT_MIN_INTERVAL_MS -
+        (Date.now() - lastLiveOverlaySnapshotAtRef.current),
+    );
+
+    let cancelled = false;
+    liveOverlaySnapshotTimerRef.current = setTimeout(() => {
+      liveOverlaySnapshotTimerRef.current = null;
+
+      const captureOverlay = async () => {
+        const overlayRef = liveOverlaySnapshotRef.current;
+        if (!overlayRef || cancelled) {
+          return;
+        }
+
+        try {
+          const mode = shouldShowCaromSnapshotOverlay ? 'carom' : 'pool';
+          const devicePixelRatio = PixelRatio.get();
+          const layoutSpec = getLiveOverlayLayoutSpec(mode);
+          console.log(
+            `[Live Overlay] desiredSource=gameplay-shared-overlay mounted=true size=${liveOverlaySnapshotLayout.width}x${liveOverlaySnapshotLayout.height} mode=${mode} players=2 snapshotEnabled=true`,
+          );
+          console.log(
+            `[Live Overlay] snapshotRequested reason=state-change source=gameplay-overlay layout=${liveOverlaySnapshotLayout.width}x${liveOverlaySnapshotLayout.height} mode=${mode} players=2`,
+          );
+          const caromLayoutLogSuffix =
+            mode === 'carom'
+              ? ` caromOnlyWidthScale=${layoutSpec.caromOnlyWidthScale} caromSampleWidth=${layoutSpec.caromSampleScoreboardWidth} leftAnchored=true poolUnchanged=true logoUnchanged=true`
+              : ' poolUnchanged=true logoUnchanged=true';
+          console.log(
+            `[Live Overlay Layout] video=${layoutSpec.videoWidth}x${layoutSpec.videoHeight} sampleBased=true mode=${mode} logoRect=${formatLiveOverlayRect(layoutSpec.logoRect)} scoreboardRect=${formatLiveOverlayRect(layoutSpec.scoreboardRect)} bottomMargin=${layoutSpec.bottomMargin} gap=${layoutSpec.gap} snapshotSize=${layoutSpec.snapshotSize} scaleFactor=${layoutSpec.scaleFactor}${caromLayoutLogSuffix}`,
+          );
+          console.log(
+            `[Live Overlay Quality] devicePixelRatio=${devicePixelRatio} viewLayout=${liveOverlaySnapshotLayout.width}x${liveOverlaySnapshotLayout.height} snapshotSize=${LIVE_OVERLAY_SNAPSHOT_WIDTH}x${LIVE_OVERLAY_SNAPSHOT_HEIGHT} videoOutput=encoder-size overlayDrawRect=${formatLiveOverlayRect(layoutSpec.scoreboardRect)} overlaySharp=true reason=snapshot-size-matches-live-layout`,
+          );
+
+          const capturedUri = await captureNativeYouTubeOverlayRef(overlayRef);
+
+          if (cancelled || !capturedUri) {
+            return;
+          }
+
+          lastLiveOverlaySnapshotSignatureRef.current = liveOverlaySnapshotSignature;
+          lastLiveOverlaySnapshotAtRef.current = Date.now();
+
+          console.log(
+            `[Live Overlay Snapshot] captured=true source=gameplay-overlay width=${LIVE_OVERLAY_SNAPSHOT_WIDTH} height=${LIVE_OVERLAY_SNAPSHOT_HEIGHT} format=png quality=lossless`,
+          );
+          console.log(`[Live Overlay] source=gameplay-shared-overlay mode=${mode} players=2 updated=true`);
+          console.log('[Live Output] frameSource=raw-camera+snapshot-overlay overlayAppliedToEncodedFrame=pending-native-apply');
+
+          await updateYouTubeNativeOverlay({
+            visible: true,
+            variant: mode,
+            source: 'gameplay-shared-overlay-snapshot',
+            snapshotUri: capturedUri,
+            snapshotWidth: LIVE_OVERLAY_SNAPSHOT_WIDTH,
+            snapshotHeight: LIVE_OVERLAY_SNAPSHOT_HEIGHT,
+            updatedAt: Date.now(),
+          } as any);
+        } catch (error) {
+          console.log('[Live Overlay Snapshot] captured=false source=gameplay-overlay error=', error);
+        }
+      };
+
+      void captureOverlay();
+    }, delayMs);
+
+    return () => {
+      cancelled = true;
+      if (liveOverlaySnapshotTimerRef.current) {
+        clearTimeout(liveOverlaySnapshotTimerRef.current);
+        liveOverlaySnapshotTimerRef.current = null;
+      }
+    };
+  }, [
+    liveOverlaySnapshotReady,
+    liveOverlaySnapshotLayout.width,
+    liveOverlaySnapshotLayout.height,
+    liveOverlaySnapshotSignature,
+    shouldPublishGameplayOverlaySnapshot,
+    shouldShowCaromSnapshotOverlay,
+    useYouTubeNativePreview,
+  ]);
+
   const renderOverlay = () => {
     if (
       suppressReactMatchOverlayForNativeLive ||
@@ -984,23 +1247,41 @@ const handleZoomSliderComplete = useCallback(
     return <LiveStreamImagesOverlay />;
   };
 
-  const renderScoreboardOverlay = (fullscreenMode = false) => {
+  const renderScoreboardOverlay = (
+    fullscreenMode = false,
+    options?: {liveOutput?: boolean},
+  ) => {
   if (suppressReactMatchOverlayForNativeLive) {
     return null;
   }
 
-  const poolBottomOffset = fullscreenMode ? fullscreenScoreboardBottom : 10;
-  const caromBottomOffset = fullscreenMode ? undefined : -50;
+  const liveOutput = !!options?.liveOutput;
+  const poolBottomOffset = liveOutput
+    ? LIVE_OVERLAY_POOL_BOTTOM
+    : fullscreenMode
+      ? fullscreenScoreboardBottom
+      : 10;
+  const caromBottomOffset = liveOutput
+    ? LIVE_OVERLAY_CAROM_BOTTOM
+    : fullscreenMode
+      ? undefined
+      : -50;
 
   return (
     <>
       <PoolScoreboardOverlay
         fullscreenMode={fullscreenMode}
         bottomOffset={poolBottomOffset}
+        liveOutput={liveOutput}
+        liveVideoWidth={LIVE_OVERLAY_SNAPSHOT_WIDTH}
+        liveVideoHeight={LIVE_OVERLAY_SNAPSHOT_HEIGHT}
       />
       <CaromScoreboardOverlay
         fullscreenMode={fullscreenMode}
         bottomOffset={caromBottomOffset}
+        liveOutput={liveOutput}
+        liveVideoWidth={LIVE_OVERLAY_SNAPSHOT_WIDTH}
+        liveVideoHeight={LIVE_OVERLAY_SNAPSHOT_HEIGHT}
       />
     </>
   );
@@ -1010,13 +1291,20 @@ const handleZoomSliderComplete = useCallback(
     imageUris: string[],
     positionStyle: any,
     fullscreenMode: boolean,
+    liveOutput = false,
   ) => {
     if (!thumbnailOverlay.enabled || !imageUris?.length) {
       return null;
     }
 
     return (
-      <RNView pointerEvents="none" style={[styles.thumbnailSlot, positionStyle]}>
+      <RNView
+        pointerEvents="none"
+        style={[
+          styles.thumbnailSlot,
+          liveOutput && styles.thumbnailSlotLive,
+          positionStyle,
+        ]}>
         {imageUris.map((uri, index) => (
           <RNImage
             key={`${uri}-${index}`}
@@ -1024,6 +1312,7 @@ const handleZoomSliderComplete = useCallback(
             style={[
               styles.thumbnailImage,
               fullscreenMode && styles.thumbnailImageFullscreen,
+              liveOutput && styles.thumbnailImageLive,
             ]}
             resizeMode="contain"
           />
@@ -1032,7 +1321,7 @@ const handleZoomSliderComplete = useCallback(
     );
   };
 
-  const renderFallbackThumbnail = (fullscreenMode: boolean) => {
+  const renderFallbackThumbnail = (fullscreenMode: boolean, liveOutput = false) => {
     const fallbackSource = images.logoFilled || images.logo;
     if (!fallbackSource) {
       return null;
@@ -1040,12 +1329,20 @@ const handleZoomSliderComplete = useCallback(
 
     return (
       <RNView pointerEvents="none" style={styles.thumbnailOverlay}>
-        <RNView pointerEvents="none" style={[styles.thumbnailSlot, styles.thumbnailTopLeft]}>
+        <RNView
+          pointerEvents="none"
+          style={[
+            styles.thumbnailSlot,
+            liveOutput && styles.thumbnailSlotLive,
+            styles.thumbnailTopLeft,
+            liveOutput && styles.thumbnailTopLeftLive,
+          ]}>
           <RNImage
             source={fallbackSource}
             style={[
               styles.thumbnailImage,
               fullscreenMode && styles.thumbnailImageFullscreen,
+              liveOutput && styles.thumbnailImageLive,
             ]}
             resizeMode="contain"
           />
@@ -1056,8 +1353,10 @@ const handleZoomSliderComplete = useCallback(
 
   const renderThumbnailOverlay = (
     fullscreenMode: boolean,
-    options?: {skipTopLeft?: boolean},
+    options?: {skipTopLeft?: boolean; liveOutput?: boolean},
   ) => {
+    const liveOutput = !!options?.liveOutput;
+
     if (
       suppressReactMatchOverlayForNativeLive ||
       !thumbnailOverlay.enabled ||
@@ -1067,7 +1366,7 @@ const handleZoomSliderComplete = useCallback(
     }
 
     if (!hasThumbnailImages) {
-      return options?.skipTopLeft ? null : renderFallbackThumbnail(fullscreenMode);
+      return options?.skipTopLeft ? null : renderFallbackThumbnail(fullscreenMode, liveOutput);
     }
 
     return (
@@ -1076,23 +1375,27 @@ const handleZoomSliderComplete = useCallback(
           ? null
           : renderThumbnailGroup(
               thumbnailOverlay.topLeft,
-              styles.thumbnailTopLeft,
+              [styles.thumbnailTopLeft, liveOutput && styles.thumbnailTopLeftLive],
               fullscreenMode,
+              liveOutput,
             )}
         {renderThumbnailGroup(
           thumbnailOverlay.topRight,
-          styles.thumbnailTopRight,
+          [styles.thumbnailTopRight, liveOutput && styles.thumbnailTopRightLive],
           fullscreenMode,
+          liveOutput,
         )}
         {renderThumbnailGroup(
           thumbnailOverlay.bottomLeft,
-          styles.thumbnailBottomLeft,
+          [styles.thumbnailBottomLeft, liveOutput && styles.thumbnailBottomLeftLive],
           fullscreenMode,
+          liveOutput,
         )}
         {renderThumbnailGroup(
           thumbnailOverlay.bottomRight,
-          styles.thumbnailBottomRight,
+          [styles.thumbnailBottomRight, liveOutput && styles.thumbnailBottomRightLive],
           fullscreenMode,
+          liveOutput,
         )}
       </RNView>
     );
@@ -1322,27 +1625,70 @@ const handleZoomSliderComplete = useCallback(
   };
 
   const renderFullscreenHud = () => {
+    const suppressLargeFullscreenOverlay = shouldShowSmallFullscreenLiveOverlay;
+
+    if (suppressLargeFullscreenOverlay) {
+      console.log(
+        '[Live Overlay Visibility] fullscreen=true smallOverlayMounted=true largeOverlayMounted=false largeOverlaySource=fullscreen-hud largeOverlayVisible=false liveOverlayForYoutubeStillActive=true',
+      );
+    }
+
     return (
       <RNView pointerEvents="box-none" style={styles.fullscreenHud}>
-        {shouldRenderPreview ? renderFullscreenBranding() : null}
+        {!suppressLargeFullscreenOverlay && shouldRenderPreview ? renderFullscreenBranding() : null}
         {renderFullscreenClose()}
-        <RNView
-          pointerEvents="none"
-          style={[
-            styles.fullscreenScoreboardWrap,
-            {
-              left: Math.max(overlaySafeInsets.left + adaptive.s(10), adaptive.s(10)),
-              right: Math.max(overlaySafeInsets.right + adaptive.s(56), adaptive.s(60)),
-              bottom: Math.max(overlaySafeInsets.bottom + adaptive.s(12), adaptive.s(12)),
-            },
-          ]}>
-          <PoolScoreboardOverlay
-            fullscreenMode
-            bottomOffset={fullscreenScoreboardBottom}
-          />
-        </RNView>
-        <CaromScoreboardOverlay fullscreenMode />
+        {!suppressLargeFullscreenOverlay ? (
+          <RNView
+            pointerEvents="none"
+            style={[
+              styles.fullscreenScoreboardWrap,
+              {
+                left: Math.max(overlaySafeInsets.left + adaptive.s(10), adaptive.s(10)),
+                right: Math.max(overlaySafeInsets.right + adaptive.s(56), adaptive.s(60)),
+                bottom: Math.max(overlaySafeInsets.bottom + adaptive.s(12), adaptive.s(12)),
+              },
+            ]}>
+            <PoolScoreboardOverlay
+              fullscreenMode
+              bottomOffset={fullscreenScoreboardBottom}
+            />
+          </RNView>
+        ) : null}
+        {!suppressLargeFullscreenOverlay ? <CaromScoreboardOverlay fullscreenMode /> : null}
         {renderFullscreenZoomRail()}
+      </RNView>
+    );
+  };
+
+  const renderLiveOverlaySnapshotSource = () => {
+    if (
+      !ENABLE_YOUTUBE_OVERLAY_SNAPSHOT_CAPTURE ||
+      !useYouTubeNativePreview ||
+      (!shouldShowPoolSnapshotOverlay && !shouldShowCaromSnapshotOverlay)
+    ) {
+      return null;
+    }
+
+    return (
+      <RNView
+        ref={liveOverlaySnapshotRef}
+        collapsable={false}
+        pointerEvents="none"
+        style={styles.liveOverlaySnapshotSource}
+        onLayout={event => {
+          const {width, height} = event.nativeEvent.layout;
+          setLiveOverlaySnapshotLayout(prev => {
+            if (prev.width === width && prev.height === height) {
+              return prev;
+            }
+            console.log(
+              `[Live Overlay] desiredSource=gameplay-shared-overlay mounted=${width > 0 && height > 0} size=${width}x${height} snapshotEnabled=true`,
+            );
+            return {width, height};
+          });
+        }}>
+        {renderThumbnailOverlay(false, {liveOutput: true})}
+        {renderScoreboardOverlay(false, {liveOutput: true})}
       </RNView>
     );
   };
@@ -1361,11 +1707,17 @@ const handleZoomSliderComplete = useCallback(
         }}>
         {renderCameraContent()}
         {shouldRenderPreview
-          ? fullscreenMode
-            ? renderThumbnailOverlay(true, {skipTopLeft: true})
-            : renderThumbnailOverlay(false)
+          ? shouldShowSmallFullscreenLiveOverlay
+            ? renderThumbnailOverlay(false, {liveOutput: true})
+            : fullscreenMode
+              ? renderThumbnailOverlay(true, {skipTopLeft: true})
+              : renderThumbnailOverlay(false)
           : null}
-        {!fullscreenMode ? renderScoreboardOverlay(false) : null}
+        {shouldShowSmallFullscreenLiveOverlay
+          ? renderScoreboardOverlay(false, {liveOutput: true})
+          : !fullscreenMode
+            ? renderScoreboardOverlay(false)
+            : null}
         {shouldShowOuterLogoOverlay ? (
           <RNView
             pointerEvents="none"
@@ -1421,6 +1773,8 @@ const handleZoomSliderComplete = useCallback(
           ) : null}
         </RNView>
       </RNView>
+
+      {renderLiveOverlaySnapshotSource()}
 
       {props.forceFullscreen ? renderFullscreenHud() : null}
 
@@ -1684,6 +2038,18 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     width: '100%',
   },
 
+  liveOverlaySnapshotSource: {
+    position: 'absolute',
+    left: -10000,
+    top: -10000,
+    width: LIVE_OVERLAY_SNAPSHOT_WIDTH,
+    height: LIVE_OVERLAY_SNAPSHOT_HEIGHT,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+    zIndex: 0,
+    elevation: 0,
+  },
+
   thumbnailOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 46,
@@ -1697,9 +2063,18 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     maxWidth: '42%',
   },
 
+  thumbnailSlotLive: {
+    maxWidth: '38%',
+  },
+
   thumbnailTopLeft: {
     top: 10,
     left: 10,
+  },
+
+  thumbnailTopLeftLive: {
+    top: LIVE_OVERLAY_LOGO_MARGIN_TOP,
+    left: LIVE_OVERLAY_LOGO_MARGIN_X,
   },
 
   thumbnailTopRight: {
@@ -1708,14 +2083,31 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     justifyContent: 'flex-end',
   },
 
+  thumbnailTopRightLive: {
+    top: LIVE_OVERLAY_LOGO_MARGIN_TOP,
+    right: LIVE_OVERLAY_LOGO_MARGIN_X,
+    justifyContent: 'flex-end',
+  },
+
   thumbnailBottomLeft: {
     bottom: 10,
     left: 10,
   },
 
+  thumbnailBottomLeftLive: {
+    bottom: LIVE_OVERLAY_LOGO_MARGIN_BOTTOM,
+    left: LIVE_OVERLAY_LOGO_MARGIN_X,
+  },
+
   thumbnailBottomRight: {
     bottom: 10,
     right: 10,
+    justifyContent: 'flex-end',
+  },
+
+  thumbnailBottomRightLive: {
+    bottom: LIVE_OVERLAY_LOGO_MARGIN_BOTTOM,
+    right: LIVE_OVERLAY_LOGO_MARGIN_X,
     justifyContent: 'flex-end',
   },
 
@@ -1729,6 +2121,12 @@ const createStyles = (adaptive: any, design: any, rules: any, safeInsets: any) =
     width: adaptive.s(150),
     height: adaptive.s(84),
     marginRight: 10,
+  },
+
+  thumbnailImageLive: {
+    width: LIVE_OVERLAY_LOGO_WIDTH,
+    height: LIVE_OVERLAY_LOGO_HEIGHT,
+    marginRight: 14,
   },
 
   fullscreenHud: {

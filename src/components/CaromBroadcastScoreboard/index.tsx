@@ -6,7 +6,7 @@ import {isCaromGame} from 'utils/game';
 import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 import useDesignSystem from 'theme/useDesignSystem';
 
-type Variant = 'camera' | 'fullscreen' | 'playback';
+type Variant = 'camera' | 'fullscreen' | 'playback' | 'live';
 
 export interface CaromBroadcastScoreboardProps {
   gameSettings?: any;
@@ -17,6 +17,8 @@ export interface CaromBroadcastScoreboardProps {
   variant?: Variant;
   bottomOffset?: number;
   style?: StyleProp<ViewStyle>;
+  liveVideoWidth?: number;
+  liveVideoHeight?: number;
 }
 
 const shouldUseCompactMetrics = (variant: Variant, adaptive?: any) => {
@@ -41,10 +43,33 @@ const shouldUseCompactMetrics = (variant: Variant, adaptive?: any) => {
   return baseCompact;
 };
 
-const getMetrics = (variant: Variant, compact = false, adaptive?: any) => {
+const getMetrics = (
+  variant: Variant,
+  compact = false,
+  adaptive?: any,
+  liveVideoWidth = 1920,
+  liveVideoHeight = 1080,
+) => {
   const s = adaptive?.s || ((value: number) => value);
+  const liveWidth = Math.max(1, Number(liveVideoWidth) || 1920);
+  const liveHeight = Math.max(1, Number(liveVideoHeight) || 1080);
+  const liveScale = Math.min(liveWidth / 1920, liveHeight / 1080);
+  const liveCaromSampleWidth = Math.round(liveWidth * 0.28);
+  const liveCaromOnlyWidthScale = 0.5;
+  const liveCaromWidth = Math.round(liveCaromSampleWidth * liveCaromOnlyWidthScale);
+  const liveCaromLeft = Math.round(liveWidth * 0.024);
 
   switch (variant) {
+    case 'live':
+      return {
+        // Live-only Carom sizing: keep the scoreboard at 50% width,
+        // but anchor it back near the original left edge. Pool/logo/camera/
+        // fullscreen/replay do not use this branch.
+        left: liveCaromLeft,
+        bottom: Math.round(liveHeight * 0.04),
+        width: liveCaromWidth,
+        scale: Math.max(0.62, Math.min(0.78, 0.74 * liveScale)),
+      };
     case 'fullscreen':
       return compact
         ? {
@@ -100,12 +125,20 @@ const CaromBroadcastScoreboard = ({
   variant = 'camera',
   bottomOffset,
   style,
+  liveVideoWidth = 1920,
+  liveVideoHeight = 1080,
 }: CaromBroadcastScoreboardProps) => {
   const category = gameSettings?.category;
   const players = playerSettings?.playingPlayers || [];
   const {adaptive} = useDesignSystem();
   const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
-  const metrics = getMetrics(variant, useCompactMetrics, adaptive);
+  const metrics = getMetrics(
+    variant,
+    useCompactMetrics,
+    adaptive,
+    liveVideoWidth,
+    liveVideoHeight,
+  );
 
   if (
     !isCaromGame(category) ||

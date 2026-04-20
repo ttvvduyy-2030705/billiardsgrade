@@ -751,6 +751,15 @@ const GamePlayViewModel = () => {
           }
 
           console.log('[YouTube Live] native start requested');
+          console.log('[YouTube Live] validating params', {
+            hasUrl: Boolean(pending.url),
+            hasStreamKey: Boolean(pending.url && pending.url.length > 24),
+            cameraReady: isCameraReady,
+            width: pending.options.width,
+            height: pending.options.height,
+            sourceType: pending.options.sourceType,
+            cameraFacing: pending.options.cameraFacing,
+          });
           await startYouTubeNativeLive(pending.url, pending.options);
         } catch (error: any) {
           console.log('[YouTube Live] native start failed:', error);
@@ -2357,6 +2366,7 @@ const GamePlayViewModel = () => {
     }
 
     console.log('[Replay] onStart pressed');
+    console.log('[YouTube Live] start button pressed');
     console.log('[Live Flow] start pressed');
     console.log('[Live Flow] selectedPlatform=' + String(selectedLivestreamPlatform || 'none'));
     console.log('[Live Flow] youtubeConnected=unknown-before-api-check');
@@ -2512,10 +2522,10 @@ const GamePlayViewModel = () => {
         pendingYouTubeNativeStartRef.current = {
           url: liveResponse.session.streamUrlWithKey,
           options: {
-            width: 1280,
-            height: 720,
+            width: 1920,
+            height: 1080,
             fps: 30,
-            bitrate: 4500 * 1024,
+            bitrate: 8000 * 1024,
             audioBitrate: 128 * 1024,
             sampleRate: 44100,
             isStereo: true,

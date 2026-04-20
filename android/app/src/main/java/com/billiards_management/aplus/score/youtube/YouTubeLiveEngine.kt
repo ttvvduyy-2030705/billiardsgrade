@@ -4,18 +4,17 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.util.Range
+import android.os.Handler
+import android.os.Looper
+import android.graphics.Bitmap
 import kotlin.math.max
 import kotlin.math.min
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import android.graphics.Bitmap
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.input.video.CameraHelper
 import com.pedro.encoder.utils.gl.TranslateTo
@@ -43,9 +42,11 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   private var overlayFilterAttached: Boolean = false
   private val retiredOverlayBitmaps = mutableListOf<Bitmap>()
   private val mainHandler = Handler(Looper.getMainLooper())
-  private var currentEncoderWidth: Int = 1280
-  private var currentEncoderHeight: Int = 720
   private var activeRecordingPath: String? = null
+  private var currentEncoderWidth: Int = 0
+  private var currentEncoderHeight: Int = 0
+  private var currentEncoderBitrate: Int = 0
+  private var currentEncoderFps: Int = 0
 
   data class StreamConfig(
     val url: String,
@@ -95,11 +96,16 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
     try {
       replaceViewIfPossible(camera, view)
+      markOverlayFilterDirty("surface-ready")
+      Log.i(
+        TAG,
+        "[Live Overlay Fullscreen] fullscreenSurfaceChanged=true activeSource=offscreen-live-overlay overlayBitmapStillAvailable=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()} reason=surface-ready",
+      )
       if (pendingConfig != null) {
         startStreamInternal(pendingConfig!!)
       } else {
         ensurePreview(currentFacing)
-        scheduleOverlayFilterApply(camera)
+        scheduleOverlayFilterApply(camera, 0L, "surface-ready")
       }
     } catch (error: Throwable) {
       Log.e(TAG, "onSurfaceReady failed", error)
@@ -113,6 +119,10 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     surfaceReady = false
 
     val camera = rtmpCamera ?: return
+    Log.i(
+      TAG,
+      "[Live Overlay Fullscreen] fullscreenSurfaceChanged=true activeSource=offscreen-live-overlay overlayBitmapStillAvailable=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()} reason=surface-destroyed keepLastGoodOverlay=true",
+    )
     try {
       if (camera.isOnPreview && !camera.isStreaming) {
         camera.stopPreview()
@@ -177,11 +187,17 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       }
       if (camera.isStreaming) {
         // Fullscreen/local preview swaps can recreate the OpenGlView while the
-        // RTMP encoder is still alive. Do not treat that as a stream restart,
-        // but do re-apply the overlay filter to the current GL interface so
-        // YouTube does not lose the scoreboard/logo.
+        // RTMP encoder is still alive. Do not restart the stream here, but force
+        // the last good gameplay overlay bitmap to be reattached to the new GL
+        // surface/filter chain.
+        markOverlayFilterDirty("already-streaming-view-swap")
+        Log.i(
+          TAG,
+          "[Live Overlay Fullscreen] activeSource=offscreen-live-overlay overlayBitmapStillAvailable=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()} reason=already-streaming-view-swap",
+        )
         scheduleOverlayFilterApply(camera, 0L, "already-streaming")
         scheduleOverlayFilterApply(camera, 350L, "already-streaming-retry")
+        scheduleOverlayFilterApply(camera, 900L, "already-streaming-retry-900")
         return
       }
 
@@ -238,27 +254,25 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
         "encoder-only selected=${selectedAttempt.rotation} ${selectedAttempt.label}",
       )
 
-      emitState(
-        "video_profile",
-        "${selectedProfile.width}x${selectedProfile.height}@${selectedProfile.fps} ${selectedProfile.bitrate}",
-      )
-
       currentEncoderWidth = selectedAttempt.width
       currentEncoderHeight = selectedAttempt.height
+      currentEncoderBitrate = selectedAttempt.bitrate
+      currentEncoderFps = selectedAttempt.fps
+      emitState(
+        "video_profile",
+        "${selectedAttempt.width}x${selectedAttempt.height}@${selectedAttempt.fps} ${selectedAttempt.bitrate}",
+      )
+      Log.i(
+        TAG,
+        "[Live Encoder] resolution=${selectedAttempt.width}x${selectedAttempt.height} bitrate=${selectedAttempt.bitrate} fps=${selectedAttempt.fps}",
+      )
 
-      // prepareVideo/startStream can recreate RootEncoder's GL pipeline internally.
-      // Force the overlay filter to attach after the stream starts; otherwise the
-      // app preview can show RN overlay locally while YouTube receives raw frames.
-      overlayFilter = null
-      overlayFilterAttached = false
-      overlayLastAppliedSignature = ""
-      overlayLastAppliedSizeSignature = ""
-      lastOverlayBitmap = null
       camera.startStream(config.url)
+      emitState("audio_live", "microphone audio enabled")
+      emitState("live_output", "frameSource=raw-camera+snapshot-overlay overlayIncluded=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()}")
       scheduleOverlayFilterApply(camera, 0L, "after-start")
       scheduleOverlayFilterApply(camera, 350L, "after-start-retry-350")
       scheduleOverlayFilterApply(camera, 1200L, "after-start-retry-1200")
-      emitState("audio_live", "microphone audio enabled")
       emitState("starting", null)
     } catch (error: Throwable) {
       Log.e(TAG, "startStream failed", error)
@@ -275,9 +289,9 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       fps = config.fps,
       bitrate = config.bitrate,
     )
-    val safe720 = VideoProfile(1280, 720, 24, 2_500_000)
-    val safe540 = VideoProfile(960, 540, 24, 1_800_000)
-    val safe480 = VideoProfile(854, 480, 24, 1_200_000)
+    val safe720 = VideoProfile(1280, 720, min(config.fps, 30), 5_500_000)
+    val safe540 = VideoProfile(960, 540, min(config.fps, 30), 3_000_000)
+    val safe480 = VideoProfile(854, 480, min(config.fps, 30), 2_000_000)
 
     return listOf(requested, safe720, safe540, safe480)
       .distinctBy { "${it.width}x${it.height}-${it.fps}-${it.bitrate}" }
@@ -359,15 +373,20 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
   fun stopStream() {
     pendingConfig = null
     activeRecordingPath = null
+    currentEncoderWidth = 0
+    currentEncoderHeight = 0
+    currentEncoderBitrate = 0
+    currentEncoderFps = 0
     val camera = rtmpCamera ?: return
     try {
+      clearOverlayFilter(camera)
+      releaseOverlayResources()
       if (camera.isStreaming) {
         camera.stopStream()
       }
       if (camera.isOnPreview) {
         camera.stopPreview()
       }
-      clearOverlayFilter(camera)
       emitState("stopped", null)
     } catch (error: Throwable) {
       Log.e(TAG, "stopStream failed", error)
@@ -486,7 +505,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
   @Synchronized
   fun updateOverlay(payload: ReadableMap?) {
-    val nextConfig = parseOverlayConfig(payload)
+    val nextConfig = parseOverlaySnapshotConfig(payload)
     val nextSignature = overlayConfigSignature(nextConfig)
 
     if (nextSignature == overlayLastConfigSignature) {
@@ -499,17 +518,67 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
 
     Log.i(
       TAG,
-      "overlay_update rev=$overlayRevision visible=${overlayConfig.visible} " +
-        "variant=${overlayConfig.variant} players=${overlayConfig.players.size} " +
-        "thumbs=${overlayConfig.thumbnails.totalCount()}",
+      "[Live Overlay] source=${nextConfig.source} mode=${nextConfig.variant} " +
+        "visible=${nextConfig.visible} snapshot=${nextConfig.snapshotUri.isNotBlank()} " +
+        "size=${nextConfig.snapshotWidth}x${nextConfig.snapshotHeight} rev=$overlayRevision",
+    )
+    Log.i(
+      TAG,
+      "[LiveOverlayNative] overlayBitmapReceived=${nextConfig.visible && nextConfig.snapshotUri.isNotBlank()} " +
+        "source=${nextConfig.source} mode=${nextConfig.variant} " +
+        "width=${nextConfig.snapshotWidth} height=${nextConfig.snapshotHeight}",
+    )
+    Log.i(
+      TAG,
+      "[Live Overlay Quality] snapshotSize=${nextConfig.snapshotWidth}x${nextConfig.snapshotHeight} " +
+        "videoOutput=${currentEncoderWidth.coerceAtLeast(0)}x${currentEncoderHeight.coerceAtLeast(0)} " +
+        "bitrate=${currentEncoderBitrate} fps=${currentEncoderFps}",
+    )
+    emitState(
+      "overlay_snapshot_update",
+      "source=${nextConfig.source} mode=${nextConfig.variant} visible=${nextConfig.visible} updated=true",
     )
 
     val camera = rtmpCamera
     if (camera?.isStreaming == true) {
-      scheduleOverlayFilterApply(camera, 0L, "update")
-    } else if (overlayConfig.visible) {
-      emitState("overlay_waiting_stream", "update")
+      scheduleOverlayFilterApply(camera, 0L, "snapshot-update")
+    } else if (nextConfig.visible) {
+      emitState("overlay_waiting_stream", "snapshot-update")
     }
+  }
+
+  private fun parseOverlaySnapshotConfig(payload: ReadableMap?): NativeLiveOverlayConfig {
+    if (payload == null) return NativeLiveOverlayConfig(visible = false)
+
+    val visible = readBoolean(payload, "visible", false)
+    val variant = readString(payload, "variant", "pool")
+    val source = readString(payload, "source", "gameplay-shared-overlay-snapshot")
+    val snapshotUri = readString(payload, "snapshotUri", "")
+    val snapshotWidth = readInt(payload, "snapshotWidth", 0)
+    val snapshotHeight = readInt(payload, "snapshotHeight", 0)
+    val updatedAt = readDouble(payload, "updatedAt", 0.0)
+
+    return NativeLiveOverlayConfig(
+      visible = visible && snapshotUri.isNotBlank(),
+      variant = if (variant == "carom") "carom" else "pool",
+      source = source,
+      snapshotUri = snapshotUri,
+      snapshotWidth = snapshotWidth,
+      snapshotHeight = snapshotHeight,
+      updatedAt = updatedAt,
+    )
+  }
+
+  private fun overlayConfigSignature(config: NativeLiveOverlayConfig): String {
+    return listOf(
+      config.visible.toString(),
+      config.variant,
+      config.source,
+      config.snapshotUri,
+      config.snapshotWidth.toString(),
+      config.snapshotHeight.toString(),
+      config.updatedAt.toString(),
+    ).joinToString("|")
   }
 
   private fun scheduleOverlayFilterApply(
@@ -524,8 +593,8 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       try {
         applyOverlayFilterIfNeeded(latestCamera, revisionAtSchedule, reason)
       } catch (error: Throwable) {
-        Log.e(TAG, "apply live overlay failed reason=$reason", error)
-        emitState("overlay_error", error.message ?: "apply live overlay failed")
+        Log.e(TAG, "apply live overlay snapshot failed reason=$reason", error)
+        emitState("overlay_error", error.message ?: "apply live overlay snapshot failed")
       }
     }
 
@@ -556,6 +625,7 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     val applySignature = "${overlayLastConfigSignature}:$sizeSignature"
 
     if (overlayFilterAttached && applySignature == overlayLastAppliedSignature) {
+      Log.i(TAG, "[Live Output] overlayBitmapStillAvailable=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()} overlayAppliedToEncodedFrame=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()} reason=$reason duplicateApplySkipped=true")
       return
     }
 
@@ -563,6 +633,15 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       overlayBitmapRenderer = it
     }
     val bitmap = renderer.render(overlayConfig, width, height)
+    val renderedOverlayIncluded = renderer.lastRenderHadOverlay
+    Log.i(
+      TAG,
+      "[Live Overlay Quality] snapshotSize=${overlayConfig.snapshotWidth}x${overlayConfig.snapshotHeight} " +
+        "bitmapDecoded=${renderer.lastDecodedWidth}x${renderer.lastDecodedHeight} " +
+        "videoOutput=${width}x${height} overlayDrawRect=0,0,${width},${height} " +
+        "scaleFactorX=${renderer.lastScaleFactorX} scaleFactorY=${renderer.lastScaleFactorY} " +
+        "bitrate=${currentEncoderBitrate} fps=${currentEncoderFps}",
+    )
 
     val filter = overlayFilter ?: ImageObjectFilterRender().also {
       overlayFilter = it
@@ -573,27 +652,30 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     filter.setScale(100f, 100f)
     filter.setPosition(TranslateTo.TOP_LEFT)
 
-    // Attach once per encoder size. Re-attaching the GL filter every countdown
-    // update rebuilds RootEncoder's filter chain and shows up as live overlay
-    // flicker. Score/timer changes only update the bitmap on the same filter.
     val mustAttachFilter = !overlayFilterAttached || overlayLastAppliedSizeSignature != sizeSignature
     if (mustAttachFilter) {
       val attached = attachOverlayFilter(glInterface, filter)
       if (!attached) {
-        emitState("overlay_error", "Cannot attach ImageObjectFilterRender to GL interface")
-        Log.e(TAG, "Cannot attach ImageObjectFilterRender to GL interface ${glInterface.javaClass.name}")
+        emitState("overlay_error", "Cannot attach snapshot ImageObjectFilterRender to GL interface")
+        Log.e(TAG, "Cannot attach snapshot ImageObjectFilterRender to GL interface ${glInterface.javaClass.name}")
         return
       }
       overlayFilterAttached = true
       overlayLastAppliedSizeSignature = sizeSignature
     }
 
+    lastOverlayBitmap?.let { retiredOverlayBitmaps += it }
     lastOverlayBitmap = bitmap
+    cleanupRetiredOverlayBitmaps()
     overlayLastAppliedSignature = applySignature
 
+    val included = overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank() && renderedOverlayIncluded
+    Log.i(TAG, "[Live Output] frameSource=raw-camera overlayCompositePath=bitmap-over-camera overlayDrawnOnFrame=$included frameIndex=filter-apply-$overlayRevision reason=$reason")
+    Log.i(TAG, "[Live Output] frameSource=raw-camera+snapshot-overlay overlayIncluded=$included size=$sizeSignature reason=$reason")
+    Log.i(TAG, "[Live Output] overlayAppliedToEncodedFrame=$included source=${overlayConfig.source} mode=${overlayConfig.variant} size=$sizeSignature reason=$reason")
     emitState(
-      if (overlayConfig.visible) "overlay_ready" else "overlay_cleared",
-      "${overlayConfig.variant}:${width}x${height}:players=${overlayConfig.players.size}:rev=$revisionAtSchedule:$reason",
+      if (included) "overlay_bitmap_applied" else "overlay_cleared",
+      "overlayBitmapApplied=$included overlayAppliedToEncodedFrame=$included source=${overlayConfig.source} ${overlayConfig.variant}:${width}x${height}:rev=$revisionAtSchedule:$reason",
     )
   }
 
@@ -627,7 +709,6 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
       }
     }
 
-    // Last-resort fallback for shaded/obfuscated API variants.
     methods.forEach { method ->
       if (method.parameterTypes.size == 1) {
         try {
@@ -641,170 +722,104 @@ object YouTubeLiveEngine : ConnectCheckerRtmp {
     return false
   }
 
+  private fun markOverlayFilterDirty(reason: String) {
+    overlayFilterAttached = false
+    overlayLastAppliedSignature = ""
+    overlayLastAppliedSizeSignature = ""
+    overlayFilter = null
+    Log.i(
+      TAG,
+      "[Live Overlay Fullscreen] markOverlayFilterDirty=true reason=$reason overlayBitmapStillAvailable=${overlayConfig.visible && overlayConfig.snapshotUri.isNotBlank()}",
+    )
+  }
+
   private fun clearOverlayFilter(camera: RtmpCamera2) {
     try {
       val glInterface = invoke(camera, "getGlInterface") ?: return
       invoke(glInterface, "clearFilters")
+      overlayFilterAttached = false
+      overlayLastAppliedSignature = ""
+      overlayLastAppliedSizeSignature = ""
     } catch (error: Throwable) {
-      Log.w(TAG, "clear live overlay filter failed", error)
-    }
-    overlayFilter = null
-    overlayFilterAttached = false
-    overlayLastAppliedSignature = ""
-    overlayLastAppliedSizeSignature = ""
-    lastOverlayBitmap = null
-    overlayBitmapRenderer?.release()
-    overlayBitmapRenderer = null
-    retiredOverlayBitmaps.forEach { bitmap ->
-      if (!bitmap.isRecycled) bitmap.recycle()
-    }
-    retiredOverlayBitmaps.clear()
-  }
-
-  private fun retireOverlayBitmap(bitmap: Bitmap?) {
-    if (bitmap == null || bitmap.isRecycled) return
-    retiredOverlayBitmaps += bitmap
-    while (retiredOverlayBitmaps.size > 6) {
-      val old = retiredOverlayBitmaps.removeAt(0)
-      if (!old.isRecycled) old.recycle()
+      Log.w(TAG, "clear live overlay snapshot filter failed", error)
     }
   }
 
   private fun resolveEncoderSize(glInterface: Any): Pair<Int, Int> {
-    val encoderSize = invoke(glInterface, "getEncoderSize")
-    val xValue = encoderSize?.javaClass?.fields?.firstOrNull { it.name == "x" }?.get(encoderSize)
-    val yValue = encoderSize?.javaClass?.fields?.firstOrNull { it.name == "y" }?.get(encoderSize)
-    val width = (xValue as? Number)?.toInt()?.takeIf { it > 0 } ?: currentEncoderWidth
-    val height = (yValue as? Number)?.toInt()?.takeIf { it > 0 } ?: currentEncoderHeight
+    if (currentEncoderWidth > 0 && currentEncoderHeight > 0) {
+      return Pair(currentEncoderWidth.coerceAtLeast(1), currentEncoderHeight.coerceAtLeast(1))
+    }
+
+    val streamWidth = invoke(glInterface, "getStreamWidth") as? Int
+    val streamHeight = invoke(glInterface, "getStreamHeight") as? Int
+    if (streamWidth != null && streamHeight != null && streamWidth > 0 && streamHeight > 0) {
+      return Pair(streamWidth, streamHeight)
+    }
+
+    val width = (invoke(glInterface, "getWidth") as? Int) ?: 1280
+    val height = (invoke(glInterface, "getHeight") as? Int) ?: 720
     return Pair(width.coerceAtLeast(1), height.coerceAtLeast(1))
   }
 
-  private fun overlayConfigSignature(config: NativeLiveOverlayConfig): String {
-    val players = config.players.joinToString("|") { player ->
-      listOf(
-        player.name,
-        player.flag,
-        player.score.toString(),
-        player.currentPoint.toString(),
-        player.color,
-        player.highestRate.toString(),
-        player.average.toString(),
-      ).joinToString("^")
-    }
-    val thumbnails = listOf(
-      config.thumbnails.enabled.toString(),
-      config.thumbnails.topLeft.joinToString(","),
-      config.thumbnails.topRight.joinToString(","),
-      config.thumbnails.bottomLeft.joinToString(","),
-      config.thumbnails.bottomRight.joinToString(","),
-    ).joinToString("|")
-
-    return listOf(
-      config.visible.toString(),
-      config.variant,
-      config.currentPlayerIndex.toString(),
-      config.countdownTime.toString(),
-      config.baseCountdown.toString(),
-      config.goal.toString(),
-      config.totalTurns.toString(),
-      players,
-      thumbnails,
-    ).joinToString("~")
-  }
-
-  private fun parseOverlayConfig(payload: ReadableMap?): NativeLiveOverlayConfig {
-    if (payload == null) return NativeLiveOverlayConfig(visible = false)
-
-    return try {
-      val players = mutableListOf<NativeLiveOverlayPlayer>()
-      val playersArray = if (payload.hasKey("players") && !payload.isNull("players")) {
-        payload.getArray("players")
-      } else {
-        null
-      }
-      if (playersArray != null) {
-        for (index in 0 until kotlin.math.min(playersArray.size(), 2)) {
-          val playerMap = playersArray.getMap(index) ?: continue
-          players += NativeLiveOverlayPlayer(
-            name = readString(playerMap, "name"),
-            flag = readString(playerMap, "flag"),
-            score = readInt(playerMap, "score"),
-            currentPoint = readInt(playerMap, "currentPoint"),
-            color = readString(playerMap, "color"),
-            highestRate = readInt(playerMap, "highestRate"),
-            average = readDouble(playerMap, "average").toFloat(),
-          )
-        }
-      }
-
-      NativeLiveOverlayConfig(
-        visible = readBoolean(payload, "visible"),
-        variant = readString(payload, "variant").ifBlank { "pool" },
-        currentPlayerIndex = readInt(payload, "currentPlayerIndex"),
-        countdownTime = readInt(payload, "countdownTime"),
-        baseCountdown = readInt(payload, "baseCountdown"),
-        goal = readInt(payload, "goal"),
-        totalTurns = readInt(payload, "totalTurns").coerceAtLeast(1),
-        players = players,
-        thumbnails = parseThumbnails(if (payload.hasKey("thumbnails") && !payload.isNull("thumbnails")) payload.getMap("thumbnails") else null),
-      )
-    } catch (error: Throwable) {
-      Log.e(TAG, "parse live overlay payload failed", error)
-      NativeLiveOverlayConfig(visible = false)
-    }
-  }
-
-  private fun parseThumbnails(map: ReadableMap?): NativeLiveOverlayThumbnails {
-    if (map == null) return NativeLiveOverlayThumbnails()
-    return NativeLiveOverlayThumbnails(
-      enabled = readBoolean(map, "enabled"),
-      topLeft = readStringList(if (map.hasKey("topLeft") && !map.isNull("topLeft")) map.getArray("topLeft") else null),
-      topRight = readStringList(if (map.hasKey("topRight") && !map.isNull("topRight")) map.getArray("topRight") else null),
-      bottomLeft = readStringList(if (map.hasKey("bottomLeft") && !map.isNull("bottomLeft")) map.getArray("bottomLeft") else null),
-      bottomRight = readStringList(if (map.hasKey("bottomRight") && !map.isNull("bottomRight")) map.getArray("bottomRight") else null),
-    )
-  }
-
-  private fun readStringList(array: ReadableArray?): List<String> {
-    if (array == null) return emptyList()
-    val result = mutableListOf<String>()
-    for (index in 0 until array.size()) {
-      if (!array.isNull(index)) {
-        result += array.getString(index) ?: ""
+  private fun cleanupRetiredOverlayBitmaps() {
+    while (retiredOverlayBitmaps.size > 6) {
+      val bitmap = retiredOverlayBitmaps.removeAt(0)
+      try {
+        if (!bitmap.isRecycled) bitmap.recycle()
+      } catch (_: Throwable) {
       }
     }
-    return result.filter { it.isNotBlank() }
   }
 
-  private fun readString(map: ReadableMap, key: String): String {
+  private fun releaseOverlayResources() {
+    overlayBitmapRenderer?.release()
+    overlayBitmapRenderer = null
+    overlayFilter = null
+    lastOverlayBitmap?.takeIf { !it.isRecycled }?.recycle()
+    lastOverlayBitmap = null
+    retiredOverlayBitmaps.forEach { bitmap ->
+      try {
+        if (!bitmap.isRecycled) bitmap.recycle()
+      } catch (_: Throwable) {
+      }
+    }
+    retiredOverlayBitmaps.clear()
+    overlayFilterAttached = false
+    overlayLastAppliedSignature = ""
+    overlayLastAppliedSizeSignature = ""
+    overlayLastConfigSignature = ""
+    overlayConfig = NativeLiveOverlayConfig()
+  }
+
+  private fun readString(map: ReadableMap, key: String, fallback: String): String {
     return try {
-      if (map.hasKey(key) && !map.isNull(key)) map.getString(key) ?: "" else ""
+      if (map.hasKey(key) && !map.isNull(key)) map.getString(key) ?: fallback else fallback
     } catch (_: Throwable) {
-      ""
+      fallback
     }
   }
 
-  private fun readBoolean(map: ReadableMap, key: String): Boolean {
+  private fun readBoolean(map: ReadableMap, key: String, fallback: Boolean): Boolean {
     return try {
-      map.hasKey(key) && !map.isNull(key) && map.getBoolean(key)
+      if (map.hasKey(key) && !map.isNull(key)) map.getBoolean(key) else fallback
     } catch (_: Throwable) {
-      false
+      fallback
     }
   }
 
-  private fun readInt(map: ReadableMap, key: String): Int {
+  private fun readInt(map: ReadableMap, key: String, fallback: Int): Int {
     return try {
-      if (map.hasKey(key) && !map.isNull(key)) map.getDouble(key).toInt() else 0
+      if (map.hasKey(key) && !map.isNull(key)) map.getDouble(key).toInt() else fallback
     } catch (_: Throwable) {
-      0
+      fallback
     }
   }
 
-  private fun readDouble(map: ReadableMap, key: String): Double {
+  private fun readDouble(map: ReadableMap, key: String, fallback: Double): Double {
     return try {
-      if (map.hasKey(key) && !map.isNull(key)) map.getDouble(key) else 0.0
+      if (map.hasKey(key) && !map.isNull(key)) map.getDouble(key) else fallback
     } catch (_: Throwable) {
-      0.0
+      fallback
     }
   }
 

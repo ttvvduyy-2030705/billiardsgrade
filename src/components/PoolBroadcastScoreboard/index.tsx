@@ -15,7 +15,7 @@ import {isPool10Game, isPool15Game, isPool9Game} from 'utils/game';
 import {shouldShowMatchOverlay} from 'utils/matchOverlay';
 import useDesignSystem from 'theme/useDesignSystem';
 
-type Variant = 'camera' | 'fullscreen' | 'playback';
+type Variant = 'camera' | 'fullscreen' | 'playback' | 'live';
 
 export interface PoolBroadcastScoreboardProps {
   gameSettings?: GameSettings | any;
@@ -25,6 +25,8 @@ export interface PoolBroadcastScoreboardProps {
   variant?: Variant;
   bottomOffset?: number;
   style?: StyleProp<ViewStyle>;
+  liveVideoWidth?: number;
+  liveVideoHeight?: number;
 }
 
 const LEFT_PANEL_COLORS = ['#FF5B57', '#CC1212'];
@@ -77,11 +79,39 @@ const shouldUseCompactMetrics = (variant: Variant, adaptive?: any) => {
   return baseCompact;
 };
 
-const getVariantMetrics = (variant: Variant, compact = false, adaptive?: any) => {
+const getVariantMetrics = (
+  variant: Variant,
+  compact = false,
+  adaptive?: any,
+  liveVideoWidth = 1920,
+  liveVideoHeight = 1080,
+) => {
   const s = adaptive?.s || ((value: number) => value);
   const fs = adaptive?.fs || ((value: number) => value);
+  const liveWidth = Math.max(1, Number(liveVideoWidth) || 1920);
+  const liveHeight = Math.max(1, Number(liveVideoHeight) || 1080);
+  const liveScale = Math.min(liveWidth / 1920, liveHeight / 1080);
+  const liveSize = (value: number) => Math.round(value * liveScale);
 
   switch (variant) {
+    case 'live':
+      return {
+        // YouTube output snapshot uses sample-based proportions, not the
+        // phone/tablet preview metrics. Keep the same component/style source
+        // but make the encoded overlay large enough to read on 720p/1080p.
+        wrapperWidth: '86%',
+        barHeight: liveSize(76),
+        bottomGap: Math.round(liveHeight * 0.052),
+        playerNameSize: liveSize(27),
+        playerScoreSize: liveSize(44),
+        centerLabelSize: liveSize(15),
+        centerValueSize: liveSize(32),
+        timerHeight: liveSize(22),
+        timerTextSize: liveSize(15),
+        flagWidth: liveSize(56),
+        scoreMinWidth: liveSize(92),
+        horizontalPadding: liveSize(18),
+      };
     case 'fullscreen':
       if (compact) {
         return {
@@ -171,6 +201,8 @@ const PoolBroadcastScoreboard = ({
   variant = 'camera',
   bottomOffset,
   style,
+  liveVideoWidth = 1920,
+  liveVideoHeight = 1080,
 }: PoolBroadcastScoreboardProps) => {
   const category = gameSettings?.category;
   const isSupportedCategory =
@@ -178,7 +210,13 @@ const PoolBroadcastScoreboard = ({
   const playingPlayers = playerSettings?.playingPlayers || [];
   const {adaptive} = useDesignSystem();
   const useCompactMetrics = shouldUseCompactMetrics(variant, adaptive);
-  const metrics = getVariantMetrics(variant, useCompactMetrics, adaptive);
+  const metrics = getVariantMetrics(
+    variant,
+    useCompactMetrics,
+    adaptive,
+    liveVideoWidth,
+    liveVideoHeight,
+  );
   const goal = safeNumber(
     gameSettings?.players?.goal?.goal ?? playerSettings?.goal?.goal,
     0,
