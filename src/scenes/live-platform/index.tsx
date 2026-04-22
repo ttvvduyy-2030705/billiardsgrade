@@ -13,6 +13,7 @@ import {screens} from 'scenes/screens';
 import createBrandedScreenChrome from 'scenes/shared/createBrandedScreenChrome';
 import getBrandedScreenMetrics from 'scenes/shared/getBrandedScreenMetrics';
 import {Navigation} from 'types/navigation';
+import {useAplusPro} from 'features/subscription';
 
 import facebookLogo from './facebook.png';
 import youtubeLogo from './youtube.png';
@@ -79,6 +80,7 @@ const LivePlatform = (props: any) => {
   const [saveToDeviceWhileStreaming, setSaveToDeviceWhileStreaming] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformKey | null>(null);
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {requireAplusPro} = useAplusPro();
   const isCompact = !adaptive.isLandscape || adaptive.width < 1100;
 
 
@@ -124,7 +126,7 @@ const LivePlatform = (props: any) => {
 
   const onBack = useCallback(() => { if (typeof props?.goBack === 'function') { props.goBack(); return; } if (typeof props?.navigation?.goBack === 'function') { props.navigation.goBack(); } }, [props]);
 
-  const onSelectPlatform = useCallback(async (platform: PlatformKey) => {
+  const selectPlatformUnlocked = useCallback(async (platform: PlatformKey) => {
     setSelectedPlatform(platform);
 
     if (navigationTimeoutRef.current) {
@@ -143,6 +145,17 @@ const LivePlatform = (props: any) => {
       props.navigate?.(screens.livePlatformSetupYoutube, params);
     }, 120);
   }, [props, saveToDeviceWhileStreaming]);
+
+  const onSelectPlatform = useCallback(async (platform: PlatformKey) => {
+    if (platform === 'youtube' || platform === 'facebook') {
+      requireAplusPro(platform, () => {
+        selectPlatformUnlocked(platform);
+      });
+      return;
+    }
+
+    selectPlatformUnlocked(platform);
+  }, [requireAplusPro, selectPlatformUnlocked]);
 
   return (
     <Container style={styles.screen}>

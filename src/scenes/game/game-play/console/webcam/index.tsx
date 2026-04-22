@@ -51,6 +51,7 @@ import {setCameraFullscreen} from '../../cameraFullscreenStore';
 import {updateYouTubeNativeOverlay} from 'services/youtubeNativeLive';
 import useDesignSystem from 'theme/useDesignSystem';
 import {createGameplayLayoutRules, createGameplayStyles} from '../../layoutRules';
+import {useAplusPro} from 'features/subscription';
 
 const BASE_ZOOM_STEPS = [1, 2, 5, 10];
 
@@ -440,6 +441,8 @@ const CaromScoreboardOverlay = memo(({
 
 const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const viewModel = WebCamViewModel(props);
+  const {isAplusProActive, showPaywall} = useAplusPro();
+  const isCameraPremiumLocked = !isAplusProActive;
   const {adaptive, design} = useDesignSystem();
   const safeInsets = useSafeScreenInsets();
   const overlaySafeInsets = useMemo(() => ({
@@ -450,6 +453,9 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const styles = useMemo(() => createStyles(adaptive, design, layoutRules, overlaySafeInsets), [adaptive.styleKey, overlaySafeInsets.top, overlaySafeInsets.right, overlaySafeInsets.bottom, overlaySafeInsets.left]);
   const cameraScaleMode = props.cameraScaleMode || 'cover';
   const isFullscreen = !!props.forceFullscreen;
+  const showCameraPaywall = useCallback(() => {
+    showPaywall('camera');
+  }, [showPaywall]);
 
   const [cameraVisualReady, setCameraVisualReady] = useState(false);
   const [zoomSupported, setZoomSupported] = useState(false);
@@ -651,6 +657,11 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   const hasStreamUri = streamUri.length > 0;
   const handleCameraReadyChange = useCallback(
     (nextReady: boolean) => {
+      if (isCameraPremiumLocked) {
+        setCameraVisualReady(false);
+        props.setIsCameraReady(false);
+        return;
+      }
       setCameraVisualReady(prev => (prev === nextReady ? prev : nextReady));
       props.setIsCameraReady(nextReady);
       debugCameraLog('[WebCam] visual ready changed', {
@@ -660,10 +671,16 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
         streamUri,
       });
     },
-    [effectiveCameraSource, effectiveSourceType, props.setIsCameraReady, streamUri],
+    [effectiveCameraSource, effectiveSourceType, isCameraPremiumLocked, props.setIsCameraReady, streamUri],
   );
 
   useEffect(() => {
+    if (isCameraPremiumLocked) {
+      setCameraVisualReady(false);
+      props.setIsCameraReady(false);
+      return;
+    }
+
     setCameraVisualReady(false);
     debugCameraLog('[WebCam] reset visual ready for source signature', {
       effectiveCameraSource,
@@ -675,6 +692,7 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
   }, [
     effectiveCameraSource,
     effectiveSourceType,
+    isCameraPremiumLocked,
     streamUri,
     props.youtubeLivePreviewActive,
     viewModel.refreshing,
@@ -691,9 +709,9 @@ const WebCam = forwardRef<WebCamHandle, WebCamComponentProps>((props, ref) => {
     effectiveSourceType === 'webcam' &&
     (!effectiveCameraReady || viewModel.refreshing);
   const shouldShowLogoPlaceholder =
-    shouldShowPhonePlaceholder || shouldShowExternalPlaceholder;
-  const shouldRenderVideoComponent = !viewModel.refreshing || useYouTubeNativePreview;
-  const shouldRenderPreview = shouldRenderVideoComponent && effectiveCameraReady;
+    isCameraPremiumLocked || shouldShowPhonePlaceholder || shouldShowExternalPlaceholder;
+  const shouldRenderVideoComponent = !isCameraPremiumLocked && (!viewModel.refreshing || useYouTubeNativePreview);
+  const shouldRenderPreview = !isCameraPremiumLocked && shouldRenderVideoComponent && effectiveCameraReady;
   const shouldShowOuterLogoOverlay = false;
 
   useEffect(() => {
@@ -904,6 +922,11 @@ const handleZoomSliderComplete = useCallback(
 );
 
   const openFullscreen = () => {
+    if (isCameraPremiumLocked) {
+      showCameraPaywall();
+      return;
+    }
+
     const nextSource =
       effectiveCameraSource === 'front' ||
       effectiveCameraSource === 'back' ||
@@ -922,6 +945,11 @@ const handleZoomSliderComplete = useCallback(
     setCameraFullscreen(false);
   };
   const onSwitchCameraPress = () => {
+    if (isCameraPremiumLocked) {
+      showCameraPaywall();
+      return;
+    }
+
     if (externalLiveLocked) {
       debugCameraLog(
         '[WebCam] block switch camera while external recording lock is active',
@@ -955,9 +983,9 @@ const handleZoomSliderComplete = useCallback(
   const isVideoSessionLocked =
     isExplicitRecording || !!props.youtubeLivePreviewActive || externalLiveLocked;
 
-  const allowRefresh = !viewModel.refreshing && !isVideoSessionLocked;
+  const allowRefresh = !isCameraPremiumLocked && !viewModel.refreshing && !isVideoSessionLocked;
 
-  const allowSwitchCamera = !isVideoSessionLocked;
+  const allowSwitchCamera = !isCameraPremiumLocked && !isVideoSessionLocked;
   const lastButtonAvailabilityLogRef = useRef('');
 
   useEffect(() => {
@@ -1013,11 +1041,21 @@ const handleZoomSliderComplete = useCallback(
     ref,
     () => ({
       refresh: () => {
+        if (isCameraPremiumLocked) {
+          showCameraPaywall();
+          return;
+        }
+
         if (allowRefresh) {
           viewModel.onRefresh();
         }
       },
       switchCamera: () => {
+        if (isCameraPremiumLocked) {
+          showCameraPaywall();
+          return;
+        }
+
         if (allowSwitchCamera) {
           onSwitchCameraPress();
         }
@@ -1035,7 +1073,9 @@ const handleZoomSliderComplete = useCallback(
       allowRefresh,
       allowSwitchCamera,
       canRewatch,
+      isCameraPremiumLocked,
       onSwitchCameraPress,
+      showCameraPaywall,
       viewModel,
     ],
   );
@@ -1475,6 +1515,16 @@ const handleZoomSliderComplete = useCallback(
   );
 
   const renderCameraContent = () => {
+    if (isCameraPremiumLocked) {
+      return (
+        <RNView style={styles.cameraStageRoot}>
+          <RNView pointerEvents="none" style={styles.fallbackVisibleStage}>
+            {fullLogoPlaceholder}
+          </RNView>
+        </RNView>
+      );
+    }
+
     debugCameraLog('[WebCam] renderCameraContent branch', {
       refreshing: viewModel.refreshing,
       useYouTubeNativePreview,
@@ -1678,6 +1728,10 @@ const handleZoomSliderComplete = useCallback(
   };
 
   const renderLiveOverlaySnapshotSource = () => {
+    if (isCameraPremiumLocked) {
+      return null;
+    }
+
     if (
       !ENABLE_YOUTUBE_OVERLAY_SNAPSHOT_CAPTURE ||
       !useYouTubeNativePreview ||
@@ -1714,6 +1768,14 @@ const handleZoomSliderComplete = useCallback(
   };
 
   const renderCameraView = (fullscreenMode: boolean) => {
+    if (isCameraPremiumLocked) {
+      return (
+        <RNView collapsable={false} style={fullscreenMode ? styles.fullscreenVideoClip : styles.videoClip}>
+          {renderCameraContent()}
+        </RNView>
+      );
+    }
+
     return (
       <RNView
         collapsable={false}
@@ -1789,7 +1851,7 @@ const handleZoomSliderComplete = useCallback(
         </RNView>
       </RNView>
 
-      {props.forceFullscreen ? renderFullscreenHud() : null}
+      {props.forceFullscreen && !isCameraPremiumLocked ? renderFullscreenHud() : null}
 
       {showBottomControls && !shouldShowLogoPlaceholder && !props.forceFullscreen ? (
         <RNView style={styles.bottomBar} pointerEvents="box-none">

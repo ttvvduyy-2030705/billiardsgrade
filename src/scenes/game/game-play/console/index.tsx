@@ -805,7 +805,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
           <WideActionButton
             label={`↗ ${tr('Đổi người', 'Switch player')}`}
             tone={'amber'}
-            onPress={viewModel.onSwitchTurn}
+            onPress={viewModel.onSwapPlayers}
             compact={useCaromCompactButtons}
             extraCompact={useCaromExtraCompactButtons}
             tight={useCaromTightLayout}
@@ -865,9 +865,9 @@ const GameConsole = (props: ConsoleViewModelProps) => {
 
     return (
       <WideActionButton
-        label={`↗ ${tr('Đổi người', 'Switch turn')}`}
+        label={`↗ ${tr('Đổi người', 'Switch players')}`}
         tone={'amber'}
-        onPress={viewModel.onSwitchTurn}
+        onPress={viewModel.onSwapPlayers}
         compact={useResponsiveCompact}
         poolCompact={usePoolBroadcastLayout}
         extraCompact={useExtraCompact}
@@ -886,6 +886,7 @@ const GameConsole = (props: ConsoleViewModelProps) => {
     viewModel.onPressGiveMoreTime,
     props.onReset,
     viewModel.onSwitchTurn,
+    viewModel.onSwapPlayers,
     props.onIncreaseTotalTurns,
     props.onDecreaseTotalTurns,
     useExtraCompact,

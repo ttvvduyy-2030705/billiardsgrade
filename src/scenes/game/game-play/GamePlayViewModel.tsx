@@ -2248,20 +2248,31 @@ const GamePlayViewModel = () => {
   }, [isStarted, gameSettings, totalTurns, _resetCountdown]);
 
   const onSwapPlayers = useCallback(() => {
-    const player0: Player = {
-      ...playerSettings?.playingPlayers[0],
-      name: playerSettings?.playingPlayers[1].name,
-    } as Player;
-    const player1: Player = {
-      ...playerSettings?.playingPlayers[1],
-      name: playerSettings?.playingPlayers[0].name,
-    } as Player;
+    setPlayerSettings(currentSettings => {
+      const playingPlayers = currentSettings?.playingPlayers || [];
+      if (playingPlayers.length < 2) {
+        return currentSettings;
+      }
 
-    setPlayerSettings({
-      ...playerSettings,
-      playingPlayers: [player0, player1],
-    } as PlayerSettings);
-  }, [playerSettings]);
+      const nextPlayers = playingPlayers.map(player => ({...player}));
+      const firstName = nextPlayers[0]?.name || '';
+      const secondName = nextPlayers[1]?.name || '';
+
+      nextPlayers[0] = {
+        ...nextPlayers[0],
+        name: secondName,
+      } as Player;
+      nextPlayers[1] = {
+        ...nextPlayers[1],
+        name: firstName,
+      } as Player;
+
+      return {
+        ...currentSettings,
+        playingPlayers: nextPlayers,
+      } as PlayerSettings;
+    });
+  }, []);
 
   const dismissYouTubeLiveOverlay = useCallback(() => {
     setYoutubeLiveOverlay(null);

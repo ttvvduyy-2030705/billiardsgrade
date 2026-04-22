@@ -4,6 +4,7 @@ import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {isPoolGame} from 'utils/game';
 import RemoteControl from 'utils/remote';
+import {useAplusPro} from 'features/subscription';
 
 export interface Props {
   index: number;
@@ -38,6 +39,7 @@ const formatAverage = (value?: number) => {
 };
 
 const PlayerViewModel = (props: Props) => {
+  const {requireAplusPro} = useAplusPro();
   const [nameEditable, setNameEditable] = useState(false);
   const [draftName, setDraftName] = useState(props.player.name || '');
   const [totalPointInTurn, setTotalPointInTurn] = useState(
@@ -80,9 +82,11 @@ const PlayerViewModel = (props: Props) => {
       return;
     }
 
-    setDraftName(props.player.name || '');
-    setNameEditable(true);
-  }, [nameEditable, onCommitName, props.player.name]);
+    requireAplusPro('rename_player', () => {
+      setDraftName(props.player.name || '');
+      setNameEditable(true);
+    });
+  }, [nameEditable, onCommitName, props.player.name, requireAplusPro]);
 
   useEffect(() => {
     if (props.isOnTurn) {

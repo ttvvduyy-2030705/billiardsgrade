@@ -34,6 +34,7 @@ import {
   type LivestreamPlatform,
 } from 'services/livestreamAuth';
 import {Navigation} from 'types/navigation';
+import {useAplusPro} from 'features/subscription';
 
 import {CURRENT_PLATFORM_KEY} from '../live-platform';
 
@@ -191,6 +192,7 @@ const LivePlatformSetup = (props: Props) => {
   const [visibility, setVisibility] = useState<Visibility>('public');
 
   const autoAuthTriggeredRef = useRef(false);
+  const {isAplusProActive, showPaywall} = useAplusPro();
 
   const compact = !adaptive.isLandscape || adaptive.width < 1100;
 
@@ -393,7 +395,16 @@ const LivePlatformSetup = (props: Props) => {
     }
   }, [props]);
 
+  const showLivestreamPaywall = useCallback(() => {
+    showPaywall(platform === 'facebook' ? 'facebook' : platform === 'youtube' ? 'youtube' : 'livestream');
+  }, [platform, showPaywall]);
+
   const startBrowserAuth = useCallback(async () => {
+    if (!isAplusProActive) {
+      showLivestreamPaywall();
+      return;
+    }
+
     try {
       setIsAuthorizing(true);
       if (platform === 'youtube') {
@@ -404,7 +415,7 @@ const LivePlatformSetup = (props: Props) => {
       setIsAuthorizing(false);
       Alert.alert('Lỗi', 'Không thể mở trình duyệt để đăng nhập nền tảng này.');
     }
-  }, [platform]);
+  }, [isAplusProActive, platform, showLivestreamPaywall]);
 
   useEffect(() => {
     const handleUrl = async ({url}: {url: string}) => {
@@ -487,8 +498,14 @@ const LivePlatformSetup = (props: Props) => {
     }
 
     autoAuthTriggeredRef.current = true;
+
+    if (!isAplusProActive) {
+      showLivestreamPaywall();
+      return;
+    }
+
     startBrowserAuth();
-  }, [accountName, isAuthorizing, isLoading, startBrowserAuth]);
+  }, [accountName, isAplusProActive, isAuthorizing, isLoading, showLivestreamPaywall, startBrowserAuth]);
 
   const onLogout = useCallback(async () => {
     try {
@@ -504,6 +521,11 @@ const LivePlatformSetup = (props: Props) => {
   }, [persistLocalState, platform, platformName, visibility]);
 
   const onContinue = useCallback(async () => {
+    if (!isAplusProActive) {
+      showLivestreamPaywall();
+      return;
+    }
+
     if (!accountName || accountName.trim().length === 0) {
       Alert.alert(
         'Chưa đăng nhập',
@@ -531,12 +553,14 @@ const LivePlatformSetup = (props: Props) => {
   }, [
     accountId,
     accountName,
+    isAplusProActive,
     persistLocalState,
     platform,
     platformName,
     props,
     saveToDeviceWhileStreaming,
     setupToken,
+    showLivestreamPaywall,
     startBrowserAuth,
     visibility,
   ]);

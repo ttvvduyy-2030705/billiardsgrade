@@ -22,6 +22,7 @@ import {
 import useAdaptiveLayout from '../../useAdaptiveLayout';
 import {configureSystemUI} from 'theme/systemUI';
 import createStyles from './styles';
+import {useAplusPro} from 'features/subscription';
 
 interface Props {
   adaptive?: ReturnType<typeof useAdaptiveLayout>;
@@ -70,6 +71,8 @@ const EditablePlayerNameInput = memo(
     placeholder,
     onCommit,
     inputStyle,
+    editable,
+    onBlockedPress,
   }: {
     value: string;
     index: number;
@@ -77,6 +80,8 @@ const EditablePlayerNameInput = memo(
     placeholder: string;
     inputStyle: any[];
     onCommit: (newName: string, index: number) => void;
+    editable: boolean;
+    onBlockedPress: () => void;
   }) => {
     const [draftName, setDraftName] = useState(value || '');
 
@@ -85,6 +90,11 @@ const EditablePlayerNameInput = memo(
     }, [value]);
 
     const commitName = useCallback(() => {
+      if (!editable) {
+        setDraftName(value || '');
+        return;
+      }
+
       const trimmedName = String(draftName || '').trim();
       const nextName = trimmedName || value || '';
 
@@ -92,7 +102,33 @@ const EditablePlayerNameInput = memo(
       if (nextName !== value) {
         onCommit(nextName, index);
       }
-    }, [draftName, index, onCommit, value]);
+    }, [draftName, editable, index, onCommit, value]);
+
+    if (!editable) {
+      return (
+        <Pressable
+          onPress={onBlockedPress}
+          hitSlop={8}
+          style={({pressed}) => [
+            {flex: 1, minWidth: 0},
+            pressed && {opacity: 0.82},
+          ]}>
+          <View pointerEvents="none" style={{flex: 1, minWidth: 0}}>
+            <TextInput
+              value={draftName}
+              editable={false}
+              style={inputStyle}
+              autoCorrect={false}
+              autoCapitalize="words"
+              selectTextOnFocus={false}
+              underlineColorAndroid="transparent"
+              placeholder={placeholder}
+              placeholderTextColor={isPool ? '#575757' : '#666666'}
+            />
+          </View>
+        </Pressable>
+      );
+    }
 
     return (
       <TextInput
@@ -103,6 +139,7 @@ const EditablePlayerNameInput = memo(
         style={inputStyle}
         autoCorrect={false}
         autoCapitalize="words"
+        editable={true}
         selectTextOnFocus={true}
         underlineColorAndroid="transparent"
         placeholder={placeholder}
@@ -125,6 +162,7 @@ const PlayerSettingsComponent = ({
   onSelectPlayerCountry,
 }: Props) => {
   const adaptive = adaptiveProp ?? useAdaptiveLayout();
+  const {isAplusProActive, showPaywall} = useAplusPro();
   const styles = React.useMemo(() => createStyles(adaptive), [adaptive]);
   const isPool = useMemo(() => isPoolGame(category), [category]);
   const isEnglish = getLocale().startsWith('en');
@@ -169,12 +207,21 @@ const PlayerSettingsComponent = ({
 
   const pointSteps = useMemo(() => Object.keys(PLAYER_POINT_STEPS), []);
 
+  const showRenamePaywall = useCallback(() => {
+    showPaywall('rename_player');
+  }, [showPaywall]);
+
   const openCountryModal = useCallback((index: number) => {
+    if (!isAplusProActive) {
+      showPaywall('change_flag');
+      return;
+    }
+
     setCountryPlayerIndex(index);
     setCountryKeyword('');
     setCountryModalVisible(true);
     requestAnimationFrame(reapplyFullscreenSystemUI);
-  }, [reapplyFullscreenSystemUI]);
+  }, [isAplusProActive, reapplyFullscreenSystemUI, showPaywall]);
 
   const closeCountryModal = useCallback(() => {
     setCountryModalVisible(false);
@@ -370,6 +417,8 @@ const PlayerSettingsComponent = ({
                 isPool={isPool}
                 inputStyle={[styles.nameInput, isPool && styles.nameInputPool]}
                 onCommit={onChangePlayerName}
+                editable={isAplusProActive}
+                onBlockedPress={showRenamePaywall}
                 placeholder={translate(
                   `player${index + 1}`,
                   `Người chơi ${index + 1}`,
@@ -413,11 +462,13 @@ const PlayerSettingsComponent = ({
     },
     [
       adaptive,
+      isAplusProActive,
       isPool,
       onChangePlayerName,
       onChangePlayerPoint,
       openCountryModal,
       pointSteps,
+      showRenamePaywall,
       styles,
       translate,
     ],

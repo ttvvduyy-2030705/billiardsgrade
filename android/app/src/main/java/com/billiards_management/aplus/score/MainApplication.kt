@@ -2,6 +2,7 @@ package com.aplus.score
 
 import android.app.Application
 import com.aplus.score.BuildConfig
+import com.aplus.score.billing.AplusBillingPackage
 import com.aplus.score.deviceconfig.ScreenMetricsPackage
 import com.aplus.score.youtube.YouTubeLiveModulePackage
 import com.aplus.score.youtube.YouTubeLivePreviewViewPackage
@@ -22,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
       add(ScreenMetricsPackage())
       add(YouTubeLiveModulePackage())
       add(YouTubeLivePreviewViewPackage())
+      add(AplusBillingPackage())
     }
 
     override fun getJSMainModuleName(): String = "index"

@@ -3,13 +3,14 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image as RNImage} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
+import {useAplusPro} from 'features/subscription';
 
 export interface Props {
   saveKey: string;
   fixedImageSource?: number;
   locked?: boolean;
+  premiumLocked?: boolean;
 }
-
 
 const THUMBNAIL_STORAGE_DIR = `${RNFS.DocumentDirectoryPath}/thumbnail-overlays`;
 
@@ -78,6 +79,7 @@ const removePersistedImage = async (imageUri?: string) => {
 };
 
 const PickerListViewModel = (props: Props) => {
+  const {isAplusProActive, showPaywall} = useAplusPro();
   const [images, setImages] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
 
@@ -85,6 +87,10 @@ const PickerListViewModel = (props: Props) => {
     typeof props.fixedImageSource === 'number'
       ? RNImage.resolveAssetSource(props.fixedImageSource)?.uri
       : undefined;
+
+  const permanentLocked = !!props.locked;
+  const premiumBlocked = !!props.premiumLocked && !isAplusProActive;
+  const locked = permanentLocked || premiumBlocked;
 
   useEffect(() => {
     let mounted = true;
@@ -96,7 +102,7 @@ const PickerListViewModel = (props: Props) => {
 
       if (error) {
         console.log('[Thumbnails] Failed to get thumbnails', error);
-        if (props.locked && fixedImageUri) {
+        if (permanentLocked && fixedImageUri) {
           setImages([fixedImageUri]);
           await AsyncStorage.setItem(props.saveKey, JSON.stringify([fixedImageUri]));
         }
@@ -105,7 +111,7 @@ const PickerListViewModel = (props: Props) => {
       }
 
       try {
-        if (props.locked && fixedImageUri) {
+        if (permanentLocked && fixedImageUri) {
           const lockedImages = [fixedImageUri];
           setImages(lockedImages);
           await AsyncStorage.setItem(props.saveKey, JSON.stringify(lockedImages));
@@ -118,7 +124,7 @@ const PickerListViewModel = (props: Props) => {
         }
       } catch (e) {
         console.log('[Thumbnails] Failed to parse thumbnails', e);
-        setImages(props.locked && fixedImageUri ? [fixedImageUri] : []);
+        setImages(permanentLocked && fixedImageUri ? [fixedImageUri] : []);
       } finally {
         setIsReady(true);
       }
@@ -127,19 +133,30 @@ const PickerListViewModel = (props: Props) => {
     return () => {
       mounted = false;
     };
-  }, [fixedImageUri, props.locked, props.saveKey]);
+  }, [fixedImageUri, permanentLocked, props.saveKey]);
 
   useEffect(() => {
     if (!isReady) {
       return;
     }
 
-    const nextImages = props.locked && fixedImageUri ? [fixedImageUri] : images;
+    const nextImages = permanentLocked && fixedImageUri ? [fixedImageUri] : images;
     AsyncStorage.setItem(props.saveKey, JSON.stringify(nextImages));
-  }, [props.saveKey, images, isReady, props.locked, fixedImageUri]);
+  }, [props.saveKey, images, isReady, permanentLocked, fixedImageUri]);
+
+  const showLogoPaywall = useCallback(() => {
+    if (premiumBlocked) {
+      showPaywall('change_logo');
+    }
+  }, [premiumBlocked, showPaywall]);
 
   const onPickImage = useCallback(async () => {
-    if (props.locked) {
+    if (premiumBlocked) {
+      showLogoPaywall();
+      return;
+    }
+
+    if (permanentLocked) {
       return;
     }
 
@@ -173,11 +190,16 @@ const PickerListViewModel = (props: Props) => {
     } catch (error) {
       console.log('[Thumbnails] Pick image failed:', error);
     }
-  }, [images, props.locked, props.saveKey]);
+  }, [images, permanentLocked, premiumBlocked, props.saveKey, showLogoPaywall]);
 
   const onDeleteImage = useCallback(
     async (deleteIndex: number) => {
-      if (props.locked) {
+      if (premiumBlocked) {
+        showLogoPaywall();
+        return;
+      }
+
+      if (permanentLocked) {
         return;
       }
 
@@ -186,7 +208,7 @@ const PickerListViewModel = (props: Props) => {
       setImages(nextImages);
       await AsyncStorage.setItem(props.saveKey, JSON.stringify(nextImages));
     },
-    [images, props.locked, props.saveKey],
+    [images, permanentLocked, premiumBlocked, props.saveKey, showLogoPaywall],
   );
 
   return useMemo(() => {
@@ -194,10 +216,20 @@ const PickerListViewModel = (props: Props) => {
       images,
       onPickImage,
       onDeleteImage,
-      locked: !!props.locked,
+      onLockedPress: showLogoPaywall,
+      locked,
+      premiumBlocked,
       fixedImageSource: props.fixedImageSource,
     };
-  }, [images, onPickImage, onDeleteImage, props.fixedImageSource, props.locked]);
+  }, [
+    images,
+    onPickImage,
+    onDeleteImage,
+    showLogoPaywall,
+    locked,
+    premiumBlocked,
+    props.fixedImageSource,
+  ]);
 };
 
 export default PickerListViewModel;

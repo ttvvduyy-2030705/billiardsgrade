@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
+import {billingRouter} from './billing.js';
 
 dotenv.config();
 
@@ -943,6 +944,8 @@ const sendHealth = (_req, res) => {
 
 app.get('/', sendHealth);
 app.get('/health', sendHealth);
+
+app.use('/billing', billingRouter);
 
 app.get('/live/connections', (_req, res) => {
   const store = readTokenStore();

@@ -22,6 +22,7 @@ import {goBack} from 'utils/navigation';
 import {screens} from './screens';
 import {configureSystemUI} from 'theme/systemUI';
 import {LIVESTREAM_AUTH_BASE_URL} from 'config/livestreamAuth';
+import {SubscriptionProvider} from 'features/subscription';
 
 const Stack = createNativeStackNavigator();
 
@@ -144,7 +145,8 @@ const StackScreens = () => {
   }, []);
 
   return (
-    <Stack.Navigator initialRouteName={screens.home}>
+    <SubscriptionProvider>
+      <Stack.Navigator initialRouteName={screens.home}>
       <Stack.Screen
         name={screens.home}
         getComponent={getWrappedHome}
@@ -210,7 +212,8 @@ const StackScreens = () => {
         getComponent={getWrappedConfigs}
         options={buildOptions(screens.configs, true)}
       />
-    </Stack.Navigator>
+      </Stack.Navigator>
+    </SubscriptionProvider>
   );
 };
 
