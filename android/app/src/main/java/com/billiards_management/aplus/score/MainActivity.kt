@@ -6,10 +6,14 @@ import android.content.Intent
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import com.billiards_management.RemoteControl.RemoteControlModule
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -32,7 +36,48 @@ class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(null)
     setupRemoteMediaSession()
+    applyImmersiveMode()
+
+    @Suppress("DEPRECATION")
+    window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
+      if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+        mainHandler.postDelayed({ applyImmersiveMode() }, 120)
+      }
+    }
   }
+
+  override fun onResume() {
+    super.onResume()
+    applyImmersiveMode()
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) {
+      applyImmersiveMode()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  private fun applyImmersiveMode() {
+    window.decorView.systemUiVisibility =
+      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+        View.SYSTEM_UI_FLAG_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.setDecorFitsSystemWindows(false)
+      window.insetsController?.let { controller ->
+        controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+        controller.systemBarsBehavior =
+          WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+      }
+    }
+  }
+
 
   override fun onDestroy() {
     clearPendingNewGameHold(resetTriggered = true)

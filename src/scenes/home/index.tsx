@@ -47,6 +47,56 @@ const Home = (props: Props) => {
     };
   }, [adaptive.height, adaptive.width, adaptive, design.spacing.lg, design.spacing.md]);
 
+  const renderMainButton = (
+    label: string,
+    icon: any,
+    onPress: () => void,
+  ) => {
+    return (
+      <Pressable
+        onPress={onPress}
+        hitSlop={{top: 14, bottom: 14, left: 14, right: 14}}
+        style={[
+          styles.startButtonTouchArea,
+          {
+            width: metrics.touchButtonWidth,
+            height: metrics.touchButtonHeight,
+          },
+        ]}>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.startButtonWrap,
+            {
+              width: metrics.visualButtonWidth,
+              height: metrics.visualButtonHeight,
+            },
+          ]}>
+          <View pointerEvents="none" style={styles.startButtonGlowOuter} />
+          <View pointerEvents="none" style={styles.startButtonGlowInner} />
+
+          <LinearGradient
+            pointerEvents="none"
+            colors={['#650606', '#e21810', '#770707']}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}
+            style={styles.startButtonCore}>
+            <View pointerEvents="none" style={styles.startButtonInnerBorder}>
+              <View style={styles.startButtonContent}>
+                <Image
+                  source={icon}
+                  style={styles.startGameIcon}
+                  resizeMode="contain"
+                />
+                <Text style={styles.startButtonText}>{label}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+      </Pressable>
+    );
+  };
+
   return (
     <View style={styles.screen}>
 
@@ -73,47 +123,14 @@ const Home = (props: Props) => {
       </View>
 
       <View style={styles.centerZone} pointerEvents="box-none">
-        <Pressable
-          onPress={viewModel.onStartNewGame}
-          hitSlop={{top: 14, bottom: 14, left: 14, right: 14}}
-          style={[
-            styles.startButtonTouchArea,
-            {
-              width: metrics.touchButtonWidth,
-              height: metrics.touchButtonHeight,
-            },
-          ]}>
-          <View
-            pointerEvents="none"
-            style={[
-              styles.startButtonWrap,
-              {
-                width: metrics.visualButtonWidth,
-                height: metrics.visualButtonHeight,
-              },
-            ]}>
-            <View pointerEvents="none" style={styles.startButtonGlowOuter} />
-            <View pointerEvents="none" style={styles.startButtonGlowInner} />
-
-            <LinearGradient
-              pointerEvents="none"
-              colors={['#650606', '#e21810', '#770707']}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}
-              style={styles.startButtonCore}>
-              <View pointerEvents="none" style={styles.startButtonInnerBorder}>
-                <View style={styles.startButtonContent}>
-                  <Image
-                    source={images.startGame}
-                    style={styles.startGameIcon}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.startButtonText}>{i18n.t('txtStartNewGame')}</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-        </Pressable>
+        <View style={styles.homeActions}>
+          {renderMainButton(
+            i18n.t('txtStartNewGame'),
+            images.startGame,
+            viewModel.onStartNewGame,
+          )}
+          {renderMainButton('Menu', images.plus, viewModel.onPressMenu)}
+        </View>
       </View>
 
       <View style={styles.logoBottomLayer} pointerEvents="none">

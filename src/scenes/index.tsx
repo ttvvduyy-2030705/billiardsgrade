@@ -122,8 +122,10 @@ const getWrappedPlayback = () =>
   withWrapper(screens.playback, require('./playback').default);
 const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
+const getWrappedRestaurantMenu = () =>
+  withWrapper(screens.restaurantMenu, require('./restaurant-menu').default);
 
-const LIVE_FIX_BUILD = '20260419-0226-route-props-create-flow';
+const LIVE_FIX_BUILD = '20260425-restaurant-menu-haidilao-polish';
 
 const StackScreens = () => {
   useEffect(() => {
@@ -211,6 +213,12 @@ const StackScreens = () => {
         name={screens.configs}
         getComponent={getWrappedConfigs}
         options={buildOptions(screens.configs, true)}
+      />
+
+      <Stack.Screen
+        name={screens.restaurantMenu}
+        getComponent={getWrappedRestaurantMenu}
+        options={buildCustomTitleOptions('Menu gọi món', true)}
       />
       </Stack.Navigator>
     </SubscriptionProvider>

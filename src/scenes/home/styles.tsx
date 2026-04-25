@@ -87,6 +87,12 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       justifyContent: 'center',
     },
 
+    homeActions: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+    },
+
     startButtonTouchArea: {
       alignItems: 'center',
       justifyContent: 'center',

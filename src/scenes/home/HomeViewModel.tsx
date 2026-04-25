@@ -24,6 +24,10 @@ const HomeViewModel = (props: Props) => {
     props.navigate(screens.configs);
   }, [props]);
 
+  const onPressMenu = useCallback(() => {
+    props.navigate(screens.restaurantMenu);
+  }, [props]);
+
   const helloText = useMemo(() => {
     const now = new Date();
     const hours = now.getHours();
@@ -46,8 +50,16 @@ const HomeViewModel = (props: Props) => {
       onStartNewGame,
       onPressHistory,
       onPressConfigs,
+      onPressMenu,
     };
-  }, [language, helloText, onStartNewGame, onPressHistory, onPressConfigs]);
+  }, [
+    language,
+    helloText,
+    onStartNewGame,
+    onPressHistory,
+    onPressConfigs,
+    onPressMenu,
+  ]);
 };
 
 export default HomeViewModel;

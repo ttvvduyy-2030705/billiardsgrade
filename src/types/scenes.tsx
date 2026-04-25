@@ -10,6 +10,7 @@ export type Screens = {
   history: string;
   playback: string;
   configs: string;
+  restaurantMenu: string;
   //Helper
   overlay: string;
 };

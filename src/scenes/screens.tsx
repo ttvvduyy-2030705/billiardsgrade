@@ -12,6 +12,7 @@ const screens: Screens = {
   history: 'history',
   playback: 'playback',
   configs: 'configs',
+  restaurantMenu: 'restaurantMenu',
 };
 
 const sceneKeys = Object.keys(screens);
