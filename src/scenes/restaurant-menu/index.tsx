@@ -4,6 +4,7 @@ import {
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   NativeModules,
   Platform,
   Pressable,
@@ -188,6 +189,8 @@ const RestaurantMenuScreen = (props: Props) => {
     () => createStyles(design, {width: adaptive.width, height: adaptive.height}),
     [adaptive.height, adaptive.width, design],
   );
+  const isCustomerStacked = adaptive.width < 760;
+  const isCompactHeader = adaptive.width < 560;
 
   const [mode, setMode] = useState<ScreenMode>('customer');
   const [adminTab, setAdminTab] = useState<AdminTab>('orders');
@@ -262,14 +265,14 @@ const RestaurantMenuScreen = (props: Props) => {
         const currentHasCart = hasCartContent(current);
         const loadedHasCart = hasCartContent(nextCart);
 
-        if (mutationHappenedDuringLoad && currentHasCart && !loadedHasCart) {
-          console.log(
-            '[CartOverlay] skipped stale empty cart hydration because cart changed during load',
-          );
-          hasCartSession = true;
-          cartSession = current;
-          return current;
-        }
+        if (mutationHappenedDuringLoad) {
+  console.log(
+    '[CartOverlay] skipped stale cart hydration because cart changed during load',
+  );
+  hasCartSession = true;
+  cartSession = current;
+  return current;
+}
 
         if (hasCartSession && currentHasCart && !loadedHasCart) {
           console.log(
@@ -322,6 +325,34 @@ const RestaurantMenuScreen = (props: Props) => {
     console.log('[CartFieldInput] resume immersive:', source);
     CartImmersiveModule?.resumeAfterCartInput?.(source);
   }, []);
+
+  const showNativeCartFieldDialog = useCallback(
+    (
+      type: CartFieldInputType,
+      initialValue: string,
+      source: string,
+    ): Promise<string | null> | null => {
+      if (Platform.OS !== 'android') {
+        return null;
+      }
+
+      const nativeDialog = (CartImmersiveModule as any)?.showCartTextInputDialog;
+      if (typeof nativeDialog !== 'function') {
+        console.log('[CartFieldInput] native dialog unavailable');
+        return null;
+      }
+
+      const isTable = type === 'table';
+      return nativeDialog(
+        isTable ? 'Số bàn' : 'Ghi chú',
+        isTable ? 'VD: Bàn 08' : 'Nhập ghi chú cho đơn hàng',
+        initialValue,
+        'text',
+        source,
+      );
+    },
+    [],
+  );
 
   const refreshData = useCallback(async () => {
     const requestId = cartHydrateRequestId + 1;
@@ -450,25 +481,28 @@ const RestaurantMenuScreen = (props: Props) => {
   }, []);
 
   const openLogin = useCallback(() => {
+    setCartModalVisible(false);
     setMode('adminLogin');
     setAdminPassword('');
     setMessage('');
     setErrorMessage('');
-  }, []);
+  }, [setCartModalVisible]);
 
   const openRegister = useCallback(() => {
+    setCartModalVisible(false);
     setMode('adminRegister');
     setRegisterPassword('');
     setRegisterConfirmPassword('');
     setMessage('');
     setErrorMessage('');
-  }, []);
+  }, [setCartModalVisible]);
 
   const backToCustomer = useCallback(() => {
+    setCartModalVisible(false);
     setMode('customer');
     setMessage('');
     setErrorMessage('');
-  }, []);
+  }, [setCartModalVisible]);
 
   useEffect(() => {
     console.log('[CartOverlay] visible changed:', cartModalVisible);
@@ -518,37 +552,23 @@ const RestaurantMenuScreen = (props: Props) => {
     cartFieldInputVisibleSession = cartFieldInput.visible;
     cartFieldInputVisibleRef.current = cartFieldInput.visible;
 
-    if (!cartFieldInput.visible) {
-      return;
+    if (cartFieldInput.visible) {
+      cartInputFocusedSession = true;
+      cartInputFocusedRef.current = true;
     }
-
-    const type = cartFieldInput.type;
-    const scheduleFocus = (delay: number) => {
-      const timer = setTimeout(() => {
-        if (!cartFieldInputVisibleRef.current) {
-          return;
-        }
-
-        console.log(type === 'table' ? '[CartFieldInput] focus table' : '[CartFieldInput] focus note');
-        cartFieldInputRef.current?.focus();
-      }, delay);
-      cartFullscreenTimersRef.current.push(timer);
-    };
-
-    scheduleFocus(120);
-    scheduleFocus(320);
-    scheduleFocus(620);
 
     return () => {
       clearCartFieldInputFocusTimer();
     };
-  }, [cartFieldInput.type, cartFieldInput.visible, clearCartFieldInputFocusTimer]);
-
-
+  }, [cartFieldInput.visible, clearCartFieldInputFocusTimer]);
 
   const reinforceFullscreen = useCallback((source: string) => {
-    if (cartInputFocusedRef.current || cartKeyboardVisibleRef.current) {
-      console.log('[CartOverlay] skip fullscreen while input active from:', source);
+    if (
+      cartFieldInputVisibleRef.current ||
+      cartInputFocusedRef.current ||
+      cartKeyboardVisibleRef.current
+    ) {
+      console.log('[CartOverlay] skip fullscreen while cart input active');
       return;
     }
 
@@ -560,10 +580,96 @@ const RestaurantMenuScreen = (props: Props) => {
     });
   }, []);
 
+  const pauseTextInputImmersive = useCallback(
+    (source: string) => {
+      clearCartFullscreenTimers();
+      cartInputFocusedSession = true;
+      cartInputFocusedRef.current = true;
+      pauseCartInputImmersive(source);
+    },
+    [clearCartFullscreenTimers, pauseCartInputImmersive],
+  );
+
+  const resumeTextInputImmersive = useCallback(
+    (source: string) => {
+      const timer = setTimeout(() => {
+        if (cartFieldInputVisibleRef.current) {
+          return;
+        }
+
+        cartInputFocusedSession = false;
+        cartInputFocusedRef.current = false;
+        resumeCartInputImmersive(source);
+        reinforceFullscreen(source);
+      }, 520);
+
+      cartFullscreenTimersRef.current.push(timer);
+    },
+    [reinforceFullscreen, resumeCartInputImmersive],
+  );
+
+  const scheduleCartInputRestore = useCallback(
+    (source: string, delay = 520) => {
+      clearCartFullscreenTimers();
+
+      const restoreWhenClosed = () => {
+        if (cartFieldInputVisibleRef.current || cartKeyboardVisibleRef.current) {
+          const waitTimer = setTimeout(restoreWhenClosed, 240);
+          cartFullscreenTimersRef.current.push(waitTimer);
+          return;
+        }
+
+        cartInputFocusedSession = false;
+        cartInputFocusedRef.current = false;
+        resumeCartInputImmersive(source);
+        console.log('[CartOverlay] restore fullscreen after cart input closed');
+        reinforceFullscreen(source);
+      };
+
+      const timer = setTimeout(restoreWhenClosed, delay);
+      cartFullscreenTimersRef.current.push(timer);
+    },
+    [clearCartFullscreenTimers, reinforceFullscreen, resumeCartInputImmersive],
+  );
+
+  const commitCartFieldInputValue = useCallback(
+  (type: CartFieldInputType, value: string) => {
+    console.log(`[CartFieldInput] commit field: ${type} value=${value}`);
+
+    setCart(cartState => {
+      const nextCart =
+        type === 'table'
+          ? {...cartState, tableNumber: value}
+          : {...cartState, note: value};
+
+      // Persist immediately so storage hydration cannot repaint the cart with
+      // an older value right after the native dialog closes.
+      void saveCurrentCart(nextCart).then(() => {
+        console.log(`[CartFieldInput] saved field: ${type} value=${value}`);
+      });
+
+      return nextCart;
+    });
+
+    if (type === 'table') {
+      setTableError('');
+    }
+  },
+  [setCart],
+);
+
   const openCartFieldInput = useCallback(
-    (type: CartFieldInputType) => {
-      const source = type === 'table' ? '[CartFieldInput] open table' : '[CartFieldInput] open note';
+    async (type: CartFieldInputType) => {
+      const source = `[CartFieldInput] open field: ${type}`;
+      const initialValue = type === 'table' ? cart.tableNumber : cart.note;
+
       console.log(source);
+
+      if (cartFieldInputVisibleRef.current) {
+        console.log('[CartFieldInput] open ignored because cart field input is already active');
+        return;
+      }
+
       clearCartFullscreenTimers();
       clearCartFieldInputFocusTimer();
 
@@ -571,21 +677,59 @@ const RestaurantMenuScreen = (props: Props) => {
       cartFieldInputVisibleRef.current = true;
       cartInputFocusedSession = true;
       cartInputFocusedRef.current = true;
+      cartKeyboardVisibleSession = false;
+      cartKeyboardVisibleRef.current = false;
       pauseCartInputImmersive(source);
 
       setCartFieldKeyboardHeight(0);
       setCartFieldInput({
         visible: true,
         type,
-        draftValue: type === 'table' ? cart.tableNumber : cart.note,
+        draftValue: initialValue,
       });
+
+      const nativeDialogPromise = showNativeCartFieldDialog(type, initialValue, source);
+
+      if (!nativeDialogPromise) {
+        // Non-Android fallback keeps the existing React overlay path. Android
+        // must use the native EditText dialog so CartOverlay cannot steal focus.
+        return;
+      }
+
+      try {
+        const nextValue = await nativeDialogPromise;
+
+        if (typeof nextValue === 'string') {
+          commitCartFieldInputValue(type, nextValue);
+        } else {
+          console.log(`[CartFieldInput] cancel field: ${type}`);
+        }
+      } catch (error) {
+        console.log('[CartFieldInput] native dialog failed:', error);
+      } finally {
+        clearCartFullscreenTimers();
+        clearCartFieldInputFocusTimer();
+        setCartFieldKeyboardHeight(0);
+        cartFieldInputVisibleSession = false;
+        cartFieldInputVisibleRef.current = false;
+        cartInputFocusedSession = false;
+        cartInputFocusedRef.current = false;
+        cartKeyboardVisibleSession = false;
+        cartKeyboardVisibleRef.current = false;
+        setCartFieldInput(createClosedCartFieldInput());
+        Keyboard.dismiss();
+        scheduleCartInputRestore('cart-field-native-dialog-closed', 450);
+      }
     },
     [
       cart.note,
       cart.tableNumber,
       clearCartFieldInputFocusTimer,
       clearCartFullscreenTimers,
+      commitCartFieldInputValue,
       pauseCartInputImmersive,
+      scheduleCartInputRestore,
+      showNativeCartFieldDialog,
     ],
   );
 
@@ -600,16 +744,12 @@ const RestaurantMenuScreen = (props: Props) => {
     cartFieldInputVisibleSession = false;
     cartFieldInputVisibleRef.current = false;
     Keyboard.dismiss();
-
-    cartFullscreenTimersRef.current = [
-      setTimeout(() => {
-        cartInputFocusedSession = false;
-        cartInputFocusedRef.current = false;
-        resumeCartInputImmersive('cart-field-cancel-delay');
-        reinforceFullscreen('cart-field-cancel-delay');
-      }, 850),
-    ];
-  }, [clearCartFieldInputFocusTimer, clearCartFullscreenTimers, reinforceFullscreen, resumeCartInputImmersive]);
+    scheduleCartInputRestore('cart-field-cancel');
+  }, [
+    clearCartFieldInputFocusTimer,
+    clearCartFullscreenTimers,
+    scheduleCartInputRestore,
+  ]);
 
   const saveCartFieldInput = useCallback(() => {
     clearCartFieldInputFocusTimer();
@@ -620,12 +760,12 @@ const RestaurantMenuScreen = (props: Props) => {
       }
 
       const value = current.draftValue;
+      console.log(`[CartFieldInput] commit field: ${current.type} value=${value}`);
+
       if (current.type === 'table') {
-        console.log('[CartFieldInput] save table');
         setTableError('');
         setCart(cartState => ({...cartState, tableNumber: value}));
       } else {
-        console.log('[CartFieldInput] save note');
         setCart(cartState => ({...cartState, note: value}));
       }
 
@@ -636,16 +776,13 @@ const RestaurantMenuScreen = (props: Props) => {
     cartFieldInputVisibleSession = false;
     cartFieldInputVisibleRef.current = false;
     Keyboard.dismiss();
-
-    cartFullscreenTimersRef.current = [
-      setTimeout(() => {
-        cartInputFocusedSession = false;
-        cartInputFocusedRef.current = false;
-        resumeCartInputImmersive('cart-field-save-delay');
-        reinforceFullscreen('cart-field-save-delay');
-      }, 850),
-    ];
-  }, [clearCartFieldInputFocusTimer, clearCartFullscreenTimers, reinforceFullscreen, resumeCartInputImmersive]);
+    scheduleCartInputRestore('cart-field-commit');
+  }, [
+    clearCartFieldInputFocusTimer,
+    clearCartFullscreenTimers,
+    scheduleCartInputRestore,
+    setCart,
+  ]);
 
   useEffect(() => {
     clearCartFullscreenTimers();
@@ -720,14 +857,7 @@ const RestaurantMenuScreen = (props: Props) => {
         return;
       }
 
-      cartInputFocusedSession = false;
-      cartInputFocusedRef.current = false;
-      cartFullscreenTimersRef.current = [
-        setTimeout(() => {
-          resumeCartInputImmersive('[CartFieldInput] keyboard-hide-delay');
-          reinforceFullscreen('[CartFieldInput] keyboard-hide-delay');
-        }, 900),
-      ];
+      scheduleCartInputRestore('[CartFieldInput] keyboard-hide', 320);
     });
 
     return () => {
@@ -735,7 +865,11 @@ const RestaurantMenuScreen = (props: Props) => {
       keyboardHide.remove();
       clearCartFullscreenTimers();
     };
-  }, [clearCartFullscreenTimers, pauseCartInputImmersive, reinforceFullscreen, resumeCartInputImmersive]);
+  }, [
+    clearCartFullscreenTimers,
+    pauseCartInputImmersive,
+    scheduleCartInputRestore,
+  ]);
 
   const changeQuantity = useCallback((itemId: string, delta: number) => {
     setCart(current => {
@@ -1049,7 +1183,9 @@ const RestaurantMenuScreen = (props: Props) => {
         )}
 
         <View style={[styles.headerSide, styles.headerSideRight]}>
-          <Image source={images.logoSmall} style={styles.headerLogo} resizeMode="contain" />
+          {!isCompactHeader ? (
+            <Image source={images.logoSmall} style={styles.headerLogo} resizeMode="contain" />
+          ) : null}
         </View>
       </View>
     );
@@ -1083,12 +1219,10 @@ const RestaurantMenuScreen = (props: Props) => {
           value={value}
           onChangeText={onChangeText}
           onFocus={() => {
-            // Generic admin/menu inputs must not force immersive while focusing.
+            pauseTextInputImmersive('menu-text-input-focus');
           }}
           onBlur={() => {
-            if (cartVisibleSession) {
-              setTimeout(() => reinforceFullscreen('text-input-blur'), 180);
-            }
+            resumeTextInputImmersive('menu-text-input-blur');
           }}
           placeholder={placeholder}
           placeholderTextColor="rgba(255,255,255,0.42)"
@@ -1153,15 +1287,24 @@ const RestaurantMenuScreen = (props: Props) => {
           <RNText style={styles.categorySubtitle}>Chọn nhóm món</RNText>
         </View>
         <ScrollView
+          horizontal={isCustomerStacked}
+          showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.categoryListContent}>
+          contentContainerStyle={[
+            styles.categoryListContent,
+            isCustomerStacked ? styles.categoryListContentHorizontal : null,
+          ]}>
           {categories.map(category => {
             const active = category.id === selectedCategory?.id;
             return (
               <Pressable
                 key={category.id}
                 onPress={() => setSelectedCategoryId(category.id)}
-                style={[styles.categoryItem, active ? styles.categoryItemActive : null]}>
+                style={[
+                  styles.categoryItem,
+                  isCustomerStacked ? styles.categoryItemHorizontal : null,
+                  active ? styles.categoryItemActive : null,
+                ]}>
                 <RNText style={styles.categoryItemText}>{category.name}</RNText>
                 <RNText style={styles.categoryCountText}>
                   {categoryCounts[category.id] || 0} món
@@ -1339,108 +1482,115 @@ const RestaurantMenuScreen = (props: Props) => {
   };
 
   const renderCartFieldInputOverlay = () => {
-    if (!cartFieldInput.visible) {
+    if (Platform.OS === 'android') {
+      // Android uses a native AlertDialog/EditText launched from
+      // CartImmersiveModule.showCartTextInputDialog. Keeping a React Native
+      // Modal/TextInput here creates a second window inside immersive mode and
+      // is the source of the keyboard show/hide flicker.
       return null;
     }
 
     const isTable = cartFieldInput.type === 'table';
     const title = isTable ? 'Số bàn' : 'Ghi chú';
-    const placeholder = isTable ? 'VD: Bàn 08' : 'Ít đá, ra món sau trận...';
+    const placeholder = isTable ? 'VD: Bàn 08' : 'Nhập ghi chú cho đơn hàng';
 
-    const focusFieldInput = (source: string, delay = 60) => {
+    const focusFieldInput = () => {
       clearCartFieldInputFocusTimer();
       cartFieldInputFocusTimerRef.current = setTimeout(() => {
         if (!cartFieldInputVisibleRef.current) {
           return;
         }
 
-        console.log(source);
+        cartInputFocusedSession = true;
+        cartInputFocusedRef.current = true;
+        console.log('[CartFieldInput] input focused');
         cartFieldInputRef.current?.focus();
-      }, delay);
+      }, 0);
     };
 
     return (
-      <RNView
-        pointerEvents="box-none"
-        style={styles.fieldInputOverlayRoot}
-        onLayout={() => {
-          focusFieldInput(
-            isTable ? '[CartFieldInput] focus table' : '[CartFieldInput] focus note',
-            80,
-          );
+      <Modal
+        visible={cartFieldInput.visible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        presentationStyle="overFullScreen"
+        onRequestClose={cancelCartFieldInput}
+        onShow={() => {
+          console.log('[CartFieldInput] modal mounted');
+          requestAnimationFrame(focusFieldInput);
         }}>
-        <RNView pointerEvents="none" style={styles.fieldInputOverlayBackdrop} />
-        <KeyboardAvoidingView
-          pointerEvents="box-none"
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
-          style={[
-            styles.fieldInputKeyboardLayer,
-            Platform.OS === 'android' && cartFieldKeyboardHeight > 0
-              ? {paddingBottom: cartFieldKeyboardHeight + 10}
-              : null,
-          ]}>
-          <RNView style={styles.fieldInputPanel}>
-            <RNView style={styles.fieldInputHeader}>
-              <Pressable
-                onPress={cancelCartFieldInput}
-                style={styles.fieldInputActionButton}
-                android_disableSound>
-                <RNText style={styles.fieldInputCancelText}>Huỷ</RNText>
-              </Pressable>
-              <RNView style={styles.fieldInputTitleWrap}>
-                <RNText style={styles.fieldInputTitle}>{title}</RNText>
-                <RNText style={styles.fieldInputSubtitle}>
-                  {isTable ? 'Nhập số bàn cho đơn gọi món' : 'Thêm ghi chú nếu cần'}
-                </RNText>
+        <RNView style={styles.fieldInputOverlayRoot}>
+          <RNView pointerEvents="none" style={styles.fieldInputOverlayBackdrop} />
+          <KeyboardAvoidingView
+            pointerEvents="box-none"
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={0}
+            style={[
+              styles.fieldInputKeyboardLayer,
+              Platform.OS === 'android' && cartFieldKeyboardHeight > 0
+                ? {paddingBottom: cartFieldKeyboardHeight + 10}
+                : null,
+            ]}>
+            <RNView style={styles.fieldInputPanel}>
+              <RNView style={styles.fieldInputHeader}>
+                <Pressable
+                  onPress={cancelCartFieldInput}
+                  style={styles.fieldInputActionButton}
+                  android_disableSound>
+                  <RNText style={styles.fieldInputCancelText}>Huỷ</RNText>
+                </Pressable>
+                <RNView style={styles.fieldInputTitleWrap}>
+                  <RNText style={styles.fieldInputTitle}>{title}</RNText>
+                  <RNText style={styles.fieldInputSubtitle}>
+                    {isTable ? 'Nhập số bàn cho đơn gọi món' : 'Nhập một dòng ghi chú'}
+                  </RNText>
+                </RNView>
+                <Pressable
+                  onPress={saveCartFieldInput}
+                  style={[styles.fieldInputActionButton, styles.fieldInputSaveButton]}
+                  android_disableSound>
+                  <RNText style={styles.fieldInputSaveText}>Xong</RNText>
+                </Pressable>
               </RNView>
-              <Pressable
-                onPress={saveCartFieldInput}
-                style={[styles.fieldInputActionButton, styles.fieldInputSaveButton]}
-                android_disableSound>
-                <RNText style={styles.fieldInputSaveText}>Xong</RNText>
-              </Pressable>
-            </RNView>
 
-            <TextInput
-              ref={cartFieldInputRef}
-              value={cartFieldInput.draftValue}
-              onChangeText={text =>
-                setCartFieldInput(current => ({...current, draftValue: text}))
-              }
-              onFocus={() => {
-                console.log(isTable ? '[CartFieldInput] table focus' : '[CartFieldInput] note focus');
-                clearCartFullscreenTimers();
-                cartInputFocusedSession = true;
-                cartInputFocusedRef.current = true;
-                pauseCartInputImmersive(
-                  isTable ? '[CartFieldInput] table focus' : '[CartFieldInput] note focus',
-                );
-              }}
-              onBlur={() => {
-                console.log(isTable ? '[CartFieldInput] table blur' : '[CartFieldInput] note blur');
-                if (!cartFieldInputVisibleRef.current) {
-                  cartInputFocusedSession = false;
-                  cartInputFocusedRef.current = false;
+              <TextInput
+                ref={cartFieldInputRef}
+                value={cartFieldInput.draftValue}
+                onChangeText={text =>
+                  setCartFieldInput(current => ({...current, draftValue: text}))
                 }
-              }}
-              placeholder={placeholder}
-              placeholderTextColor="rgba(255,255,255,0.42)"
-              keyboardType="default"
-              multiline={!isTable}
-              blurOnSubmit={false}
-              returnKeyType={isTable ? 'done' : 'default'}
-              onSubmitEditing={isTable ? saveCartFieldInput : undefined}
-              autoFocus
-              showSoftInputOnFocus
-              autoCorrect={false}
-              style={isTable ? styles.fieldInputTextInput : styles.fieldInputTextArea}
-              selectionColor="#E22A32"
-              underlineColorAndroid="transparent"
-            />
-          </RNView>
-        </KeyboardAvoidingView>
-      </RNView>
+                onFocus={() => {
+                  clearCartFullscreenTimers();
+                  cartInputFocusedSession = true;
+                  cartInputFocusedRef.current = true;
+                  console.log('[CartFieldInput] input focused');
+                  pauseCartInputImmersive('[CartFieldInput] input focused');
+                }}
+                onBlur={() => {
+                  if (!cartFieldInputVisibleRef.current) {
+                    cartInputFocusedSession = false;
+                    cartInputFocusedRef.current = false;
+                  }
+                }}
+                placeholder={placeholder}
+                placeholderTextColor="rgba(255,255,255,0.42)"
+                keyboardType="default"
+                multiline={false}
+                blurOnSubmit={false}
+                returnKeyType="done"
+                onSubmitEditing={saveCartFieldInput}
+                autoFocus
+                showSoftInputOnFocus
+                autoCorrect={false}
+                style={styles.fieldInputTextInput}
+                selectionColor="#E22A32"
+                underlineColorAndroid="transparent"
+              />
+            </RNView>
+          </KeyboardAvoidingView>
+        </RNView>
+      </Modal>
     );
   };
 

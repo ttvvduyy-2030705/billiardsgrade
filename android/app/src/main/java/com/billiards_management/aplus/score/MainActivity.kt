@@ -2,6 +2,7 @@
 
 package com.aplus.score
 
+import android.content.Context
 import android.content.Intent
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -15,6 +16,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.inputmethod.InputMethodManager
 import com.billiards_management.RemoteControl.RemoteControlModule
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -193,6 +195,38 @@ class MainActivity : ReactActivity() {
       cartInputImmersivePaused = false
       scheduleApplyImmersiveMode(900)
     }
+  }
+
+  fun showSoftKeyboardForCartInput(source: String) {
+    // React Native can report TextInput focus while Android does not actually
+    // open the IME, especially after immersive mode/window focus changes.
+    // Force-show the keyboard only for the currently focused native view.
+    mainHandler.postDelayed({
+      val focusedView = currentFocus ?: window.decorView.findFocus()
+
+      if (focusedView == null) {
+        Log.d("Immersive", "cannot show keyboard from=" + source + " because no focused view")
+        return@postDelayed
+      }
+
+      focusedView.requestFocus()
+
+      val inputMethodManager =
+        getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+
+      val shown = inputMethodManager?.showSoftInput(
+        focusedView,
+        InputMethodManager.SHOW_IMPLICIT,
+      ) ?: false
+
+      Log.d(
+        "Immersive",
+        "show keyboard from=" + source +
+          " view=" + focusedView.javaClass.simpleName +
+          " shown=" + shown +
+          " paused=" + cartInputImmersivePaused,
+      )
+    }, 40)
   }
 
   override fun onDestroy() {
