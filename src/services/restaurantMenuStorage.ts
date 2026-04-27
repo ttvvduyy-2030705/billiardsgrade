@@ -46,8 +46,10 @@ export type RestaurantCartState = {
 
 export type RestaurantOrderStatus =
   | 'new'
+  | 'accepted'
   | 'preparing'
   | 'served'
+  | 'completed'
   | 'paid'
   | 'cancelled';
 
@@ -59,6 +61,8 @@ export type RestaurantOrderItem = {
   note?: string;
 };
 
+export type RestaurantPaymentStatus = 'UNPAID' | 'PAID';
+
 export type RestaurantOrder = {
   id: string;
   tableNumber: string;
@@ -66,6 +70,7 @@ export type RestaurantOrder = {
   note: string;
   total: number;
   status: RestaurantOrderStatus;
+  paymentStatus?: RestaurantPaymentStatus;
   createdAt: string;
   updatedAt: string;
 };
@@ -544,14 +549,35 @@ export const deleteMenuItem = async (itemId: string) => {
   return nextItems;
 };
 
+const normaliseOrderStatus = (status?: RestaurantOrderStatus): RestaurantOrderStatus => {
+  switch (status) {
+    case 'accepted':
+    case 'preparing':
+    case 'served':
+    case 'completed':
+    case 'paid':
+    case 'cancelled':
+      return status;
+    case 'new':
+    default:
+      return 'new';
+  }
+};
+
 export const loadOrders = async (): Promise<RestaurantOrder[]> => {
   const orders = await readArray<RestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
-  return orders.map(order => ({
-    ...order,
-    items: Array.isArray(order.items) ? order.items : [],
-    total: Number(order.total) || 0,
-    status: order.status || 'new',
-  }));
+  return orders.map(order => {
+    const status = normaliseOrderStatus(order.status);
+
+    return {
+      ...order,
+      items: Array.isArray(order.items) ? order.items : [],
+      total: Number(order.total) || 0,
+      status: status === 'paid' ? 'completed' : status,
+      paymentStatus:
+        order.paymentStatus === 'PAID' || status === 'paid' ? 'PAID' : 'UNPAID',
+    };
+  });
 };
 
 export const saveOrders = async (orders: RestaurantOrder[]) => {
@@ -567,6 +593,7 @@ export const createRestaurantOrder = async (
     ...payload,
     id: createId('order'),
     status: 'new',
+    paymentStatus: 'UNPAID',
     createdAt: timestamp,
     updatedAt: timestamp,
   };

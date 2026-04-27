@@ -13,6 +13,9 @@ const screens: Screens = {
   playback: 'playback',
   configs: 'configs',
   restaurantMenu: 'restaurantMenu',
+  restaurantAdminLogin: 'restaurantAdminLogin',
+  restaurantAdminDashboard: 'restaurantAdminDashboard',
+  overlay: 'overlay',
 };
 
 const sceneKeys = Object.keys(screens);

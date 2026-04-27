@@ -11,6 +11,8 @@ export type Screens = {
   playback: string;
   configs: string;
   restaurantMenu: string;
+  restaurantAdminLogin: string;
+  restaurantAdminDashboard: string;
   //Helper
   overlay: string;
 };

@@ -1168,11 +1168,15 @@ const RestaurantMenuScreen = (props: Props) => {
 
         {mode === 'customer' ? (
           <View style={styles.headerAuthCenter}>
-            <Pressable onPress={openLogin} style={styles.headerAuthButton}>
-              <RNText style={styles.headerAuthText}>Đăng nhập</RNText>
+            <Pressable
+              onPress={() => props.navigate(screens.restaurantAdminLogin)}
+              style={styles.headerAuthButton}>
+              <RNText style={styles.headerAuthText}>Admin</RNText>
             </Pressable>
-            <Pressable onPress={openRegister} style={styles.headerAuthButtonSecondary}>
-              <RNText style={styles.headerAuthText}>Đăng ký</RNText>
+            <Pressable
+              onPress={() => props.navigate(screens.restaurantAdminLogin)}
+              style={styles.headerAuthButtonSecondary}>
+              <RNText style={styles.headerAuthText}>Quản trị</RNText>
             </Pressable>
           </View>
         ) : (

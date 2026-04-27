@@ -124,6 +124,16 @@ const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
 const getWrappedRestaurantMenu = () =>
   withWrapper(screens.restaurantMenu, require('./restaurant-menu').default);
+const getWrappedRestaurantAdminLogin = () =>
+  withWrapper(
+    screens.restaurantAdminLogin,
+    require('./restaurant-admin-login').default,
+  );
+const getWrappedRestaurantAdminDashboard = () =>
+  withWrapper(
+    screens.restaurantAdminDashboard,
+    require('./restaurant-admin-dashboard').default,
+  );
 
 const LIVE_FIX_BUILD = '20260425-restaurant-menu-haidilao-polish';
 
@@ -219,6 +229,18 @@ const StackScreens = () => {
         name={screens.restaurantMenu}
         getComponent={getWrappedRestaurantMenu}
         options={buildCustomTitleOptions('Menu gọi món', true)}
+      />
+
+      <Stack.Screen
+        name={screens.restaurantAdminLogin}
+        getComponent={getWrappedRestaurantAdminLogin}
+        options={buildCustomTitleOptions('Đăng nhập Admin', true)}
+      />
+
+      <Stack.Screen
+        name={screens.restaurantAdminDashboard}
+        getComponent={getWrappedRestaurantAdminDashboard}
+        options={buildCustomTitleOptions('Admin bán hàng', true)}
       />
       </Stack.Navigator>
     </SubscriptionProvider>
