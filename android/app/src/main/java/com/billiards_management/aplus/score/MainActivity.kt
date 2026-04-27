@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.graphics.Rect
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
@@ -31,35 +32,128 @@ class MainActivity : ReactActivity() {
   private val mainHandler = Handler(Looper.getMainLooper())
   private var pendingNewGameHoldRunnable: Runnable? = null
   private var heldNewGameKeyCode: Int? = null
+  @Volatile
+  private var isKeyboardVisible = false
+  @Volatile
+  private var cartInputImmersivePaused = false
   private var newGameHoldTriggered = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(null)
     setupRemoteMediaSession()
-    applyImmersiveMode()
+    applyImmersiveMode("onCreate")
 
     @Suppress("DEPRECATION")
     window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
+      Log.d(
+        "Immersive",
+        "systemUiVisibility changed=" + visibility +
+          " paused=" + cartInputImmersivePaused +
+          " keyboard=" + isKeyboardVisible,
+      )
+
+      if (cartInputImmersivePaused) {
+        Log.d("Immersive", "skip system UI re-apply because cart input active")
+        return@setOnSystemUiVisibilityChangeListener
+      }
+
       if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
-        mainHandler.postDelayed({ applyImmersiveMode() }, 120)
+        scheduleApplyImmersiveMode(700)
       }
     }
+    setupKeyboardVisibilityListener()
   }
 
   override fun onResume() {
     super.onResume()
-    applyImmersiveMode()
+    Log.d("Immersive", "onResume paused=" + cartInputImmersivePaused)
+    scheduleApplyImmersiveMode(700)
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (hasFocus) {
-      applyImmersiveMode()
+    Log.d(
+      "Immersive",
+      "onWindowFocusChanged hasFocus=" + hasFocus +
+        " paused=" + cartInputImmersivePaused +
+        " keyboard=" + isKeyboardVisible,
+    )
+
+    if (hasFocus && !cartInputImmersivePaused) {
+      scheduleApplyImmersiveMode(700)
     }
   }
 
+  private fun setupKeyboardVisibilityListener() {
+    val rootView = window.decorView
+    rootView.viewTreeObserver.addOnGlobalLayoutListener {
+      val visibleFrame = Rect()
+      rootView.getWindowVisibleDisplayFrame(visibleFrame)
+      val rootHeight = rootView.rootView.height
+      val heightDiff = rootHeight - visibleFrame.height()
+      val threshold = (rootHeight * 0.15f).toInt()
+      val keyboardVisibleNow = heightDiff > threshold
+
+      if (isKeyboardVisible != keyboardVisibleNow) {
+        isKeyboardVisible = keyboardVisibleNow
+        Log.d("Immersive", "keyboard visible=" + isKeyboardVisible + " heightDiff=" + heightDiff)
+
+        if (!isKeyboardVisible && !cartInputImmersivePaused) {
+          scheduleApplyImmersiveMode(900)
+        }
+      }
+    }
+  }
+
+  private fun isKeyboardActuallyVisible(): Boolean {
+    val rootView = window.decorView
+    val visibleFrame = Rect()
+    rootView.getWindowVisibleDisplayFrame(visibleFrame)
+    val rootHeight = rootView.rootView.height
+    val heightDiff = rootHeight - visibleFrame.height()
+    val threshold = (rootHeight * 0.15f).toInt()
+    return heightDiff > threshold
+  }
+
+  private fun scheduleApplyImmersiveMode(delayMs: Long) {
+    mainHandler.postDelayed({
+      val actualKeyboardVisible = isKeyboardActuallyVisible()
+      val textInputFocused = isTextInputFocused()
+
+      if (!cartInputImmersivePaused && !isKeyboardVisible && !actualKeyboardVisible && !textInputFocused) {
+        applyImmersiveMode("schedule-delay-" + delayMs)
+      } else {
+        Log.d(
+          "Immersive",
+          "skip apply from schedule delay=" + delayMs +
+            " paused=" + cartInputImmersivePaused +
+            " keyboard=" + isKeyboardVisible +
+            " actualKeyboard=" + actualKeyboardVisible +
+            " textInput=" + textInputFocused,
+        )
+      }
+    }, delayMs)
+  }
+
   @Suppress("DEPRECATION")
-  private fun applyImmersiveMode() {
+  private fun applyImmersiveMode(source: String = "direct") {
+    val actualKeyboardVisible = isKeyboardActuallyVisible()
+    val textInputFocused = isTextInputFocused()
+
+    if (cartInputImmersivePaused || isKeyboardVisible || actualKeyboardVisible || textInputFocused) {
+      Log.d(
+        "Immersive",
+        "skip apply from=" + source +
+          " paused=" + cartInputImmersivePaused +
+          " keyboard=" + isKeyboardVisible +
+          " actualKeyboard=" + actualKeyboardVisible +
+          " textInput=" + textInputFocused,
+      )
+      return
+    }
+
+    Log.d("Immersive", "apply from=" + source)
+
     window.decorView.systemUiVisibility =
       View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
         View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -78,6 +172,28 @@ class MainActivity : ReactActivity() {
     }
   }
 
+  fun pauseImmersiveForCartInput(source: String) {
+    // Called from a React Native native-module thread. Never touch Android views
+    // directly here; doing so crashes with: "Only the original thread that
+    // created a view hierarchy can touch its views". Pausing means we only stop
+    // future immersive re-apply while the cart input is active. We intentionally
+    // do NOT call show/hide system bars here because that can steal TextInput
+    // focus and dismiss the keyboard.
+    mainHandler.post {
+      cartInputImmersivePaused = true
+      Log.d("Immersive", "pause because cart input active from=" + source)
+    }
+  }
+
+  fun resumeImmersiveAfterCartInput(source: String) {
+    // Also called from the React Native native-module thread. Move state changes
+    // and any later view operations onto the UI thread.
+    mainHandler.post {
+      Log.d("Immersive", "resume request from=" + source)
+      cartInputImmersivePaused = false
+      scheduleApplyImmersiveMode(900)
+    }
+  }
 
   override fun onDestroy() {
     clearPendingNewGameHold(resetTriggered = true)
