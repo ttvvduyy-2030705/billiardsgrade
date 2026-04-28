@@ -73,6 +73,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const onSaveMenuItem = async (input: Parameters<typeof saveAdminMenuItem>[0]) => {
     const nextItems = await saveAdminMenuItem(input);
     setMenuItems(nextItems);
+    return nextItems;
   };
 
   const onChangeOrderStatus = async (orderId: string, status: AdminOrderStatus) => {

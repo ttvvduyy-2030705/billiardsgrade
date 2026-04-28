@@ -9,6 +9,7 @@ import {
 import type {
   MenuCategory,
   RestaurantMenuItem,
+  RestaurantMenuItemStatus,
   RestaurantOrder,
   RestaurantOrderStatus,
 } from './restaurantMenuStorage';
@@ -35,7 +36,8 @@ export type AdminMenuItemForm = {
   categoryId: string;
   description: string;
   imageUri?: string;
-  available: boolean;
+  status: RestaurantMenuItemStatus;
+  available?: boolean;
 };
 
 export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
@@ -132,6 +134,8 @@ export const loadRestaurantAdminData = async () => {
 };
 
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
+  const cleanImageUri = (input.imageUri || '').trim();
+
   const nextItems = await upsertMenuItem({
     id: input.id,
     createdAt: input.createdAt,
@@ -139,9 +143,18 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     price: input.price,
     categoryId: input.categoryId,
     description: input.description,
-    imageUri: input.imageUri,
-    available: input.available,
+    imageUri: cleanImageUri,
+    status: input.status,
+    available: input.status === 'SELLING',
   });
+
+  const savedItem = input.id
+    ? nextItems.find(item => item.id === input.id)
+    : nextItems[0];
+
+  console.log(
+    `[AdminMenuStore] after update item image=${savedItem?.imageUri || 'none'}`,
+  );
 
   return nextItems;
 };
@@ -199,5 +212,13 @@ export const getCategoryLabel = (
 };
 
 export const getMenuItemStatusLabel = (item: RestaurantMenuItem) => {
-  return item.available ? 'Đang bán' : 'Tạm ẩn / hết hàng';
+  switch (item.status) {
+    case 'HIDDEN':
+      return 'Tạm ẩn';
+    case 'OUT_OF_STOCK':
+      return 'Hết hàng';
+    case 'SELLING':
+    default:
+      return item.available === false ? 'Tạm ẩn' : 'Đang bán';
+  }
 };

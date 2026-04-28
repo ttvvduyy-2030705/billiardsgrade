@@ -141,17 +141,6 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
               multiline
               style={[styles.adminInput, styles.adminTextArea]}
             />
-
-            <RNText style={styles.inputLabel}>Ảnh món URL</RNText>
-            <TextInput
-              value={imageUri}
-              onChangeText={setImageUri}
-              placeholder="https://..."
-              placeholderTextColor="rgba(255,255,255,0.36)"
-              autoCapitalize="none"
-              style={styles.adminInput}
-            />
-
             <RNText style={styles.inputLabel}>Trạng thái</RNText>
             <RNView style={styles.categoryPickerWrap}>
               <Pressable

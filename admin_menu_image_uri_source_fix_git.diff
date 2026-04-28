@@ -1,0 +1,255 @@
+diff -ru repo_image_picker_work/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/components/AdminMenuManagementScreen.tsx repo_image_uri_fix/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/components/AdminMenuManagementScreen.tsx
+--- a/src/scenes/restaurant-admin-dashboard/components/AdminMenuManagementScreen.tsx	2026-04-28 02:13:50.038895792 +0000
++++ b/src/scenes/restaurant-admin-dashboard/components/AdminMenuManagementScreen.tsx	2026-04-28 02:32:00.091307321 +0000
+@@ -47,6 +47,10 @@
+ 
+ const formatCurrency = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+ 
++const getMenuItemImageUri = (item?: RestaurantMenuItem | null) => {
++  return (item?.imageUri || '').trim();
++};
++
+ const createLocalMenuItemId = () => {
+   return `admin_dish_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+ };
+@@ -91,7 +95,7 @@
+       setPrice(String(Number(selectedItem.price) || 0));
+       setCategoryId(selectedItem.categoryId || defaultCategoryId);
+       setDescription(selectedItem.description || '');
+-      setImageUri(selectedItem.imageUri || '');
++      setImageUri(getMenuItemImageUri(selectedItem));
+       setStatus(getInitialStatus(selectedItem));
+       setError('');
+       return;
+@@ -125,7 +129,7 @@
+       return;
+     }
+ 
+-    console.log('[AdminMenuImage] pick image pressed');
++    console.log(`[AdminMenuImage] pick image pressed itemId=${selectedItem?.id || 'new'}`);
+     setImagePicking(true);
+     setError('');
+ 
+@@ -144,7 +148,7 @@
+ 
+       if (response.errorCode) {
+         const message = response.errorMessage || response.errorCode;
+-        console.warn("[AdminMenuImage] image pick error=" + message);
++        console.warn('[AdminMenuImage] image pick error=' + message);
+         setError('Không thể chọn ảnh. Vui lòng thử lại.');
+         return;
+       }
+@@ -157,7 +161,7 @@
+         return;
+       }
+ 
+-      console.log("[AdminMenuImage] image selected uri=" + pickedUri);
++      console.log('[AdminMenuImage] selected new image uri=' + pickedUri);
+       setImageUri(pickedUri);
+     } catch (pickError) {
+       console.warn('[AdminMenuImage] image pick error=', pickError);
+@@ -206,6 +210,8 @@
+     try {
+       const cleanImageUri = imageUri.trim();
+ 
++      console.log('[AdminMenuForm] draft image before save=' + (imageUri || 'none'));
++      console.log('[AdminMenuForm] submit payload image=' + (cleanImageUri || 'none'));
+       console.log(
+         '[AdminMenu] save ' + (isEdit ? 'edit' : 'create') + ' with image=' + (cleanImageUri || 'none'),
+       );
+@@ -317,6 +323,7 @@
+           <RNView style={styles.imagePickerCard}>
+             {imageUri ? (
+               <RNImage
++                key={imageUri}
+                 source={{uri: imageUri}}
+                 style={styles.imagePickerPreview}
+                 resizeMode="cover"
+@@ -358,16 +365,6 @@
+             </RNView>
+           </RNView>
+ 
+-          <RNText style={styles.inputLabel}>Ảnh món URL / đường dẫn local dự phòng</RNText>
+-          <TextInput
+-            value={imageUri}
+-            onChangeText={setImageUri}
+-            placeholder="file://... hoặc https://..."
+-            placeholderTextColor="rgba(255,255,255,0.36)"
+-            autoCapitalize="none"
+-            style={[styles.adminInput, styles.imageFallbackInput]}
+-          />
+-
+           <RNText style={styles.inputLabel}>Trạng thái</RNText>
+           <RNView style={styles.categoryPickerWrap}>
+             {STATUS_OPTIONS.map(option => {
+@@ -426,13 +423,22 @@
+         </RNView>
+       ) : (
+         <RNView style={styles.grid}>
+-          {menuItems.map(item => (
+-            <RNView key={item.id} style={styles.menuCard}>
+-              {item.imageUri ? (
+-                <RNImage source={{uri: item.imageUri}} style={styles.menuThumb} resizeMode="cover" />
+-              ) : (
+-                <RNView style={styles.menuThumb} />
+-              )}
++          {menuItems.map(item => {
++            const itemImageUri = getMenuItemImageUri(item);
++            console.log(`[AdminMenuList] render itemId=${item.id} image=${itemImageUri || 'none'}`);
++
++            return (
++              <RNView key={`${item.id}-${itemImageUri || 'no-image'}`} style={styles.menuCard}>
++                {itemImageUri ? (
++                  <RNImage
++                    key={itemImageUri}
++                    source={{uri: itemImageUri}}
++                    style={styles.menuThumb}
++                    resizeMode="cover"
++                  />
++                ) : (
++                  <RNView style={styles.menuThumb} />
++                )}
+               <RNView style={styles.menuInfo}>
+                 <RNText style={styles.menuName} numberOfLines={2}>{item.name}</RNText>
+                 <RNText style={styles.menuMeta} numberOfLines={1}>
+@@ -464,7 +470,8 @@
+                 </Pressable>
+               </RNView>
+             </RNView>
+-          ))}
++            );
++          })}
+         </RNView>
+       )}
+     </RNView>
+diff -ru repo_image_picker_work/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/components/EditMenuItemModal.tsx repo_image_uri_fix/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/components/EditMenuItemModal.tsx
+--- a/src/scenes/restaurant-admin-dashboard/components/EditMenuItemModal.tsx	2026-04-28 01:36:52.000000000 +0000
++++ b/src/scenes/restaurant-admin-dashboard/components/EditMenuItemModal.tsx	2026-04-28 02:34:39.342672514 +0000
+@@ -141,17 +141,6 @@
+               multiline
+               style={[styles.adminInput, styles.adminTextArea]}
+             />
+-
+-            <RNText style={styles.inputLabel}>Ảnh món URL</RNText>
+-            <TextInput
+-              value={imageUri}
+-              onChangeText={setImageUri}
+-              placeholder="https://..."
+-              placeholderTextColor="rgba(255,255,255,0.36)"
+-              autoCapitalize="none"
+-              style={styles.adminInput}
+-            />
+-
+             <RNText style={styles.inputLabel}>Trạng thái</RNText>
+             <RNView style={styles.categoryPickerWrap}>
+               <Pressable
+diff -ru repo_image_picker_work/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/styles.tsx repo_image_uri_fix/billiardsgrade-main/src/scenes/restaurant-admin-dashboard/styles.tsx
+--- a/src/scenes/restaurant-admin-dashboard/styles.tsx	2026-04-28 02:14:20.727228192 +0000
++++ b/src/scenes/restaurant-admin-dashboard/styles.tsx	2026-04-28 02:34:06.988420010 +0000
+@@ -625,9 +625,6 @@
+       fontSize: font.body,
+       fontWeight: '800',
+     },
+-    imageFallbackInput: {
+-      opacity: 0.72,
+-    },
+     inputLabel: {
+       color: 'rgba(255,255,255,0.75)',
+       fontSize: font.small,
+diff -ru repo_image_picker_work/billiardsgrade-main/src/services/restaurantAdminStore.ts repo_image_uri_fix/billiardsgrade-main/src/services/restaurantAdminStore.ts
+--- a/src/services/restaurantAdminStore.ts	2026-04-28 01:44:45.517662890 +0000
++++ b/src/services/restaurantAdminStore.ts	2026-04-28 02:33:34.189269648 +0000
+@@ -134,6 +134,8 @@
+ };
+ 
+ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
++  const cleanImageUri = (input.imageUri || '').trim();
++
+   const nextItems = await upsertMenuItem({
+     id: input.id,
+     createdAt: input.createdAt,
+@@ -141,11 +143,19 @@
+     price: input.price,
+     categoryId: input.categoryId,
+     description: input.description,
+-    imageUri: input.imageUri,
++    imageUri: cleanImageUri,
+     status: input.status,
+     available: input.status === 'SELLING',
+   });
+ 
++  const savedItem = input.id
++    ? nextItems.find(item => item.id === input.id)
++    : nextItems[0];
++
++  console.log(
++    `[AdminMenuStore] after update item image=${savedItem?.imageUri || 'none'}`,
++  );
++
+   return nextItems;
+ };
+ 
+diff -ru repo_image_picker_work/billiardsgrade-main/src/services/restaurantMenuStorage.ts repo_image_uri_fix/billiardsgrade-main/src/services/restaurantMenuStorage.ts
+--- a/src/services/restaurantMenuStorage.ts	2026-04-28 01:44:45.516738015 +0000
++++ b/src/services/restaurantMenuStorage.ts	2026-04-28 02:33:34.188585480 +0000
+@@ -28,6 +28,8 @@
+   price: number;
+   description: string;
+   imageUri?: string;
++  /** Legacy/remote image field. New code must read/write imageUri only. */
++  imageUrl?: string;
+   available: boolean;
+   status?: RestaurantMenuItemStatus;
+   createdAt: string;
+@@ -367,7 +369,7 @@
+     name: (item.name || 'Món chưa đặt tên').trim(),
+     price: Number(item.price) || 0,
+     description: item.description || '',
+-    imageUri: item.imageUri || '',
++    imageUri: (item.imageUri || item.imageUrl || '').trim(),
+     available: status === 'SELLING',
+     status,
+     createdAt: item.createdAt || timestamp,
+@@ -538,16 +540,26 @@
+   const [current, categories] = await Promise.all([loadMenuItems(), loadMenuCategories()]);
+   const timestamp = nowIso();
+   const status = normaliseMenuItemStatus(input.status, input.available);
++  const cleanImageUri = (input.imageUri || '').trim();
++  const itemId = input.id || createId('dish');
++  const existingItem = current.find(item => item.id === itemId);
++
++  console.log(
++    `[AdminMenuStore] update itemId=${itemId} oldImage=${existingItem?.imageUri || 'none'} newImage=${cleanImageUri || 'none'}`,
++  );
++
+   const nextItem: RestaurantMenuItem = {
+-    id: input.id || createId('dish'),
++    ...(existingItem || {}),
++    id: itemId,
+     categoryId: resolveCategoryId(input.categoryId, categories),
+     name: input.name.trim(),
+     price: Number(input.price) || 0,
+     description: input.description.trim(),
+-    imageUri: input.imageUri?.trim(),
++    imageUri: cleanImageUri,
++    imageUrl: undefined,
+     available: status === 'SELLING',
+     status,
+-    createdAt: input.createdAt || timestamp,
++    createdAt: input.createdAt || existingItem?.createdAt || timestamp,
+     updatedAt: timestamp,
+   };
+ 
+@@ -558,6 +570,12 @@
+       : [nextItem, ...current];
+ 
+   await saveMenuItems(nextItems);
++
++  const afterUpdate = nextItems.find(item => item.id === nextItem.id);
++  console.log(
++    `[AdminMenuStore] after update item image=${afterUpdate?.imageUri || 'none'}`,
++  );
++
+   return nextItems;
+ };
+ 

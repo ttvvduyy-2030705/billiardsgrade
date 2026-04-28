@@ -19,6 +19,8 @@ export type MenuCategory = {
   updatedAt?: string;
 };
 
+export type RestaurantMenuItemStatus = 'SELLING' | 'HIDDEN' | 'OUT_OF_STOCK';
+
 export type RestaurantMenuItem = {
   id: string;
   categoryId: string;
@@ -26,7 +28,10 @@ export type RestaurantMenuItem = {
   price: number;
   description: string;
   imageUri?: string;
+  /** Legacy/remote image field. New code must read/write imageUri only. */
+  imageUrl?: string;
   available: boolean;
+  status?: RestaurantMenuItemStatus;
   createdAt: string;
   updatedAt: string;
   /** Legacy field from the first local menu version. Kept only for safe migration. */
@@ -339,12 +344,24 @@ const resolveCategoryId = (value: string | undefined, categories: MenuCategory[]
   return foodCategory?.id || drinkCategory?.id || DEFAULT_FOOD_CATEGORY_ID;
 };
 
+const normaliseMenuItemStatus = (
+  status: RestaurantMenuItemStatus | undefined,
+  available?: boolean,
+): RestaurantMenuItemStatus => {
+  if (status === 'HIDDEN' || status === 'OUT_OF_STOCK' || status === 'SELLING') {
+    return status;
+  }
+
+  return available === false ? 'HIDDEN' : 'SELLING';
+};
+
 const migrateMenuItem = (
   item: Partial<RestaurantMenuItem>,
   categories: MenuCategory[],
 ): RestaurantMenuItem => {
   const timestamp = nowIso();
   const categoryId = resolveCategoryId(item.categoryId || item.category, categories);
+  const status = normaliseMenuItemStatus(item.status, item.available);
 
   return {
     id: item.id || createId('dish'),
@@ -352,8 +369,9 @@ const migrateMenuItem = (
     name: (item.name || 'Món chưa đặt tên').trim(),
     price: Number(item.price) || 0,
     description: item.description || '',
-    imageUri: item.imageUri || '',
-    available: item.available !== false,
+    imageUri: (item.imageUri || item.imageUrl || '').trim(),
+    available: status === 'SELLING',
+    status,
     createdAt: item.createdAt || timestamp,
     updatedAt: item.updatedAt || timestamp,
   };
@@ -513,22 +531,35 @@ export const saveMenuItems = async (items: RestaurantMenuItem[]) => {
 };
 
 export const upsertMenuItem = async (
-  input: Omit<RestaurantMenuItem, 'id' | 'createdAt' | 'updatedAt'> & {
+  input: Omit<RestaurantMenuItem, 'id' | 'createdAt' | 'updatedAt' | 'available'> & {
     id?: string;
     createdAt?: string;
+    available?: boolean;
   },
 ): Promise<RestaurantMenuItem[]> => {
   const [current, categories] = await Promise.all([loadMenuItems(), loadMenuCategories()]);
   const timestamp = nowIso();
+  const status = normaliseMenuItemStatus(input.status, input.available);
+  const cleanImageUri = (input.imageUri || '').trim();
+  const itemId = input.id || createId('dish');
+  const existingItem = current.find(item => item.id === itemId);
+
+  console.log(
+    `[AdminMenuStore] update itemId=${itemId} oldImage=${existingItem?.imageUri || 'none'} newImage=${cleanImageUri || 'none'}`,
+  );
+
   const nextItem: RestaurantMenuItem = {
-    id: input.id || createId('dish'),
+    ...(existingItem || {}),
+    id: itemId,
     categoryId: resolveCategoryId(input.categoryId, categories),
     name: input.name.trim(),
     price: Number(input.price) || 0,
     description: input.description.trim(),
-    imageUri: input.imageUri?.trim(),
-    available: input.available,
-    createdAt: input.createdAt || timestamp,
+    imageUri: cleanImageUri,
+    imageUrl: undefined,
+    available: status === 'SELLING',
+    status,
+    createdAt: input.createdAt || existingItem?.createdAt || timestamp,
     updatedAt: timestamp,
   };
 
@@ -539,6 +570,12 @@ export const upsertMenuItem = async (
       : [nextItem, ...current];
 
   await saveMenuItems(nextItems);
+
+  const afterUpdate = nextItems.find(item => item.id === nextItem.id);
+  console.log(
+    `[AdminMenuStore] after update item image=${afterUpdate?.imageUri || 'none'}`,
+  );
+
   return nextItems;
 };
 
