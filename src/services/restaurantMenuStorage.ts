@@ -27,9 +27,10 @@ export type RestaurantMenuItem = {
   name: string;
   price: number;
   description: string;
-  imageUri?: string;
-  /** Legacy/remote image field. New code must read/write imageUri only. */
+  /** Source of truth for menu item image. Can be a remote URL or local picker URI. */
   imageUrl?: string;
+  /** Legacy field from older builds. New code must not write this field. */
+  imageUri?: string;
   available: boolean;
   status?: RestaurantMenuItemStatus;
   createdAt: string;
@@ -119,7 +120,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     name: 'Coca',
     price: 25000,
     description: 'Coca-Cola lạnh, phục vụ nhanh tại bàn.',
-    imageUri:
+    imageUrl:
       'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80',
     available: true,
     createdAt: sampleTime,
@@ -131,7 +132,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     name: 'Fanta',
     price: 25000,
     description: 'Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.',
-    imageUri:
+    imageUrl:
       'https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80',
     available: true,
     createdAt: sampleTime,
@@ -143,7 +144,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     name: 'Mirinda',
     price: 25000,
     description: 'Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.',
-    imageUri:
+    imageUrl:
       'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80',
     available: true,
     createdAt: sampleTime,
@@ -155,7 +156,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     name: 'Pepsi',
     price: 25000,
     description: 'Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.',
-    imageUri:
+    imageUrl:
       'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80',
     available: true,
     createdAt: sampleTime,
@@ -358,9 +359,9 @@ const normaliseMenuItemStatus = (
 export const getMenuItemImageValue = (
   item?: Partial<RestaurantMenuItem> | null,
 ) => {
-  // imageUri is the single source of truth for new data. imageUrl is only a
-  // legacy fallback so old seeded/remote items keep rendering until migrated.
-  return (item?.imageUri || item?.imageUrl || '').trim();
+  // imageUrl is the single source of truth for menu images. imageUri is only a
+  // legacy fallback so older local records keep rendering until migrated.
+  return (item?.imageUrl || item?.imageUri || '').trim();
 };
 
 const migrateMenuItem = (
@@ -370,7 +371,7 @@ const migrateMenuItem = (
   const timestamp = nowIso();
   const categoryId = resolveCategoryId(item.categoryId || item.category, categories);
   const status = normaliseMenuItemStatus(item.status, item.available);
-  const imageUri = getMenuItemImageValue(item);
+  const imageUrl = getMenuItemImageValue(item);
 
   return {
     id: item.id || createId('dish'),
@@ -378,8 +379,8 @@ const migrateMenuItem = (
     name: (item.name || 'Món chưa đặt tên').trim(),
     price: Number(item.price) || 0,
     description: item.description || '',
-    imageUri,
-    imageUrl: undefined,
+    imageUrl,
+    imageUri: undefined,
     available: status === 'SELLING',
     status,
     createdAt: item.createdAt || timestamp,
@@ -550,7 +551,7 @@ export const upsertMenuItem = async (
   const [current, categories] = await Promise.all([loadMenuItems(), loadMenuCategories()]);
   const timestamp = nowIso();
   const status = normaliseMenuItemStatus(input.status, input.available);
-  const cleanImageUri = getMenuItemImageValue(input);
+  const cleanImageUrl = getMenuItemImageValue(input);
   const itemId = input.id || createId('dish');
   const existingItem = current.find(item => item.id === itemId);
   const oldImage = getMenuItemImageValue(existingItem);
@@ -559,7 +560,7 @@ export const upsertMenuItem = async (
     `[AdminMenuStore] before update itemId=${itemId} oldImage=${oldImage || 'none'}`,
   );
   console.log(
-    `[AdminMenuStore] update itemId=${itemId} newImage=${cleanImageUri || 'none'}`,
+    `[AdminMenuStore] update itemId=${itemId} newImage=${cleanImageUrl || 'none'}`,
   );
 
   const nextItem: RestaurantMenuItem = {
@@ -569,8 +570,8 @@ export const upsertMenuItem = async (
     name: input.name.trim(),
     price: Number(input.price) || 0,
     description: input.description.trim(),
-    imageUri: cleanImageUri,
-    imageUrl: undefined,
+    imageUrl: cleanImageUrl,
+    imageUri: undefined,
     available: status === 'SELLING',
     status,
     createdAt: input.createdAt || existingItem?.createdAt || timestamp,

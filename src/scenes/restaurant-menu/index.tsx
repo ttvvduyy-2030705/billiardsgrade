@@ -76,7 +76,7 @@ type DishFormState = {
   name: string;
   price: string;
   description: string;
-  imageUri: string;
+  imageUrl: string;
   categoryId: string;
   available: boolean;
 };
@@ -115,7 +115,7 @@ const createEmptyForm = (categoryId = ''): DishFormState => ({
   name: '',
   price: '',
   description: '',
-  imageUri: '',
+  imageUrl: '',
   categoryId,
   available: true,
 });
@@ -993,7 +993,7 @@ const RestaurantMenuScreen = (props: Props) => {
       name: item.name,
       price: String(item.price),
       description: item.description,
-      imageUri: item.imageUri || '',
+      imageUrl: item.imageUrl || '',
       categoryId: item.categoryId,
       available: item.available,
     });
@@ -1011,7 +1011,7 @@ const RestaurantMenuScreen = (props: Props) => {
 
       const uri = result.assets?.[0]?.uri;
       if (uri) {
-        setForm(current => ({...current, imageUri: uri}));
+        setForm(current => ({...current, imageUrl: uri}));
       }
     } catch (error: any) {
       showError(`Không chọn được ảnh: ${error?.message || 'lỗi không xác định'}`);
@@ -1043,7 +1043,7 @@ const RestaurantMenuScreen = (props: Props) => {
       name,
       price,
       description: form.description,
-      imageUri: form.imageUri,
+      imageUrl: form.imageUrl,
       categoryId: form.categoryId,
       available: form.available,
     });
@@ -1918,7 +1918,7 @@ const RestaurantMenuScreen = (props: Props) => {
             </Pressable>
             <Pressable onPress={onChooseImage} style={styles.secondaryButton}>
               <RNText style={styles.secondaryButtonText}>
-                {form.imageUri ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
+                {form.imageUrl ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
               </RNText>
             </Pressable>
             <Pressable onPress={resetForm} style={styles.secondaryButton}>

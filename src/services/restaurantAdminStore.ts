@@ -36,7 +36,7 @@ export type AdminMenuItemForm = {
   price: number;
   categoryId: string;
   description: string;
-  imageUri?: string;
+  imageUrl?: string;
   status: RestaurantMenuItemStatus;
   available?: boolean;
 };
@@ -135,10 +135,10 @@ export const loadRestaurantAdminData = async () => {
 };
 
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
-  const cleanImageUri = getMenuItemImageValue(input);
+  const cleanImageUrl = getMenuItemImageValue(input);
 
   console.log(
-    `[AdminMenuForm] submit image=${cleanImageUri || 'none'}`,
+    `[AdminMenuForm] submit image=${cleanImageUrl || 'none'}`,
   );
 
   const nextItems = await upsertMenuItem({
@@ -148,7 +148,7 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     price: input.price,
     categoryId: input.categoryId,
     description: input.description,
-    imageUri: cleanImageUri,
+    imageUrl: cleanImageUrl,
     status: input.status,
     available: input.status === 'SELLING',
   });

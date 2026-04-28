@@ -27,7 +27,7 @@ type MenuItemFormInput = {
   price: number;
   categoryId: string;
   description: string;
-  imageUri?: string;
+  imageUrl?: string;
   status: RestaurantMenuItemStatus;
   available?: boolean;
 };
@@ -48,7 +48,7 @@ type AdminMenuFormSession = {
   price: string;
   categoryId: string;
   description: string;
-  imageUri: string;
+  imageUrl: string;
   status: RestaurantMenuItemStatus;
 };
 
@@ -86,7 +86,7 @@ const createEmptyFormSession = (categoryId = 'drink'): AdminMenuFormSession => (
   price: '',
   categoryId,
   description: '',
-  imageUri: '',
+  imageUrl: '',
   status: 'SELLING',
 });
 
@@ -116,8 +116,8 @@ const AdminMenuManagementScreen = ({
   const [description, setDescriptionState] = useState(
     () => adminMenuFormSession.description,
   );
-  const [imageUri, setImageUriState] = useState(
-    () => adminMenuFormSession.imageUri,
+  const [imageUrl, setImageUrlState] = useState(
+    () => adminMenuFormSession.imageUrl,
   );
   const [status, setStatusState] = useState<RestaurantMenuItemStatus>(
     () => adminMenuFormSession.status,
@@ -145,7 +145,7 @@ const AdminMenuManagementScreen = ({
     setPriceState(next.price);
     setCategoryIdState(next.categoryId || defaultCategoryId);
     setDescriptionState(next.description);
-    setImageUriState(next.imageUri);
+    setImageUrlState(next.imageUrl);
     setStatusState(next.status);
   };
 
@@ -170,8 +170,8 @@ const AdminMenuManagementScreen = ({
     if (Object.prototype.hasOwnProperty.call(patch, 'description')) {
       setDescriptionState(adminMenuFormSession.description);
     }
-    if (Object.prototype.hasOwnProperty.call(patch, 'imageUri')) {
-      setImageUriState(adminMenuFormSession.imageUri);
+    if (Object.prototype.hasOwnProperty.call(patch, 'imageUrl')) {
+      setImageUrlState(adminMenuFormSession.imageUrl);
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'status')) {
       setStatusState(adminMenuFormSession.status);
@@ -216,7 +216,7 @@ const AdminMenuManagementScreen = ({
   };
 
   const openEdit = (item: RestaurantMenuItem) => {
-    const nextImageUri = getMenuItemImageValue(item);
+    const nextImageUrl = getMenuItemImageValue(item);
 
     console.log(`[AdminMenu] open edit itemId=${item.id}`);
     replaceFormSession({
@@ -226,7 +226,7 @@ const AdminMenuManagementScreen = ({
       price: String(Number(item.price) || 0),
       categoryId: item.categoryId || defaultCategoryId,
       description: item.description || '',
-      imageUri: nextImageUri,
+      imageUrl: nextImageUrl,
       status: getInitialStatus(item),
     });
     setError('');
@@ -273,8 +273,8 @@ const AdminMenuManagementScreen = ({
       }
 
       console.log('[AdminMenuImage] selected uri=' + pickedUri);
-      updateDraft({imageUri: pickedUri});
-      console.log('[AdminMenuForm] draft image=' + pickedUri);
+      updateDraft({imageUrl: pickedUri});
+      console.log('[AdminMenuForm] draft image after pick=' + pickedUri);
     } catch (pickError) {
       console.warn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -314,19 +314,19 @@ const AdminMenuManagementScreen = ({
 
     const isEdit = viewMode === 'edit' && !!selectedItemId;
     const itemId = isEdit ? selectedItemId : createLocalMenuItemId();
-    const cleanImageUri = getMenuItemImageValue({imageUri});
+    const cleanImageUrl = getMenuItemImageValue({imageUrl});
 
     setSaving(true);
     setError('');
 
     try {
-      console.log('[AdminMenuForm] draft image=' + (imageUri || 'none'));
-      console.log('[AdminMenuForm] submit image=' + (cleanImageUri || 'none'));
+      console.log('[AdminMenuForm] draft image=' + (imageUrl || 'none'));
+      console.log('[AdminMenuForm] submit image=' + (cleanImageUrl || 'none'));
       console.log(
         '[AdminMenu] save ' +
           (isEdit ? 'edit' : 'create') +
           ' with image=' +
-          (cleanImageUri || 'none'),
+          (cleanImageUrl || 'none'),
       );
 
       await onSaveItem({
@@ -336,7 +336,7 @@ const AdminMenuManagementScreen = ({
         price: priceValue,
         categoryId: cleanCategoryId,
         description: description.trim(),
-        imageUri: cleanImageUri,
+        imageUrl: cleanImageUrl,
         status,
         available: status === 'SELLING',
       });
@@ -439,10 +439,10 @@ const AdminMenuManagementScreen = ({
 
           <RNText style={styles.inputLabel}>Ảnh món</RNText>
           <RNView style={styles.imagePickerCard}>
-            {imageUri ? (
+            {imageUrl ? (
               <RNImage
-                key={`${selectedItemId || 'new'}-${imageUri}`}
-                source={{uri: imageUri}}
+                key={`${selectedItemId || 'new'}-${imageUrl}`}
+                source={{uri: imageUrl}}
                 style={styles.imagePickerPreview}
                 resizeMode="cover"
               />
@@ -454,10 +454,10 @@ const AdminMenuManagementScreen = ({
 
             <RNView style={styles.imagePickerInfo}>
               <RNText style={styles.imagePickerTitle}>
-                {imageUri ? 'Ảnh món đã chọn' : 'Chọn ảnh trực tiếp từ máy'}
+                {imageUrl ? 'Ảnh món đã chọn' : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Ảnh được lưu vào field imageUri. Admin và menu khách cùng đọc field này.
+                Ảnh được lưu vào field imageUrl. Admin và menu khách cùng đọc field này.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
@@ -465,14 +465,14 @@ const AdminMenuManagementScreen = ({
                   style={styles.imagePickerButton}
                   disabled={saving || imagePicking}>
                   <RNText style={styles.imagePickerButtonText}>
-                    {imagePicking ? 'Đang mở...' : imageUri ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
+                    {imagePicking ? 'Đang mở...' : imageUrl ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
                   </RNText>
                 </Pressable>
-                {imageUri ? (
+                {imageUrl ? (
                   <Pressable
                     onPress={() => {
                       console.log('[AdminMenuImage] clear image');
-                      updateDraft({imageUri: ''});
+                      updateDraft({imageUrl: ''});
                     }}
                     style={styles.imageRemoveButton}
                     disabled={saving || imagePicking}>

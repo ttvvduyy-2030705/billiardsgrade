@@ -642,6 +642,20 @@ const createStyles = ({design, isWide}: Args) => {
       fontSize: font.bodyLarge,
       paddingHorizontal: spacing.md,
     },
+    adminInputButton: {
+      justifyContent: 'center',
+      paddingVertical: spacing.sm,
+    },
+    adminInputValueText: {
+      color: '#FFFFFF',
+      fontSize: font.bodyLarge,
+      fontWeight: '800',
+    },
+    adminInputPlaceholderText: {
+      color: 'rgba(255,255,255,0.36)',
+      fontSize: font.bodyLarge,
+      fontWeight: '700',
+    },
     adminTextArea: {
       minHeight: 96,
       paddingTop: spacing.sm,
