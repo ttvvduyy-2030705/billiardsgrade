@@ -2,6 +2,8 @@ import React, {memo, useEffect, useMemo, useState} from 'react';
 import {
   Image as RNImage,
   Keyboard,
+  NativeModules,
+  Platform,
   Pressable,
   Text as RNText,
   TextInput,
@@ -18,7 +20,13 @@ import type {
   RestaurantMenuItem,
   RestaurantMenuItemStatus,
 } from 'services/restaurantMenuStorage';
-import {getMenuItemImageValue} from 'services/restaurantMenuStorage';
+import {
+  getMenuItemImageValue,
+  persistRestaurantMenuImage,
+} from 'services/restaurantMenuStorage';
+
+const AdminFormImmersiveModule =
+  Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
 
 type MenuItemFormInput = {
   id?: string;
@@ -125,6 +133,16 @@ const AdminMenuManagementScreen = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [imagePicking, setImagePicking] = useState(false);
+
+  const pauseAdminFormInputImmersive = (field: string) => {
+    console.log(`[AdminMenuForm] focus field=${field}`);
+    AdminFormImmersiveModule?.pauseForCartInput?.(`admin-menu-form-${field}`);
+  };
+
+  const resumeAdminFormInputImmersive = (field: string) => {
+    console.log(`[AdminMenuForm] blur field=${field}`);
+    AdminFormImmersiveModule?.resumeAfterCartInput?.(`admin-menu-form-${field}`);
+  };
 
   const selectedItem = useMemo(() => {
     if (!selectedItemId) {
@@ -249,7 +267,7 @@ const AdminMenuManagementScreen = ({
         mediaType: 'photo',
         selectionLimit: 1,
         quality: 0.86,
-        includeBase64: false,
+        includeBase64: true,
       });
 
       if (response.didCancel) {
@@ -264,7 +282,8 @@ const AdminMenuManagementScreen = ({
         return;
       }
 
-      const pickedUri = response.assets?.[0]?.uri || '';
+      const pickedAsset = response.assets?.[0];
+      const pickedUri = pickedAsset?.uri || '';
 
       if (!pickedUri) {
         console.warn('[AdminMenuImage] image pick error=missing-uri');
@@ -273,8 +292,15 @@ const AdminMenuManagementScreen = ({
       }
 
       console.log('[AdminMenuImage] selected uri=' + pickedUri);
-      updateDraft({imageUrl: pickedUri});
-      console.log('[AdminMenuForm] draft image after pick=' + pickedUri);
+
+      const persistedUri = await persistRestaurantMenuImage({
+        uri: pickedUri,
+        base64: pickedAsset?.base64,
+        itemId: selectedItemId || 'new_dish',
+      });
+
+      updateDraft({imageUrl: persistedUri});
+      console.log('[AdminMenuForm] draft image after pick=' + persistedUri);
     } catch (pickError) {
       console.warn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -383,7 +409,8 @@ const AdminMenuManagementScreen = ({
           <TextInput
             value={name}
             onChangeText={text => updateDraft({name: text})}
-            onFocus={() => console.log('[AdminMenuForm] focus field=name')}
+            onFocus={() => pauseAdminFormInputImmersive('name')}
+            onBlur={() => resumeAdminFormInputImmersive('name')}
             placeholder="Ví dụ: Coca lạnh"
             placeholderTextColor="rgba(255,255,255,0.36)"
             style={styles.adminInput}
@@ -394,7 +421,8 @@ const AdminMenuManagementScreen = ({
           <TextInput
             value={price}
             onChangeText={text => updateDraft({price: text})}
-            onFocus={() => console.log('[AdminMenuForm] focus field=price')}
+            onFocus={() => pauseAdminFormInputImmersive('price')}
+            onBlur={() => resumeAdminFormInputImmersive('price')}
             placeholder="25000"
             placeholderTextColor="rgba(255,255,255,0.36)"
             keyboardType="number-pad"
@@ -429,7 +457,8 @@ const AdminMenuManagementScreen = ({
           <TextInput
             value={description}
             onChangeText={text => updateDraft({description: text})}
-            onFocus={() => console.log('[AdminMenuForm] focus field=description')}
+            onFocus={() => pauseAdminFormInputImmersive('description')}
+            onBlur={() => resumeAdminFormInputImmersive('description')}
             placeholder="Mô tả ngắn hiển thị cho nhân viên/khách"
             placeholderTextColor="rgba(255,255,255,0.36)"
             multiline

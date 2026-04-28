@@ -140,9 +140,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             style={styles.contentScroll}
             contentContainerStyle={styles.contentScrollBody}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#FFFFFF" />
+              activeTab === 'orders' ? (
+                <RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#FFFFFF" />
+              ) : undefined
             }
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
             showsVerticalScrollIndicator={false}>
             {activeTab === 'orders' ? (

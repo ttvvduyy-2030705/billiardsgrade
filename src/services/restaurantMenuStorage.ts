@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import RNFS from 'react-native-fs';
 
 export const RESTAURANT_STORAGE_KEYS = {
   schemaVersion: 'restaurant_menu_schema_version',
@@ -11,6 +12,91 @@ export const RESTAURANT_STORAGE_KEYS = {
 };
 
 const CURRENT_SCHEMA_VERSION = '20260424_menu_drinks_food_v1';
+
+const MENU_IMAGE_STORAGE_DIR = `${RNFS.DocumentDirectoryPath}/restaurant-menu-images`;
+
+const getImageExtensionFromUri = (uri: string) => {
+  const cleanUri = uri.split('?')[0].split('#')[0];
+  const match = cleanUri.match(/\.([a-zA-Z0-9]{2,5})$/);
+  const ext = match?.[1]?.toLowerCase();
+
+  if (ext && ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext)) {
+    return ext === 'jpeg' ? 'jpg' : ext;
+  }
+
+  return 'jpg';
+};
+
+const safeImageNamePart = (value?: string) => {
+  return (value || 'menu_item')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 72);
+};
+
+export const normaliseMenuImageUri = (value?: string | null) => {
+  const cleanValue = (value || '').trim();
+
+  if (!cleanValue) {
+    return '';
+  }
+
+  if (/^(https?:|file:|content:|data:|asset:|ph:)/i.test(cleanValue)) {
+    return cleanValue;
+  }
+
+  if (cleanValue.startsWith('/')) {
+    return `file://${cleanValue}`;
+  }
+
+  return cleanValue;
+};
+
+export const persistRestaurantMenuImage = async ({
+  uri,
+  base64,
+  itemId,
+}: {
+  uri: string;
+  base64?: string;
+  itemId?: string;
+}) => {
+  const cleanUri = (uri || '').trim();
+
+  if (!cleanUri) {
+    return '';
+  }
+
+  if (/^https?:/i.test(cleanUri)) {
+    return cleanUri;
+  }
+
+  const alreadyInMenuStorage = cleanUri.includes('/restaurant-menu-images/');
+  if (alreadyInMenuStorage) {
+    return normaliseMenuImageUri(cleanUri);
+  }
+
+  if (!(await RNFS.exists(MENU_IMAGE_STORAGE_DIR))) {
+    await RNFS.mkdir(MENU_IMAGE_STORAGE_DIR);
+  }
+
+  const extension = getImageExtensionFromUri(cleanUri);
+  const fileName = `${safeImageNamePart(itemId)}_${Date.now()}.${extension}`;
+  const destinationPath = `${MENU_IMAGE_STORAGE_DIR}/${fileName}`;
+
+  if (base64) {
+    await RNFS.writeFile(destinationPath, base64, 'base64');
+  } else {
+    const sourcePath = cleanUri.startsWith('file://')
+      ? cleanUri.replace('file://', '')
+      : cleanUri;
+    await RNFS.copyFile(sourcePath, destinationPath);
+  }
+
+  const persistedUri = `file://${destinationPath}`;
+  console.log(`[RestaurantMenuImage] persisted image uri=${persistedUri}`);
+  return persistedUri;
+};
 
 export type MenuCategory = {
   id: string;
@@ -361,7 +447,7 @@ export const getMenuItemImageValue = (
 ) => {
   // imageUrl is the single source of truth for menu images. imageUri is only a
   // legacy fallback so older local records keep rendering until migrated.
-  return (item?.imageUrl || item?.imageUri || '').trim();
+  return normaliseMenuImageUri(item?.imageUrl || item?.imageUri || '');
 };
 
 const migrateMenuItem = (

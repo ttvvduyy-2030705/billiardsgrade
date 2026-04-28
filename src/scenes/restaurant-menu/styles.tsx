@@ -14,7 +14,11 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
   const isShort = metrics.height < 620;
   const horizontalPadding = Math.max(spacing.md, safeArea.left + spacing.md);
   const categoryWidth = isWide ? Math.min(250, metrics.width * 0.25) : metrics.width * 0.31;
-  const dishImageHeight = isWide ? (isShort ? 120 : 154) : 118;
+  // Match the image block used by Admin / Quản lý món.
+  // The customer card uses the shared custom View component, whose default
+  // alignItems is flex-start; without an explicit stretch/width the image area
+  // can shrink and the image looks invisible.
+  const dishImageHeight = isWide ? 130 : 150;
   const dishCardWidth = isWide ? '31.7%' : isCompact ? '100%' : '48.5%';
   const adminDishCardWidth = isWide ? '32%' : '100%';
 
@@ -297,6 +301,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     dishCard: {
       width: dishCardWidth as any,
+      alignItems: 'stretch',
       borderRadius: radius.xl,
       borderWidth: border.thin,
       borderColor: 'rgba(255,255,255,0.10)',
@@ -310,6 +315,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     adminDishCard: {
       width: adminDishCardWidth as any,
+      alignItems: 'stretch',
       borderRadius: radius.xl,
       borderWidth: border.thin,
       borderColor: 'rgba(255,255,255,0.10)',
@@ -322,16 +328,17 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       elevation: 7,
     },
     dishImageWrap: {
+      width: '100%',
+      alignSelf: 'stretch',
       height: dishImageHeight,
-      margin: spacing.sm,
-      marginBottom: 0,
-      borderRadius: radius.lg,
+      margin: 0,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
       overflow: 'hidden',
-      backgroundColor: '#22222A',
+      backgroundColor: 'rgba(255,255,255,0.07)',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: border.thin,
-      borderColor: 'rgba(255,255,255,0.08)',
+      borderWidth: 0,
     },
     dishImage: {
       width: '100%',
@@ -359,6 +366,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       overflow: 'hidden',
     },
     dishBody: {
+      width: '100%',
+      alignSelf: 'stretch',
       padding: spacing.sm,
       paddingTop: spacing.xs,
     },

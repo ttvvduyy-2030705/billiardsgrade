@@ -157,6 +157,7 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     ? nextItems.find(item => item.id === input.id)
     : nextItems[0];
 
+  console.log('[Admin Food Image Save] food object =', savedItem);
   console.log(
     `[AdminMenuStore] after update item image=${getMenuItemImageValue(savedItem) || 'none'}`,
   );

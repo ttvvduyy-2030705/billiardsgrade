@@ -13,8 +13,9 @@ import {
   Text as RNText,
   TextInput,
   View as RNView,
+  Image as RNImage,
 } from 'react-native';
-import type {ImageSourcePropType} from 'react-native';
+import type {ImageResizeMode, ImageSourcePropType, ImageStyle, StyleProp} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 
 import images from 'assets';
@@ -176,15 +177,74 @@ let cartKeyboardVisibleSession = false;
 let cartMenuItemSnapshotSession: Record<string, RestaurantMenuItem> = {};
 let cartFieldInputVisibleSession = false;
 
-const getMenuImageSource = (item: RestaurantMenuItem): ImageSourcePropType => {
-  const imageValue = getMenuItemImageValue(item);
+const getMenuImageSource = (rawImageValue?: string): ImageSourcePropType => {
+  const imageValue = (rawImageValue || '').trim();
 
-  if (imageValue) {
+  if (!imageValue) {
+    return images.logoSmall;
+  }
+
+  if (
+    imageValue.startsWith('http://') ||
+    imageValue.startsWith('https://') ||
+    imageValue.startsWith('file://') ||
+    imageValue.startsWith('content://') ||
+    imageValue.startsWith('asset:/')
+  ) {
     return {uri: imageValue};
   }
 
-  return images.logoSmall;
+  return {uri: `file://${imageValue}`};
 };
+
+type MenuDishImageProps = {
+  itemId: string;
+  imageValue: string;
+  adminView?: boolean;
+  style: StyleProp<ImageStyle>;
+  resizeMode?: ImageResizeMode;
+};
+
+const MenuDishImage = memo(({
+  itemId,
+  imageValue,
+  adminView = false,
+  style,
+  resizeMode = 'cover',
+}: MenuDishImageProps) => {
+  const [failed, setFailed] = useState(false);
+  const cleanImageValue = imageValue.trim();
+
+  useEffect(() => {
+    setFailed(false);
+  }, [cleanImageValue]);
+
+  const source = failed ? images.logoSmall : getMenuImageSource(cleanImageValue);
+
+  return (
+    <RNImage
+      key={`${itemId}-${failed ? 'fallback' : cleanImageValue || 'placeholder'}`}
+      source={source}
+      style={style}
+      resizeMode={resizeMode}
+      onLoad={() => {
+        if (!adminView) {
+          console.log(
+            `[CustomerMenu] image loaded itemId=${itemId} image=${cleanImageValue || 'placeholder'} fallback=${failed ? 'yes' : 'no'}`,
+          );
+        }
+      }}
+      onError={event => {
+        if (!adminView) {
+          console.log(
+            `[CustomerMenu] image error itemId=${itemId} image=${cleanImageValue || 'none'} error=${JSON.stringify(event?.nativeEvent || {})}`,
+          );
+        }
+        setFailed(true);
+      }}
+    />
+  );
+});
 
 const RestaurantMenuScreen = (props: Props) => {
   useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
@@ -1384,9 +1444,10 @@ const RestaurantMenuScreen = (props: Props) => {
         key={`${item.id}-${itemImageValue || 'no-image'}`}
         style={adminView ? styles.adminDishCard : styles.dishCard}>
         <View style={styles.dishImageWrap}>
-          <Image
-            key={`${item.id}-${itemImageValue || 'placeholder'}`}
-            source={getMenuImageSource(item)}
+          <MenuDishImage
+            itemId={item.id}
+            imageValue={itemImageValue}
+            adminView={adminView}
             style={styles.dishImage}
             resizeMode="cover"
           />
