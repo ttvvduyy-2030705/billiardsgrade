@@ -127,6 +127,19 @@ const createStyles = ({design}: Args) => {
       fontSize: font.body,
       fontWeight: '800',
     },
+    infoBox: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(68,210,150,0.32)',
+      backgroundColor: 'rgba(9,168,107,0.15)',
+      padding: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    infoText: {
+      color: '#8DFFC7',
+      fontSize: font.body,
+      fontWeight: '800',
+    },
     loginButton: {
       minHeight: control.buttonHeight,
       borderRadius: radius.pill,
@@ -143,10 +156,26 @@ const createStyles = ({design}: Args) => {
       fontSize: font.bodyLarge,
       fontWeight: '900',
     },
+    switchRow: {
+      alignItems: 'center',
+      marginTop: spacing.md,
+    },
+    switchButton: {
+      minHeight: control.minTouch,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.md,
+    },
+    switchText: {
+      color: '#FFFFFF',
+      fontSize: font.body,
+      fontWeight: '900',
+      textDecorationLine: 'underline',
+    },
     testHint: {
       color: 'rgba(255,255,255,0.45)',
       fontSize: font.small,
-      marginTop: spacing.md,
+      marginTop: spacing.sm,
       textAlign: 'center',
     },
   });

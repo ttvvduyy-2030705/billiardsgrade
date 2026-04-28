@@ -21,6 +21,7 @@ import Image from 'components/Image';
 import View from 'components/View';
 import useScreenSystemUI, {configureSystemUI} from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
+import {screens} from 'scenes/screens';
 import {Navigation} from 'types/navigation';
 
 import {
@@ -1169,14 +1170,18 @@ const RestaurantMenuScreen = (props: Props) => {
         {mode === 'customer' ? (
           <View style={styles.headerAuthCenter}>
             <Pressable
-              onPress={() => props.navigate(screens.restaurantAdminLogin)}
+              onPress={() =>
+                props.navigate(screens.restaurantAdminLogin, {initialMode: 'login'})
+              }
               style={styles.headerAuthButton}>
-              <RNText style={styles.headerAuthText}>Admin</RNText>
+              <RNText style={styles.headerAuthText}>Đăng nhập</RNText>
             </Pressable>
             <Pressable
-              onPress={() => props.navigate(screens.restaurantAdminLogin)}
+              onPress={() =>
+                props.navigate(screens.restaurantAdminLogin, {initialMode: 'register'})
+              }
               style={styles.headerAuthButtonSecondary}>
-              <RNText style={styles.headerAuthText}>Quản trị</RNText>
+              <RNText style={styles.headerAuthText}>Đăng ký</RNText>
             </Pressable>
           </View>
         ) : (
