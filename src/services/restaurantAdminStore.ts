@@ -1,9 +1,11 @@
 import {
+  deleteMenuCategory,
   getMenuItemImageValue,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
   saveOrders,
+  upsertMenuCategory,
   upsertMenuItem,
 } from './restaurantMenuStorage';
 
@@ -164,6 +166,29 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
 
   return nextItems;
 };
+
+export const saveAdminMenuCategory = async (input: Partial<MenuCategory> & {name: string}) => {
+  const result = await upsertMenuCategory(input);
+  console.log(
+    `[AdminCategoryStore] save category id=${input.id || 'new'} name=${input.name.trim()} ok=${result.ok}`,
+  );
+  return result;
+};
+
+export const deleteAdminMenuCategory = async (
+  categoryId: string,
+  moveItemsToCategoryId?: string,
+) => {
+  const result = await deleteMenuCategory(categoryId, {moveItemsToCategoryId});
+  const menuItems = await loadMenuItems();
+
+  console.log(
+    `[AdminCategoryStore] delete category id=${categoryId} moveTo=${moveItemsToCategoryId || 'auto'} ok=${result.ok}`,
+  );
+
+  return {...result, menuItems};
+};
+
 
 export const updateAdminOrderStatus = async (
   orderId: string,

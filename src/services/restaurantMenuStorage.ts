@@ -366,28 +366,10 @@ const ensureDefaultCategories = (categories: MenuCategory[]) => {
       source.findIndex(item => normalise(item.name) === normalise(category.name)) === index,
   );
 
-  const hasDrink = withoutDuplicateNames.some(
-    category =>
-      category.id === DEFAULT_DRINK_CATEGORY_ID ||
-      normalise(category.name) === normalise('Đồ uống'),
-  );
-  const hasFood = withoutDuplicateNames.some(
-    category =>
-      category.id === DEFAULT_FOOD_CATEGORY_ID ||
-      normalise(category.name) === normalise('Đồ ăn'),
-  );
-
-  const nextCategories = [...withoutDuplicateNames];
-
-  if (!hasDrink) {
-    nextCategories.unshift(DEFAULT_MENU_CATEGORIES[0]);
-  }
-
-  if (!hasFood) {
-    nextCategories.push(DEFAULT_MENU_CATEGORIES[1]);
-  }
-
-  return nextCategories.length > 0 ? nextCategories : DEFAULT_MENU_CATEGORIES;
+  // Defaults are only used when there is no category data yet. After the first
+  // seed, Admin must be able to rename/delete Đồ uống and Đồ ăn like normal
+  // dynamic categories. Do not force them back into AsyncStorage on every load.
+  return withoutDuplicateNames.length > 0 ? withoutDuplicateNames : DEFAULT_MENU_CATEGORIES;
 };
 
 const resolveCategoryId = (value: string | undefined, categories: MenuCategory[]) => {
@@ -556,16 +538,13 @@ export const upsertMenuCategory = async (
 
 export const deleteMenuCategory = async (
   categoryId: string,
+  options: {moveItemsToCategoryId?: string} = {},
 ): Promise<{ok: boolean; message: string; categories: MenuCategory[]}> => {
   const [categories, items] = await Promise.all([loadMenuCategories(), loadMenuItems()]);
-  const used = items.some(item => item.categoryId === categoryId);
+  const targetCategory = categories.find(category => category.id === categoryId);
 
-  if (used) {
-    return {
-      ok: false,
-      message: 'Không thể xoá danh mục đang có món. Hãy chuyển/xoá món trước.',
-      categories,
-    };
+  if (!targetCategory) {
+    return {ok: false, message: 'Không tìm thấy danh mục cần xoá', categories};
   }
 
   if (categories.length <= 1) {
@@ -577,16 +556,45 @@ export const deleteMenuCategory = async (
   }
 
   const nextCategories = categories.filter(category => category.id !== categoryId);
+  const fallbackCategory =
+    nextCategories.find(category => category.id === options.moveItemsToCategoryId) ||
+    nextCategories[0];
+
+  if (!fallbackCategory) {
+    return {
+      ok: false,
+      message: 'Không có danh mục thay thế để chuyển món.',
+      categories,
+    };
+  }
+
+  const usedItems = items.filter(item => item.categoryId === categoryId);
   const savedCategories = await saveMenuCategories(nextCategories);
 
-  return {ok: true, message: 'Đã xoá danh mục', categories: savedCategories};
+  if (usedItems.length > 0) {
+    const timestamp = nowIso();
+    const movedItems = items.map(item =>
+      item.categoryId === categoryId
+        ? {...item, categoryId: fallbackCategory.id, updatedAt: timestamp}
+        : item,
+    );
+
+    await saveMenuItems(movedItems);
+  }
+
+  const message =
+    usedItems.length > 0
+      ? `Đã xoá danh mục và chuyển ${usedItems.length} món sang “${fallbackCategory.name}”`
+      : 'Đã xoá danh mục';
+
+  return {ok: true, message, categories: savedCategories};
 };
 
 export const getCategoryNameById = (
   categoryId: string,
   categories: MenuCategory[] = DEFAULT_MENU_CATEGORIES,
 ) => {
-  return categories.find(category => category.id === categoryId)?.name || 'Đồ uống';
+  return categories.find(category => category.id === categoryId)?.name || categories[0]?.name || 'Chưa phân loại';
 };
 
 export const loadMenuItems = async (): Promise<RestaurantMenuItem[]> => {

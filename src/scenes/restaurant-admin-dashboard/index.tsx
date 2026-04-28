@@ -15,7 +15,9 @@ import {
   AdminOrder,
   AdminOrderStatus,
   AdminPaymentStatus,
+  deleteAdminMenuCategory,
   loadRestaurantAdminData,
+  saveAdminMenuCategory,
   saveAdminMenuItem,
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
@@ -98,6 +100,30 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return nextItems;
   };
 
+  const onSaveMenuCategory = async (
+    input: Parameters<typeof saveAdminMenuCategory>[0],
+  ) => {
+    const result = await saveAdminMenuCategory(input);
+    setCategories(result.categories);
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
+    console.log('[AdminCategory] active tab remains menu');
+    return result;
+  };
+
+  const onDeleteMenuCategory = async (
+    categoryId: string,
+    moveItemsToCategoryId?: string,
+  ) => {
+    const result = await deleteAdminMenuCategory(categoryId, moveItemsToCategoryId);
+    setCategories(result.categories);
+    setMenuItems(result.menuItems);
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
+    console.log('[AdminCategory] active tab remains menu');
+    return result;
+  };
+
   const onChangeOrderStatus = async (orderId: string, status: AdminOrderStatus) => {
     const nextOrders = await updateAdminOrderStatus(orderId, status);
     setOrders(nextOrders);
@@ -162,6 +188,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
                 categories={categories}
                 styles={styles}
                 onSaveItem={onSaveMenuItem}
+                onSaveCategory={onSaveMenuCategory}
+                onDeleteCategory={onDeleteMenuCategory}
               />
             )}
           </ScrollView>

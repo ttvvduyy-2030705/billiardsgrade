@@ -64,13 +64,27 @@ class CartImmersiveModule(
       val verticalPadding = (10 * density).toInt()
 
       val input = EditText(activity).apply {
+        val isMultiline = keyboardType == "multiline"
+
         hint = placeholder
-        setSingleLine(true)
+        setSingleLine(!isMultiline)
+        if (isMultiline) {
+          minLines = 3
+          maxLines = 5
+        }
         setText(initialValue)
         setSelection(text?.length ?: 0)
-        imeOptions = EditorInfo.IME_ACTION_DONE
+        imeOptions = if (isMultiline) {
+          EditorInfo.IME_ACTION_NONE
+        } else {
+          EditorInfo.IME_ACTION_DONE
+        }
         inputType = when (keyboardType) {
           "number" -> InputType.TYPE_CLASS_NUMBER
+          "multiline" -> InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+            InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE
           else -> InputType.TYPE_CLASS_TEXT or
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
             InputType.TYPE_TEXT_FLAG_AUTO_CORRECT

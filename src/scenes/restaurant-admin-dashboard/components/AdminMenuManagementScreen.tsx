@@ -1,5 +1,6 @@
 import React, {memo, useEffect, useMemo, useState} from 'react';
 import {
+  Alert,
   Image as RNImage,
   Keyboard,
   NativeModules,
@@ -45,9 +46,21 @@ type Props = {
   categories: MenuCategory[];
   styles: any;
   onSaveItem: (input: MenuItemFormInput) => Promise<RestaurantMenuItem[]>;
+  onSaveCategory: (
+    input: Partial<MenuCategory> & {name: string},
+  ) => Promise<{ok: boolean; message: string; categories: MenuCategory[]}>;
+  onDeleteCategory: (
+    categoryId: string,
+    moveItemsToCategoryId?: string,
+  ) => Promise<{
+    ok: boolean;
+    message: string;
+    categories: MenuCategory[];
+    menuItems: RestaurantMenuItem[];
+  }>;
 };
 
-type ViewMode = 'list' | 'create' | 'edit';
+type ViewMode = 'list' | 'create' | 'edit' | 'categories';
 
 type AdminMenuFormSession = {
   viewMode: ViewMode;
@@ -101,12 +114,23 @@ const createEmptyFormSession = (categoryId = 'drink'): AdminMenuFormSession => (
 // Keep the menu form outside the component so keyboard/system remounts cannot
 // drop the Admin tab back to Orders or erase the form draft while typing.
 let adminMenuFormSession: AdminMenuFormSession = createEmptyFormSession();
+let adminCategoryDraftSession: {
+  id: string | null;
+  createdAt?: string;
+  name: string;
+} = {
+  id: null,
+  createdAt: undefined,
+  name: '',
+};
 
 const AdminMenuManagementScreen = ({
   menuItems,
   categories,
   styles,
   onSaveItem,
+  onSaveCategory,
+  onDeleteCategory,
 }: Props) => {
   const defaultCategoryId = useMemo(() => categories[0]?.id || 'drink', [categories]);
 
@@ -133,6 +157,17 @@ const AdminMenuManagementScreen = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [imagePicking, setImagePicking] = useState(false);
+  const [categoryDraftId, setCategoryDraftId] = useState<string | null>(
+    () => adminCategoryDraftSession.id,
+  );
+  const [categoryDraftCreatedAt, setCategoryDraftCreatedAt] = useState<
+    string | undefined
+  >(() => adminCategoryDraftSession.createdAt);
+  const [categoryDraftName, setCategoryDraftNameState] = useState(
+    () => adminCategoryDraftSession.name,
+  );
+  const [categoryError, setCategoryError] = useState('');
+  const [categorySaving, setCategorySaving] = useState(false);
 
   const pauseAdminFormInputImmersive = (field: string) => {
     console.log(`[AdminMenuForm] focus field=${field}`);
@@ -151,6 +186,13 @@ const AdminMenuManagementScreen = ({
 
     return menuItems.find(item => item.id === selectedItemId) || null;
   }, [menuItems, selectedItemId]);
+
+  const categoryCounts = useMemo(() => {
+    return menuItems.reduce<Record<string, number>>((result, item) => {
+      result[item.categoryId] = (result[item.categoryId] || 0) + 1;
+      return result;
+    }, {});
+  }, [menuItems]);
 
   const formTitle = viewMode === 'edit' ? 'Sửa món' : 'Thêm món mới';
   const isFormMode = viewMode === 'create' || viewMode === 'edit';
@@ -196,12 +238,40 @@ const AdminMenuManagementScreen = ({
     }
   };
 
+  const updateCategoryDraft = (patch: {
+    id?: string | null;
+    createdAt?: string;
+    name?: string;
+  }) => {
+    adminCategoryDraftSession = {...adminCategoryDraftSession, ...patch};
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'id')) {
+      setCategoryDraftId(adminCategoryDraftSession.id);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'createdAt')) {
+      setCategoryDraftCreatedAt(adminCategoryDraftSession.createdAt);
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'name')) {
+      setCategoryDraftNameState(adminCategoryDraftSession.name);
+    }
+  };
+
+  const resetCategoryDraft = () => {
+    adminCategoryDraftSession = {id: null, createdAt: undefined, name: ''};
+    setCategoryDraftId(null);
+    setCategoryDraftCreatedAt(undefined);
+    setCategoryDraftNameState('');
+    setCategoryError('');
+  };
+
   useEffect(() => {
-    if (!categoryId && defaultCategoryId) {
+    const categoryStillExists = categories.some(category => category.id === categoryId);
+
+    if ((!categoryId || !categoryStillExists) && defaultCategoryId) {
       updateDraft({categoryId: defaultCategoryId});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId, defaultCategoryId]);
+  }, [categories, categoryId, defaultCategoryId]);
 
   useEffect(() => {
     const keyboardShow = Keyboard.addListener('keyboardDidShow', () => {
@@ -230,6 +300,23 @@ const AdminMenuManagementScreen = ({
       viewMode: 'create',
     });
     setError('');
+    console.log('[AdminMenu] active tab remains menu');
+  };
+
+  const openCategoryManager = () => {
+    console.log('[AdminCategory] open manager');
+    replaceFormSession({
+      ...createEmptyFormSession(defaultCategoryId),
+      viewMode: 'categories',
+    });
+    resetCategoryDraft();
+    console.log('[AdminMenu] active tab remains menu');
+  };
+
+  const closeCategoryManager = () => {
+    console.log('[AdminCategory] close manager');
+    replaceFormSession(createEmptyFormSession(defaultCategoryId));
+    resetCategoryDraft();
     console.log('[AdminMenu] active tab remains menu');
   };
 
@@ -379,6 +466,289 @@ const AdminMenuManagementScreen = ({
       setSaving(false);
     }
   };
+
+  const showNativeCategoryNameInput = async () => {
+    if (Platform.OS !== 'android') {
+      return null;
+    }
+
+    const nativeDialog = (AdminFormImmersiveModule as any)?.showCartTextInputDialog;
+    if (typeof nativeDialog !== 'function') {
+      return null;
+    }
+
+    console.log('[AdminCategory] open native name input');
+    return nativeDialog(
+      categoryDraftId ? 'Sửa tên danh mục' : 'Thêm danh mục',
+      'VD: Cơm / Lẩu / Hải sản / Combo',
+      categoryDraftName,
+      'text',
+      'admin-category-name',
+    );
+  };
+
+  const openCategoryNameInput = async () => {
+    setCategoryError('');
+
+    try {
+      const nextName = await showNativeCategoryNameInput();
+      if (typeof nextName === 'string') {
+        updateCategoryDraft({name: nextName});
+        console.log('[AdminCategory] draft name=' + nextName.trim());
+      }
+    } catch (nativeError) {
+      console.warn('[AdminCategory] native input failed', nativeError);
+    }
+  };
+
+  const submitCategory = async () => {
+    const cleanName = categoryDraftName.trim();
+
+    if (!cleanName) {
+      setCategoryError('Vui lòng nhập tên danh mục');
+      return;
+    }
+
+    setCategorySaving(true);
+    setCategoryError('');
+
+    try {
+      const result = await onSaveCategory({
+        id: categoryDraftId || undefined,
+        createdAt: categoryDraftCreatedAt,
+        name: cleanName,
+      });
+
+      console.log(
+        `[AdminCategory] save ${categoryDraftId ? 'edit' : 'create'} name=${cleanName} ok=${result.ok}`,
+      );
+
+      if (!result.ok) {
+        setCategoryError(result.message);
+        return;
+      }
+
+      const nextDefaultCategoryId = result.categories[0]?.id || defaultCategoryId;
+      if (!categoryId && nextDefaultCategoryId) {
+        updateDraft({categoryId: nextDefaultCategoryId});
+      }
+
+      resetCategoryDraft();
+    } catch (saveCategoryError) {
+      console.warn('[AdminCategory] save failed', saveCategoryError);
+      setCategoryError('Không thể lưu danh mục. Vui lòng thử lại.');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const editCategory = (category: MenuCategory) => {
+    console.log(`[AdminCategory] edit id=${category.id} name=${category.name}`);
+    updateCategoryDraft({
+      id: category.id,
+      createdAt: category.createdAt,
+      name: category.name,
+    });
+    setCategoryError('');
+  };
+
+  const performDeleteCategory = async (category: MenuCategory) => {
+    const fallbackCategory = categories.find(item => item.id !== category.id);
+
+    if (!fallbackCategory) {
+      setCategoryError('Menu cần ít nhất 1 danh mục.');
+      return;
+    }
+
+    setCategorySaving(true);
+    setCategoryError('');
+
+    try {
+      const result = await onDeleteCategory(category.id, fallbackCategory.id);
+
+      console.log(
+        `[AdminCategory] delete id=${category.id} moveTo=${fallbackCategory.id} ok=${result.ok}`,
+      );
+
+      if (!result.ok) {
+        setCategoryError(result.message);
+        return;
+      }
+
+      if (categoryDraftId === category.id) {
+        resetCategoryDraft();
+      }
+
+      if (categoryId === category.id) {
+        updateDraft({categoryId: result.categories[0]?.id || fallbackCategory.id});
+      }
+    } catch (deleteCategoryError) {
+      console.warn('[AdminCategory] delete failed', deleteCategoryError);
+      setCategoryError('Không thể xoá danh mục. Vui lòng thử lại.');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const requestDeleteCategory = (category: MenuCategory) => {
+    const itemCount = categoryCounts[category.id] || 0;
+    const fallbackCategory = categories.find(item => item.id !== category.id);
+
+    if (!fallbackCategory) {
+      setCategoryError('Menu cần ít nhất 1 danh mục.');
+      return;
+    }
+
+    if (itemCount <= 0) {
+      void performDeleteCategory(category);
+      return;
+    }
+
+    Alert.alert(
+      'Xoá danh mục',
+      `Danh mục “${category.name}” đang có ${itemCount} món. Xoá danh mục này và chuyển các món sang “${fallbackCategory.name}”?`,
+      [
+        {text: 'Huỷ', style: 'cancel'},
+        {
+          text: 'Xoá và chuyển món',
+          style: 'destructive',
+          onPress: () => void performDeleteCategory(category),
+        },
+      ],
+    );
+  };
+
+  const renderCategoryNameInput = () => {
+    if (Platform.OS === 'android') {
+      return (
+        <Pressable
+          onPress={openCategoryNameInput}
+          style={[styles.adminInput, styles.adminInputButton]}
+          disabled={categorySaving}>
+          <RNText
+            style={
+              categoryDraftName
+                ? styles.adminInputValueText
+                : styles.adminInputPlaceholderText
+            }
+            numberOfLines={1}>
+            {categoryDraftName || 'Nhập tên danh mục'}
+          </RNText>
+        </Pressable>
+      );
+    }
+
+    return (
+      <TextInput
+        value={categoryDraftName}
+        onChangeText={text => updateCategoryDraft({name: text})}
+        onFocus={() => pauseAdminFormInputImmersive('category-name')}
+        onBlur={() => resumeAdminFormInputImmersive('category-name')}
+        placeholder="VD: Cơm / Lẩu / Món nướng"
+        placeholderTextColor="rgba(255,255,255,0.36)"
+        style={styles.adminInput}
+        returnKeyType="done"
+      />
+    );
+  };
+
+  if (viewMode === 'categories') {
+    return (
+      <RNView>
+        <RNView style={styles.sectionHeader}>
+          <RNView>
+            <RNText style={styles.sectionTitle}>Quản lý danh mục</RNText>
+            <RNText style={styles.sectionHint}>
+              Thêm, sửa hoặc xoá danh mục. Menu khách hàng và form món sẽ lấy trực tiếp từ danh sách này.
+            </RNText>
+          </RNView>
+          <Pressable
+            onPress={closeCategoryManager}
+            style={styles.cancelButton}
+            disabled={categorySaving}>
+            <RNText style={styles.cancelButtonText}>Quay lại</RNText>
+          </Pressable>
+        </RNView>
+
+        <RNView style={styles.categoryManagerCard}>
+          <RNText style={styles.editModalTitle}>
+            {categoryDraftId ? 'Sửa danh mục' : 'Thêm danh mục'}
+          </RNText>
+          <RNText style={styles.editModalHint}>
+            Tên danh mục được lưu vào AsyncStorage và dùng chung cho Admin + Menu khách hàng.
+          </RNText>
+
+          <RNView style={styles.categoryFormRow}>
+            <RNView style={styles.categoryInputColumn}>
+              <RNText style={styles.inputLabel}>Tên danh mục</RNText>
+              {renderCategoryNameInput()}
+            </RNView>
+            <Pressable
+              onPress={submitCategory}
+              style={styles.saveButton}
+              disabled={categorySaving}>
+              <RNText style={styles.saveButtonText}>
+                {categorySaving
+                  ? 'Đang lưu...'
+                  : categoryDraftId
+                    ? 'Lưu'
+                    : 'Thêm'}
+              </RNText>
+            </Pressable>
+            {categoryDraftId ? (
+              <Pressable
+                onPress={resetCategoryDraft}
+                style={styles.cancelButton}
+                disabled={categorySaving}>
+                <RNText style={styles.cancelButtonText}>Huỷ sửa</RNText>
+              </Pressable>
+            ) : null}
+          </RNView>
+
+          {categoryError ? (
+            <RNText style={styles.formError}>{categoryError}</RNText>
+          ) : null}
+
+          <RNView style={styles.categoryList}>
+            {categories.map(category => {
+              const itemCount = categoryCounts[category.id] || 0;
+              const editing = category.id === categoryDraftId;
+
+              return (
+                <RNView
+                  key={category.id}
+                  style={[
+                    styles.categoryRow,
+                    editing ? styles.categoryRowActive : null,
+                  ]}>
+                  <RNView style={styles.categoryInfo}>
+                    <RNText style={styles.categoryName}>{category.name}</RNText>
+                    <RNText style={styles.categoryMeta}>
+                      {itemCount} món · ID: {category.id}
+                    </RNText>
+                  </RNView>
+                  <RNView style={styles.categoryActions}>
+                    <Pressable
+                      onPress={() => editCategory(category)}
+                      style={styles.cancelButton}
+                      disabled={categorySaving}>
+                      <RNText style={styles.cancelButtonText}>Sửa</RNText>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => requestDeleteCategory(category)}
+                      style={styles.dangerButton}
+                      disabled={categorySaving}>
+                      <RNText style={styles.dangerButtonText}>Xoá</RNText>
+                    </Pressable>
+                  </RNView>
+                </RNView>
+              );
+            })}
+          </RNView>
+        </RNView>
+      </RNView>
+    );
+  }
 
   if (isFormMode) {
     return (
@@ -562,9 +932,14 @@ const AdminMenuManagementScreen = ({
             {menuItems.length} món · {categories.length} danh mục · Dữ liệu lưu local để sau này thay bằng API.
           </RNText>
         </RNView>
-        <Pressable onPress={openCreate} style={styles.primaryButton}>
-          <RNText style={styles.primaryButtonText}>+ Thêm món</RNText>
-        </Pressable>
+        <RNView style={styles.sectionHeaderActions}>
+          <Pressable onPress={openCategoryManager} style={styles.headerSecondaryButton}>
+            <RNText style={styles.headerSecondaryButtonText}>+ Thêm danh mục</RNText>
+          </Pressable>
+          <Pressable onPress={openCreate} style={styles.primaryButton}>
+            <RNText style={styles.primaryButtonText}>+ Thêm món</RNText>
+          </Pressable>
+        </RNView>
       </RNView>
 
       {menuItems.length === 0 ? (
