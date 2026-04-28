@@ -1,4 +1,5 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   Alert,
   BackHandler,
@@ -30,6 +31,7 @@ import {
   deleteMenuCategory,
   deleteMenuItem,
   getCategoryNameById,
+  getMenuItemImageValue,
   loadCurrentCart,
   loadMenuCategories,
   loadMenuItems,
@@ -175,8 +177,10 @@ let cartMenuItemSnapshotSession: Record<string, RestaurantMenuItem> = {};
 let cartFieldInputVisibleSession = false;
 
 const getMenuImageSource = (item: RestaurantMenuItem): ImageSourcePropType => {
-  if (item.imageUri && item.imageUri.trim().length > 0) {
-    return {uri: item.imageUri.trim()};
+  const imageValue = getMenuItemImageValue(item);
+
+  if (imageValue) {
+    return {uri: imageValue};
   }
 
   return images.logoSmall;
@@ -355,7 +359,8 @@ const RestaurantMenuScreen = (props: Props) => {
     [],
   );
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (source = 'manual') => {
+    console.log('[CustomerMenu] refresh data source=' + source);
     const requestId = cartHydrateRequestId + 1;
     const startedAtVersion = cartMutationVersion;
     cartHydrateRequestId = requestId;
@@ -393,8 +398,15 @@ const RestaurantMenuScreen = (props: Props) => {
   }, [hydrateCartFromStorage]);
 
   useEffect(() => {
-    void refreshData();
+    void refreshData('mount');
   }, [refreshData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshData('focus');
+      return () => {};
+    }, [refreshData]),
+  );
 
   useEffect(() => {
     if (!cartHydrated) {
@@ -1359,10 +1371,21 @@ const RestaurantMenuScreen = (props: Props) => {
   };
 
   const renderDishCard = (item: RestaurantMenuItem, adminView = false) => {
+    const itemImageValue = getMenuItemImageValue(item);
+
+    if (!adminView) {
+      console.log(
+        `[CustomerMenu] render itemId=${item.id} image=${itemImageValue || 'none'}`,
+      );
+    }
+
     return (
-      <View key={item.id} style={adminView ? styles.adminDishCard : styles.dishCard}>
+      <View
+        key={`${item.id}-${itemImageValue || 'no-image'}`}
+        style={adminView ? styles.adminDishCard : styles.dishCard}>
         <View style={styles.dishImageWrap}>
           <Image
+            key={`${item.id}-${itemImageValue || 'placeholder'}`}
             source={getMenuImageSource(item)}
             style={styles.dishImage}
             resizeMode="cover"
@@ -1826,7 +1849,7 @@ const RestaurantMenuScreen = (props: Props) => {
                 {form.id ? 'Sửa món' : 'Thêm món mới'}
               </RNText>
               <RNText style={styles.sectionHint}>
-                Ảnh có thể chọn từ thư viện hoặc dán URL. Nếu trống, app dùng ảnh placeholder APlus.
+                Ảnh món chỉ chọn trực tiếp từ thư viện máy. Nếu trống, app dùng ảnh placeholder APlus.
               </RNText>
             </View>
           </View>
@@ -1847,13 +1870,6 @@ const RestaurantMenuScreen = (props: Props) => {
               placeholder: 'VD: 25000',
               keyboardType: 'number-pad',
               style: styles.formField,
-            })}
-            {renderInput({
-              label: 'URL ẢNH / ẢNH LOCAL',
-              value: form.imageUri,
-              onChangeText: text => setForm(current => ({...current, imageUri: text})),
-              placeholder: 'https://... hoặc chọn từ thư viện',
-              style: styles.fullField,
             })}
             {renderInput({
               label: 'MÔ TẢ MÓN',
@@ -1901,7 +1917,9 @@ const RestaurantMenuScreen = (props: Props) => {
               </RNText>
             </Pressable>
             <Pressable onPress={onChooseImage} style={styles.secondaryButton}>
-              <RNText style={styles.secondaryButtonText}>Chọn ảnh</RNText>
+              <RNText style={styles.secondaryButtonText}>
+                {form.imageUri ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
+              </RNText>
             </Pressable>
             <Pressable onPress={resetForm} style={styles.secondaryButton}>
               <RNText style={styles.secondaryButtonText}>Làm mới form</RNText>

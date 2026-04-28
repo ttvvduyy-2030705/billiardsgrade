@@ -355,6 +355,14 @@ const normaliseMenuItemStatus = (
   return available === false ? 'HIDDEN' : 'SELLING';
 };
 
+export const getMenuItemImageValue = (
+  item?: Partial<RestaurantMenuItem> | null,
+) => {
+  // imageUri is the single source of truth for new data. imageUrl is only a
+  // legacy fallback so old seeded/remote items keep rendering until migrated.
+  return (item?.imageUri || item?.imageUrl || '').trim();
+};
+
 const migrateMenuItem = (
   item: Partial<RestaurantMenuItem>,
   categories: MenuCategory[],
@@ -362,6 +370,7 @@ const migrateMenuItem = (
   const timestamp = nowIso();
   const categoryId = resolveCategoryId(item.categoryId || item.category, categories);
   const status = normaliseMenuItemStatus(item.status, item.available);
+  const imageUri = getMenuItemImageValue(item);
 
   return {
     id: item.id || createId('dish'),
@@ -369,7 +378,8 @@ const migrateMenuItem = (
     name: (item.name || 'Món chưa đặt tên').trim(),
     price: Number(item.price) || 0,
     description: item.description || '',
-    imageUri: (item.imageUri || item.imageUrl || '').trim(),
+    imageUri,
+    imageUrl: undefined,
     available: status === 'SELLING',
     status,
     createdAt: item.createdAt || timestamp,
@@ -540,12 +550,16 @@ export const upsertMenuItem = async (
   const [current, categories] = await Promise.all([loadMenuItems(), loadMenuCategories()]);
   const timestamp = nowIso();
   const status = normaliseMenuItemStatus(input.status, input.available);
-  const cleanImageUri = (input.imageUri || '').trim();
+  const cleanImageUri = getMenuItemImageValue(input);
   const itemId = input.id || createId('dish');
   const existingItem = current.find(item => item.id === itemId);
+  const oldImage = getMenuItemImageValue(existingItem);
 
   console.log(
-    `[AdminMenuStore] update itemId=${itemId} oldImage=${existingItem?.imageUri || 'none'} newImage=${cleanImageUri || 'none'}`,
+    `[AdminMenuStore] before update itemId=${itemId} oldImage=${oldImage || 'none'}`,
+  );
+  console.log(
+    `[AdminMenuStore] update itemId=${itemId} newImage=${cleanImageUri || 'none'}`,
   );
 
   const nextItem: RestaurantMenuItem = {
@@ -573,7 +587,7 @@ export const upsertMenuItem = async (
 
   const afterUpdate = nextItems.find(item => item.id === nextItem.id);
   console.log(
-    `[AdminMenuStore] after update item image=${afterUpdate?.imageUri || 'none'}`,
+    `[AdminMenuStore] after update image=${getMenuItemImageValue(afterUpdate) || 'none'}`,
   );
 
   return nextItems;

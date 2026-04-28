@@ -1,4 +1,5 @@
 import {
+  getMenuItemImageValue,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
@@ -134,7 +135,11 @@ export const loadRestaurantAdminData = async () => {
 };
 
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
-  const cleanImageUri = (input.imageUri || '').trim();
+  const cleanImageUri = getMenuItemImageValue(input);
+
+  console.log(
+    `[AdminMenuForm] submit image=${cleanImageUri || 'none'}`,
+  );
 
   const nextItems = await upsertMenuItem({
     id: input.id,
@@ -153,7 +158,7 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     : nextItems[0];
 
   console.log(
-    `[AdminMenuStore] after update item image=${savedItem?.imageUri || 'none'}`,
+    `[AdminMenuStore] after update item image=${getMenuItemImageValue(savedItem) || 'none'}`,
   );
 
   return nextItems;

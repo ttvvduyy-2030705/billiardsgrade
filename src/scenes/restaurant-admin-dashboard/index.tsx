@@ -36,6 +36,8 @@ type Props = Navigation & {
 
 type OrderFilter = AdminOrderStatus | 'ALL' | 'PAID';
 
+let adminDashboardActiveTabSession: AdminDashboardTab = 'orders';
+
 const RestaurantAdminDashboardScreen = (props: Props) => {
   useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
 
@@ -43,12 +45,29 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const isWide = adaptive.width >= 900;
   const styles = useMemo(() => createStyles({design, isWide}), [design, isWide]);
 
-  const [activeTab, setActiveTab] = useState<AdminDashboardTab>('orders');
+  const [activeTab, setActiveTabState] = useState<AdminDashboardTab>(
+    () => adminDashboardActiveTabSession,
+  );
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const setActiveTab = useCallback((nextTab: AdminDashboardTab) => {
+    if (nextTab === 'orders' && adminDashboardActiveTabSession === 'menu') {
+      console.log('[AdminNav] unexpected switch to orders');
+    }
+
+    adminDashboardActiveTabSession = nextTab;
+    console.log('[AdminNav] activeTab=' + nextTab);
+    setActiveTabState(nextTab);
+  }, []);
+
+  useEffect(() => {
+    adminDashboardActiveTabSession = activeTab;
+    console.log('[AdminNav] activeTab=' + activeTab);
+  }, [activeTab]);
 
   const loadData = useCallback(async () => {
     setRefreshing(true);
@@ -73,6 +92,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const onSaveMenuItem = async (input: Parameters<typeof saveAdminMenuItem>[0]) => {
     const nextItems = await saveAdminMenuItem(input);
     setMenuItems(nextItems);
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
+    console.log('[AdminMenu] active tab remains menu');
     return nextItems;
   };
 
@@ -120,6 +142,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#FFFFFF" />
             }
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
             showsVerticalScrollIndicator={false}>
             {activeTab === 'orders' ? (
               <AdminOrdersScreen
