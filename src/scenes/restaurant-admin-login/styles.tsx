@@ -55,8 +55,11 @@ const createStyles = ({design}: Args) => {
       width: 46,
       height: 46,
     },
-    content: {
+    scroll: {
       flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: spacing.xl,

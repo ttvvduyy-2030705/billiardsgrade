@@ -5,13 +5,14 @@ import {
   ADMIN_ORDER_FILTERS,
   ADMIN_ORDER_STATUS_LABELS,
   AdminOrder,
+  AdminOrderFilter,
   AdminOrderStatus,
   AdminPaymentStatus,
 } from 'services/restaurantAdminStore';
 
 import OrderCard from './OrderCard';
 
-type OrderFilter = AdminOrderStatus | 'ALL' | 'PAID';
+type OrderFilter = AdminOrderFilter;
 
 type Props = {
   orders: AdminOrder[];
@@ -28,6 +29,7 @@ const filterLabels: Record<OrderFilter, string> = {
   ACCEPTED: 'Đã nhận',
   PREPARING: 'Đang làm',
   COMPLETED: 'Hoàn thành',
+  UNPAID: 'Chưa thanh toán',
   PAID: 'Đã thanh toán',
   CANCELLED: 'Đã huỷ',
 };
@@ -45,8 +47,8 @@ const AdminOrdersScreen = ({
       return orders;
     }
 
-    if (filter === 'PAID') {
-      return orders.filter(order => order.paymentStatus === 'PAID');
+    if (filter === 'PAID' || filter === 'UNPAID') {
+      return orders.filter(order => order.paymentStatus === filter);
     }
 
     return orders.filter(order => order.status === filter);

@@ -25,6 +25,7 @@ export type AdminOrderStatus =
   | 'CANCELLED';
 
 export type AdminPaymentStatus = 'UNPAID' | 'PAID';
+export type AdminOrderFilter = AdminOrderStatus | 'ALL' | AdminPaymentStatus;
 
 export type AdminOrder = Omit<RestaurantOrder, 'status'> & {
   status: AdminOrderStatus;
@@ -64,12 +65,13 @@ export const ADMIN_ORDER_STATUS_FLOW: AdminOrderStatus[] = [
   'CANCELLED',
 ];
 
-export const ADMIN_ORDER_FILTERS: Array<AdminOrderStatus | 'ALL' | 'PAID'> = [
+export const ADMIN_ORDER_FILTERS: AdminOrderFilter[] = [
   'ALL',
   'NEW',
   'ACCEPTED',
   'PREPARING',
   'COMPLETED',
+  'UNPAID',
   'PAID',
   'CANCELLED',
 ];
@@ -80,9 +82,7 @@ const toAdminStatus = (status?: RestaurantOrderStatus): AdminOrderStatus => {
       return 'ACCEPTED';
     case 'preparing':
       return 'PREPARING';
-    case 'served':
     case 'completed':
-    case 'paid':
       return 'COMPLETED';
     case 'cancelled':
       return 'CANCELLED';
@@ -109,11 +109,7 @@ const toStorageStatus = (status: AdminOrderStatus): RestaurantOrderStatus => {
 };
 
 const toPaymentStatus = (order: RestaurantOrder): AdminPaymentStatus => {
-  if (order.paymentStatus === 'PAID' || order.status === 'paid') {
-    return 'PAID';
-  }
-
-  return 'UNPAID';
+  return order.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID';
 };
 
 const toAdminOrder = (order: RestaurantOrder): AdminOrder => ({
@@ -222,10 +218,9 @@ export const updateAdminOrderPaymentStatus = async (
       ? {
           ...order,
           paymentStatus,
-          status:
-            paymentStatus === 'PAID' && order.status === 'new'
-              ? 'completed'
-              : order.status,
+          // Payment is independent from kitchen/order progress. Marking an
+          // order as PAID must not auto-complete a NEW/ACCEPTED/PREPARING order.
+          status: order.status,
           updatedAt: timestamp,
         }
       : order,

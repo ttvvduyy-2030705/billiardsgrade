@@ -84,18 +84,26 @@ export const persistRestaurantMenuImage = async ({
   const fileName = `${safeImageNamePart(itemId)}_${Date.now()}.${extension}`;
   const destinationPath = `${MENU_IMAGE_STORAGE_DIR}/${fileName}`;
 
-  if (base64) {
-    await RNFS.writeFile(destinationPath, base64, 'base64');
-  } else {
-    const sourcePath = cleanUri.startsWith('file://')
-      ? cleanUri.replace('file://', '')
-      : cleanUri;
-    await RNFS.copyFile(sourcePath, destinationPath);
-  }
+  try {
+    if (base64) {
+      await RNFS.writeFile(destinationPath, base64, 'base64');
+    } else {
+      const sourcePath = cleanUri.startsWith('file://')
+        ? cleanUri.replace('file://', '')
+        : cleanUri;
+      await RNFS.copyFile(sourcePath, destinationPath);
+    }
 
-  const persistedUri = `file://${destinationPath}`;
-  console.log(`[RestaurantMenuImage] persisted image uri=${persistedUri}`);
-  return persistedUri;
+    const persistedUri = `file://${destinationPath}`;
+    console.log(`[RestaurantMenuImage] persisted image uri=${persistedUri}`);
+    return persistedUri;
+  } catch (error) {
+    console.warn('[RestaurantMenuImage] persist image failed, keep original uri', error);
+    // Some Android pickers return content:// URIs that RNFS.copyFile cannot read
+    // if the picker does not provide base64. Keep the picker URI instead of
+    // failing the whole admin edit form, so the item can still be saved.
+    return normaliseMenuImageUri(cleanUri);
+  }
 };
 
 export type MenuCategory = {
@@ -140,10 +148,14 @@ export type RestaurantOrderStatus =
   | 'new'
   | 'accepted'
   | 'preparing'
-  | 'served'
   | 'completed'
-  | 'paid'
   | 'cancelled';
+
+type LegacyRestaurantOrderStatus = RestaurantOrderStatus | 'served' | 'paid' | string;
+type RawRestaurantOrder = Omit<Partial<RestaurantOrder>, 'status' | 'paymentStatus'> & {
+  status?: LegacyRestaurantOrderStatus;
+  paymentStatus?: RestaurantPaymentStatus | string;
+};
 
 export type RestaurantOrderItem = {
   itemId: string;
@@ -162,7 +174,7 @@ export type RestaurantOrder = {
   note: string;
   total: number;
   status: RestaurantOrderStatus;
-  paymentStatus?: RestaurantPaymentStatus;
+  paymentStatus: RestaurantPaymentStatus;
   createdAt: string;
   updatedAt: string;
 };
@@ -321,15 +333,8 @@ const ensureSchema = async () => {
     readArray<RestaurantMenuItem>(RESTAURANT_STORAGE_KEYS.menuItems),
   ]);
 
-  const hasLegacySeedCategory = storedCategories.some(category =>
-    legacySeedCategoryIds.includes(String(category.id)),
-  );
-  const hasLegacySeedItem = storedItems.some(item =>
-    legacySeedItemIds.includes(String(item.id)),
-  );
-
   if (version !== CURRENT_SCHEMA_VERSION) {
-    if (storedCategories.length === 0 || hasLegacySeedCategory || hasLegacySeedItem) {
+    if (storedCategories.length === 0 && storedItems.length === 0) {
       await seedDefaultMenu();
       return;
     }
@@ -610,13 +615,6 @@ export const loadMenuItems = async (): Promise<RestaurantMenuItem[]> => {
     return seededItems;
   }
 
-  const hasLegacySeedItem = stored.some(item => legacySeedItemIds.includes(String(item.id)));
-  if (hasLegacySeedItem) {
-    const seededItems = defaultMenuItems.map(item => migrateMenuItem(item, categories));
-    await writeArray(RESTAURANT_STORAGE_KEYS.menuItems, seededItems);
-    return seededItems;
-  }
-
   const migrated = stored.map(item => migrateMenuItem(item, categories));
   const needsMigration = JSON.stringify(stored) !== JSON.stringify(migrated);
 
@@ -695,43 +693,63 @@ export const deleteMenuItem = async (itemId: string) => {
   return nextItems;
 };
 
-const normaliseOrderStatus = (status?: RestaurantOrderStatus): RestaurantOrderStatus => {
-  switch (status) {
+const normaliseOrderStatus = (status?: LegacyRestaurantOrderStatus): RestaurantOrderStatus => {
+  switch (String(status || '').toLowerCase()) {
     case 'accepted':
+      return 'accepted';
     case 'preparing':
+      return 'preparing';
     case 'served':
     case 'completed':
+      return 'completed';
     case 'paid':
+      // Legacy builds used `paid` as an order status. In the new model, payment
+      // is stored separately, so the order itself becomes completed and the
+      // payment flag is migrated to PAID in normalisePaymentStatus.
+      return 'completed';
     case 'cancelled':
-      return status;
+      return 'cancelled';
     case 'new':
     default:
       return 'new';
   }
 };
 
-export const loadOrders = async (): Promise<RestaurantOrder[]> => {
-  const orders = await readArray<RestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
-  return orders.map(order => {
-    const status = normaliseOrderStatus(order.status);
+const normalisePaymentStatus = (order: RawRestaurantOrder): RestaurantPaymentStatus => {
+  const legacyStatus = String(order.status || '').toLowerCase();
+  return order.paymentStatus === 'PAID' || legacyStatus === 'paid' ? 'PAID' : 'UNPAID';
+};
 
-    return {
-      ...order,
-      items: Array.isArray(order.items) ? order.items : [],
-      total: Number(order.total) || 0,
-      status: status === 'paid' ? 'completed' : status,
-      paymentStatus:
-        order.paymentStatus === 'PAID' || status === 'paid' ? 'PAID' : 'UNPAID',
-    };
-  });
+const normaliseRestaurantOrder = (order: RawRestaurantOrder): RestaurantOrder => {
+  const timestamp = nowIso();
+  return {
+    id: String(order.id || createId('order')),
+    tableNumber: String(order.tableNumber || ''),
+    items: Array.isArray(order.items) ? order.items : [],
+    note: String(order.note || ''),
+    total: Number(order.total) || 0,
+    status: normaliseOrderStatus(order.status),
+    paymentStatus: normalisePaymentStatus(order),
+    createdAt: order.createdAt || timestamp,
+    updatedAt: order.updatedAt || order.createdAt || timestamp,
+  };
+};
+
+export const loadOrders = async (): Promise<RestaurantOrder[]> => {
+  const orders = await readArray<RawRestaurantOrder>(
+    RESTAURANT_STORAGE_KEYS.orders,
+  );
+  return orders.map(normaliseRestaurantOrder);
 };
 
 export const saveOrders = async (orders: RestaurantOrder[]) => {
-  await writeArray(RESTAURANT_STORAGE_KEYS.orders, orders);
+  await writeArray(RESTAURANT_STORAGE_KEYS.orders, orders.map(normaliseRestaurantOrder));
 };
 
 export const createRestaurantOrder = async (
-  payload: Omit<RestaurantOrder, 'id' | 'status' | 'createdAt' | 'updatedAt'>,
+  payload: Omit<RestaurantOrder, 'id' | 'status' | 'paymentStatus' | 'createdAt' | 'updatedAt'> & {
+    paymentStatus?: RestaurantPaymentStatus;
+  },
 ): Promise<RestaurantOrder[]> => {
   const current = await loadOrders();
   const timestamp = nowIso();
@@ -739,7 +757,7 @@ export const createRestaurantOrder = async (
     ...payload,
     id: createId('order'),
     status: 'new',
-    paymentStatus: 'UNPAID',
+    paymentStatus: payload.paymentStatus || 'UNPAID',
     createdAt: timestamp,
     updatedAt: timestamp,
   };

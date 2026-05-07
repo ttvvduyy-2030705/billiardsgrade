@@ -1,5 +1,6 @@
 import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +14,7 @@ import View from 'components/View';
 import {screens} from 'scenes/screens';
 import {
   AdminOrder,
+  AdminOrderFilter,
   AdminOrderStatus,
   AdminPaymentStatus,
   deleteAdminMenuCategory,
@@ -22,6 +24,10 @@ import {
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
 } from 'services/restaurantAdminStore';
+import {
+  clearRestaurantAdminSession,
+  getRestaurantAdminSession,
+} from '../../services/restaurantAdminAuthService';
 import type {MenuCategory, RestaurantMenuItem} from 'services/restaurantMenuStorage';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
@@ -36,7 +42,7 @@ type Props = Navigation & {
   adminUsername?: string;
 };
 
-type OrderFilter = AdminOrderStatus | 'ALL' | 'PAID';
+type OrderFilter = AdminOrderFilter;
 
 let adminDashboardActiveTabSession: AdminDashboardTab = 'orders';
 
@@ -55,20 +61,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [sessionUsername, setSessionUsername] = useState(props.adminUsername || '');
 
   const setActiveTab = useCallback((nextTab: AdminDashboardTab) => {
-    if (nextTab === 'orders' && adminDashboardActiveTabSession === 'menu') {
-      console.log('[AdminNav] unexpected switch to orders');
-    }
-
     adminDashboardActiveTabSession = nextTab;
-    console.log('[AdminNav] activeTab=' + nextTab);
     setActiveTabState(nextTab);
   }, []);
 
   useEffect(() => {
     adminDashboardActiveTabSession = activeTab;
-    console.log('[AdminNav] activeTab=' + activeTab);
   }, [activeTab]);
 
   const loadData = useCallback(async () => {
@@ -84,10 +86,42 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    let isMounted = true;
 
-  const logout = () => {
+    const checkSession = async () => {
+      const session = await getRestaurantAdminSession();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!session) {
+        setAuthChecking(false);
+        props.navigate(screens.restaurantAdminLogin);
+        return;
+      }
+
+      setSessionUsername(session.username);
+      setAuthChecking(false);
+    };
+
+    void checkSession();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!authChecking && sessionUsername) {
+      void loadData();
+    }
+  }, [authChecking, loadData, sessionUsername]);
+
+  const logout = async () => {
+    await clearRestaurantAdminSession();
+    adminDashboardActiveTabSession = 'orders';
     props.navigate(screens.restaurantMenu);
   };
 
@@ -96,7 +130,6 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setMenuItems(nextItems);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    console.log('[AdminMenu] active tab remains menu');
     return nextItems;
   };
 
@@ -107,7 +140,6 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setCategories(result.categories);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    console.log('[AdminCategory] active tab remains menu');
     return result;
   };
 
@@ -120,7 +152,6 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setMenuItems(result.menuItems);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    console.log('[AdminCategory] active tab remains menu');
     return result;
   };
 
@@ -137,6 +168,42 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setOrders(nextOrders);
   };
 
+  if (authChecking) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.glowTop} />
+        <View style={styles.glowBottom} />
+        <RNView style={styles.authGuardCard}>
+          <ActivityIndicator color="#FFFFFF" />
+          <RNText style={styles.authGuardTitle}>Đang kiểm tra phiên Admin...</RNText>
+          <RNText style={styles.authGuardHint}>
+            Vui lòng đăng nhập nếu phiên quản trị đã hết hạn.
+          </RNText>
+        </RNView>
+      </View>
+    );
+  }
+
+  if (!sessionUsername) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.glowTop} />
+        <View style={styles.glowBottom} />
+        <RNView style={styles.authGuardCard}>
+          <RNText style={styles.authGuardTitle}>Cần đăng nhập Admin</RNText>
+          <RNText style={styles.authGuardHint}>
+            Bạn cần đăng nhập trước khi vào khu quản trị nhà hàng.
+          </RNText>
+          <Pressable
+            onPress={() => props.navigate(screens.restaurantAdminLogin)}
+            style={styles.logoutButton}>
+            <RNText style={styles.logoutText}>Đi tới đăng nhập</RNText>
+          </Pressable>
+        </RNView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.glowTop} />
@@ -149,11 +216,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             <RNText style={styles.eyebrow}>APlus Restaurant POS</RNText>
             <RNText style={styles.headerTitle}>Admin Dashboard</RNText>
             <RNText style={styles.headerMeta}>
-              Xin chào {props.adminUsername || 'admin'} · Local-first management
+              Xin chào {sessionUsername} · Phiên quản trị local
             </RNText>
           </RNView>
         </RNView>
-        <Pressable onPress={logout} style={styles.logoutButton}>
+        <Pressable onPress={() => void logout()} style={styles.logoutButton}>
           <RNText style={styles.logoutText}>Đăng xuất</RNText>
         </Pressable>
       </RNView>

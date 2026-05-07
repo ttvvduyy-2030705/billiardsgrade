@@ -1,7 +1,6 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {
-  Alert,
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
@@ -16,8 +15,6 @@ import {
   Image as RNImage,
 } from 'react-native';
 import type {ImageResizeMode, ImageSourcePropType, ImageStyle, StyleProp} from 'react-native';
-import {launchImageLibrary} from 'react-native-image-picker';
-
 import images from 'assets';
 import Image from 'components/Image';
 import View from 'components/View';
@@ -29,20 +26,12 @@ import {Navigation} from 'types/navigation';
 import {
   clearCurrentCart,
   createRestaurantOrder,
-  deleteMenuCategory,
-  deleteMenuItem,
   getCategoryNameById,
   getMenuItemImageValue,
   loadCurrentCart,
   loadMenuCategories,
   loadMenuItems,
-  loadOrders,
-  registerRestaurantAdmin,
   saveCurrentCart,
-  updateRestaurantOrderStatus,
-  upsertMenuCategory,
-  upsertMenuItem,
-  verifyRestaurantAdmin,
 } from 'services/restaurantMenuStorage';
 
 const CartImmersiveModule =
@@ -53,16 +42,12 @@ import type {
   RestaurantCartItem,
   RestaurantCartState,
   RestaurantMenuItem,
-  RestaurantOrder,
-  RestaurantOrderStatus,
 } from 'services/restaurantMenuStorage';
 
 import createStyles from './styles';
 
 type Props = Navigation;
 
-type ScreenMode = 'customer' | 'adminLogin' | 'adminRegister' | 'admin';
-type AdminTab = 'categories' | 'menu' | 'orders';
 type CartFieldInputType = 'table' | 'note';
 
 type CartFieldInputState = {
@@ -71,79 +56,9 @@ type CartFieldInputState = {
   draftValue: string;
 };
 
-type DishFormState = {
-  id?: string;
-  createdAt?: string;
-  name: string;
-  price: string;
-  description: string;
-  imageUrl: string;
-  categoryId: string;
-  available: boolean;
-};
-
-type CategoryFormState = {
-  id?: string;
-  createdAt?: string;
-  name: string;
-};
-
-const statusLabels: Record<RestaurantOrderStatus, string> = {
-  new: 'Mới',
-  preparing: 'Đang chuẩn bị',
-  served: 'Đã lên món',
-  paid: 'Đã thanh toán',
-  cancelled: 'Huỷ',
-};
-
-const statusColors: Record<RestaurantOrderStatus, string> = {
-  new: '#D92027',
-  preparing: '#F2A51A',
-  served: '#2B8CFF',
-  paid: '#09A86B',
-  cancelled: '#6F717A',
-};
-
-const statusFlow: RestaurantOrderStatus[] = [
-  'new',
-  'preparing',
-  'served',
-  'paid',
-  'cancelled',
-];
-
-const createEmptyForm = (categoryId = ''): DishFormState => ({
-  name: '',
-  price: '',
-  description: '',
-  imageUrl: '',
-  categoryId,
-  available: true,
-});
-
-const createEmptyCategoryForm = (): CategoryFormState => ({name: ''});
-
 const formatCurrency = (value: number) => {
   return `${Math.max(0, value || 0).toLocaleString('vi-VN')}đ`;
 };
-
-const formatDateTime = (iso: string) => {
-  const date = new Date(iso);
-
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-
-  return date.toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
-const normalisePriceInput = (value: string) => value.replace(/[^0-9]/g, '');
 
 const createEmptyCart = (): RestaurantCartState => ({
   tableNumber: '',
@@ -227,21 +142,7 @@ const MenuDishImage = memo(({
       source={source}
       style={style}
       resizeMode={resizeMode}
-      onLoad={() => {
-        if (!adminView) {
-          console.log(
-            `[CustomerMenu] image loaded itemId=${itemId} image=${cleanImageValue || 'placeholder'} fallback=${failed ? 'yes' : 'no'}`,
-          );
-        }
-      }}
-      onError={event => {
-        if (!adminView) {
-          console.log(
-            `[CustomerMenu] image error itemId=${itemId} image=${cleanImageValue || 'none'} error=${JSON.stringify(event?.nativeEvent || {})}`,
-          );
-        }
-        setFailed(true);
-      }}
+      onError={() => setFailed(true)}
     />
   );
 });
@@ -257,14 +158,12 @@ const RestaurantMenuScreen = (props: Props) => {
   const isCustomerStacked = adaptive.width < 760;
   const isCompactHeader = adaptive.width < 560;
 
-  const [mode, setMode] = useState<ScreenMode>('customer');
-  const [adminTab, setAdminTab] = useState<AdminTab>('orders');
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<RestaurantMenuItem[]>([]);
-  const [orders, setOrders] = useState<RestaurantOrder[]>([]);
   const [cart, setCartState] = useState<RestaurantCartState>(() =>
     hasCartSession ? cartSession : createEmptyCart(),
   );
+  const [cartDisplayVersion, setCartDisplayVersion] = useState(0);
   const [cartHydrated, setCartHydrated] = useState(hasCartSession);
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [cartModalVisible, setCartModalVisibleState] = useState(
@@ -272,15 +171,6 @@ const RestaurantMenuScreen = (props: Props) => {
   );
   const [cartFieldInput, setCartFieldInput] = useState<CartFieldInputState>(
     createClosedCartFieldInput,
-  );
-  const [adminUsername, setAdminUsername] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [registerUsername, setRegisterUsername] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
-  const [form, setForm] = useState<DishFormState>(createEmptyForm());
-  const [categoryForm, setCategoryForm] = useState<CategoryFormState>(
-    createEmptyCategoryForm(),
   );
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -301,11 +191,6 @@ const RestaurantMenuScreen = (props: Props) => {
   const showMessage = useCallback((text: string) => {
     setMessage(text);
     setErrorMessage('');
-  }, []);
-
-  const showError = useCallback((text: string) => {
-    setErrorMessage(text);
-    setMessage('');
   }, []);
 
   const setCart = useCallback((next: React.SetStateAction<RestaurantCartState>) => {
@@ -331,18 +216,12 @@ const RestaurantMenuScreen = (props: Props) => {
         const loadedHasCart = hasCartContent(nextCart);
 
         if (mutationHappenedDuringLoad) {
-  console.log(
-    '[CartOverlay] skipped stale cart hydration because cart changed during load',
-  );
-  hasCartSession = true;
-  cartSession = current;
-  return current;
-}
+          hasCartSession = true;
+          cartSession = current;
+          return current;
+        }
 
         if (hasCartSession && currentHasCart && !loadedHasCart) {
-          console.log(
-            '[CartOverlay] skipped empty storage cart because in-memory cart is newer',
-          );
           cartSession = current;
           return current;
         }
@@ -355,6 +234,26 @@ const RestaurantMenuScreen = (props: Props) => {
     },
     [],
   );
+
+  const bumpCartDisplayVersion = useCallback(() => {
+    setCartDisplayVersion(version => version + 1);
+  }, []);
+
+  const bumpCartDisplayVersionAfterNativeDialog = useCallback(() => {
+    bumpCartDisplayVersion();
+
+    requestAnimationFrame(() => {
+      bumpCartDisplayVersion();
+    });
+
+    setTimeout(() => {
+      bumpCartDisplayVersion();
+    }, 80);
+
+    setTimeout(() => {
+      bumpCartDisplayVersion();
+    }, 240);
+  }, [bumpCartDisplayVersion]);
 
   const clearCartFullscreenTimers = useCallback(() => {
     cartFullscreenTimersRef.current.forEach(timer => clearTimeout(timer));
@@ -378,7 +277,6 @@ const RestaurantMenuScreen = (props: Props) => {
       return;
     }
 
-    console.log('[CartFieldInput] pause immersive:', source);
     CartImmersiveModule?.pauseForCartInput?.(source);
   }, []);
 
@@ -387,7 +285,6 @@ const RestaurantMenuScreen = (props: Props) => {
       return;
     }
 
-    console.log('[CartFieldInput] resume immersive:', source);
     CartImmersiveModule?.resumeAfterCartInput?.(source);
   }, []);
 
@@ -403,7 +300,6 @@ const RestaurantMenuScreen = (props: Props) => {
 
       const nativeDialog = (CartImmersiveModule as any)?.showCartTextInputDialog;
       if (typeof nativeDialog !== 'function') {
-        console.log('[CartFieldInput] native dialog unavailable');
         return null;
       }
 
@@ -412,7 +308,7 @@ const RestaurantMenuScreen = (props: Props) => {
         isTable ? 'Số bàn' : 'Ghi chú',
         isTable ? 'VD: Bàn 08' : 'Nhập ghi chú cho đơn hàng',
         initialValue,
-        'text',
+        isTable ? 'text' : 'note',
         source,
       );
     },
@@ -420,26 +316,22 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const refreshData = useCallback(async (source = 'manual') => {
-    console.log('[CustomerMenu] refresh data source=' + source);
     const requestId = cartHydrateRequestId + 1;
     const startedAtVersion = cartMutationVersion;
     cartHydrateRequestId = requestId;
 
-    const [nextCategories, nextItems, nextOrders, nextCart] = await Promise.all([
+    const [nextCategories, nextItems, nextCart] = await Promise.all([
       loadMenuCategories(),
       loadMenuItems(),
-      loadOrders(),
       loadCurrentCart(),
     ]);
 
     if (requestId !== cartHydrateRequestId) {
-      console.log('[CartOverlay] ignored stale menu/cart hydration request');
       return;
     }
 
     setCategories(nextCategories);
     setItems(nextItems);
-    setOrders(nextOrders);
     hydrateCartFromStorage(nextCart, startedAtVersion);
 
     const firstCategoryId = nextCategories[0]?.id || '';
@@ -449,12 +341,6 @@ const RestaurantMenuScreen = (props: Props) => {
       }
       return firstCategoryId;
     });
-    setForm(current => ({
-      ...current,
-      categoryId: nextCategories.some(category => category.id === current.categoryId)
-        ? current.categoryId
-        : firstCategoryId,
-    }));
   }, [hydrateCartFromStorage]);
 
   useEffect(() => {
@@ -545,50 +431,22 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const cartBadgeCount = cartRows.length;
 
-  const resetForm = useCallback(() => {
-    setForm(createEmptyForm(categories[0]?.id || ''));
-  }, [categories]);
-
-  const resetCategoryForm = useCallback(() => {
-    setCategoryForm(createEmptyCategoryForm());
-  }, []);
-
-  const openLogin = useCallback(() => {
-    setCartModalVisible(false);
-    setMode('adminLogin');
-    setAdminPassword('');
-    setMessage('');
-    setErrorMessage('');
-  }, [setCartModalVisible]);
-
-  const openRegister = useCallback(() => {
-    setCartModalVisible(false);
-    setMode('adminRegister');
-    setRegisterPassword('');
-    setRegisterConfirmPassword('');
-    setMessage('');
-    setErrorMessage('');
-  }, [setCartModalVisible]);
-
-  const backToCustomer = useCallback(() => {
-    setCartModalVisible(false);
-    setMode('customer');
-    setMessage('');
-    setErrorMessage('');
-  }, [setCartModalVisible]);
+  const displayCart = useMemo(() => {
+    // cartSession is a module-level session object. cartDisplayVersion forces
+    // this memo to refresh immediately after the native Android input dialog
+    // writes Số bàn/Ghi chú before React state has fully repainted the cart.
+    return hasCartSession ? cartSession : cart;
+  }, [cart, cartDisplayVersion]);
 
   useEffect(() => {
-    console.log('[CartOverlay] visible changed:', cartModalVisible);
-  }, [cartModalVisible]);
+      }, [cartModalVisible]);
 
   useEffect(() => {
-    console.log('[CartOverlay] cart length:', cart.items.length);
-  }, [cart.items.length]);
+      }, [cart.items.length]);
 
   const closeCart = useCallback(
     (source: string) => {
-      console.log('[CartOverlay] close called from:', source);
-      clearCartFullscreenTimers();
+            clearCartFullscreenTimers();
       clearCartFieldInputFocusTimer();
       Keyboard.dismiss();
       cartFieldInputVisibleSession = false;
@@ -612,8 +470,7 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const openCart = useCallback(() => {
-    console.log('[CartOverlay] open pressed');
-    clearCartFullscreenTimers();
+        clearCartFullscreenTimers();
     cartOpenStartedAtRef.current = Date.now();
     setTableError('');
     setCartError('');
@@ -641,12 +498,10 @@ const RestaurantMenuScreen = (props: Props) => {
       cartInputFocusedRef.current ||
       cartKeyboardVisibleRef.current
     ) {
-      console.log('[CartOverlay] skip fullscreen while cart input active');
-      return;
+            return;
     }
 
-    console.log('[CartOverlay] reinforce fullscreen from:', source);
-    configureSystemUI({
+        configureSystemUI({
       barStyle: 'light-content',
       backgroundColor: 'transparent',
       animated: false,
@@ -695,8 +550,7 @@ const RestaurantMenuScreen = (props: Props) => {
         cartInputFocusedSession = false;
         cartInputFocusedRef.current = false;
         resumeCartInputImmersive(source);
-        console.log('[CartOverlay] restore fullscreen after cart input closed');
-        reinforceFullscreen(source);
+                reinforceFullscreen(source);
       };
 
       const timer = setTimeout(restoreWhenClosed, delay);
@@ -706,40 +560,41 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const commitCartFieldInputValue = useCallback(
-  (type: CartFieldInputType, value: string) => {
-    console.log(`[CartFieldInput] commit field: ${type} value=${value}`);
-
-    setCart(cartState => {
+    (type: CartFieldInputType, value: string) => {
+      const baseCart = hasCartSession ? cartSession : cart;
       const nextCart =
         type === 'table'
-          ? {...cartState, tableNumber: value}
-          : {...cartState, note: value};
+          ? {...baseCart, tableNumber: value}
+          : {...baseCart, note: value};
 
-      // Persist immediately so storage hydration cannot repaint the cart with
-      // an older value right after the native dialog closes.
-      void saveCurrentCart(nextCart).then(() => {
-        console.log(`[CartFieldInput] saved field: ${type} value=${value}`);
-      });
 
-      return nextCart;
-    });
+      // Update the module-level session before React schedules a render. This
+      // prevents the cart footer from repainting with an older note/table value
+      // when the Android native dialog closes and fullscreen state is restored.
+      cartSession = nextCart;
+      hasCartSession = true;
+      cartMutationVersion += 1;
+      setCartHydrated(true);
+      setCartState(() => nextCart);
+      bumpCartDisplayVersionAfterNativeDialog();
 
-    if (type === 'table') {
-      setTableError('');
-    }
-  },
-  [setCart],
-);
+      void saveCurrentCart(nextCart);
+
+      if (type === 'table') {
+        setTableError('');
+      }
+    },
+    [bumpCartDisplayVersionAfterNativeDialog, cart],
+  );
 
   const openCartFieldInput = useCallback(
     async (type: CartFieldInputType) => {
       const source = `[CartFieldInput] open field: ${type}`;
-      const initialValue = type === 'table' ? cart.tableNumber : cart.note;
+      const activeCart = hasCartSession ? cartSession : cart;
+      const initialValue = type === 'table' ? activeCart.tableNumber : activeCart.note;
 
-      console.log(source);
 
       if (cartFieldInputVisibleRef.current) {
-        console.log('[CartFieldInput] open ignored because cart field input is already active');
         return;
       }
 
@@ -775,11 +630,9 @@ const RestaurantMenuScreen = (props: Props) => {
         if (typeof nextValue === 'string') {
           commitCartFieldInputValue(type, nextValue);
         } else {
-          console.log(`[CartFieldInput] cancel field: ${type}`);
-        }
+                  }
       } catch (error) {
-        console.log('[CartFieldInput] native dialog failed:', error);
-      } finally {
+              } finally {
         clearCartFullscreenTimers();
         clearCartFieldInputFocusTimer();
         setCartFieldKeyboardHeight(0);
@@ -807,8 +660,7 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const cancelCartFieldInput = useCallback(() => {
-    console.log('[CartFieldInput] cancel');
-    clearCartFieldInputFocusTimer();
+        clearCartFieldInputFocusTimer();
     clearCartFullscreenTimers();
     setCartFieldInput(current =>
       current.visible ? {...current, visible: false} : current,
@@ -832,16 +684,7 @@ const RestaurantMenuScreen = (props: Props) => {
         return current;
       }
 
-      const value = current.draftValue;
-      console.log(`[CartFieldInput] commit field: ${current.type} value=${value}`);
-
-      if (current.type === 'table') {
-        setTableError('');
-        setCart(cartState => ({...cartState, tableNumber: value}));
-      } else {
-        setCart(cartState => ({...cartState, note: value}));
-      }
-
+      commitCartFieldInputValue(current.type, current.draftValue);
       return {...current, visible: false};
     });
 
@@ -853,8 +696,8 @@ const RestaurantMenuScreen = (props: Props) => {
   }, [
     clearCartFieldInputFocusTimer,
     clearCartFullscreenTimers,
+    commitCartFieldInputValue,
     scheduleCartInputRestore,
-    setCart,
   ]);
 
   useEffect(() => {
@@ -902,8 +745,7 @@ const RestaurantMenuScreen = (props: Props) => {
     }
 
     const keyboardShow = Keyboard.addListener('keyboardDidShow', event => {
-      console.log('[CartFieldInput] keyboard show');
-      clearCartFullscreenTimers();
+            clearCartFullscreenTimers();
       cartKeyboardVisibleSession = true;
       cartKeyboardVisibleRef.current = true;
       if (cartFieldInputVisibleRef.current) {
@@ -914,8 +756,7 @@ const RestaurantMenuScreen = (props: Props) => {
       // steal TextInput focus on Android and immediately dismiss keyboard.
     });
     const keyboardHide = Keyboard.addListener('keyboardDidHide', () => {
-      console.log('[CartFieldInput] keyboard hide');
-      cartKeyboardVisibleSession = false;
+            cartKeyboardVisibleSession = false;
       cartKeyboardVisibleRef.current = false;
       setCartFieldKeyboardHeight(0);
 
@@ -924,8 +765,7 @@ const RestaurantMenuScreen = (props: Props) => {
       if (cartFieldInputVisibleRef.current) {
         // The input dock remains open. Do not restore immersive or force refocus
         // here; doing either can create a keyboard show/hide loop on Android.
-        console.log('[CartFieldInput] keyboard hide while input dock visible');
-        cartInputFocusedSession = false;
+                cartInputFocusedSession = false;
         cartInputFocusedRef.current = false;
         return;
       }
@@ -974,7 +814,8 @@ const RestaurantMenuScreen = (props: Props) => {
   }, []);
 
   const onSubmitOrder = useCallback(async () => {
-    const tableNumber = cart.tableNumber.trim();
+    const activeCart = hasCartSession ? cartSession : cart;
+    const tableNumber = activeCart.tableNumber.trim();
 
     if (cartRows.length === 0) {
       setCartError('Vui lòng chọn món');
@@ -995,217 +836,20 @@ const RestaurantMenuScreen = (props: Props) => {
       quantity: row.quantity,
     }));
 
-    const nextOrders = await createRestaurantOrder({
+    await createRestaurantOrder({
       tableNumber,
-      note: cart.note.trim(),
+      note: activeCart.note.trim(),
       items: orderItems,
       total: cartTotal,
     });
 
-    setOrders(nextOrders);
     await clearCurrentCart();
     setCart(createEmptyCart());
     setTableError('');
     setCartError('');
     closeCart('submit-success');
     showMessage(`Đã gửi đơn cho bàn ${tableNumber}. Admin/quầy có thể xem ngay.`);
-  }, [cart.note, cart.tableNumber, cartRows, cartTotal, closeCart, showMessage]);
-
-  const onRegisterAdmin = useCallback(async () => {
-    if (registerPassword !== registerConfirmPassword) {
-      showError('Mật khẩu nhập lại chưa khớp');
-      return;
-    }
-
-    const result = await registerRestaurantAdmin(registerUsername, registerPassword);
-
-    if (!result.ok) {
-      showError(result.message);
-      return;
-    }
-
-    setAdminUsername(registerUsername);
-    setAdminPassword('');
-    setRegisterPassword('');
-    setRegisterConfirmPassword('');
-    setMode('adminLogin');
-    showMessage(`${result.message}. Hãy đăng nhập để vào dashboard.`);
-  }, [registerConfirmPassword, registerPassword, registerUsername, showError, showMessage]);
-
-  const onLoginAdmin = useCallback(async () => {
-    const result = await verifyRestaurantAdmin(adminUsername, adminPassword);
-
-    if (!result.ok) {
-      showError(result.message);
-      return;
-    }
-
-    setMode('admin');
-    setAdminTab('orders');
-    setAdminPassword('');
-    showMessage(result.message);
-  }, [adminPassword, adminUsername, showError, showMessage]);
-
-  const onEditDish = useCallback((item: RestaurantMenuItem) => {
-    setForm({
-      id: item.id,
-      createdAt: item.createdAt,
-      name: item.name,
-      price: String(item.price),
-      description: item.description,
-      imageUrl: item.imageUrl || '',
-      categoryId: item.categoryId,
-      available: item.available,
-    });
-    setMode('admin');
-    setAdminTab('menu');
-  }, []);
-
-  const onChooseImage = useCallback(async () => {
-    try {
-      const result = await launchImageLibrary({
-        mediaType: 'photo',
-        selectionLimit: 1,
-        quality: 0.8,
-      });
-
-      const uri = result.assets?.[0]?.uri;
-      if (uri) {
-        setForm(current => ({...current, imageUrl: uri}));
-      }
-    } catch (error: any) {
-      showError(`Không chọn được ảnh: ${error?.message || 'lỗi không xác định'}`);
-    }
-  }, [showError]);
-
-  const onSaveDish = useCallback(async () => {
-    const name = form.name.trim();
-    const price = Number(normalisePriceInput(form.price));
-
-    if (!name) {
-      showError('Vui lòng nhập tên món.');
-      return;
-    }
-
-    if (!price || price <= 0) {
-      showError('Vui lòng nhập giá món hợp lệ.');
-      return;
-    }
-
-    if (!form.categoryId) {
-      showError('Vui lòng chọn danh mục cho món.');
-      return;
-    }
-
-    const nextItems = await upsertMenuItem({
-      id: form.id,
-      createdAt: form.createdAt,
-      name,
-      price,
-      description: form.description,
-      imageUrl: form.imageUrl,
-      categoryId: form.categoryId,
-      available: form.available,
-    });
-
-    setItems(nextItems);
-    resetForm();
-    showMessage(form.id ? 'Đã cập nhật món.' : 'Đã thêm món mới.');
-  }, [form, resetForm, showError, showMessage]);
-
-  const onDeleteDish = useCallback(
-    (item: RestaurantMenuItem) => {
-      Alert.alert('Xoá món', `Xoá “${item.name}” khỏi menu?`, [
-        {text: 'Huỷ', style: 'cancel'},
-        {
-          text: 'Xoá',
-          style: 'destructive',
-          onPress: async () => {
-            const nextItems = await deleteMenuItem(item.id);
-            setItems(nextItems);
-            showMessage('Đã xoá món khỏi menu.');
-          },
-        },
-      ]);
-    },
-    [showMessage],
-  );
-
-  const onSaveCategory = useCallback(async () => {
-    const result = await upsertMenuCategory(categoryForm as CategoryFormState & {name: string});
-    setCategories(result.categories);
-
-    if (!result.ok) {
-      showError(result.message);
-      return;
-    }
-
-    const firstCategoryId = result.categories[0]?.id || '';
-    setSelectedCategoryId(current =>
-      result.categories.some(category => category.id === current) ? current : firstCategoryId,
-    );
-    setForm(current => ({
-      ...current,
-      categoryId: result.categories.some(category => category.id === current.categoryId)
-        ? current.categoryId
-        : firstCategoryId,
-    }));
-    resetCategoryForm();
-    showMessage(result.message);
-  }, [categoryForm, resetCategoryForm, showError, showMessage]);
-
-  const onEditCategory = useCallback((category: MenuCategory) => {
-    setCategoryForm({
-      id: category.id,
-      createdAt: category.createdAt,
-      name: category.name,
-    });
-    setMode('admin');
-    setAdminTab('categories');
-  }, []);
-
-  const onDeleteCategory = useCallback(
-    (category: MenuCategory) => {
-      Alert.alert('Xoá danh mục', `Xoá danh mục “${category.name}”?`, [
-        {text: 'Huỷ', style: 'cancel'},
-        {
-          text: 'Xoá',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await deleteMenuCategory(category.id);
-            setCategories(result.categories);
-
-            if (!result.ok) {
-              showError(result.message);
-              return;
-            }
-
-            const nextSelected = result.categories[0]?.id || '';
-            setSelectedCategoryId(current =>
-              result.categories.some(item => item.id === current) ? current : nextSelected,
-            );
-            setForm(current => ({
-              ...current,
-              categoryId: result.categories.some(item => item.id === current.categoryId)
-                ? current.categoryId
-                : nextSelected,
-            }));
-            showMessage(result.message);
-          },
-        },
-      ]);
-    },
-    [showError, showMessage],
-  );
-
-  const onChangeOrderStatus = useCallback(
-    async (orderId: string, status: RestaurantOrderStatus) => {
-      const nextOrders = await updateRestaurantOrderStatus(orderId, status);
-      setOrders(nextOrders);
-      showMessage(`Đã chuyển trạng thái đơn sang “${statusLabels[status]}”.`);
-    },
-    [showMessage],
-  );
+  }, [cart, cartRows, cartTotal, closeCart, showMessage]);
 
   const renderNotice = () => {
     if (!message && !errorMessage) {
@@ -1220,99 +864,36 @@ const RestaurantMenuScreen = (props: Props) => {
   };
 
   const renderTopBar = () => {
-    const adminTitle =
-      mode === 'admin'
-        ? 'Admin dashboard'
-        : mode === 'adminRegister'
-          ? 'Đăng ký Admin'
-          : 'Đăng nhập Admin';
-
     return (
       <View style={styles.topBar}>
         <View style={styles.headerSide}>
-          <Pressable
-            onPress={mode === 'customer' ? () => props.goBack() : backToCustomer}
-            style={styles.backButton}>
-            <RNText style={styles.backText}>
-              {mode === 'customer' ? '‹ Về Home' : '‹ Menu'}
-            </RNText>
+          <Pressable onPress={props.goBack} style={styles.backButton}>
+            <RNText style={styles.backText}>‹ Về Home</RNText>
           </Pressable>
         </View>
 
-        {mode === 'customer' ? (
-          <View style={styles.headerAuthCenter}>
-            <Pressable
-              onPress={() =>
-                props.navigate(screens.restaurantAdminLogin, {initialMode: 'login'})
-              }
-              style={styles.headerAuthButton}>
-              <RNText style={styles.headerAuthText}>Đăng nhập</RNText>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                props.navigate(screens.restaurantAdminLogin, {initialMode: 'register'})
-              }
-              style={styles.headerAuthButtonSecondary}>
-              <RNText style={styles.headerAuthText}>Đăng ký</RNText>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.headerTitleWrap}>
-            <RNText style={styles.headerTitle}>{adminTitle}</RNText>
-            <RNText style={styles.headerSubTitle}>APlus Restaurant Control</RNText>
-          </View>
-        )}
+        <View style={styles.headerAuthCenter}>
+          <Pressable
+            onPress={() =>
+              props.navigate(screens.restaurantAdminLogin, {initialMode: 'login'})
+            }
+            style={styles.headerAuthButton}>
+            <RNText style={styles.headerAuthText}>Đăng nhập Admin</RNText>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              props.navigate(screens.restaurantAdminLogin, {initialMode: 'register'})
+            }
+            style={styles.headerAuthButtonSecondary}>
+            <RNText style={styles.headerAuthText}>Đăng ký Admin</RNText>
+          </Pressable>
+        </View>
 
         <View style={[styles.headerSide, styles.headerSideRight]}>
           {!isCompactHeader ? (
             <Image source={images.logoSmall} style={styles.headerLogo} resizeMode="contain" />
           ) : null}
         </View>
-      </View>
-    );
-  };
-
-  const renderInput = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType = 'default',
-    multiline = false,
-    secureTextEntry = false,
-    style,
-    hasError = false,
-  }: {
-    label: string;
-    value: string;
-    onChangeText: (text: string) => void;
-    placeholder?: string;
-    keyboardType?: 'default' | 'numeric' | 'number-pad';
-    multiline?: boolean;
-    secureTextEntry?: boolean;
-    style?: any;
-    hasError?: boolean;
-  }) => {
-    return (
-      <View style={[styles.inputWrap, hasError ? styles.inputWrapError : null, style]}>
-        <RNText style={styles.inputLabel}>{label}</RNText>
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => {
-            pauseTextInputImmersive('menu-text-input-focus');
-          }}
-          onBlur={() => {
-            resumeTextInputImmersive('menu-text-input-blur');
-          }}
-          placeholder={placeholder}
-          placeholderTextColor="rgba(255,255,255,0.42)"
-          keyboardType={keyboardType}
-          multiline={multiline}
-          secureTextEntry={secureTextEntry}
-          style={multiline ? styles.textArea : styles.input}
-          selectionColor="#E22A32"
-        />
       </View>
     );
   };
@@ -1430,24 +1011,16 @@ const RestaurantMenuScreen = (props: Props) => {
     );
   };
 
-  const renderDishCard = (item: RestaurantMenuItem, adminView = false) => {
+  const renderDishCard = (item: RestaurantMenuItem) => {
     const itemImageValue = getMenuItemImageValue(item);
 
-    if (!adminView) {
-      console.log(
-        `[CustomerMenu] render itemId=${item.id} image=${itemImageValue || 'none'}`,
-      );
-    }
-
+    
     return (
-      <View
-        key={`${item.id}-${itemImageValue || 'no-image'}`}
-        style={adminView ? styles.adminDishCard : styles.dishCard}>
+      <View key={`${item.id}-${itemImageValue || 'no-image'}`} style={styles.dishCard}>
         <View style={styles.dishImageWrap}>
           <MenuDishImage
             itemId={item.id}
             imageValue={itemImageValue}
-            adminView={adminView}
             style={styles.dishImage}
             resizeMode="cover"
           />
@@ -1467,28 +1040,8 @@ const RestaurantMenuScreen = (props: Props) => {
           ) : null}
           <View style={styles.dishFooter}>
             <RNText style={styles.dishPrice}>{formatCurrency(item.price)}</RNText>
-            {!adminView && renderQuantityOrAdd(item)}
+            {renderQuantityOrAdd(item)}
           </View>
-          {adminView ? (
-            <>
-              <View style={styles.adminDishMetaRow}>
-                <RNText style={styles.cartMeta}>
-                  {item.available ? 'Đang bán' : 'Tạm hết'}
-                </RNText>
-                <RNText style={styles.cartMeta}>
-                  {getCategoryNameById(item.categoryId, categories)}
-                </RNText>
-              </View>
-              <View style={styles.adminCardActionsInline}>
-                <Pressable onPress={() => onEditDish(item)} style={styles.secondaryButtonSmall}>
-                  <RNText style={styles.secondaryButtonText}>Sửa</RNText>
-                </Pressable>
-                <Pressable onPress={() => onDeleteDish(item)} style={styles.dangerButtonSmall}>
-                  <RNText style={styles.dangerButtonText}>Xoá</RNText>
-                </Pressable>
-              </View>
-            </>
-          ) : null}
         </View>
       </View>
     );
@@ -1596,8 +1149,7 @@ const RestaurantMenuScreen = (props: Props) => {
 
         cartInputFocusedSession = true;
         cartInputFocusedRef.current = true;
-        console.log('[CartFieldInput] input focused');
-        cartFieldInputRef.current?.focus();
+                cartFieldInputRef.current?.focus();
       }, 0);
     };
 
@@ -1610,8 +1162,7 @@ const RestaurantMenuScreen = (props: Props) => {
         presentationStyle="overFullScreen"
         onRequestClose={cancelCartFieldInput}
         onShow={() => {
-          console.log('[CartFieldInput] modal mounted');
-          requestAnimationFrame(focusFieldInput);
+                    requestAnimationFrame(focusFieldInput);
         }}>
         <RNView style={styles.fieldInputOverlayRoot}>
           <RNView pointerEvents="none" style={styles.fieldInputOverlayBackdrop} />
@@ -1657,8 +1208,7 @@ const RestaurantMenuScreen = (props: Props) => {
                   clearCartFullscreenTimers();
                   cartInputFocusedSession = true;
                   cartInputFocusedRef.current = true;
-                  console.log('[CartFieldInput] input focused');
-                  pauseCartInputImmersive('[CartFieldInput] input focused');
+                                    pauseCartInputImmersive('[CartFieldInput] input focused');
                 }}
                 onBlur={() => {
                   if (!cartFieldInputVisibleRef.current) {
@@ -1669,8 +1219,8 @@ const RestaurantMenuScreen = (props: Props) => {
                 placeholder={placeholder}
                 placeholderTextColor="rgba(255,255,255,0.42)"
                 keyboardType="default"
-                multiline={false}
-                blurOnSubmit={false}
+                multiline={!isTable}
+                blurOnSubmit
                 returnKeyType="done"
                 onSubmitEditing={saveCartFieldInput}
                 autoFocus
@@ -1741,7 +1291,7 @@ const RestaurantMenuScreen = (props: Props) => {
             <View style={styles.cartModalFooter}>
               {renderCartDisplayField({
                 label: 'SỐ BÀN',
-                value: cart.tableNumber,
+                value: displayCart.tableNumber,
                 placeholder: 'Chưa nhập số bàn',
                 hasError: Boolean(tableError),
                 onPress: () => openCartFieldInput('table'),
@@ -1751,15 +1301,14 @@ const RestaurantMenuScreen = (props: Props) => {
               ) : null}
               {renderCartDisplayField({
                 label: 'GHI CHÚ',
-                value: cart.note,
+                value: displayCart.note,
                 placeholder: 'Thêm ghi chú',
                 multiline: true,
                 onPress: () => openCartFieldInput('note'),
               })}
               <Pressable
                 onPress={() => {
-                  console.log('[CartOverlay] submit pressed');
-                  onSubmitOrder();
+                                    onSubmitOrder();
                 }}
                 style={styles.primaryButton}>
                 <RNText style={styles.primaryButtonText}>Gửi đơn</RNText>
@@ -1771,431 +1320,13 @@ const RestaurantMenuScreen = (props: Props) => {
     );
   };
 
-  const renderAuthCard = (authType: 'login' | 'register') => {
-    const isLogin = authType === 'login';
-
-    return (
-      <ScrollView
-        style={styles.adminScroll}
-        contentContainerStyle={styles.authScrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.authHero}>
-          <RNText style={styles.loginEyebrow}>APlus Restaurant Control</RNText>
-          <RNText style={styles.loginTitle}>
-            {isLogin ? 'Đăng nhập Admin' : 'Đăng ký Admin'}
-          </RNText>
-          <RNText style={styles.loginHint}>
-            {isLogin
-              ? 'Vào dashboard để quản lý danh mục, món ăn và đơn gọi tại bàn.'
-              : 'Tạo tài khoản admin local để demo menu trước khi tách backend.'}
-          </RNText>
-        </View>
-
-        <View style={styles.authCard}>
-          {renderInput({
-            label: 'TÊN TÀI KHOẢN',
-            value: isLogin ? adminUsername : registerUsername,
-            onChangeText: isLogin ? setAdminUsername : setRegisterUsername,
-            placeholder: 'VD: admin',
-            style: styles.fullField,
-          })}
-          {renderInput({
-            label: 'MẬT KHẨU',
-            value: isLogin ? adminPassword : registerPassword,
-            onChangeText: isLogin ? setAdminPassword : setRegisterPassword,
-            placeholder: 'Nhập mật khẩu',
-            secureTextEntry: true,
-            style: styles.fullField,
-          })}
-          {!isLogin
-            ? renderInput({
-                label: 'NHẬP LẠI MẬT KHẨU',
-                value: registerConfirmPassword,
-                onChangeText: setRegisterConfirmPassword,
-                placeholder: 'Nhập lại mật khẩu',
-                secureTextEntry: true,
-                style: styles.fullField,
-              })
-            : null}
-
-          <RNText style={styles.sectionHint}>
-            Bản demo lưu mật khẩu local trong AsyncStorage. Khi lên production sẽ thay bằng backend auth.
-          </RNText>
-
-          <Pressable
-            onPress={isLogin ? onLoginAdmin : onRegisterAdmin}
-            style={styles.primaryButton}>
-            <RNText style={styles.primaryButtonText}>
-              {isLogin ? 'Đăng nhập' : 'Đăng ký'}
-            </RNText>
-          </Pressable>
-
-          <View style={styles.authLinkRow}>
-            <Pressable onPress={backToCustomer} style={styles.authTextButton}>
-              <RNText style={styles.authTextButtonText}>Quay lại Menu</RNText>
-            </Pressable>
-            <Pressable
-              onPress={isLogin ? openRegister : openLogin}
-              style={styles.authTextButton}>
-              <RNText style={styles.authTextButtonText}>
-                {isLogin ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
-              </RNText>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-    );
-  };
-
-  const renderAdminTabs = () => {
-    const tabs: Array<{id: AdminTab; label: string}> = [
-      {id: 'categories', label: 'Danh mục'},
-      {id: 'menu', label: 'Món ăn'},
-      {id: 'orders', label: 'Đơn hàng'},
-    ];
-
-    return (
-      <View style={styles.adminTabs}>
-        {tabs.map(tab => {
-          const active = adminTab === tab.id;
-          return (
-            <Pressable
-              key={tab.id}
-              onPress={() => setAdminTab(tab.id)}
-              style={[styles.adminTab, active ? styles.adminTabActive : null]}>
-              <RNText style={active ? styles.adminTabTextActive : styles.adminTabText}>
-                {tab.label}
-              </RNText>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const renderCategorySelector = () => {
-    return (
-      <View style={styles.categorySelector}>
-        {categories.map(category => {
-          const active = category.id === form.categoryId;
-          return (
-            <Pressable
-              key={category.id}
-              onPress={() => setForm(current => ({...current, categoryId: category.id}))}
-              style={[
-                styles.formCategoryChip,
-                active ? styles.formCategoryChipActive : null,
-              ]}>
-              <RNText
-                style={
-                  active ? styles.formCategoryChipTextActive : styles.formCategoryChipText
-                }>
-                {category.name}
-              </RNText>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const renderAdminMenu = () => {
-    return (
-      <>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <RNText style={styles.sectionTitle}>
-                {form.id ? 'Sửa món' : 'Thêm món mới'}
-              </RNText>
-              <RNText style={styles.sectionHint}>
-                Ảnh món chỉ chọn trực tiếp từ thư viện máy. Nếu trống, app dùng ảnh placeholder APlus.
-              </RNText>
-            </View>
-          </View>
-
-          <View style={styles.formGrid}>
-            {renderInput({
-              label: 'TÊN MÓN',
-              value: form.name,
-              onChangeText: text => setForm(current => ({...current, name: text})),
-              placeholder: 'VD: Coca / Bò lúc lắc',
-              style: styles.formField,
-            })}
-            {renderInput({
-              label: 'GIÁ',
-              value: form.price,
-              onChangeText: text =>
-                setForm(current => ({...current, price: normalisePriceInput(text)})),
-              placeholder: 'VD: 25000',
-              keyboardType: 'number-pad',
-              style: styles.formField,
-            })}
-            {renderInput({
-              label: 'MÔ TẢ MÓN',
-              value: form.description,
-              onChangeText: text =>
-                setForm(current => ({...current, description: text})),
-              placeholder: 'Mô tả ngắn để khách dễ chọn món',
-              multiline: true,
-              style: styles.fullField,
-            })}
-          </View>
-
-          <RNText style={styles.blockLabel}>Danh mục món</RNText>
-          {categories.length === 0 ? (
-            <RNText style={styles.sectionHint}>Hãy tạo danh mục trước khi thêm món.</RNText>
-          ) : (
-            renderCategorySelector()
-          )}
-
-          <View style={styles.availabilityRow}>
-            <View style={{flex: 1}}>
-              <RNText style={styles.sectionTitle}>Trạng thái món</RNText>
-              <RNText style={styles.sectionHint}>
-                {form.available ? 'Đang còn món' : 'Tạm hết món'}
-              </RNText>
-            </View>
-            <Pressable
-              onPress={() =>
-                setForm(current => ({...current, available: !current.available}))
-              }
-              style={form.available ? styles.primaryButton : styles.secondaryButton}>
-              <RNText
-                style={
-                  form.available ? styles.primaryButtonText : styles.secondaryButtonText
-                }>
-                {form.available ? 'Còn món' : 'Hết món'}
-              </RNText>
-            </Pressable>
-          </View>
-
-          <View style={styles.formActions}>
-            <Pressable onPress={onSaveDish} style={styles.primaryButton}>
-              <RNText style={styles.primaryButtonText}>
-                {form.id ? 'Lưu cập nhật' : 'Thêm món'}
-              </RNText>
-            </Pressable>
-            <Pressable onPress={onChooseImage} style={styles.secondaryButton}>
-              <RNText style={styles.secondaryButtonText}>
-                {form.imageUrl ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
-              </RNText>
-            </Pressable>
-            <Pressable onPress={resetForm} style={styles.secondaryButton}>
-              <RNText style={styles.secondaryButtonText}>Làm mới form</RNText>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <RNText style={styles.sectionTitle}>Menu hiện tại</RNText>
-              <RNText style={styles.sectionHint}>
-                {items.length} món đang lưu local bằng AsyncStorage.
-              </RNText>
-            </View>
-          </View>
-          <View style={styles.adminMenuGrid}>
-            {items.map(item => renderDishCard(item, true))}
-          </View>
-        </View>
-      </>
-    );
-  };
-
-  const renderAdminCategories = () => {
-    return (
-      <>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <RNText style={styles.sectionTitle}>
-                {categoryForm.id ? 'Sửa danh mục' : 'Thêm danh mục'}
-              </RNText>
-              <RNText style={styles.sectionHint}>
-                Màn khách lấy danh mục trực tiếp từ danh sách admin quản lý.
-              </RNText>
-            </View>
-          </View>
-
-          {renderInput({
-            label: 'TÊN DANH MỤC',
-            value: categoryForm.name,
-            onChangeText: text => setCategoryForm(current => ({...current, name: text})),
-            placeholder: 'VD: Đồ uống / Đồ ăn / Combo...',
-            style: styles.fullField,
-          })}
-
-          <View style={styles.formActions}>
-            <Pressable onPress={onSaveCategory} style={styles.primaryButton}>
-              <RNText style={styles.primaryButtonText}>
-                {categoryForm.id ? 'Lưu danh mục' : 'Thêm danh mục'}
-              </RNText>
-            </Pressable>
-            <Pressable onPress={resetCategoryForm} style={styles.secondaryButton}>
-              <RNText style={styles.secondaryButtonText}>Làm mới</RNText>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <RNText style={styles.sectionTitle}>Danh mục hiện tại</RNText>
-              <RNText style={styles.sectionHint}>
-                Mặc định hiện có Đồ uống và Đồ ăn. Chỉ xoá được danh mục chưa có món.
-              </RNText>
-            </View>
-          </View>
-
-          <View style={styles.categoryManageList}>
-            {categories.map(category => (
-              <View key={category.id} style={styles.categoryManageRow}>
-                <View style={styles.categoryManageInfo}>
-                  <RNText style={styles.categoryManageName}>{category.name}</RNText>
-                  <RNText style={styles.cartMeta}>
-                    {categoryCounts[category.id] || 0} món
-                  </RNText>
-                </View>
-                <View style={styles.adminCardActionsInline}>
-                  <Pressable
-                    onPress={() => onEditCategory(category)}
-                    style={styles.secondaryButtonSmall}>
-                    <RNText style={styles.secondaryButtonText}>Sửa</RNText>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => onDeleteCategory(category)}
-                    style={styles.dangerButtonSmall}>
-                    <RNText style={styles.dangerButtonText}>Xoá</RNText>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-      </>
-    );
-  };
-
-  const renderOrderCard = (order: RestaurantOrder) => {
-    return (
-      <View key={order.id} style={styles.orderCard}>
-        <View style={styles.orderHeader}>
-          <View>
-            <RNText style={styles.orderTitle}>Bàn {order.tableNumber}</RNText>
-            <RNText style={styles.orderTime}>{formatDateTime(order.createdAt)}</RNText>
-          </View>
-          <View
-            style={[
-              styles.statusPill,
-              {backgroundColor: statusColors[order.status] || statusColors.new},
-            ]}>
-            <RNText style={styles.statusText}>{statusLabels[order.status]}</RNText>
-          </View>
-        </View>
-
-        <View style={styles.orderItemsWrap}>
-          {order.items.map(item => (
-            <RNText key={`${order.id}_${item.itemId}`} style={styles.orderItemText}>
-              • {item.name} × {item.quantity} · {formatCurrency(item.price * item.quantity)}
-            </RNText>
-          ))}
-        </View>
-
-        {order.note ? <RNText style={styles.orderNote}>Ghi chú: {order.note}</RNText> : null}
-
-        <View style={styles.orderFooter}>
-          <RNText style={styles.totalValue}>{formatCurrency(order.total)}</RNText>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statusActions}>
-          {statusFlow.map(status => {
-            const active = status === order.status;
-            return (
-              <Pressable
-                key={status}
-                onPress={() => onChangeOrderStatus(order.id, status)}
-                style={[styles.statusButton, active ? styles.statusButtonActive : null]}>
-                <RNText style={active ? styles.statusButtonTextActive : styles.statusButtonText}>
-                  {statusLabels[status]}
-                </RNText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderAdminOrders = () => {
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionHeaderText}>
-            <RNText style={styles.sectionTitle}>Đơn hàng</RNText>
-            <RNText style={styles.sectionHint}>
-              {orders.length} đơn local. Đơn mới nhất nằm trên cùng.
-            </RNText>
-          </View>
-        </View>
-
-        {orders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <RNText style={styles.emptyIcon}>🧾</RNText>
-            <RNText style={styles.emptyText}>Chưa có đơn hàng</RNText>
-            <RNText style={styles.emptySubText}>
-              Khi khách gửi đơn, admin sẽ thấy đơn tại đây.
-            </RNText>
-          </View>
-        ) : (
-          orders.map(renderOrderCard)
-        )}
-      </View>
-    );
-  };
-
-  const renderAdmin = () => {
-    return (
-      <ScrollView
-        style={styles.adminScroll}
-        contentContainerStyle={styles.adminScrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.dashboardHero}>
-          <RNText style={styles.loginEyebrow}>Local-first dashboard</RNText>
-          <RNText style={styles.loginTitle}>Quản trị gọi món</RNText>
-          <RNText style={styles.loginHint}>
-            Quản lý danh mục, món ăn và trạng thái đơn theo đúng flow nhà hàng.
-          </RNText>
-        </View>
-        {renderAdminTabs()}
-        {adminTab === 'orders'
-          ? renderAdminOrders()
-          : adminTab === 'menu'
-            ? renderAdminMenu()
-            : renderAdminCategories()}
-      </ScrollView>
-    );
-  };
-
   return (
     <View style={styles.screen}>
       <View style={styles.screenGlowTop} />
       <View style={styles.screenGlowBottom} />
       {renderTopBar()}
       {renderNotice()}
-      {mode === 'customer'
-        ? renderCustomerMenu()
-        : mode === 'adminLogin'
-          ? renderAuthCard('login')
-          : mode === 'adminRegister'
-            ? renderAuthCard('register')
-            : renderAdmin()}
+      {renderCustomerMenu()}
       {renderCartModal()}
       {renderCartFieldInputOverlay()}
     </View>

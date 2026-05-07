@@ -2,7 +2,6 @@ import React, {memo, useEffect, useMemo, useState} from 'react';
 import {
   Alert,
   Image as RNImage,
-  Keyboard,
   NativeModules,
   Platform,
   Pressable,
@@ -170,12 +169,10 @@ const AdminMenuManagementScreen = ({
   const [categorySaving, setCategorySaving] = useState(false);
 
   const pauseAdminFormInputImmersive = (field: string) => {
-    console.log(`[AdminMenuForm] focus field=${field}`);
     AdminFormImmersiveModule?.pauseForCartInput?.(`admin-menu-form-${field}`);
   };
 
   const resumeAdminFormInputImmersive = (field: string) => {
-    console.log(`[AdminMenuForm] blur field=${field}`);
     AdminFormImmersiveModule?.resumeAfterCartInput?.(`admin-menu-form-${field}`);
   };
 
@@ -209,8 +206,20 @@ const AdminMenuManagementScreen = ({
     setStatusState(next.status);
   };
 
-  const updateDraft = (patch: Partial<AdminMenuFormSession>) => {
+  const updateDraft = (
+    patch: Partial<AdminMenuFormSession>,
+    options: {syncReactState?: boolean} = {},
+  ) => {
+    const syncReactState = options.syncReactState !== false;
     adminMenuFormSession = {...adminMenuFormSession, ...patch};
+
+    // Text fields are updated on every keystroke. Keep those values in the
+    // module draft immediately, but do not force a React re-render for every
+    // character. This removes the small Android typing lag while submitForm
+    // still reads the newest value from adminMenuFormSession.
+    if (!syncReactState) {
+      return;
+    }
 
     if (Object.prototype.hasOwnProperty.call(patch, 'viewMode')) {
       setViewModeState(adminMenuFormSession.viewMode);
@@ -273,57 +282,30 @@ const AdminMenuManagementScreen = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, categoryId, defaultCategoryId]);
 
-  useEffect(() => {
-    const keyboardShow = Keyboard.addListener('keyboardDidShow', () => {
-      if (adminMenuFormSession.viewMode !== 'list') {
-        console.log('[AdminMenuForm] keyboard show');
-        console.log('[AdminMenu] active tab remains menu');
-      }
-    });
-    const keyboardHide = Keyboard.addListener('keyboardDidHide', () => {
-      if (adminMenuFormSession.viewMode !== 'list') {
-        console.log('[AdminMenuForm] keyboard hide');
-        console.log('[AdminMenu] active tab remains menu');
-      }
-    });
-
-    return () => {
-      keyboardShow.remove();
-      keyboardHide.remove();
-    };
-  }, []);
-
   const openCreate = () => {
-    console.log('[AdminMenu] open create');
     replaceFormSession({
       ...createEmptyFormSession(defaultCategoryId),
       viewMode: 'create',
     });
     setError('');
-    console.log('[AdminMenu] active tab remains menu');
   };
 
   const openCategoryManager = () => {
-    console.log('[AdminCategory] open manager');
     replaceFormSession({
       ...createEmptyFormSession(defaultCategoryId),
       viewMode: 'categories',
     });
     resetCategoryDraft();
-    console.log('[AdminMenu] active tab remains menu');
   };
 
   const closeCategoryManager = () => {
-    console.log('[AdminCategory] close manager');
     replaceFormSession(createEmptyFormSession(defaultCategoryId));
     resetCategoryDraft();
-    console.log('[AdminMenu] active tab remains menu');
   };
 
   const openEdit = (item: RestaurantMenuItem) => {
     const nextImageUrl = getMenuItemImageValue(item);
 
-    console.log(`[AdminMenu] open edit itemId=${item.id}`);
     replaceFormSession({
       viewMode: 'edit',
       selectedItemId: item.id,
@@ -335,7 +317,6 @@ const AdminMenuManagementScreen = ({
       status: getInitialStatus(item),
     });
     setError('');
-    console.log('[AdminMenu] active tab remains menu');
   };
 
   const pickMenuImage = async () => {
@@ -343,9 +324,6 @@ const AdminMenuManagementScreen = ({
       return;
     }
 
-    console.log(
-      `[AdminMenuImage] pick image pressed itemId=${selectedItemId || 'new'}`,
-    );
     setImagePicking(true);
     setError('');
 
@@ -358,7 +336,6 @@ const AdminMenuManagementScreen = ({
       });
 
       if (response.didCancel) {
-        console.log('[AdminMenuImage] image pick cancelled');
         return;
       }
 
@@ -378,8 +355,6 @@ const AdminMenuManagementScreen = ({
         return;
       }
 
-      console.log('[AdminMenuImage] selected uri=' + pickedUri);
-
       const persistedUri = await persistRestaurantMenuImage({
         uri: pickedUri,
         base64: pickedAsset?.base64,
@@ -387,7 +362,6 @@ const AdminMenuManagementScreen = ({
       });
 
       updateDraft({imageUrl: persistedUri});
-      console.log('[AdminMenuForm] draft image after pick=' + persistedUri);
     } catch (pickError) {
       console.warn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -397,18 +371,30 @@ const AdminMenuManagementScreen = ({
   };
 
   const cancelForm = () => {
-    console.log('[AdminMenu] cancel form');
     setError('');
     setSaving(false);
     replaceFormSession(createEmptyFormSession(defaultCategoryId));
-    console.log('[AdminMenu] active tab remains menu');
   };
 
   const submitForm = async () => {
-    const cleanName = name.trim();
-    const cleanPriceText = price.trim().replace(/\./g, '').replace(/,/g, '');
+    // Use the module-level draft as the source of truth. On Android, keyboard
+    // focus changes and the image picker can schedule React state updates a
+    // frame later than the user's tap on “Lưu”, so reading state variables here
+    // can save the old item/image or show a false validation error.
+    const draft = adminMenuFormSession;
+    const draftName = draft.name ?? name;
+    const draftPrice = draft.price ?? price;
+    const draftCategoryId = draft.categoryId ?? categoryId;
+    const draftDescription = draft.description ?? description;
+    const draftImageUrl = draft.imageUrl ?? imageUrl;
+    const draftStatus = draft.status ?? status;
+    const draftViewMode = draft.viewMode ?? viewMode;
+    const draftSelectedItemId = draft.selectedItemId ?? selectedItemId;
+
+    const cleanName = draftName.trim();
+    const cleanPriceText = draftPrice.trim().replace(/\./g, '').replace(/,/g, '');
     const priceValue = Number(cleanPriceText);
-    const cleanCategoryId = categoryId.trim();
+    const cleanCategoryId = draftCategoryId.trim();
 
     if (!cleanName) {
       setError('Vui lòng nhập tên món');
@@ -425,40 +411,30 @@ const AdminMenuManagementScreen = ({
       return;
     }
 
-    const isEdit = viewMode === 'edit' && !!selectedItemId;
-    const itemId = isEdit ? selectedItemId : createLocalMenuItemId();
-    const cleanImageUrl = getMenuItemImageValue({imageUrl});
+    const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
+    const itemId = isEdit ? String(draftSelectedItemId) : createLocalMenuItemId();
+    const cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
+    const editingItem = isEdit
+      ? menuItems.find(item => item.id === itemId) || selectedItem
+      : null;
 
     setSaving(true);
     setError('');
 
     try {
-      console.log('[AdminMenuForm] draft image=' + (imageUrl || 'none'));
-      console.log('[AdminMenuForm] submit image=' + (cleanImageUrl || 'none'));
-      console.log(
-        '[AdminMenu] save ' +
-          (isEdit ? 'edit' : 'create') +
-          ' with image=' +
-          (cleanImageUrl || 'none'),
-      );
-
       await onSaveItem({
         id: itemId,
-        createdAt: isEdit ? selectedItem?.createdAt : undefined,
+        createdAt: isEdit ? editingItem?.createdAt : undefined,
         name: cleanName,
         price: priceValue,
         categoryId: cleanCategoryId,
-        description: description.trim(),
+        description: draftDescription.trim(),
         imageUrl: cleanImageUrl,
-        status,
-        available: status === 'SELLING',
+        status: draftStatus,
+        available: draftStatus === 'SELLING',
       });
 
-      console.log(
-        `[AdminMenu] save ${isEdit ? 'edit' : 'create'} itemId=${itemId}`,
-      );
       replaceFormSession(createEmptyFormSession(defaultCategoryId));
-      console.log('[AdminMenu] active tab remains menu');
     } catch (saveError) {
       console.warn('[AdminMenu] save failed', saveError);
       setError('Không thể lưu món. Vui lòng thử lại.');
@@ -477,7 +453,6 @@ const AdminMenuManagementScreen = ({
       return null;
     }
 
-    console.log('[AdminCategory] open native name input');
     return nativeDialog(
       categoryDraftId ? 'Sửa tên danh mục' : 'Thêm danh mục',
       'VD: Cơm / Lẩu / Hải sản / Combo',
@@ -494,7 +469,6 @@ const AdminMenuManagementScreen = ({
       const nextName = await showNativeCategoryNameInput();
       if (typeof nextName === 'string') {
         updateCategoryDraft({name: nextName});
-        console.log('[AdminCategory] draft name=' + nextName.trim());
       }
     } catch (nativeError) {
       console.warn('[AdminCategory] native input failed', nativeError);
@@ -519,10 +493,6 @@ const AdminMenuManagementScreen = ({
         name: cleanName,
       });
 
-      console.log(
-        `[AdminCategory] save ${categoryDraftId ? 'edit' : 'create'} name=${cleanName} ok=${result.ok}`,
-      );
-
       if (!result.ok) {
         setCategoryError(result.message);
         return;
@@ -543,7 +513,6 @@ const AdminMenuManagementScreen = ({
   };
 
   const editCategory = (category: MenuCategory) => {
-    console.log(`[AdminCategory] edit id=${category.id} name=${category.name}`);
     updateCategoryDraft({
       id: category.id,
       createdAt: category.createdAt,
@@ -565,10 +534,6 @@ const AdminMenuManagementScreen = ({
 
     try {
       const result = await onDeleteCategory(category.id, fallbackCategory.id);
-
-      console.log(
-        `[AdminCategory] delete id=${category.id} moveTo=${fallbackCategory.id} ok=${result.ok}`,
-      );
 
       if (!result.ok) {
         setCategoryError(result.message);
@@ -640,7 +605,8 @@ const AdminMenuManagementScreen = ({
 
     return (
       <TextInput
-        value={categoryDraftName}
+        key={`category-name-${categoryDraftId || 'new'}`}
+        defaultValue={categoryDraftName}
         onChangeText={text => updateCategoryDraft({name: text})}
         onFocus={() => pauseAdminFormInputImmersive('category-name')}
         onBlur={() => resumeAdminFormInputImmersive('category-name')}
@@ -777,8 +743,9 @@ const AdminMenuManagementScreen = ({
 
           <RNText style={styles.inputLabel}>Tên món</RNText>
           <TextInput
-            value={name}
-            onChangeText={text => updateDraft({name: text})}
+            key={`name-${viewMode}-${selectedItemId || 'new'}`}
+            defaultValue={adminMenuFormSession.name}
+            onChangeText={text => updateDraft({name: text}, {syncReactState: false})}
             onFocus={() => pauseAdminFormInputImmersive('name')}
             onBlur={() => resumeAdminFormInputImmersive('name')}
             placeholder="Ví dụ: Coca lạnh"
@@ -789,8 +756,9 @@ const AdminMenuManagementScreen = ({
 
           <RNText style={styles.inputLabel}>Giá</RNText>
           <TextInput
-            value={price}
-            onChangeText={text => updateDraft({price: text})}
+            key={`price-${viewMode}-${selectedItemId || 'new'}`}
+            defaultValue={adminMenuFormSession.price}
+            onChangeText={text => updateDraft({price: text}, {syncReactState: false})}
             onFocus={() => pauseAdminFormInputImmersive('price')}
             onBlur={() => resumeAdminFormInputImmersive('price')}
             placeholder="25000"
@@ -825,8 +793,9 @@ const AdminMenuManagementScreen = ({
 
           <RNText style={styles.inputLabel}>Mô tả / ghi chú món</RNText>
           <TextInput
-            value={description}
-            onChangeText={text => updateDraft({description: text})}
+            key={`description-${viewMode}-${selectedItemId || 'new'}`}
+            defaultValue={adminMenuFormSession.description}
+            onChangeText={text => updateDraft({description: text}, {syncReactState: false})}
             onFocus={() => pauseAdminFormInputImmersive('description')}
             onBlur={() => resumeAdminFormInputImmersive('description')}
             placeholder="Mô tả ngắn hiển thị cho nhân viên/khách"
@@ -870,8 +839,7 @@ const AdminMenuManagementScreen = ({
                 {imageUrl ? (
                   <Pressable
                     onPress={() => {
-                      console.log('[AdminMenuImage] clear image');
-                      updateDraft({imageUrl: ''});
+                                            updateDraft({imageUrl: ''});
                     }}
                     style={styles.imageRemoveButton}
                     disabled={saving || imagePicking}>
@@ -952,9 +920,6 @@ const AdminMenuManagementScreen = ({
         <RNView style={styles.grid}>
           {menuItems.map(item => {
             const itemImageUri = getMenuItemImageValue(item);
-            console.log(
-              `[AdminMenuList] render itemId=${item.id} image=${itemImageUri || 'none'}`,
-            );
 
             return (
               <RNView

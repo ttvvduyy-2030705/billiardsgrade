@@ -63,18 +63,19 @@ class CartImmersiveModule(
       val horizontalPadding = (22 * density).toInt()
       val verticalPadding = (10 * density).toInt()
 
+      val isMultiline = keyboardType == "multiline"
+      val isNote = keyboardType == "note"
       val input = EditText(activity).apply {
-        val isMultiline = keyboardType == "multiline"
-
         hint = placeholder
-        setSingleLine(!isMultiline)
-        if (isMultiline) {
+        setSingleLine(!(isMultiline || isNote))
+        setHorizontallyScrolling(false)
+        if (isMultiline || isNote) {
           minLines = 3
           maxLines = 5
         }
         setText(initialValue)
         setSelection(text?.length ?: 0)
-        imeOptions = if (isMultiline) {
+        imeOptions = if (isMultiline && !isNote) {
           EditorInfo.IME_ACTION_NONE
         } else {
           EditorInfo.IME_ACTION_DONE
@@ -85,6 +86,9 @@ class CartImmersiveModule(
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
             InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
             InputType.TYPE_TEXT_FLAG_MULTI_LINE
+          "note" -> InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
+            InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
           else -> InputType.TYPE_CLASS_TEXT or
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or
             InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
@@ -116,7 +120,7 @@ class CartImmersiveModule(
         val isEnterUp = event?.keyCode == KeyEvent.KEYCODE_ENTER &&
           event.action == KeyEvent.ACTION_UP
 
-        if (isDoneAction || isEnterUp) {
+        if ((!isMultiline || isNote) && (isDoneAction || isEnterUp)) {
           resolveOnce(input.text?.toString() ?: "")
           dialog.dismiss()
           true
