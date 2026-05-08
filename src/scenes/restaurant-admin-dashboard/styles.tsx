@@ -463,6 +463,39 @@ const createStyles = ({design, isWide}: Args) => {
       flexWrap: 'wrap',
       gap: spacing.md,
     },
+    adminFilterPanel: {
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      backgroundColor: 'rgba(255,255,255,0.035)',
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    adminSearchRow: {
+      flexDirection: isWide ? 'row' : 'column',
+      alignItems: isWide ? 'flex-end' : 'stretch',
+      gap: spacing.sm,
+    },
+    adminSearchBox: {
+      flex: 1,
+      minWidth: isWide ? 320 : undefined,
+    },
+    adminFilterSummaryRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255,255,255,0.08)',
+    },
+    adminFilterSummaryText: {
+      color: 'rgba(255,255,255,0.62)',
+      fontSize: font.body,
+      fontWeight: '800',
+    },
     menuCard: {
       width: isWide ? '31.8%' : '100%',
       minWidth: isWide ? 260 : undefined,
@@ -522,6 +555,16 @@ const createStyles = ({design, isWide}: Args) => {
       color: '#FFFFFF',
       fontSize: font.body,
       fontWeight: '900',
+    },
+    menuCardActionRow: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      marginTop: spacing.sm,
+    },
+    menuCardActionButton: {
+      flex: 1,
+      marginTop: 0,
+      paddingHorizontal: spacing.sm,
     },
     emptyState: {
       alignItems: 'center',

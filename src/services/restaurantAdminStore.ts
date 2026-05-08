@@ -1,5 +1,6 @@
 import {
   deleteMenuCategory,
+  deleteMenuItem,
   getMenuItemImageValue,
   loadMenuCategories,
   loadMenuItems,
@@ -159,6 +160,15 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
   console.log(
     `[AdminMenuStore] after update item image=${getMenuItemImageValue(savedItem) || 'none'}`,
   );
+
+  return nextItems;
+};
+
+
+export const deleteAdminMenuItem = async (itemId: string) => {
+  const nextItems = await deleteMenuItem(itemId);
+
+  console.log(`[AdminMenuStore] delete item id=${itemId}`);
 
   return nextItems;
 };

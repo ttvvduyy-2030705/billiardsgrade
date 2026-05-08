@@ -271,6 +271,10 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const categoryCounts = useMemo(() => {
     return items.reduce<Record<string, number>>((result, item) => {
+      if (item.status === 'HIDDEN') {
+        return result;
+      }
+
       result[item.categoryId] = (result[item.categoryId] || 0) + 1;
       return result;
     }, {});
@@ -278,7 +282,7 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const visibleItems = useMemo(() => {
     return items.filter(
-      item => item.available && item.categoryId === selectedCategory?.id,
+      item => item.status !== 'HIDDEN' && item.categoryId === selectedCategory?.id,
     );
   }, [items, selectedCategory?.id]);
 
@@ -800,8 +804,12 @@ const RestaurantMenuScreen = (props: Props) => {
   const renderQuantityOrAdd = (item: RestaurantMenuItem) => {
     const quantity = cartItemMap[item.id]?.quantity || 0;
 
-    if (!item.available) {
-      return <RNText style={styles.disabledText}>Tạm hết</RNText>;
+    if (item.status === 'OUT_OF_STOCK' || !item.available) {
+      return (
+        <RNText style={styles.disabledText}>
+          {item.status === 'OUT_OF_STOCK' ? 'Hết hàng' : 'Tạm ẩn'}
+        </RNText>
+      );
     }
 
     if (quantity <= 0) {

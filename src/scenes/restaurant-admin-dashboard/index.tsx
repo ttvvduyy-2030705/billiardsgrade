@@ -18,6 +18,7 @@ import {
   AdminOrderStatus,
   AdminPaymentStatus,
   deleteAdminMenuCategory,
+  deleteAdminMenuItem,
   loadRestaurantAdminData,
   saveAdminMenuCategory,
   saveAdminMenuItem,
@@ -127,6 +128,15 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
   const onSaveMenuItem = async (input: Parameters<typeof saveAdminMenuItem>[0]) => {
     const nextItems = await saveAdminMenuItem(input);
+    setMenuItems(nextItems);
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
+    return nextItems;
+  };
+
+
+  const onDeleteMenuItem = async (itemId: string) => {
+    const nextItems = await deleteAdminMenuItem(itemId);
     setMenuItems(nextItems);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
@@ -256,6 +266,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
                 styles={styles}
                 onSaveItem={onSaveMenuItem}
                 onSaveCategory={onSaveMenuCategory}
+                onDeleteItem={onDeleteMenuItem}
                 onDeleteCategory={onDeleteMenuCategory}
               />
             )}
