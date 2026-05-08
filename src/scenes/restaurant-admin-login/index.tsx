@@ -1,11 +1,10 @@
-import React, {memo, useRef, useMemo, useState} from 'react';
+import React, {memo, useCallback, useMemo, useState} from 'react';
 import {
-  KeyboardAvoidingView,
+  NativeModules,
   Platform,
   Pressable,
   ScrollView,
   Text as RNText,
-  TextInput,
   View as RNView,
 } from 'react-native';
 
@@ -24,9 +23,71 @@ import {Navigation} from 'types/navigation';
 import createStyles from './styles';
 
 type AuthMode = 'login' | 'register';
+type AuthField = 'username' | 'password' | 'confirmPassword';
+type AuthFormValues = Record<AuthField, string>;
 
 type Props = Navigation & {
   initialMode?: AuthMode;
+};
+
+const EMPTY_FORM_VALUES: AuthFormValues = {
+  username: '',
+  password: '',
+  confirmPassword: '',
+};
+
+/**
+ * Keep the auth draft outside React state on purpose.
+ *
+ * The restaurant cart inputs already work because their typed values are stored
+ * in a module-level session before the fullscreen/keyboard/native-dialog flow
+ * causes any React refresh. The Admin auth screen must behave the same way:
+ * native dialog -> commit into session immediately -> mirror session into UI.
+ */
+let adminAuthDraftSession: AuthFormValues = {...EMPTY_FORM_VALUES};
+let adminAuthModeSession: AuthMode = 'login';
+let adminAuthDraftVersion = 0;
+
+const AuthInputModule =
+  Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
+
+const cloneDraftSession = (): AuthFormValues => ({...adminAuthDraftSession});
+
+const replaceDraftSession = (nextValues: AuthFormValues) => {
+  adminAuthDraftSession = {...nextValues};
+  adminAuthDraftVersion += 1;
+};
+
+const updateDraftField = (field: AuthField, value: string) => {
+  replaceDraftSession({
+    ...adminAuthDraftSession,
+    [field]: value,
+  });
+};
+
+const resetDraftSession = () => {
+  replaceDraftSession({...EMPTY_FORM_VALUES});
+};
+
+const maskPassword = (value: string) => {
+  if (!value) {
+    return '';
+  }
+
+  return '•'.repeat(Math.max(4, value.length));
+};
+
+const getFieldTitle = (field: AuthField) => {
+  switch (field) {
+    case 'username':
+      return 'Tài khoản Admin';
+    case 'password':
+      return 'Mật khẩu Admin';
+    case 'confirmPassword':
+      return 'Nhập lại mật khẩu';
+    default:
+      return 'Thông tin Admin';
+  }
 };
 
 const RestaurantAdminLoginScreen = (props: Props) => {
@@ -35,39 +96,111 @@ const RestaurantAdminLoginScreen = (props: Props) => {
   const {design} = useDesignSystem();
   const styles = useMemo(() => createStyles({design}), [design]);
 
-  const [authMode, setAuthMode] = useState<AuthMode>(
-    props.initialMode === 'register' ? 'register' : 'login',
-  );
-  const usernameInputRef = useRef<TextInput>(null);
-  const passwordInputRef = useRef<TextInput>(null);
-  const confirmPasswordInputRef = useRef<TextInput>(null);
-  const usernameValueRef = useRef('');
-  const passwordValueRef = useRef('');
-  const confirmPasswordValueRef = useRef('');
+  const initialMode = props.initialMode === 'register' ? 'register' : adminAuthModeSession;
+  const [authMode, setAuthModeState] = useState<AuthMode>(initialMode);
+  const [formValues, setFormValues] = useState<AuthFormValues>(() => cloneDraftSession());
+  const [, setDraftVersion] = useState(adminAuthDraftVersion);
+  const [activeField, setActiveField] = useState<AuthField | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const resetNativeInputs = () => {
-    usernameInputRef.current?.setNativeProps({text: usernameValueRef.current});
-    passwordInputRef.current?.setNativeProps({text: passwordValueRef.current});
-    confirmPasswordInputRef.current?.setNativeProps({text: confirmPasswordValueRef.current});
-  };
+  const syncDraftToUi = useCallback(() => {
+    const nextSnapshot = cloneDraftSession();
+    setFormValues(nextSnapshot);
+    setDraftVersion(adminAuthDraftVersion);
+  }, []);
+
+  const commitFieldValue = useCallback(
+    (field: AuthField, value: string) => {
+      updateDraftField(field, value);
+      syncDraftToUi();
+
+      // Android native dialog can close while fullscreen/system UI is restoring.
+      // These delayed mirrors make sure the visible field updates even if the
+      // screen briefly loses focus or refreshes during keyboard dismissal.
+      requestAnimationFrame(syncDraftToUi);
+      setTimeout(syncDraftToUi, 80);
+      setTimeout(syncDraftToUi, 240);
+    },
+    [syncDraftToUi],
+  );
 
   const switchMode = (nextMode: AuthMode) => {
-    usernameValueRef.current = '';
-    passwordValueRef.current = '';
-    confirmPasswordValueRef.current = '';
-    setAuthMode(nextMode);
+    adminAuthModeSession = nextMode;
+    resetDraftSession();
+    setAuthModeState(nextMode);
+    setActiveField(null);
     setErrorMessage('');
     setInfoMessage('');
-    requestAnimationFrame(resetNativeInputs);
+    syncDraftToUi();
+    requestAnimationFrame(syncDraftToUi);
   };
+
+  const getFieldPlaceholder = (field: AuthField) => {
+    if (field === 'username') {
+      return authMode === 'login' ? 'Nhập tài khoản Admin' : 'Tạo tài khoản Admin';
+    }
+
+    if (field === 'password') {
+      return authMode === 'login'
+        ? 'Nhập mật khẩu Admin'
+        : 'Tạo mật khẩu tối thiểu 6 ký tự';
+    }
+
+    return 'Nhập lại mật khẩu';
+  };
+
+  const showNativeInputDialog = useCallback(
+    async (field: AuthField) => {
+      if (submitting) {
+        return;
+      }
+
+      setErrorMessage('');
+      setInfoMessage('');
+      setActiveField(field);
+
+      const isPassword = field === 'password' || field === 'confirmPassword';
+
+      try {
+        const nativeDialog = (AuthInputModule as any)?.showCartTextInputDialog;
+
+        if (Platform.OS !== 'android' || typeof nativeDialog !== 'function') {
+          setErrorMessage('Không mở được ô nhập native trên thiết bị này.');
+          return;
+        }
+
+        const nextValue = await nativeDialog(
+          getFieldTitle(field),
+          getFieldPlaceholder(field),
+          adminAuthDraftSession[field],
+          isPassword ? 'password' : 'text',
+          `admin-auth-${field}`,
+        );
+
+        if (typeof nextValue === 'string') {
+          commitFieldValue(field, nextValue);
+        } else {
+          syncDraftToUi();
+        }
+      } catch (error) {
+        console.warn('[RestaurantAdminLogin] native input failed', error);
+        setErrorMessage('Không thể mở ô nhập. Vui lòng thử lại.');
+      } finally {
+        setActiveField(null);
+        requestAnimationFrame(syncDraftToUi);
+      }
+    },
+    [authMode, commitFieldValue, submitting, syncDraftToUi],
+  );
 
   const onLogin = async () => {
     if (submitting) {
       return;
     }
+
+    const currentValues = adminAuthDraftSession;
 
     setSubmitting(true);
     setErrorMessage('');
@@ -75,8 +208,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
     try {
       const result = await loginRestaurantAdmin(
-        usernameValueRef.current,
-        passwordValueRef.current,
+        currentValues.username,
+        currentValues.password,
       );
 
       if (!result.ok || !result.session) {
@@ -97,9 +230,10 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       return;
     }
 
-    const cleanPassword = passwordValueRef.current.trim();
+    const currentValues = adminAuthDraftSession;
+    const cleanPassword = currentValues.password.trim();
 
-    if (cleanPassword !== confirmPasswordValueRef.current.trim()) {
+    if (cleanPassword !== currentValues.confirmPassword.trim()) {
       setErrorMessage('Mật khẩu nhập lại chưa khớp');
       return;
     }
@@ -110,8 +244,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
     try {
       const result = await registerRestaurantAdminAccount(
-        usernameValueRef.current,
-        passwordValueRef.current,
+        currentValues.username,
+        currentValues.password,
       );
 
       if (!result.ok) {
@@ -120,16 +254,23 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       }
 
       setInfoMessage(result.message);
-      setAuthMode('login');
-      passwordValueRef.current = '';
-      confirmPasswordValueRef.current = '';
-      requestAnimationFrame(resetNativeInputs);
+      adminAuthModeSession = 'login';
+      setAuthModeState('login');
+      replaceDraftSession({
+        username: currentValues.username,
+        password: '',
+        confirmPassword: '',
+      });
+      syncDraftToUi();
+      requestAnimationFrame(syncDraftToUi);
     } finally {
       setSubmitting(false);
     }
   };
 
   const submit = () => {
+    syncDraftToUi();
+
     if (authMode === 'login') {
       void onLogin();
       return;
@@ -140,10 +281,39 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
   const isLogin = authMode === 'login';
 
+  const renderNativeInputField = (
+    field: AuthField,
+    label: string,
+    placeholder: string,
+    secure = false,
+  ) => {
+    const rawValue = formValues[field] ?? adminAuthDraftSession[field] ?? '';
+    const displayValue = secure ? maskPassword(rawValue) : rawValue;
+    const isActive = activeField === field;
+
+    return (
+      <RNView style={styles.fieldBlock}>
+        <RNText style={styles.label}>{label}</RNText>
+        <Pressable
+          disabled={submitting}
+          onPress={() => void showNativeInputDialog(field)}
+          style={[
+            styles.inputButton,
+            isActive ? styles.inputButtonPressed : null,
+            submitting ? styles.inputButtonDisabled : null,
+          ]}>
+          <RNText
+            numberOfLines={1}
+            style={displayValue ? styles.inputButtonText : styles.inputButtonPlaceholder}>
+            {displayValue || placeholder}
+          </RNText>
+        </Pressable>
+      </RNView>
+    );
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <RNView style={styles.screen}>
       <View style={styles.glowTop} />
       <View style={styles.glowBottom} />
 
@@ -157,7 +327,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         keyboardDismissMode="none"
         showsVerticalScrollIndicator={false}>
         <RNView style={styles.card}>
@@ -171,67 +341,27 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               : 'Tạo tài khoản Admin local cho giai đoạn demo. Phần này đã được tách riêng để sau này thay bằng API/backend thật.'}
           </RNText>
 
-          <RNView style={styles.fieldBlock}>
-            <RNText style={styles.label}>Tài khoản</RNText>
-            <TextInput
-              ref={usernameInputRef}
-              key={`username-${authMode}`}
-              defaultValue={usernameValueRef.current}
-              onChangeText={text => {
-                usernameValueRef.current = text;
-              }}
-              placeholder={isLogin ? 'Nhập tài khoản Admin' : 'Tạo tài khoản Admin'}
-              placeholderTextColor="rgba(255,255,255,0.38)"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordInputRef.current?.focus()}
-              style={styles.input}
-            />
-          </RNView>
+          {renderNativeInputField(
+            'username',
+            'Tài khoản',
+            isLogin ? 'Nhập tài khoản Admin' : 'Tạo tài khoản Admin',
+          )}
 
-          <RNView style={styles.fieldBlock}>
-            <RNText style={styles.label}>Mật khẩu</RNText>
-            <TextInput
-              ref={passwordInputRef}
-              key={`password-${authMode}`}
-              defaultValue={passwordValueRef.current}
-              onChangeText={text => {
-                passwordValueRef.current = text;
-              }}
-              placeholder={isLogin ? 'Nhập mật khẩu Admin' : 'Tạo mật khẩu tối thiểu 6 ký tự'}
-              placeholderTextColor="rgba(255,255,255,0.38)"
-              secureTextEntry
-              returnKeyType={isLogin ? 'done' : 'next'}
-              blurOnSubmit={isLogin}
-              onSubmitEditing={
-                isLogin ? submit : () => confirmPasswordInputRef.current?.focus()
-              }
-              style={styles.input}
-            />
-          </RNView>
+          {renderNativeInputField(
+            'password',
+            'Mật khẩu',
+            isLogin ? 'Nhập mật khẩu Admin' : 'Tạo mật khẩu tối thiểu 6 ký tự',
+            true,
+          )}
 
-          {!isLogin ? (
-            <RNView style={styles.fieldBlock}>
-              <RNText style={styles.label}>Nhập lại mật khẩu</RNText>
-              <TextInput
-                ref={confirmPasswordInputRef}
-                key={`confirm-${authMode}`}
-                defaultValue={confirmPasswordValueRef.current}
-                onChangeText={text => {
-                  confirmPasswordValueRef.current = text;
-                }}
-                placeholder="Nhập lại mật khẩu"
-                placeholderTextColor="rgba(255,255,255,0.38)"
-                secureTextEntry
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={submit}
-                style={styles.input}
-              />
-            </RNView>
-          ) : null}
+          {!isLogin
+            ? renderNativeInputField(
+                'confirmPassword',
+                'Nhập lại mật khẩu',
+                'Nhập lại mật khẩu',
+                true,
+              )
+            : null}
 
           {errorMessage ? (
             <RNView style={styles.errorBox}>
@@ -274,7 +404,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           </RNText>
         </RNView>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </RNView>
   );
 };
 

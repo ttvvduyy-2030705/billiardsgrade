@@ -24,15 +24,15 @@ import {screens} from 'scenes/screens';
 import {Navigation} from 'types/navigation';
 
 import {
-  clearCurrentCart,
   createRestaurantOrder,
   getCategoryNameById,
   getMenuItemImageValue,
-  loadCurrentCart,
-  loadMenuCategories,
-  loadMenuItems,
-  saveCurrentCart,
 } from 'services/restaurantMenuStorage';
+import {
+  useRestaurantCartStore,
+  type RestaurantCartFieldType,
+} from '../../stores/RestaurantCartStore';
+import {useRestaurantMenuStore} from '../../stores/RestaurantMenuStore';
 
 const CartImmersiveModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
@@ -40,7 +40,6 @@ const CartImmersiveModule =
 import type {
   MenuCategory,
   RestaurantCartItem,
-  RestaurantCartState,
   RestaurantMenuItem,
 } from 'services/restaurantMenuStorage';
 
@@ -48,7 +47,7 @@ import createStyles from './styles';
 
 type Props = Navigation;
 
-type CartFieldInputType = 'table' | 'note';
+type CartFieldInputType = RestaurantCartFieldType;
 
 type CartFieldInputState = {
   visible: boolean;
@@ -60,37 +59,11 @@ const formatCurrency = (value: number) => {
   return `${Math.max(0, value || 0).toLocaleString('vi-VN')}đ`;
 };
 
-const createEmptyCart = (): RestaurantCartState => ({
-  tableNumber: '',
-  note: '',
-  items: [],
-});
-
 const createClosedCartFieldInput = (): CartFieldInputState => ({
   visible: false,
   type: 'table',
   draftValue: '',
 });
-
-const hasCartContent = (cartState: RestaurantCartState) => {
-  return (
-    (Array.isArray(cartState.items) ? cartState.items.length : 0) > 0 ||
-    String(cartState.tableNumber || '').trim().length > 0 ||
-    String(cartState.note || '').trim().length > 0
-  );
-};
-
-// Keep cart/modal state outside the component so a native Modal focus/remount
-// cannot reset the overlay to false or flicker the cart back to an empty state.
-let cartVisibleSession = false;
-let cartSession: RestaurantCartState = createEmptyCart();
-let hasCartSession = false;
-let cartMutationVersion = 0;
-let cartHydrateRequestId = 0;
-let cartInputFocusedSession = false;
-let cartKeyboardVisibleSession = false;
-let cartMenuItemSnapshotSession: Record<string, RestaurantMenuItem> = {};
-let cartFieldInputVisibleSession = false;
 
 const getMenuImageSource = (rawImageValue?: string): ImageSourcePropType => {
   const imageValue = (rawImageValue || '').trim();
@@ -158,17 +131,30 @@ const RestaurantMenuScreen = (props: Props) => {
   const isCustomerStacked = adaptive.width < 760;
   const isCompactHeader = adaptive.width < 560;
 
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
-  const [items, setItems] = useState<RestaurantMenuItem[]>([]);
-  const [cart, setCartState] = useState<RestaurantCartState>(() =>
-    hasCartSession ? cartSession : createEmptyCart(),
-  );
-  const [cartDisplayVersion, setCartDisplayVersion] = useState(0);
-  const [cartHydrated, setCartHydrated] = useState(hasCartSession);
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [cartModalVisible, setCartModalVisibleState] = useState(
-    () => cartVisibleSession,
-  );
+  const {
+    categories,
+    items,
+    selectedCategoryId,
+    setSelectedCategoryId,
+    refreshMenuData,
+  } = useRestaurantMenuStore();
+  const {
+    cart,
+    cartHydrated,
+    cartModalVisible,
+    cartDisplayVersion,
+    cartSubmitting,
+    setCartSubmitting,
+    hydrateCartFromStorage,
+    persistCurrentCart,
+    clearCart,
+    changeQuantity: changeCartQuantity,
+    commitCartFieldValue,
+    setCartModalVisible,
+    updateMenuItemSnapshot,
+    getSnapshotMenuItem,
+    getActiveCart,
+  } = useRestaurantCartStore();
   const [cartFieldInput, setCartFieldInput] = useState<CartFieldInputState>(
     createClosedCartFieldInput,
   );
@@ -179,81 +165,16 @@ const RestaurantMenuScreen = (props: Props) => {
   const [cartFieldKeyboardHeight, setCartFieldKeyboardHeight] = useState(0);
   const cartOpenStartedAtRef = useRef(0);
   const cartFieldInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
-  const cartInputFocusedRef = useRef(cartInputFocusedSession);
-  const cartKeyboardVisibleRef = useRef(cartKeyboardVisibleSession);
+  const cartInputFocusedRef = useRef(false);
+  const cartKeyboardVisibleRef = useRef(false);
   const cartFullscreenTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const cartFieldInputFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cartFieldInputVisibleRef = useRef(cartFieldInputVisibleSession);
-  const cartMenuItemSnapshotRef = useRef<Record<string, RestaurantMenuItem>>(
-    cartMenuItemSnapshotSession,
-  );
+  const cartFieldInputVisibleRef = useRef(false);
 
   const showMessage = useCallback((text: string) => {
     setMessage(text);
     setErrorMessage('');
   }, []);
-
-  const setCart = useCallback((next: React.SetStateAction<RestaurantCartState>) => {
-    setCartHydrated(true);
-    setCartState(current => {
-      const resolved =
-        typeof next === 'function'
-          ? (next as (previous: RestaurantCartState) => RestaurantCartState)(current)
-          : next;
-
-      cartSession = resolved;
-      hasCartSession = true;
-      cartMutationVersion += 1;
-      return resolved;
-    });
-  }, []);
-
-  const hydrateCartFromStorage = useCallback(
-    (nextCart: RestaurantCartState, startedAtVersion: number) => {
-      setCartState(current => {
-        const mutationHappenedDuringLoad = cartMutationVersion !== startedAtVersion;
-        const currentHasCart = hasCartContent(current);
-        const loadedHasCart = hasCartContent(nextCart);
-
-        if (mutationHappenedDuringLoad) {
-          hasCartSession = true;
-          cartSession = current;
-          return current;
-        }
-
-        if (hasCartSession && currentHasCart && !loadedHasCart) {
-          cartSession = current;
-          return current;
-        }
-
-        hasCartSession = true;
-        cartSession = nextCart;
-        return nextCart;
-      });
-      setCartHydrated(true);
-    },
-    [],
-  );
-
-  const bumpCartDisplayVersion = useCallback(() => {
-    setCartDisplayVersion(version => version + 1);
-  }, []);
-
-  const bumpCartDisplayVersionAfterNativeDialog = useCallback(() => {
-    bumpCartDisplayVersion();
-
-    requestAnimationFrame(() => {
-      bumpCartDisplayVersion();
-    });
-
-    setTimeout(() => {
-      bumpCartDisplayVersion();
-    }, 80);
-
-    setTimeout(() => {
-      bumpCartDisplayVersion();
-    }, 240);
-  }, [bumpCartDisplayVersion]);
 
   const clearCartFullscreenTimers = useCallback(() => {
     cartFullscreenTimersRef.current.forEach(timer => clearTimeout(timer));
@@ -265,11 +186,6 @@ const RestaurantMenuScreen = (props: Props) => {
       clearTimeout(cartFieldInputFocusTimerRef.current);
       cartFieldInputFocusTimerRef.current = null;
     }
-  }, []);
-
-  const setCartModalVisible = useCallback((visible: boolean) => {
-    cartVisibleSession = visible;
-    setCartModalVisibleState(visible);
   }, []);
 
   const pauseCartInputImmersive = useCallback((source: string) => {
@@ -316,32 +232,15 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const refreshData = useCallback(async (source = 'manual') => {
-    const requestId = cartHydrateRequestId + 1;
-    const startedAtVersion = cartMutationVersion;
-    cartHydrateRequestId = requestId;
+    void source;
 
-    const [nextCategories, nextItems, nextCart] = await Promise.all([
-      loadMenuCategories(),
-      loadMenuItems(),
-      loadCurrentCart(),
+    const [, menuResult] = await Promise.all([
+      hydrateCartFromStorage(),
+      refreshMenuData(),
     ]);
 
-    if (requestId !== cartHydrateRequestId) {
-      return;
-    }
-
-    setCategories(nextCategories);
-    setItems(nextItems);
-    hydrateCartFromStorage(nextCart, startedAtVersion);
-
-    const firstCategoryId = nextCategories[0]?.id || '';
-    setSelectedCategoryId(current => {
-      if (current && nextCategories.some(category => category.id === current)) {
-        return current;
-      }
-      return firstCategoryId;
-    });
-  }, [hydrateCartFromStorage]);
+    updateMenuItemSnapshot(menuResult.items);
+  }, [hydrateCartFromStorage, refreshMenuData, updateMenuItemSnapshot]);
 
   useEffect(() => {
     void refreshData('mount');
@@ -359,21 +258,12 @@ const RestaurantMenuScreen = (props: Props) => {
       return;
     }
 
-    void saveCurrentCart(cart);
-  }, [cart, cartHydrated]);
+    void persistCurrentCart(cart);
+  }, [cart, cartHydrated, persistCurrentCart]);
 
   useEffect(() => {
-    if (items.length === 0) {
-      return;
-    }
-
-    const nextSnapshot = {...cartMenuItemSnapshotRef.current};
-    items.forEach(item => {
-      nextSnapshot[item.id] = item;
-    });
-    cartMenuItemSnapshotRef.current = nextSnapshot;
-    cartMenuItemSnapshotSession = nextSnapshot;
-  }, [items]);
+    updateMenuItemSnapshot(items);
+  }, [items, updateMenuItemSnapshot]);
 
   const selectedCategory = useMemo<MenuCategory | undefined>(() => {
     return categories.find(category => category.id === selectedCategoryId) || categories[0];
@@ -404,7 +294,7 @@ const RestaurantMenuScreen = (props: Props) => {
       .map(cartItem => {
         const menuItem =
           items.find(item => item.id === cartItem.itemId) ||
-          cartMenuItemSnapshotRef.current[cartItem.itemId];
+          getSnapshotMenuItem(cartItem.itemId);
 
         if (!menuItem || cartItem.quantity <= 0) {
           return null;
@@ -422,7 +312,7 @@ const RestaurantMenuScreen = (props: Props) => {
       item: RestaurantMenuItem;
       lineTotal: number;
     }>;
-  }, [cart.items, items]);
+  }, [cart.items, getSnapshotMenuItem, items]);
 
   const cartTotal = useMemo(
     () => cartRows.reduce((total, row) => total + row.lineTotal, 0),
@@ -432,30 +322,20 @@ const RestaurantMenuScreen = (props: Props) => {
   const cartBadgeCount = cartRows.length;
 
   const displayCart = useMemo(() => {
-    // cartSession is a module-level session object. cartDisplayVersion forces
-    // this memo to refresh immediately after the native Android input dialog
-    // writes Số bàn/Ghi chú before React state has fully repainted the cart.
-    return hasCartSession ? cartSession : cart;
-  }, [cart, cartDisplayVersion]);
-
-  useEffect(() => {
-      }, [cartModalVisible]);
-
-  useEffect(() => {
-      }, [cart.items.length]);
+    // cartDisplayVersion forces this memo to refresh immediately after the
+    // native Android input dialog writes Số bàn/Ghi chú and closes.
+    return getActiveCart();
+  }, [cart, cartDisplayVersion, getActiveCart]);
 
   const closeCart = useCallback(
     (source: string) => {
-            clearCartFullscreenTimers();
+      clearCartFullscreenTimers();
       clearCartFieldInputFocusTimer();
       Keyboard.dismiss();
-      cartFieldInputVisibleSession = false;
       cartFieldInputVisibleRef.current = false;
       setCartFieldInput(current =>
         current.visible ? {...current, visible: false} : current,
       );
-      cartInputFocusedSession = false;
-      cartKeyboardVisibleSession = false;
       cartInputFocusedRef.current = false;
       cartKeyboardVisibleRef.current = false;
       resumeCartInputImmersive('cart-close-' + source);
@@ -470,7 +350,7 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const openCart = useCallback(() => {
-        clearCartFullscreenTimers();
+    clearCartFullscreenTimers();
     cartOpenStartedAtRef.current = Date.now();
     setTableError('');
     setCartError('');
@@ -479,11 +359,9 @@ const RestaurantMenuScreen = (props: Props) => {
   }, [clearCartFullscreenTimers, setCartModalVisible]);
 
   useEffect(() => {
-    cartFieldInputVisibleSession = cartFieldInput.visible;
     cartFieldInputVisibleRef.current = cartFieldInput.visible;
 
     if (cartFieldInput.visible) {
-      cartInputFocusedSession = true;
       cartInputFocusedRef.current = true;
     }
 
@@ -498,43 +376,15 @@ const RestaurantMenuScreen = (props: Props) => {
       cartInputFocusedRef.current ||
       cartKeyboardVisibleRef.current
     ) {
-            return;
+      return;
     }
 
-        configureSystemUI({
+    configureSystemUI({
       barStyle: 'light-content',
       backgroundColor: 'transparent',
       animated: false,
     });
   }, []);
-
-  const pauseTextInputImmersive = useCallback(
-    (source: string) => {
-      clearCartFullscreenTimers();
-      cartInputFocusedSession = true;
-      cartInputFocusedRef.current = true;
-      pauseCartInputImmersive(source);
-    },
-    [clearCartFullscreenTimers, pauseCartInputImmersive],
-  );
-
-  const resumeTextInputImmersive = useCallback(
-    (source: string) => {
-      const timer = setTimeout(() => {
-        if (cartFieldInputVisibleRef.current) {
-          return;
-        }
-
-        cartInputFocusedSession = false;
-        cartInputFocusedRef.current = false;
-        resumeCartInputImmersive(source);
-        reinforceFullscreen(source);
-      }, 520);
-
-      cartFullscreenTimersRef.current.push(timer);
-    },
-    [reinforceFullscreen, resumeCartInputImmersive],
-  );
 
   const scheduleCartInputRestore = useCallback(
     (source: string, delay = 520) => {
@@ -547,10 +397,9 @@ const RestaurantMenuScreen = (props: Props) => {
           return;
         }
 
-        cartInputFocusedSession = false;
         cartInputFocusedRef.current = false;
         resumeCartInputImmersive(source);
-                reinforceFullscreen(source);
+        reinforceFullscreen(source);
       };
 
       const timer = setTimeout(restoreWhenClosed, delay);
@@ -561,38 +410,20 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const commitCartFieldInputValue = useCallback(
     (type: CartFieldInputType, value: string) => {
-      const baseCart = hasCartSession ? cartSession : cart;
-      const nextCart =
-        type === 'table'
-          ? {...baseCart, tableNumber: value}
-          : {...baseCart, note: value};
-
-
-      // Update the module-level session before React schedules a render. This
-      // prevents the cart footer from repainting with an older note/table value
-      // when the Android native dialog closes and fullscreen state is restored.
-      cartSession = nextCart;
-      hasCartSession = true;
-      cartMutationVersion += 1;
-      setCartHydrated(true);
-      setCartState(() => nextCart);
-      bumpCartDisplayVersionAfterNativeDialog();
-
-      void saveCurrentCart(nextCart);
+      commitCartFieldValue(type, value);
 
       if (type === 'table') {
         setTableError('');
       }
     },
-    [bumpCartDisplayVersionAfterNativeDialog, cart],
+    [commitCartFieldValue],
   );
 
   const openCartFieldInput = useCallback(
     async (type: CartFieldInputType) => {
       const source = `[CartFieldInput] open field: ${type}`;
-      const activeCart = hasCartSession ? cartSession : cart;
+      const activeCart = getActiveCart();
       const initialValue = type === 'table' ? activeCart.tableNumber : activeCart.note;
-
 
       if (cartFieldInputVisibleRef.current) {
         return;
@@ -601,11 +432,8 @@ const RestaurantMenuScreen = (props: Props) => {
       clearCartFullscreenTimers();
       clearCartFieldInputFocusTimer();
 
-      cartFieldInputVisibleSession = true;
       cartFieldInputVisibleRef.current = true;
-      cartInputFocusedSession = true;
       cartInputFocusedRef.current = true;
-      cartKeyboardVisibleSession = false;
       cartKeyboardVisibleRef.current = false;
       pauseCartInputImmersive(source);
 
@@ -630,17 +458,16 @@ const RestaurantMenuScreen = (props: Props) => {
         if (typeof nextValue === 'string') {
           commitCartFieldInputValue(type, nextValue);
         } else {
-                  }
+          // User cancelled native input dialog.
+        }
       } catch (error) {
-              } finally {
+        setCartError('Không thể nhập thông tin giỏ hàng. Vui lòng thử lại.');
+      } finally {
         clearCartFullscreenTimers();
         clearCartFieldInputFocusTimer();
         setCartFieldKeyboardHeight(0);
-        cartFieldInputVisibleSession = false;
         cartFieldInputVisibleRef.current = false;
-        cartInputFocusedSession = false;
         cartInputFocusedRef.current = false;
-        cartKeyboardVisibleSession = false;
         cartKeyboardVisibleRef.current = false;
         setCartFieldInput(createClosedCartFieldInput());
         Keyboard.dismiss();
@@ -648,11 +475,10 @@ const RestaurantMenuScreen = (props: Props) => {
       }
     },
     [
-      cart.note,
-      cart.tableNumber,
       clearCartFieldInputFocusTimer,
       clearCartFullscreenTimers,
       commitCartFieldInputValue,
+      getActiveCart,
       pauseCartInputImmersive,
       scheduleCartInputRestore,
       showNativeCartFieldDialog,
@@ -660,13 +486,12 @@ const RestaurantMenuScreen = (props: Props) => {
   );
 
   const cancelCartFieldInput = useCallback(() => {
-        clearCartFieldInputFocusTimer();
+    clearCartFieldInputFocusTimer();
     clearCartFullscreenTimers();
     setCartFieldInput(current =>
       current.visible ? {...current, visible: false} : current,
     );
     setCartFieldKeyboardHeight(0);
-    cartFieldInputVisibleSession = false;
     cartFieldInputVisibleRef.current = false;
     Keyboard.dismiss();
     scheduleCartInputRestore('cart-field-cancel');
@@ -689,7 +514,6 @@ const RestaurantMenuScreen = (props: Props) => {
     });
 
     setCartFieldKeyboardHeight(0);
-    cartFieldInputVisibleSession = false;
     cartFieldInputVisibleRef.current = false;
     Keyboard.dismiss();
     scheduleCartInputRestore('cart-field-commit');
@@ -745,8 +569,7 @@ const RestaurantMenuScreen = (props: Props) => {
     }
 
     const keyboardShow = Keyboard.addListener('keyboardDidShow', event => {
-            clearCartFullscreenTimers();
-      cartKeyboardVisibleSession = true;
+      clearCartFullscreenTimers();
       cartKeyboardVisibleRef.current = true;
       if (cartFieldInputVisibleRef.current) {
         setCartFieldKeyboardHeight(event.endCoordinates?.height || 0);
@@ -756,7 +579,6 @@ const RestaurantMenuScreen = (props: Props) => {
       // steal TextInput focus on Android and immediately dismiss keyboard.
     });
     const keyboardHide = Keyboard.addListener('keyboardDidHide', () => {
-            cartKeyboardVisibleSession = false;
       cartKeyboardVisibleRef.current = false;
       setCartFieldKeyboardHeight(0);
 
@@ -765,7 +587,6 @@ const RestaurantMenuScreen = (props: Props) => {
       if (cartFieldInputVisibleRef.current) {
         // The input dock remains open. Do not restore immersive or force refocus
         // here; doing either can create a keyboard show/hide loop on Android.
-                cartInputFocusedSession = false;
         cartInputFocusedRef.current = false;
         return;
       }
@@ -784,37 +605,20 @@ const RestaurantMenuScreen = (props: Props) => {
     scheduleCartInputRestore,
   ]);
 
-  const changeQuantity = useCallback((itemId: string, delta: number) => {
-    setCart(current => {
-      const existing = current.items.find(item => item.itemId === itemId);
-      const nextQuantity = Math.max(0, (existing?.quantity || 0) + delta);
-
-      if (nextQuantity === 0) {
-        return {
-          ...current,
-          items: current.items.filter(item => item.itemId !== itemId),
-        };
-      }
-
-      if (existing) {
-        return {
-          ...current,
-          items: current.items.map(item =>
-            item.itemId === itemId ? {...item, quantity: nextQuantity} : item,
-          ),
-        };
-      }
-
-      return {
-        ...current,
-        items: [...current.items, {itemId, quantity: nextQuantity}],
-      };
-    });
-    setCartError('');
-  }, []);
+  const changeQuantity = useCallback(
+    (itemId: string, delta: number) => {
+      changeCartQuantity(itemId, delta);
+      setCartError('');
+    },
+    [changeCartQuantity],
+  );
 
   const onSubmitOrder = useCallback(async () => {
-    const activeCart = hasCartSession ? cartSession : cart;
+    if (cartSubmitting) {
+      return;
+    }
+
+    const activeCart = getActiveCart();
     const tableNumber = activeCart.tableNumber.trim();
 
     if (cartRows.length === 0) {
@@ -836,20 +640,34 @@ const RestaurantMenuScreen = (props: Props) => {
       quantity: row.quantity,
     }));
 
-    await createRestaurantOrder({
-      tableNumber,
-      note: activeCart.note.trim(),
-      items: orderItems,
-      total: cartTotal,
-    });
+    setCartSubmitting(true);
 
-    await clearCurrentCart();
-    setCart(createEmptyCart());
-    setTableError('');
-    setCartError('');
-    closeCart('submit-success');
-    showMessage(`Đã gửi đơn cho bàn ${tableNumber}. Admin/quầy có thể xem ngay.`);
-  }, [cart, cartRows, cartTotal, closeCart, showMessage]);
+    try {
+      await createRestaurantOrder({
+        tableNumber,
+        note: activeCart.note.trim(),
+        items: orderItems,
+        total: cartTotal,
+      });
+
+      await clearCart();
+      setTableError('');
+      setCartError('');
+      closeCart('submit-success');
+      showMessage(`Đã gửi đơn cho bàn ${tableNumber}. Admin/quầy có thể xem ngay.`);
+    } finally {
+      setCartSubmitting(false);
+    }
+  }, [
+    cartRows,
+    cartSubmitting,
+    cartTotal,
+    clearCart,
+    closeCart,
+    getActiveCart,
+    setCartSubmitting,
+    showMessage,
+  ]);
 
   const renderNotice = () => {
     if (!message && !errorMessage) {
@@ -1147,8 +965,7 @@ const RestaurantMenuScreen = (props: Props) => {
           return;
         }
 
-        cartInputFocusedSession = true;
-        cartInputFocusedRef.current = true;
+          cartInputFocusedRef.current = true;
                 cartFieldInputRef.current?.focus();
       }, 0);
     };
@@ -1162,7 +979,7 @@ const RestaurantMenuScreen = (props: Props) => {
         presentationStyle="overFullScreen"
         onRequestClose={cancelCartFieldInput}
         onShow={() => {
-                    requestAnimationFrame(focusFieldInput);
+            requestAnimationFrame(focusFieldInput);
         }}>
         <RNView style={styles.fieldInputOverlayRoot}>
           <RNView pointerEvents="none" style={styles.fieldInputOverlayBackdrop} />
@@ -1206,14 +1023,12 @@ const RestaurantMenuScreen = (props: Props) => {
                 }
                 onFocus={() => {
                   clearCartFullscreenTimers();
-                  cartInputFocusedSession = true;
-                  cartInputFocusedRef.current = true;
-                                    pauseCartInputImmersive('[CartFieldInput] input focused');
+                              cartInputFocusedRef.current = true;
+                  pauseCartInputImmersive('[CartFieldInput] input focused');
                 }}
                 onBlur={() => {
                   if (!cartFieldInputVisibleRef.current) {
-                    cartInputFocusedSession = false;
-                    cartInputFocusedRef.current = false;
+              cartInputFocusedRef.current = false;
                   }
                 }}
                 placeholder={placeholder}
@@ -1307,11 +1122,14 @@ const RestaurantMenuScreen = (props: Props) => {
                 onPress: () => openCartFieldInput('note'),
               })}
               <Pressable
+                disabled={cartSubmitting}
                 onPress={() => {
-                                    onSubmitOrder();
+                  onSubmitOrder();
                 }}
-                style={styles.primaryButton}>
-                <RNText style={styles.primaryButtonText}>Gửi đơn</RNText>
+                style={[styles.primaryButton, cartSubmitting ? {opacity: 0.65} : null]}>
+                <RNText style={styles.primaryButtonText}>
+                  {cartSubmitting ? 'Đang gửi...' : 'Gửi đơn'}
+                </RNText>
               </Pressable>
             </View>
           </RNView>

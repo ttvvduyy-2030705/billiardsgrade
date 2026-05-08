@@ -117,6 +117,42 @@ const createStyles = ({design}: Args) => {
       fontSize: font.bodyLarge,
       paddingHorizontal: spacing.md,
     },
+    inputButton: {
+      minHeight: control.fieldHeight,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.10)',
+      backgroundColor: 'rgba(255,255,255,0.055)',
+      paddingHorizontal: spacing.md,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
+    inputButtonPressed: {
+      borderColor: 'rgba(229,58,66,0.46)',
+      backgroundColor: 'rgba(201,29,36,0.14)',
+    },
+    inputButtonDisabled: {
+      opacity: 0.64,
+    },
+    inputButtonText: {
+      flex: 1,
+      color: '#FFFFFF',
+      fontSize: font.bodyLarge,
+      fontWeight: '800',
+    },
+    inputButtonPlaceholder: {
+      color: 'rgba(255,255,255,0.38)',
+      fontWeight: '700',
+    },
+    inputButtonAction: {
+      color: '#FF8D92',
+      fontSize: font.small,
+      fontWeight: '900',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
     errorBox: {
       borderRadius: radius.lg,
       borderWidth: 1,

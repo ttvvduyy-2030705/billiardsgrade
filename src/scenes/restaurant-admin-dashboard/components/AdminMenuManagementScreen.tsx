@@ -72,11 +72,12 @@ type AdminMenuFormSession = {
   status: RestaurantMenuItemStatus;
 };
 
-const STATUS_OPTIONS: Array<{value: RestaurantMenuItemStatus; label: string}> = [
-  {value: 'SELLING', label: 'Đang bán'},
-  {value: 'HIDDEN', label: 'Tạm ẩn'},
-  {value: 'OUT_OF_STOCK', label: 'Hết hàng'},
-];
+const STATUS_OPTIONS: Array<{value: RestaurantMenuItemStatus; label: string}> =
+  [
+    {value: 'SELLING', label: 'Đang bán'},
+    {value: 'HIDDEN', label: 'Tạm ẩn'},
+    {value: 'OUT_OF_STOCK', label: 'Hết hàng'},
+  ];
 
 const formatCurrency = (value: number) =>
   `${Number(value || 0).toLocaleString('vi-VN')}đ`;
@@ -99,7 +100,9 @@ const getInitialStatus = (
   return item?.available === false ? 'HIDDEN' : 'SELLING';
 };
 
-const createEmptyFormSession = (categoryId = 'drink'): AdminMenuFormSession => ({
+const createEmptyFormSession = (
+  categoryId = 'drink',
+): AdminMenuFormSession => ({
   viewMode: 'list',
   selectedItemId: null,
   name: '',
@@ -131,7 +134,10 @@ const AdminMenuManagementScreen = ({
   onSaveCategory,
   onDeleteCategory,
 }: Props) => {
-  const defaultCategoryId = useMemo(() => categories[0]?.id || 'drink', [categories]);
+  const defaultCategoryId = useMemo(
+    () => categories[0]?.id || 'drink',
+    [categories],
+  );
 
   const [viewMode, setViewModeState] = useState<ViewMode>(
     () => adminMenuFormSession.viewMode,
@@ -173,7 +179,9 @@ const AdminMenuManagementScreen = ({
   };
 
   const resumeAdminFormInputImmersive = (field: string) => {
-    AdminFormImmersiveModule?.resumeAfterCartInput?.(`admin-menu-form-${field}`);
+    AdminFormImmersiveModule?.resumeAfterCartInput?.(
+      `admin-menu-form-${field}`,
+    );
   };
 
   const selectedItem = useMemo(() => {
@@ -274,7 +282,9 @@ const AdminMenuManagementScreen = ({
   };
 
   useEffect(() => {
-    const categoryStillExists = categories.some(category => category.id === categoryId);
+    const categoryStillExists = categories.some(
+      category => category.id === categoryId,
+    );
 
     if ((!categoryId || !categoryStillExists) && defaultCategoryId) {
       updateDraft({categoryId: defaultCategoryId});
@@ -392,7 +402,10 @@ const AdminMenuManagementScreen = ({
     const draftSelectedItemId = draft.selectedItemId ?? selectedItemId;
 
     const cleanName = draftName.trim();
-    const cleanPriceText = draftPrice.trim().replace(/\./g, '').replace(/,/g, '');
+    const cleanPriceText = draftPrice
+      .trim()
+      .replace(/\./g, '')
+      .replace(/,/g, '');
     const priceValue = Number(cleanPriceText);
     const cleanCategoryId = draftCategoryId.trim();
 
@@ -412,7 +425,9 @@ const AdminMenuManagementScreen = ({
     }
 
     const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
-    const itemId = isEdit ? String(draftSelectedItemId) : createLocalMenuItemId();
+    const itemId = isEdit
+      ? String(draftSelectedItemId)
+      : createLocalMenuItemId();
     const cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
     const editingItem = isEdit
       ? menuItems.find(item => item.id === itemId) || selectedItem
@@ -443,23 +458,40 @@ const AdminMenuManagementScreen = ({
     }
   };
 
-  const showNativeCategoryNameInput = async () => {
+  const showNativeTextInput = async ({
+    title,
+    placeholder,
+    initialValue,
+    keyboardType,
+    source,
+  }: {
+    title: string;
+    placeholder: string;
+    initialValue: string;
+    keyboardType: 'text' | 'number' | 'note';
+    source: string;
+  }) => {
     if (Platform.OS !== 'android') {
       return null;
     }
 
-    const nativeDialog = (AdminFormImmersiveModule as any)?.showCartTextInputDialog;
+    const nativeDialog = (AdminFormImmersiveModule as any)
+      ?.showCartTextInputDialog;
     if (typeof nativeDialog !== 'function') {
       return null;
     }
 
-    return nativeDialog(
-      categoryDraftId ? 'Sửa tên danh mục' : 'Thêm danh mục',
-      'VD: Cơm / Lẩu / Hải sản / Combo',
-      categoryDraftName,
-      'text',
-      'admin-category-name',
-    );
+    return nativeDialog(title, placeholder, initialValue, keyboardType, source);
+  };
+
+  const showNativeCategoryNameInput = async () => {
+    return showNativeTextInput({
+      title: categoryDraftId ? 'Sửa tên danh mục' : 'Thêm danh mục',
+      placeholder: 'VD: Cơm / Lẩu / Hải sản / Combo',
+      initialValue: categoryDraftName,
+      keyboardType: 'text',
+      source: 'admin-category-name',
+    });
   };
 
   const openCategoryNameInput = async () => {
@@ -473,6 +505,103 @@ const AdminMenuManagementScreen = ({
     } catch (nativeError) {
       console.warn('[AdminCategory] native input failed', nativeError);
     }
+  };
+
+  const openMenuFormInput = async (field: 'name' | 'price' | 'description') => {
+    const config = {
+      name: {
+        title: viewMode === 'edit' ? 'Sửa tên món' : 'Nhập tên món',
+        placeholder: 'Ví dụ: Coca lạnh',
+        keyboardType: 'text' as const,
+        initialValue: adminMenuFormSession.name,
+      },
+      price: {
+        title: 'Nhập giá món',
+        placeholder: '25000',
+        keyboardType: 'number' as const,
+        initialValue: adminMenuFormSession.price,
+      },
+      description: {
+        title: 'Nhập mô tả / ghi chú món',
+        placeholder: 'Mô tả ngắn hiển thị cho nhân viên/khách',
+        keyboardType: 'note' as const,
+        initialValue: adminMenuFormSession.description,
+      },
+    }[field];
+
+    setError('');
+
+    try {
+      const nextValue = await showNativeTextInput({
+        ...config,
+        source: `admin-menu-form-${field}`,
+      });
+
+      if (typeof nextValue === 'string') {
+        updateDraft({[field]: nextValue} as Partial<AdminMenuFormSession>);
+      }
+    } catch (nativeError) {
+      console.warn(`[AdminMenu] native ${field} input failed`, nativeError);
+    }
+  };
+
+  const renderMenuFormTextField = ({
+    field,
+    placeholder,
+    keyboardType = 'default',
+    multiline = false,
+  }: {
+    field: 'name' | 'price' | 'description';
+    placeholder: string;
+    keyboardType?: 'default' | 'number-pad';
+    multiline?: boolean;
+  }) => {
+    const currentValue =
+      field === 'name' ? name : field === 'price' ? price : description;
+
+    if (Platform.OS === 'android') {
+      return (
+        <Pressable
+          onPress={() => openMenuFormInput(field)}
+          style={[
+            styles.adminInput,
+            styles.adminInputButton,
+            multiline ? styles.adminTextArea : null,
+          ]}
+          disabled={saving}>
+          <RNText
+            style={
+              currentValue
+                ? styles.adminInputValueText
+                : styles.adminInputPlaceholderText
+            }
+            numberOfLines={multiline ? 4 : 1}>
+            {currentValue || placeholder}
+          </RNText>
+        </Pressable>
+      );
+    }
+
+    return (
+      <TextInput
+        key={`${field}-${viewMode}-${selectedItemId || 'new'}`}
+        defaultValue={adminMenuFormSession[field]}
+        onChangeText={text =>
+          updateDraft({[field]: text} as Partial<AdminMenuFormSession>, {
+            syncReactState: false,
+          })
+        }
+        onFocus={() => pauseAdminFormInputImmersive(field)}
+        onBlur={() => resumeAdminFormInputImmersive(field)}
+        placeholder={placeholder}
+        placeholderTextColor="rgba(255,255,255,0.36)"
+        keyboardType={keyboardType}
+        multiline={multiline}
+        style={[styles.adminInput, multiline ? styles.adminTextArea : null]}
+        textAlignVertical={multiline ? 'top' : undefined}
+        returnKeyType={field === 'name' ? 'next' : 'done'}
+      />
+    );
   };
 
   const submitCategory = async () => {
@@ -498,7 +627,8 @@ const AdminMenuManagementScreen = ({
         return;
       }
 
-      const nextDefaultCategoryId = result.categories[0]?.id || defaultCategoryId;
+      const nextDefaultCategoryId =
+        result.categories[0]?.id || defaultCategoryId;
       if (!categoryId && nextDefaultCategoryId) {
         updateDraft({categoryId: nextDefaultCategoryId});
       }
@@ -545,7 +675,9 @@ const AdminMenuManagementScreen = ({
       }
 
       if (categoryId === category.id) {
-        updateDraft({categoryId: result.categories[0]?.id || fallbackCategory.id});
+        updateDraft({
+          categoryId: result.categories[0]?.id || fallbackCategory.id,
+        });
       }
     } catch (deleteCategoryError) {
       console.warn('[AdminCategory] delete failed', deleteCategoryError);
@@ -625,7 +757,8 @@ const AdminMenuManagementScreen = ({
           <RNView>
             <RNText style={styles.sectionTitle}>Quản lý danh mục</RNText>
             <RNText style={styles.sectionHint}>
-              Thêm, sửa hoặc xoá danh mục. Menu khách hàng và form món sẽ lấy trực tiếp từ danh sách này.
+              Thêm, sửa hoặc xoá danh mục. Menu khách hàng và form món sẽ lấy
+              trực tiếp từ danh sách này.
             </RNText>
           </RNView>
           <Pressable
@@ -641,7 +774,8 @@ const AdminMenuManagementScreen = ({
             {categoryDraftId ? 'Sửa danh mục' : 'Thêm danh mục'}
           </RNText>
           <RNText style={styles.editModalHint}>
-            Tên danh mục được lưu vào AsyncStorage và dùng chung cho Admin + Menu khách hàng.
+            Tên danh mục được lưu vào AsyncStorage và dùng chung cho Admin +
+            Menu khách hàng.
           </RNText>
 
           <RNView style={styles.categoryFormRow}>
@@ -723,10 +857,14 @@ const AdminMenuManagementScreen = ({
           <RNView>
             <RNText style={styles.sectionTitle}>{formTitle}</RNText>
             <RNText style={styles.sectionHint}>
-              Nhập thông tin món. Bấm Huỷ để quay lại danh sách Quản lý món, không đổi sang Đơn hàng.
+              Nhập thông tin món. Bấm Huỷ để quay lại danh sách Quản lý món,
+              không đổi sang Đơn hàng.
             </RNText>
           </RNView>
-          <Pressable onPress={cancelForm} style={styles.cancelButton} disabled={saving}>
+          <Pressable
+            onPress={cancelForm}
+            style={styles.cancelButton}
+            disabled={saving}>
             <RNText style={styles.cancelButtonText}>Quay lại</RNText>
           </Pressable>
         </RNView>
@@ -736,36 +874,24 @@ const AdminMenuManagementScreen = ({
             <RNView>
               <RNText style={styles.editModalTitle}>{formTitle}</RNText>
               <RNText style={styles.editModalHint}>
-                Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng API.
+                Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng
+                API.
               </RNText>
             </RNView>
           </RNView>
 
           <RNText style={styles.inputLabel}>Tên món</RNText>
-          <TextInput
-            key={`name-${viewMode}-${selectedItemId || 'new'}`}
-            defaultValue={adminMenuFormSession.name}
-            onChangeText={text => updateDraft({name: text}, {syncReactState: false})}
-            onFocus={() => pauseAdminFormInputImmersive('name')}
-            onBlur={() => resumeAdminFormInputImmersive('name')}
-            placeholder="Ví dụ: Coca lạnh"
-            placeholderTextColor="rgba(255,255,255,0.36)"
-            style={styles.adminInput}
-            returnKeyType="next"
-          />
+          {renderMenuFormTextField({
+            field: 'name',
+            placeholder: 'Ví dụ: Coca lạnh',
+          })}
 
           <RNText style={styles.inputLabel}>Giá</RNText>
-          <TextInput
-            key={`price-${viewMode}-${selectedItemId || 'new'}`}
-            defaultValue={adminMenuFormSession.price}
-            onChangeText={text => updateDraft({price: text}, {syncReactState: false})}
-            onFocus={() => pauseAdminFormInputImmersive('price')}
-            onBlur={() => resumeAdminFormInputImmersive('price')}
-            placeholder="25000"
-            placeholderTextColor="rgba(255,255,255,0.36)"
-            keyboardType="number-pad"
-            style={styles.adminInput}
-          />
+          {renderMenuFormTextField({
+            field: 'price',
+            placeholder: '25000',
+            keyboardType: 'number-pad',
+          })}
 
           <RNText style={styles.inputLabel}>Danh mục</RNText>
           <RNView style={styles.categoryPickerWrap}>
@@ -792,18 +918,11 @@ const AdminMenuManagementScreen = ({
           </RNView>
 
           <RNText style={styles.inputLabel}>Mô tả / ghi chú món</RNText>
-          <TextInput
-            key={`description-${viewMode}-${selectedItemId || 'new'}`}
-            defaultValue={adminMenuFormSession.description}
-            onChangeText={text => updateDraft({description: text}, {syncReactState: false})}
-            onFocus={() => pauseAdminFormInputImmersive('description')}
-            onBlur={() => resumeAdminFormInputImmersive('description')}
-            placeholder="Mô tả ngắn hiển thị cho nhân viên/khách"
-            placeholderTextColor="rgba(255,255,255,0.36)"
-            multiline
-            style={[styles.adminInput, styles.adminTextArea]}
-            textAlignVertical="top"
-          />
+          {renderMenuFormTextField({
+            field: 'description',
+            placeholder: 'Mô tả ngắn hiển thị cho nhân viên/khách',
+            multiline: true,
+          })}
 
           <RNText style={styles.inputLabel}>Ảnh món</RNText>
           <RNView style={styles.imagePickerCard}>
@@ -815,8 +934,14 @@ const AdminMenuManagementScreen = ({
                 resizeMode="cover"
               />
             ) : (
-              <RNView style={[styles.imagePickerPreview, styles.imagePickerPlaceholder]}>
-                <RNText style={styles.imagePickerPlaceholderText}>Chưa có ảnh</RNText>
+              <RNView
+                style={[
+                  styles.imagePickerPreview,
+                  styles.imagePickerPlaceholder,
+                ]}>
+                <RNText style={styles.imagePickerPlaceholderText}>
+                  Chưa có ảnh
+                </RNText>
               </RNView>
             )}
 
@@ -825,7 +950,8 @@ const AdminMenuManagementScreen = ({
                 {imageUrl ? 'Ảnh món đã chọn' : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Ảnh được lưu vào field imageUrl. Admin và menu khách cùng đọc field này.
+                Ảnh được lưu vào field imageUrl. Admin và menu khách cùng đọc
+                field này.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
@@ -833,17 +959,23 @@ const AdminMenuManagementScreen = ({
                   style={styles.imagePickerButton}
                   disabled={saving || imagePicking}>
                   <RNText style={styles.imagePickerButtonText}>
-                    {imagePicking ? 'Đang mở...' : imageUrl ? 'Đổi ảnh' : 'Chọn ảnh từ máy'}
+                    {imagePicking
+                      ? 'Đang mở...'
+                      : imageUrl
+                        ? 'Đổi ảnh'
+                        : 'Chọn ảnh từ máy'}
                   </RNText>
                 </Pressable>
                 {imageUrl ? (
                   <Pressable
                     onPress={() => {
-                                            updateDraft({imageUrl: ''});
+                      updateDraft({imageUrl: ''});
                     }}
                     style={styles.imageRemoveButton}
                     disabled={saving || imagePicking}>
-                    <RNText style={styles.imageRemoveButtonText}>Xoá ảnh</RNText>
+                    <RNText style={styles.imageRemoveButtonText}>
+                      Xoá ảnh
+                    </RNText>
                   </Pressable>
                 ) : null}
               </RNView>
@@ -877,10 +1009,16 @@ const AdminMenuManagementScreen = ({
           {error ? <RNText style={styles.formError}>{error}</RNText> : null}
 
           <RNView style={styles.editModalFooter}>
-            <Pressable onPress={cancelForm} style={styles.cancelButton} disabled={saving}>
+            <Pressable
+              onPress={cancelForm}
+              style={styles.cancelButton}
+              disabled={saving}>
               <RNText style={styles.cancelButtonText}>Huỷ</RNText>
             </Pressable>
-            <Pressable onPress={submitForm} style={styles.saveButton} disabled={saving}>
+            <Pressable
+              onPress={submitForm}
+              style={styles.saveButton}
+              disabled={saving}>
               <RNText style={styles.saveButtonText}>
                 {saving ? 'Đang lưu...' : 'Lưu'}
               </RNText>
@@ -897,12 +1035,17 @@ const AdminMenuManagementScreen = ({
         <RNView>
           <RNText style={styles.sectionTitle}>Quản lý món / sản phẩm</RNText>
           <RNText style={styles.sectionHint}>
-            {menuItems.length} món · {categories.length} danh mục · Dữ liệu lưu local để sau này thay bằng API.
+            {menuItems.length} món · {categories.length} danh mục · Dữ liệu lưu
+            local để sau này thay bằng API.
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>
-          <Pressable onPress={openCategoryManager} style={styles.headerSecondaryButton}>
-            <RNText style={styles.headerSecondaryButtonText}>+ Thêm danh mục</RNText>
+          <Pressable
+            onPress={openCategoryManager}
+            style={styles.headerSecondaryButton}>
+            <RNText style={styles.headerSecondaryButtonText}>
+              + Thêm danh mục
+            </RNText>
           </Pressable>
           <Pressable onPress={openCreate} style={styles.primaryButton}>
             <RNText style={styles.primaryButtonText}>+ Thêm món</RNText>
@@ -914,7 +1057,9 @@ const AdminMenuManagementScreen = ({
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>🍽️</RNText>
           <RNText style={styles.emptyText}>Chưa có món nào</RNText>
-          <RNText style={styles.emptySubText}>Bấm “Thêm món” để tạo món local đầu tiên.</RNText>
+          <RNText style={styles.emptySubText}>
+            Bấm “Thêm món” để tạo món local đầu tiên.
+          </RNText>
         </RNView>
       ) : (
         <RNView style={styles.grid}>
@@ -942,7 +1087,9 @@ const AdminMenuManagementScreen = ({
                   <RNText style={styles.menuMeta} numberOfLines={1}>
                     {getCategoryLabel(item.categoryId, categories)}
                   </RNText>
-                  <RNText style={styles.priceText}>{formatCurrency(item.price)}</RNText>
+                  <RNText style={styles.priceText}>
+                    {formatCurrency(item.price)}
+                  </RNText>
                   <RNView
                     style={[
                       styles.statusPill,
@@ -965,7 +1112,9 @@ const AdminMenuManagementScreen = ({
                       {getMenuItemStatusLabel(item)}
                     </RNText>
                   </RNView>
-                  <Pressable onPress={() => openEdit(item)} style={styles.secondaryButton}>
+                  <Pressable
+                    onPress={() => openEdit(item)}
+                    style={styles.secondaryButton}>
                     <RNText style={styles.secondaryButtonText}>Sửa món</RNText>
                   </Pressable>
                 </RNView>
