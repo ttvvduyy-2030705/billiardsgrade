@@ -30,6 +30,10 @@ import {
   clearRestaurantAdminSession,
   getRestaurantAdminSession,
 } from "../../services/restaurantAdminAuthService";
+import {
+  resetRestaurantContextStore,
+  useRestaurantContextStore,
+} from "../../stores/RestaurantContextStore";
 import type {
   MenuCategory,
   RestaurantMenuItem,
@@ -101,6 +105,19 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const [sessionUsername, setSessionUsername] = useState(
     props.adminUsername || "",
   );
+  const [contextSwitching, setContextSwitching] = useState(false);
+  const {
+    context,
+    restaurants,
+    branches,
+    allowedRestaurantIds,
+    loading: contextLoading,
+    errorMessage: contextErrorMessage,
+    permissionMessage,
+    hydrateRestaurantContext,
+    switchRestaurant,
+    switchBranch,
+  } = useRestaurantContextStore();
 
   const setActiveTab = useCallback((nextTab: AdminDashboardTab) => {
     adminDashboardActiveTabSession = nextTab;
@@ -153,6 +170,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
       setSessionUsername(session.username);
       setRefreshing(true);
+      await hydrateRestaurantContext({session, source: "admin"});
 
       const next = await loadRestaurantAdminData();
       setOrders(next.orders);
@@ -164,7 +182,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     } finally {
       setRefreshing(false);
     }
-  }, [redirectToLogin, resetSensitiveData]);
+  }, [hydrateRestaurantContext, redirectToLogin, resetSensitiveData]);
 
   useEffect(() => {
     let isMounted = true;
@@ -185,6 +203,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         }
 
         setSessionUsername(session.username);
+        await hydrateRestaurantContext({session, source: "admin"});
         setAuthChecking(false);
       } catch (error) {
         devWarn("[RestaurantAdminDashboard] session check failed", error);
@@ -204,7 +223,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [redirectToLogin, resetSensitiveData]);
+  }, [hydrateRestaurantContext, redirectToLogin, resetSensitiveData]);
 
   useEffect(() => {
     if (!authChecking && sessionUsername) {
@@ -222,6 +241,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       devWarn("[RestaurantAdminDashboard] logout failed", error);
     } finally {
       resetSensitiveData();
+      resetRestaurantContextStore();
       redirectToLogin();
     }
   };
@@ -285,6 +305,172 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setOrders(nextOrders);
   };
 
+  const handleSwitchRestaurant = async (restaurantId: string) => {
+    if (contextSwitching || restaurantId === context?.restaurantId) {
+      return;
+    }
+
+    setContextSwitching(true);
+    setAuthErrorMessage("");
+
+    try {
+      await switchRestaurant(restaurantId);
+      await loadData();
+    } catch (error) {
+      devWarn("[RestaurantAdminDashboard] switch restaurant failed", error);
+      setAuthErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Không thể chuyển nhà hàng. Vui lòng thử lại.",
+      );
+    } finally {
+      setContextSwitching(false);
+    }
+  };
+
+  const handleSwitchBranch = async (branchId: string) => {
+    if (contextSwitching || branchId === context?.branchId) {
+      return;
+    }
+
+    setContextSwitching(true);
+    setAuthErrorMessage("");
+
+    try {
+      await switchBranch(branchId);
+      await loadData();
+    } catch (error) {
+      devWarn("[RestaurantAdminDashboard] switch branch failed", error);
+      setAuthErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Không thể chuyển chi nhánh. Vui lòng thử lại.",
+      );
+    } finally {
+      setContextSwitching(false);
+    }
+  };
+
+  const renderWorkspaceSwitcher = () => {
+    const accessibleRestaurants = restaurants.filter(
+      restaurant =>
+        allowedRestaurantIds.length === 0 ||
+        allowedRestaurantIds.indexOf(restaurant.id) >= 0,
+    );
+    const branchCount = branches.length;
+
+    return (
+      <RNView style={styles.workspacePanel}>
+        <RNView style={styles.workspaceHeaderRow}>
+          <RNView style={styles.workspaceTitleBlock}>
+            <RNText style={styles.workspaceEyebrow}>Ngữ cảnh vận hành</RNText>
+            <RNText style={styles.workspaceTitle}>
+              {context?.restaurantName || "Chưa chọn nhà hàng"}
+            </RNText>
+            <RNText style={styles.workspaceHint}>
+              {context?.branchName
+                ? `Chi nhánh: ${context.branchName}`
+                : branchCount > 0
+                  ? "Chọn chi nhánh để lọc đơn/bàn"
+                  : "Nhà hàng hiện tại chưa có chi nhánh"}
+            </RNText>
+          </RNView>
+          <RNText style={styles.workspaceStatusPill}>
+            {contextLoading || contextSwitching ? "Đang đồng bộ..." : "Đã cô lập dữ liệu"}
+          </RNText>
+        </RNView>
+
+        {contextErrorMessage || permissionMessage ? (
+          <RNView style={styles.workspaceWarningBox}>
+            <RNText style={styles.workspaceWarningText}>
+              {contextErrorMessage || permissionMessage}
+            </RNText>
+          </RNView>
+        ) : null}
+
+        <RNView style={styles.workspaceSection}>
+          <RNText style={styles.workspaceSectionLabel}>Nhà hàng</RNText>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.workspaceChipRow}
+          >
+            {accessibleRestaurants.length > 0 ? (
+              accessibleRestaurants.map(restaurant => {
+                const active = restaurant.id === context?.restaurantId;
+                return (
+                  <Pressable
+                    key={restaurant.id}
+                    disabled={active || contextSwitching}
+                    onPress={() => void handleSwitchRestaurant(restaurant.id)}
+                    style={[
+                      styles.workspaceChip,
+                      active ? styles.workspaceChipActive : null,
+                      contextSwitching ? styles.workspaceChipDisabled : null,
+                    ]}
+                  >
+                    <RNText
+                      style={[
+                        styles.workspaceChipText,
+                        active ? styles.workspaceChipTextActive : null,
+                      ]}
+                    >
+                      {restaurant.name}
+                    </RNText>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <RNText style={styles.workspaceEmptyText}>
+                Tài khoản chưa được cấp quyền nhà hàng nào.
+              </RNText>
+            )}
+          </ScrollView>
+        </RNView>
+
+        <RNView style={styles.workspaceSection}>
+          <RNText style={styles.workspaceSectionLabel}>Chi nhánh</RNText>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.workspaceChipRow}
+          >
+            {branches.length > 0 ? (
+              branches.map(branch => {
+                const active = branch.id === context?.branchId;
+                return (
+                  <Pressable
+                    key={branch.id}
+                    disabled={active || contextSwitching}
+                    onPress={() => void handleSwitchBranch(branch.id)}
+                    style={[
+                      styles.workspaceChip,
+                      active ? styles.workspaceChipActive : null,
+                      contextSwitching ? styles.workspaceChipDisabled : null,
+                    ]}
+                  >
+                    <RNText
+                      style={[
+                        styles.workspaceChipText,
+                        active ? styles.workspaceChipTextActive : null,
+                      ]}
+                    >
+                      {branch.name}
+                    </RNText>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <RNText style={styles.workspaceEmptyText}>
+                Chưa có chi nhánh trong nhà hàng này.
+              </RNText>
+            )}
+          </ScrollView>
+        </RNView>
+      </RNView>
+    );
+  };
+
   if (authChecking) {
     return (
       <View style={styles.screen}>
@@ -345,6 +531,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           <RNText style={styles.logoutText}>Đăng xuất</RNText>
         </Pressable>
       </RNView>
+
+      {renderWorkspaceSwitcher()}
 
       {authErrorMessage ? (
         <RNView style={styles.inlineErrorBox}>

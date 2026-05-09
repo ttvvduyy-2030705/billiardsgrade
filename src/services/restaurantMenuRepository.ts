@@ -1,7 +1,10 @@
+import {RESTAURANT_MENU_ENV_CONFIG} from 'config/restaurantMenu';
+import {ApiRestaurantMenuRepository} from 'repositories/ApiRestaurantMenuRepository';
 import {LocalRestaurantMenuRepository} from 'repositories/LocalRestaurantMenuRepository';
 import type {
   CategoryMutationResult,
   DeleteCategoryOptions,
+  RestaurantAdminCredentialResult,
   RestaurantBranch,
   RestaurantBranchPayload,
   RestaurantMenuCategoryPayload,
@@ -26,6 +29,7 @@ import type {
 export type {
   CategoryMutationResult,
   DeleteCategoryOptions,
+  RestaurantAdminCredentialResult,
   RestaurantBranch,
   RestaurantBranchPayload,
   RestaurantMenuCategoryPayload,
@@ -61,6 +65,7 @@ export {
 export {
   DEFAULT_RESTAURANT_ID,
   getDefaultRestaurantWorkspace,
+  resetActiveRestaurantContext,
 } from './restaurantWorkspaceStorage';
 export {
   getMenuItemImageValue,
@@ -69,14 +74,61 @@ export {
 
 const localRepository = new LocalRestaurantMenuRepository();
 let activeRepository: RestaurantMenuRepository = localRepository;
+let activeRepositoryMode: 'local' | 'api' | 'custom' = 'local';
+
+export type ConfigureRestaurantMenuRepositoryOptions = {
+  mode?: 'local' | 'api';
+  baseUrl?: string;
+  defaultRestaurantId?: string;
+  timeoutMs?: number;
+  retryCount?: number;
+  getAuthToken?: () => Promise<string | undefined> | string | undefined;
+};
 
 export const getRestaurantMenuRepository = () => activeRepository;
+export const getRestaurantMenuRepositoryMode = () => activeRepositoryMode;
 
 export const setRestaurantMenuRepository = (
   repository: RestaurantMenuRepository | null | undefined,
 ) => {
   activeRepository = repository || localRepository;
+  activeRepositoryMode = repository ? 'custom' : 'local';
 };
+
+export const configureRestaurantMenuRepository = (
+  options: ConfigureRestaurantMenuRepositoryOptions = {},
+) => {
+  const mode = options.mode || RESTAURANT_MENU_ENV_CONFIG.mode;
+
+  if (mode === 'api') {
+    const baseUrl = options.baseUrl || RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl;
+
+    if (!baseUrl) {
+      activeRepository = localRepository;
+      activeRepositoryMode = 'local';
+      return activeRepository;
+    }
+
+    activeRepository = new ApiRestaurantMenuRepository({
+      baseUrl,
+      defaultRestaurantId:
+        options.defaultRestaurantId ||
+        RESTAURANT_MENU_ENV_CONFIG.defaultRestaurantId,
+      timeoutMs: options.timeoutMs || RESTAURANT_MENU_ENV_CONFIG.apiTimeoutMs,
+      retryCount:
+        options.retryCount ?? RESTAURANT_MENU_ENV_CONFIG.apiRetryCount,
+      getAuthToken: options.getAuthToken,
+    });
+    activeRepositoryMode = 'api';
+    return activeRepository;
+  }
+
+  activeRepository = localRepository;
+  activeRepositoryMode = 'local';
+  return activeRepository;
+};
+
+configureRestaurantMenuRepository();
 
 export const bootstrapRestaurantMenuRepository = () => {
   return activeRepository.bootstrap();
@@ -95,6 +147,20 @@ export const setActiveRestaurantContext = (
 
 export const loadRestaurantWorkspaces = (): Promise<RestaurantWorkspace[]> => {
   return activeRepository.listRestaurants();
+};
+
+export const verifyRestaurantAdminCredentials = (
+  username: string,
+  password: string,
+): Promise<RestaurantAdminCredentialResult> => {
+  return activeRepository.verifyAdminCredentials(username, password);
+};
+
+export const registerRestaurantAdminCredentials = (
+  username: string,
+  password: string,
+): Promise<RestaurantAdminCredentialResult> => {
+  return activeRepository.registerAdminAccount(username, password);
 };
 
 export const createRestaurantWorkspace = (

@@ -10,6 +10,8 @@ export {
   normaliseMenuImageUri,
 } from "./restaurantMenuImage";
 
+const DEFAULT_LOCAL_RESTAURANT_ID = "local_demo_restaurant";
+
 export const RESTAURANT_STORAGE_KEYS = {
   schemaVersion: "restaurant_menu_schema_version",
   categories: "menu_categories",
@@ -20,11 +22,11 @@ export const RESTAURANT_STORAGE_KEYS = {
   legacyAdminAccounts: "restaurant_admin_accounts",
 };
 
-const CURRENT_SCHEMA_VERSION = "20260509_menu_order_payment_v2";
+const CURRENT_SCHEMA_VERSION = "20260509_menu_order_payment_restaurant_scope_v3";
 
 export type MenuCategory = {
   id: string;
-  /** Future backend/multi-restaurant scope. Local demo records may omit it. */
+  /** Required in Batch 10 repository/API foundation. */
   restaurantId?: string;
   name: string;
   sortOrder?: number;
@@ -36,7 +38,7 @@ export type RestaurantMenuItemStatus = "SELLING" | "HIDDEN" | "OUT_OF_STOCK";
 
 export type RestaurantMenuItem = {
   id: string;
-  /** Future backend/multi-restaurant scope. Local demo records may omit it. */
+  /** Required in Batch 10 repository/API foundation. */
   restaurantId?: string;
   categoryId: string;
   name: string;
@@ -60,7 +62,7 @@ export type RestaurantCartItem = {
 };
 
 export type RestaurantCartState = {
-  /** Future backend/multi-restaurant scope. Local demo carts may omit it. */
+  /** Required in Batch 10 repository/API foundation. */
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
@@ -97,14 +99,29 @@ export type RestaurantOrderItem = {
 };
 
 export type RestaurantPaymentStatus = "UNPAID" | "PAID";
+export type RestaurantPaymentMethod = "CASH" | "BANK_TRANSFER" | "MOCK";
+
+export type RestaurantPayment = {
+  id: string;
+  restaurantId?: string;
+  branchId?: string;
+  orderId: string;
+  amount: number;
+  method: RestaurantPaymentMethod;
+  paymentStatus: RestaurantPaymentStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RestaurantOrderSource = "admin" | "customer" | "local-demo";
 
 export type RestaurantOrder = {
   id: string;
-  /** Required once ApiRepository/server mode is enabled. Optional for old local demo orders. */
+  /** Required once ApiRepository/server mode is enabled. Optional only for old local demo migration. */
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
-  orderSource?: "admin" | "customer" | "local-demo";
+  orderSource?: RestaurantOrderSource;
   tableNumber: string;
   items: RestaurantOrderItem[];
   note: string;
@@ -112,6 +129,7 @@ export type RestaurantOrder = {
   /** Processing status. Never store PAID here; payment is kept in paymentStatus. */
   orderStatus: RestaurantOrderStatus;
   paymentStatus: RestaurantPaymentStatus;
+  paymentMethod?: RestaurantPaymentMethod;
   createdAt: string;
   updatedAt: string;
 };
@@ -121,6 +139,7 @@ export type RestaurantAdminAccount = {
   password: string;
   restaurantIds?: string[];
   activeRestaurantId?: string;
+  role?: "OWNER" | "MANAGER" | "STAFF";
   createdAt: string;
 };
 
@@ -139,12 +158,14 @@ export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
   {
     id: DEFAULT_DRINK_CATEGORY_ID,
     name: "Đồ uống",
+    sortOrder: 1,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
     id: DEFAULT_FOOD_CATEGORY_ID,
     name: "Đồ ăn",
+    sortOrder: 2,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -160,6 +181,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80",
     available: true,
+    status: "SELLING",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -172,6 +194,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80",
     available: true,
+    status: "SELLING",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -184,6 +207,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80",
     available: true,
+    status: "SELLING",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -196,6 +220,7 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     imageUrl:
       "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80",
     available: true,
+    status: "SELLING",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -241,6 +266,41 @@ const safeJsonParse = <T>(value: string | null, fallback: T) => {
   }
 };
 
+const resolveRestaurantScopeId = (restaurantId?: string) => {
+  const cleanRestaurantId = String(restaurantId || "").trim();
+  return cleanRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID;
+};
+
+export const getRestaurantScopedStorageKey = (
+  baseKey: string,
+  restaurantId?: string,
+) => `${baseKey}:${resolveRestaurantScopeId(restaurantId)}`;
+
+const getScopedKeys = (restaurantId?: string) => {
+  const scopeId = resolveRestaurantScopeId(restaurantId);
+
+  return {
+    restaurantId: scopeId,
+    schemaVersion: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.schemaVersion,
+      scopeId,
+    ),
+    categories: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.categories,
+      scopeId,
+    ),
+    menuItems: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.menuItems,
+      scopeId,
+    ),
+    orders: getRestaurantScopedStorageKey(RESTAURANT_STORAGE_KEYS.orders, scopeId),
+    currentCart: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.currentCart,
+      scopeId,
+    ),
+  };
+};
+
 const readArray = async <T>(key: string): Promise<T[]> => {
   const raw = await AsyncStorage.getItem(key);
   const parsed = safeJsonParse<T[]>(raw, []);
@@ -256,52 +316,21 @@ const writeArray = async <T>(key: string, value: T[]) => {
   await AsyncStorage.setItem(key, JSON.stringify(value));
 };
 
-const seedDefaultMenu = async () => {
-  await writeArray(RESTAURANT_STORAGE_KEYS.categories, DEFAULT_MENU_CATEGORIES);
-  await writeArray(RESTAURANT_STORAGE_KEYS.menuItems, defaultMenuItems);
-  await AsyncStorage.setItem(
-    RESTAURANT_STORAGE_KEYS.schemaVersion,
-    CURRENT_SCHEMA_VERSION,
-  );
-};
+const withRestaurantId = <T extends { restaurantId?: string }>(
+  record: T,
+  restaurantId: string,
+): T => ({ ...record, restaurantId: record.restaurantId || restaurantId });
 
-const ensureSchema = async () => {
-  const version = await AsyncStorage.getItem(
-    RESTAURANT_STORAGE_KEYS.schemaVersion,
-  );
-  const [storedCategories, storedItems] = await Promise.all([
-    readArray<MenuCategory>(RESTAURANT_STORAGE_KEYS.categories),
-    readArray<RestaurantMenuItem>(RESTAURANT_STORAGE_KEYS.menuItems),
-  ]);
-
-  if (version !== CURRENT_SCHEMA_VERSION) {
-    if (storedCategories.length === 0 && storedItems.length === 0) {
-      await seedDefaultMenu();
-      return;
-    }
-
-    const nextCategories = ensureDefaultCategories(
-      storedCategories.map(cleanCategory),
-    );
-    await writeArray(RESTAURANT_STORAGE_KEYS.categories, nextCategories);
-    await writeArray(
-      RESTAURANT_STORAGE_KEYS.menuItems,
-      storedItems.map((item) => migrateMenuItem(item, nextCategories)),
-    );
-    await AsyncStorage.setItem(
-      RESTAURANT_STORAGE_KEYS.schemaVersion,
-      CURRENT_SCHEMA_VERSION,
-    );
-  }
-};
-
-const cleanCategory = (category: Partial<MenuCategory>): MenuCategory => {
+const cleanCategory = (
+  category: Partial<MenuCategory>,
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+): MenuCategory => {
   const timestamp = nowIso();
   const cleanName = (category.name || "").trim() || "Đồ uống";
 
   return {
     id: category.id || createId("cat"),
-    restaurantId: category.restaurantId,
+    restaurantId: category.restaurantId || restaurantId,
     name: cleanName,
     sortOrder: category.sortOrder,
     createdAt: category.createdAt || timestamp,
@@ -309,12 +338,15 @@ const cleanCategory = (category: Partial<MenuCategory>): MenuCategory => {
   };
 };
 
-const ensureDefaultCategories = (categories: MenuCategory[]) => {
-  const cleaned = categories.map(cleanCategory);
+const ensureDefaultCategories = (
+  categories: MenuCategory[],
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+) => {
+  const cleaned = categories.map(category => cleanCategory(category, restaurantId));
   const withoutDuplicateNames = cleaned.filter(
     (category, index, source) =>
       source.findIndex(
-        (item) => normalise(item.name) === normalise(category.name),
+        item => normalise(item.name) === normalise(category.name),
       ) === index,
   );
 
@@ -323,7 +355,21 @@ const ensureDefaultCategories = (categories: MenuCategory[]) => {
   // dynamic categories. Do not force them back into AsyncStorage on every load.
   return withoutDuplicateNames.length > 0
     ? withoutDuplicateNames
-    : DEFAULT_MENU_CATEGORIES;
+    : DEFAULT_MENU_CATEGORIES.map(category => cleanCategory(category, restaurantId));
+};
+
+const seedDefaultMenu = async (restaurantId = DEFAULT_LOCAL_RESTAURANT_ID) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const categories = DEFAULT_MENU_CATEGORIES.map(category =>
+    cleanCategory(category, scopedKeys.restaurantId),
+  );
+  const seededItems = defaultMenuItems.map(item =>
+    migrateMenuItem(item, categories, scopedKeys.restaurantId),
+  );
+
+  await writeArray(scopedKeys.categories, categories);
+  await writeArray(scopedKeys.menuItems, seededItems);
+  await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
 };
 
 const resolveCategoryId = (
@@ -332,15 +378,15 @@ const resolveCategoryId = (
 ) => {
   const raw = normalise(value);
   const drinkCategory =
-    categories.find((category) => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
+    categories.find(category => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
     categories.find(
-      (category) => normalise(category.name) === normalise("Đồ uống"),
+      category => normalise(category.name) === normalise("Đồ uống"),
     ) ||
     categories[0];
   const foodCategory =
-    categories.find((category) => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
+    categories.find(category => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
     categories.find(
-      (category) => normalise(category.name) === normalise("Đồ ăn"),
+      category => normalise(category.name) === normalise("Đồ ăn"),
     ) ||
     drinkCategory;
 
@@ -348,14 +394,12 @@ const resolveCategoryId = (
     return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
   }
 
-  const byId = categories.find((category) => normalise(category.id) === raw);
+  const byId = categories.find(category => normalise(category.id) === raw);
   if (byId) {
     return byId.id;
   }
 
-  const byName = categories.find(
-    (category) => normalise(category.name) === raw,
-  );
+  const byName = categories.find(category => normalise(category.name) === raw);
   if (byName) {
     return byName.id;
   }
@@ -394,6 +438,7 @@ const normaliseMenuItemStatus = (
 const migrateMenuItem = (
   item: Partial<RestaurantMenuItem>,
   categories: MenuCategory[],
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
 ): RestaurantMenuItem => {
   const timestamp = nowIso();
   const categoryId = resolveCategoryId(
@@ -405,7 +450,7 @@ const migrateMenuItem = (
 
   return {
     id: item.id || createId("dish"),
-    restaurantId: item.restaurantId,
+    restaurantId: item.restaurantId || restaurantId,
     categoryId,
     name: (item.name || "Món chưa đặt tên").trim(),
     price: Number(item.price) || 0,
@@ -419,60 +464,133 @@ const migrateMenuItem = (
   };
 };
 
+const ensureRestaurantSchema = async (
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const version = await AsyncStorage.getItem(scopedKeys.schemaVersion);
+  const [scopedCategories, scopedItems, legacyCategories, legacyItems] =
+    await Promise.all([
+      readArray<MenuCategory>(scopedKeys.categories),
+      readArray<RestaurantMenuItem>(scopedKeys.menuItems),
+      readArray<MenuCategory>(RESTAURANT_STORAGE_KEYS.categories),
+      readArray<RestaurantMenuItem>(RESTAURANT_STORAGE_KEYS.menuItems),
+    ]);
+
+  if (
+    version === CURRENT_SCHEMA_VERSION &&
+    scopedCategories.length > 0 &&
+    scopedItems.length > 0
+  ) {
+    return;
+  }
+
+  const sourceCategories =
+    scopedCategories.length > 0 ? scopedCategories : legacyCategories;
+  const sourceItems = scopedItems.length > 0 ? scopedItems : legacyItems;
+
+  if (sourceCategories.length === 0 && sourceItems.length === 0) {
+    await seedDefaultMenu(scopedKeys.restaurantId);
+    return;
+  }
+
+  const nextCategories = ensureDefaultCategories(
+    sourceCategories.map(category =>
+      cleanCategory(withRestaurantId(category, scopedKeys.restaurantId), scopedKeys.restaurantId),
+    ),
+    scopedKeys.restaurantId,
+  );
+  const nextItems = sourceItems
+    .filter(item => legacySeedItemIds.indexOf(item.id || "") < 0)
+    .map(item =>
+      migrateMenuItem(
+        withRestaurantId(item, scopedKeys.restaurantId),
+        nextCategories,
+        scopedKeys.restaurantId,
+      ),
+    );
+
+  await writeArray(scopedKeys.categories, nextCategories);
+  await writeArray(
+    scopedKeys.menuItems,
+    nextItems.length > 0
+      ? nextItems
+      : defaultMenuItems.map(item =>
+          migrateMenuItem(item, nextCategories, scopedKeys.restaurantId),
+        ),
+  );
+  await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+};
+
 export const getDefaultMenuItems = () => defaultMenuItems;
 
 /**
  * Synchronous fallback kept for old code paths only. New UI loads categories
- * from AsyncStorage through loadMenuCategories so admin can manage them locally.
+ * from repository/storage so admin can manage them dynamically per restaurant.
  */
 export const getMenuCategories = () => DEFAULT_MENU_CATEGORIES;
 
-export const loadMenuCategories = async (): Promise<MenuCategory[]> => {
-  await ensureSchema();
-  const stored = await readArray<MenuCategory>(
-    RESTAURANT_STORAGE_KEYS.categories,
-  );
+export const loadMenuCategories = async (
+  restaurantId?: string,
+): Promise<MenuCategory[]> => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  await ensureRestaurantSchema(scopedKeys.restaurantId);
+  const stored = await readArray<MenuCategory>(scopedKeys.categories);
 
   if (stored.length === 0) {
-    await seedDefaultMenu();
-    return DEFAULT_MENU_CATEGORIES;
+    await seedDefaultMenu(scopedKeys.restaurantId);
+    return DEFAULT_MENU_CATEGORIES.map(category =>
+      cleanCategory(category, scopedKeys.restaurantId),
+    );
   }
 
-  const migrated = ensureDefaultCategories(stored.map(cleanCategory));
+  const migrated = ensureDefaultCategories(
+    stored.map(category => cleanCategory(category, scopedKeys.restaurantId)),
+    scopedKeys.restaurantId,
+  );
 
   if (JSON.stringify(stored) !== JSON.stringify(migrated)) {
-    await writeArray(RESTAURANT_STORAGE_KEYS.categories, migrated);
+    await writeArray(scopedKeys.categories, migrated);
   }
 
-  return migrated;
+  return migrated.sort(
+    (a, b) =>
+      Number(a.sortOrder || 0) - Number(b.sortOrder || 0) ||
+      String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+  );
 };
 
-export const saveMenuCategories = async (categories: MenuCategory[]) => {
-  const cleaned = ensureDefaultCategories(categories.map(cleanCategory));
-  await writeArray(RESTAURANT_STORAGE_KEYS.categories, cleaned);
-  await AsyncStorage.setItem(
-    RESTAURANT_STORAGE_KEYS.schemaVersion,
-    CURRENT_SCHEMA_VERSION,
+export const saveMenuCategories = async (
+  categories: MenuCategory[],
+  restaurantId?: string,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const cleaned = ensureDefaultCategories(
+    categories.map(category => cleanCategory(category, scopedKeys.restaurantId)),
+    scopedKeys.restaurantId,
   );
+  await writeArray(scopedKeys.categories, cleaned);
+  await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
   return cleaned;
 };
 
 export const upsertMenuCategory = async (
   input: Partial<MenuCategory> & { name: string },
 ): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
+  const restaurantId = resolveRestaurantScopeId(input.restaurantId);
   const cleanName = input.name.trim();
 
   if (!cleanName) {
     return {
       ok: false,
       message: "Vui lòng nhập tên danh mục",
-      categories: await loadMenuCategories(),
+      categories: await loadMenuCategories(restaurantId),
     };
   }
 
-  const current = await loadMenuCategories();
+  const current = await loadMenuCategories(restaurantId);
   const existedName = current.some(
-    (category) =>
+    category =>
       category.id !== input.id &&
       normalise(category.name) === normalise(cleanName),
   );
@@ -488,20 +606,20 @@ export const upsertMenuCategory = async (
   const timestamp = nowIso();
   const nextCategory: MenuCategory = {
     id: input.id || createId("cat"),
-    restaurantId: input.restaurantId,
+    restaurantId,
     name: cleanName,
-    sortOrder: input.sortOrder,
+    sortOrder: input.sortOrder ?? current.length + 1,
     createdAt: input.createdAt || timestamp,
     updatedAt: timestamp,
   };
 
   const nextCategories = input.id
-    ? current.map((category) =>
+    ? current.map(category =>
         category.id === input.id ? nextCategory : category,
       )
     : [...current, nextCategory];
 
-  const categories = await saveMenuCategories(nextCategories);
+  const categories = await saveMenuCategories(nextCategories, restaurantId);
 
   return {
     ok: true,
@@ -512,15 +630,14 @@ export const upsertMenuCategory = async (
 
 export const deleteMenuCategory = async (
   categoryId: string,
-  options: { moveItemsToCategoryId?: string } = {},
+  options: { moveItemsToCategoryId?: string; restaurantId?: string } = {},
 ): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
+  const restaurantId = resolveRestaurantScopeId(options.restaurantId);
   const [categories, items] = await Promise.all([
-    loadMenuCategories(),
-    loadMenuItems(),
+    loadMenuCategories(restaurantId),
+    loadMenuItems(restaurantId),
   ]);
-  const targetCategory = categories.find(
-    (category) => category.id === categoryId,
-  );
+  const targetCategory = categories.find(category => category.id === categoryId);
 
   if (!targetCategory) {
     return {
@@ -538,12 +655,10 @@ export const deleteMenuCategory = async (
     };
   }
 
-  const nextCategories = categories.filter(
-    (category) => category.id !== categoryId,
-  );
+  const nextCategories = categories.filter(category => category.id !== categoryId);
   const fallbackCategory =
     nextCategories.find(
-      (category) => category.id === options.moveItemsToCategoryId,
+      category => category.id === options.moveItemsToCategoryId,
     ) || nextCategories[0];
 
   if (!fallbackCategory) {
@@ -554,18 +669,18 @@ export const deleteMenuCategory = async (
     };
   }
 
-  const usedItems = items.filter((item) => item.categoryId === categoryId);
-  const savedCategories = await saveMenuCategories(nextCategories);
+  const usedItems = items.filter(item => item.categoryId === categoryId);
+  const savedCategories = await saveMenuCategories(nextCategories, restaurantId);
 
   if (usedItems.length > 0) {
     const timestamp = nowIso();
-    const movedItems = items.map((item) =>
+    const movedItems = items.map(item =>
       item.categoryId === categoryId
         ? { ...item, categoryId: fallbackCategory.id, updatedAt: timestamp }
         : item,
     );
 
-    await saveMenuItems(movedItems);
+    await saveMenuItems(movedItems, restaurantId);
   }
 
   const message =
@@ -581,42 +696,49 @@ export const getCategoryNameById = (
   categories: MenuCategory[] = DEFAULT_MENU_CATEGORIES,
 ) => {
   return (
-    categories.find((category) => category.id === categoryId)?.name ||
+    categories.find(category => category.id === categoryId)?.name ||
     categories[0]?.name ||
     "Chưa phân loại"
   );
 };
 
-export const loadMenuItems = async (): Promise<RestaurantMenuItem[]> => {
-  await ensureSchema();
-  const categories = await loadMenuCategories();
-  const stored = await readArray<RestaurantMenuItem>(
-    RESTAURANT_STORAGE_KEYS.menuItems,
-  );
+export const loadMenuItems = async (
+  restaurantId?: string,
+): Promise<RestaurantMenuItem[]> => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  await ensureRestaurantSchema(scopedKeys.restaurantId);
+  const categories = await loadMenuCategories(scopedKeys.restaurantId);
+  const stored = await readArray<RestaurantMenuItem>(scopedKeys.menuItems);
 
   if (stored.length === 0) {
-    const seededItems = defaultMenuItems.map((item) =>
-      migrateMenuItem(item, categories),
+    const seededItems = defaultMenuItems.map(item =>
+      migrateMenuItem(item, categories, scopedKeys.restaurantId),
     );
-    await writeArray(RESTAURANT_STORAGE_KEYS.menuItems, seededItems);
+    await writeArray(scopedKeys.menuItems, seededItems);
     return seededItems;
   }
 
-  const migrated = stored.map((item) => migrateMenuItem(item, categories));
+  const migrated = stored.map(item =>
+    migrateMenuItem(item, categories, scopedKeys.restaurantId),
+  );
   const needsMigration = JSON.stringify(stored) !== JSON.stringify(migrated);
 
   if (needsMigration) {
-    await writeArray(RESTAURANT_STORAGE_KEYS.menuItems, migrated);
+    await writeArray(scopedKeys.menuItems, migrated);
   }
 
   return migrated;
 };
 
-export const saveMenuItems = async (items: RestaurantMenuItem[]) => {
-  const categories = await loadMenuCategories();
+export const saveMenuItems = async (
+  items: RestaurantMenuItem[],
+  restaurantId?: string,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const categories = await loadMenuCategories(scopedKeys.restaurantId);
   await writeArray(
-    RESTAURANT_STORAGE_KEYS.menuItems,
-    items.map((item) => migrateMenuItem(item, categories)),
+    scopedKeys.menuItems,
+    items.map(item => migrateMenuItem(item, categories, scopedKeys.restaurantId)),
   );
 };
 
@@ -630,21 +752,22 @@ export const upsertMenuItem = async (
     available?: boolean;
   },
 ): Promise<RestaurantMenuItem[]> => {
+  const restaurantId = resolveRestaurantScopeId(input.restaurantId);
   const [current, categories] = await Promise.all([
-    loadMenuItems(),
-    loadMenuCategories(),
+    loadMenuItems(restaurantId),
+    loadMenuCategories(restaurantId),
   ]);
   const timestamp = nowIso();
   const status = normaliseMenuItemStatus(input.status, input.available);
   const cleanImageUrl = getMenuItemImageValue(input);
   const itemId = input.id || createId("dish");
-  const existingItem = current.find((item) => item.id === itemId);
+  const existingItem = current.find(item => item.id === itemId);
   const oldImage = getMenuItemImageValue(existingItem);
 
   const nextItem: RestaurantMenuItem = {
     ...(existingItem || {}),
     id: itemId,
-    restaurantId: input.restaurantId || existingItem?.restaurantId,
+    restaurantId,
     categoryId: resolveCategoryId(input.categoryId, categories),
     name: input.name.trim(),
     price: Number(input.price) || 0,
@@ -657,36 +780,37 @@ export const upsertMenuItem = async (
     updatedAt: timestamp,
   };
 
-  const existingIndex = current.findIndex((item) => item.id === nextItem.id);
+  const existingIndex = current.findIndex(item => item.id === nextItem.id);
   const nextItems =
     existingIndex >= 0
-      ? current.map((item) => (item.id === nextItem.id ? nextItem : item))
+      ? current.map(item => (item.id === nextItem.id ? nextItem : item))
       : [nextItem, ...current];
 
-  await saveMenuItems(nextItems);
+  await saveMenuItems(nextItems, restaurantId);
 
   if (oldImage && oldImage !== cleanImageUrl) {
     await cleanupRestaurantMenuImageIfUnused(
       oldImage,
-      nextItems.map((item) => getMenuItemImageValue(item)),
+      nextItems.map(item => getMenuItemImageValue(item)),
     );
   }
 
   return nextItems;
 };
 
-export const deleteMenuItem = async (itemId: string) => {
-  const current = await loadMenuItems();
-  const deletedItem = current.find((item) => item.id === itemId);
+export const deleteMenuItem = async (itemId: string, restaurantId?: string) => {
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const current = await loadMenuItems(scopedRestaurantId);
+  const deletedItem = current.find(item => item.id === itemId);
   const deletedImage = getMenuItemImageValue(deletedItem);
-  const nextItems = current.filter((item) => item.id !== itemId);
+  const nextItems = current.filter(item => item.id !== itemId);
 
-  await saveMenuItems(nextItems);
+  await saveMenuItems(nextItems, scopedRestaurantId);
 
   if (deletedImage) {
     await cleanupRestaurantMenuImageIfUnused(
       deletedImage,
-      nextItems.map((item) => getMenuItemImageValue(item)),
+      nextItems.map(item => getMenuItemImageValue(item)),
     );
   }
 
@@ -738,11 +862,12 @@ export const normalisePaymentStatus = (
 
 export const normaliseRestaurantOrder = (
   order: RawRestaurantOrder,
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
 ): RestaurantOrder => {
   const timestamp = nowIso();
   return {
     id: String(order.id || createId("order")),
-    restaurantId: order.restaurantId,
+    restaurantId: order.restaurantId || restaurantId,
     branchId: order.branchId,
     tableId: order.tableId,
     orderSource:
@@ -753,37 +878,73 @@ export const normaliseRestaurantOrder = (
     total: Number(order.total) || 0,
     orderStatus: normaliseOrderStatus(order.orderStatus || order.status),
     paymentStatus: normalisePaymentStatus(order),
+    paymentMethod: order.paymentMethod || "CASH",
     createdAt: order.createdAt || timestamp,
     updatedAt: order.updatedAt || order.createdAt || timestamp,
   };
 };
 
-export const loadOrders = async (): Promise<RestaurantOrder[]> => {
-  const rawOrders = await readArray<RawRestaurantOrder>(
-    RESTAURANT_STORAGE_KEYS.orders,
-  );
-  const orders = rawOrders.map(normaliseRestaurantOrder);
-  const needsOrderMigration = rawOrders.some((order, index) => {
-    const normalised = orders[index];
-    return (
-      order.status !== undefined ||
-      order.orderStatus !== normalised.orderStatus ||
-      String(order.paymentStatus || "UNPAID").toUpperCase() !==
-        normalised.paymentStatus
-    );
-  });
-
-  if (needsOrderMigration) {
-    await saveOrders(orders);
-  }
-
-  return orders;
+const ORDER_STATUS_TRANSITIONS: Record<RestaurantOrderStatus, RestaurantOrderStatus[]> = {
+  NEW: ["NEW", "ACCEPTED", "PREPARING", "CANCELLED"],
+  ACCEPTED: ["ACCEPTED", "PREPARING", "COMPLETED", "CANCELLED"],
+  PREPARING: ["PREPARING", "COMPLETED", "CANCELLED"],
+  COMPLETED: ["COMPLETED"],
+  CANCELLED: ["CANCELLED"],
 };
 
-export const saveOrders = async (orders: RestaurantOrder[]) => {
+export const isRestaurantOrderStatusTransitionAllowed = (
+  fromStatus: RestaurantOrderStatus,
+  toStatus: RestaurantOrderStatus,
+) => ORDER_STATUS_TRANSITIONS[fromStatus].indexOf(toStatus) >= 0;
+
+export const loadOrders = async (
+  restaurantId?: string,
+): Promise<RestaurantOrder[]> => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const scopedOrders = await readArray<RawRestaurantOrder>(scopedKeys.orders);
+  const legacyOrders = scopedOrders.length > 0
+    ? []
+    : await readArray<RawRestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
+  const rawOrders = scopedOrders.length > 0 ? scopedOrders : legacyOrders;
+  const orders = rawOrders.map(order =>
+    normaliseRestaurantOrder(order, scopedKeys.restaurantId),
+  );
+  const filteredOrders = orders.filter(
+    order => order.restaurantId === scopedKeys.restaurantId,
+  );
+  const needsOrderMigration =
+    rawOrders.length !== filteredOrders.length ||
+    rawOrders.some((order, index) => {
+      const normalised = orders[index];
+      return (
+        order.status !== undefined ||
+        order.restaurantId !== scopedKeys.restaurantId ||
+        order.orderStatus !== normalised.orderStatus ||
+        String(order.paymentStatus || "UNPAID").toUpperCase() !==
+          normalised.paymentStatus
+      );
+    });
+
+  if (needsOrderMigration) {
+    await saveOrders(filteredOrders, scopedKeys.restaurantId);
+  }
+
+  return filteredOrders;
+};
+
+export const saveOrders = async (
+  orders: RestaurantOrder[],
+  restaurantId?: string,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
   await writeArray(
-    RESTAURANT_STORAGE_KEYS.orders,
-    orders.map(normaliseRestaurantOrder),
+    scopedKeys.orders,
+    orders.map(order =>
+      normaliseRestaurantOrder(
+        withRestaurantId(order, scopedKeys.restaurantId),
+        scopedKeys.restaurantId,
+      ),
+    ),
   );
 };
 
@@ -795,60 +956,80 @@ export const createRestaurantOrder = async (
     paymentStatus?: RestaurantPaymentStatus;
   },
 ): Promise<RestaurantOrder[]> => {
-  const current = await loadOrders();
+  const restaurantId = resolveRestaurantScopeId(payload.restaurantId);
+  const current = await loadOrders(restaurantId);
   const timestamp = nowIso();
   const order: RestaurantOrder = {
     ...payload,
+    restaurantId,
     id: createId("order"),
     orderStatus: "NEW",
     paymentStatus: payload.paymentStatus || "UNPAID",
+    paymentMethod: payload.paymentMethod || "CASH",
     createdAt: timestamp,
     updatedAt: timestamp,
   };
   const nextOrders = [order, ...current];
-  await saveOrders(nextOrders);
+  await saveOrders(nextOrders, restaurantId);
   return nextOrders;
 };
 
 export const updateRestaurantOrderStatus = async (
   orderId: string,
   status: RestaurantOrderStatus,
+  restaurantId?: string,
 ): Promise<RestaurantOrder[]> => {
-  const current = await loadOrders();
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const current = await loadOrders(scopedRestaurantId);
   const timestamp = nowIso();
-  const nextOrders = current.map((order) =>
-    order.id === orderId
-      ? {
-          ...order,
-          orderStatus: normaliseOrderStatus(status),
-          updatedAt: timestamp,
-        }
-      : order,
-  );
-  await saveOrders(nextOrders);
+  const nextStatus = normaliseOrderStatus(status);
+  const nextOrders = current.map(order => {
+    if (order.id !== orderId) {
+      return order;
+    }
+
+    if (!isRestaurantOrderStatusTransitionAllowed(order.orderStatus, nextStatus)) {
+      return order;
+    }
+
+    return {
+      ...order,
+      orderStatus: nextStatus,
+      updatedAt: timestamp,
+    };
+  });
+  await saveOrders(nextOrders, scopedRestaurantId);
   return nextOrders;
 };
 
 export const updateRestaurantOrderPaymentStatus = async (
   orderId: string,
   paymentStatus: RestaurantPaymentStatus,
+  restaurantId?: string,
 ): Promise<RestaurantOrder[]> => {
-  const current = await loadOrders();
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const current = await loadOrders(scopedRestaurantId);
   const timestamp = nowIso();
-  const nextOrders = current.map((order) =>
-    order.id === orderId
-      ? { ...order, paymentStatus, updatedAt: timestamp }
-      : order,
+  const nextOrders = current.map(order =>
+    order.id === orderId ? { ...order, paymentStatus, updatedAt: timestamp } : order,
   );
 
-  await saveOrders(nextOrders);
+  await saveOrders(nextOrders, scopedRestaurantId);
   return nextOrders;
 };
 
-export const loadCurrentCart = async (): Promise<RestaurantCartState> => {
-  const value = await AsyncStorage.getItem(RESTAURANT_STORAGE_KEYS.currentCart);
+export const loadCurrentCart = async (
+  restaurantId?: string,
+): Promise<RestaurantCartState> => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const scopedValue = await AsyncStorage.getItem(scopedKeys.currentCart);
+  const legacyValue =
+    scopedKeys.restaurantId === DEFAULT_LOCAL_RESTAURANT_ID
+      ? await AsyncStorage.getItem(RESTAURANT_STORAGE_KEYS.currentCart)
+      : null;
+  const value = scopedValue || legacyValue;
   const parsed = safeJsonParse<RestaurantCartState>(value, {
-    restaurantId: undefined,
+    restaurantId: scopedKeys.restaurantId,
     branchId: undefined,
     tableId: undefined,
     tableNumber: "",
@@ -857,20 +1038,20 @@ export const loadCurrentCart = async (): Promise<RestaurantCartState> => {
   });
 
   if (!parsed.ok) {
-    await AsyncStorage.removeItem(RESTAURANT_STORAGE_KEYS.currentCart);
+    await AsyncStorage.removeItem(scopedKeys.currentCart);
   }
 
   const items = Array.isArray(parsed.value.items)
     ? parsed.value.items
-        .map((item) => ({
+        .map(item => ({
           itemId: String(item.itemId || ""),
           quantity: Math.max(0, Number(item.quantity) || 0),
         }))
-        .filter((item) => item.itemId && item.quantity > 0)
+        .filter(item => item.itemId && item.quantity > 0)
     : [];
 
   return {
-    restaurantId: parsed.value.restaurantId,
+    restaurantId: scopedKeys.restaurantId,
     branchId: parsed.value.branchId,
     tableId: parsed.value.tableId,
     tableNumber: parsed.value.tableNumber || "",
@@ -879,11 +1060,15 @@ export const loadCurrentCart = async (): Promise<RestaurantCartState> => {
   };
 };
 
-export const saveCurrentCart = async (cart: RestaurantCartState) => {
+export const saveCurrentCart = async (
+  cart: RestaurantCartState,
+  restaurantId?: string,
+) => {
+  const scopedKeys = getScopedKeys(cart.restaurantId || restaurantId);
   await AsyncStorage.setItem(
-    RESTAURANT_STORAGE_KEYS.currentCart,
+    scopedKeys.currentCart,
     JSON.stringify({
-      restaurantId: cart.restaurantId,
+      restaurantId: cart.restaurantId || scopedKeys.restaurantId,
       branchId: cart.branchId,
       tableId: cart.tableId,
       tableNumber: cart.tableNumber || "",
@@ -893,8 +1078,9 @@ export const saveCurrentCart = async (cart: RestaurantCartState) => {
   );
 };
 
-export const clearCurrentCart = async () => {
-  await AsyncStorage.removeItem(RESTAURANT_STORAGE_KEYS.currentCart);
+export const clearCurrentCart = async (restaurantId?: string) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  await AsyncStorage.removeItem(scopedKeys.currentCart);
 };
 
 const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
@@ -920,7 +1106,15 @@ const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
 export const registerRestaurantAdmin = async (
   username: string,
   password: string,
-): Promise<{ ok: boolean; message: string }> => {
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+): Promise<{
+  ok: boolean;
+  message: string;
+  userId?: string;
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
+  restaurantId?: string;
+  restaurantIds?: string[];
+}> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
 
@@ -930,7 +1124,7 @@ export const registerRestaurantAdmin = async (
 
   const accounts = await loadAdminAccounts();
   const existed = accounts.some(
-    (account) => normalise(account.username) === normalise(cleanUsername),
+    account => normalise(account.username) === normalise(cleanUsername),
   );
 
   if (existed) {
@@ -941,17 +1135,40 @@ export const registerRestaurantAdmin = async (
   // Replace this with backend auth + hashed password/session before production restaurant deployment.
   const nextAccounts = [
     ...accounts,
-    { username: cleanUsername, password: cleanPassword, createdAt: nowIso() },
+    {
+      username: cleanUsername,
+      password: cleanPassword,
+      restaurantIds: [resolveRestaurantScopeId(restaurantId)],
+      activeRestaurantId: resolveRestaurantScopeId(restaurantId),
+      role: "OWNER" as const,
+      createdAt: nowIso(),
+    },
   ];
   await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, nextAccounts);
 
-  return { ok: true, message: "Đăng ký admin local thành công" };
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  return {
+    ok: true,
+    message: "Đăng ký admin local thành công",
+    userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
+    role: "OWNER",
+    restaurantId: scopedRestaurantId,
+    restaurantIds: [scopedRestaurantId],
+  };
 };
 
 export const verifyRestaurantAdmin = async (
   username: string,
   password: string,
-): Promise<{ ok: boolean; message: string }> => {
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+): Promise<{
+  ok: boolean;
+  message: string;
+  userId?: string;
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
+  restaurantId?: string;
+  restaurantIds?: string[];
+}> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
 
@@ -960,15 +1177,41 @@ export const verifyRestaurantAdmin = async (
   }
 
   const accounts = await loadAdminAccounts();
-  const matched = accounts.some(
-    (account) =>
-      normalise(account.username) === normalise(cleanUsername) &&
-      account.password === cleanPassword,
-  );
+  const targetRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const matchedAccount = accounts.find(account => {
+    const usernameMatched = normalise(account.username) === normalise(cleanUsername);
+    const passwordMatched = account.password === cleanPassword;
+    return usernameMatched && passwordMatched;
+  });
 
-  if (!matched) {
+  if (!matchedAccount) {
     return { ok: false, message: "Tên tài khoản hoặc mật khẩu chưa đúng" };
   }
 
-  return { ok: true, message: "Đăng nhập admin thành công" };
+  const accountRestaurantIds = matchedAccount.restaurantIds || [
+    matchedAccount.activeRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
+  ];
+  const role = matchedAccount.role || "OWNER";
+  const canUseRequestedRestaurant =
+    role === "OWNER" || accountRestaurantIds.indexOf(targetRestaurantId) >= 0;
+
+  if (!canUseRequestedRestaurant) {
+    return {
+      ok: false,
+      message: "Tài khoản không có quyền truy cập nhà hàng đang chọn",
+    };
+  }
+
+  const scopedRestaurantId = canUseRequestedRestaurant
+    ? targetRestaurantId
+    : accountRestaurantIds[0] || DEFAULT_LOCAL_RESTAURANT_ID;
+
+  return {
+    ok: true,
+    message: "Đăng nhập admin thành công",
+    userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
+    role,
+    restaurantId: scopedRestaurantId,
+    restaurantIds: accountRestaurantIds,
+  };
 };

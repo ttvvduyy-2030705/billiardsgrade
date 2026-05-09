@@ -42,10 +42,13 @@ export type RestaurantMenuContext = {
   restaurantId: string;
   restaurantName?: string;
   branchId?: string;
+  branchName?: string;
   tableId?: string;
   tableNumber?: string;
   qrCodeToken?: string;
   source?: 'admin' | 'customer' | 'local-demo';
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
+  allowedRestaurantIds?: string[];
 };
 
 export type RestaurantWorkspacePayload = {
@@ -245,6 +248,49 @@ export const createRestaurantWorkspace = async (
   return nextWorkspace;
 };
 
+
+const resolveValidBranchForRestaurant = async (
+  restaurantId: string,
+  branchId?: string,
+) => {
+  const branches = (await readArray<RestaurantBranch>(
+    WORKSPACE_STORAGE_KEYS.branches,
+  )).map(cleanBranch);
+  const restaurantBranches = branches.filter(
+    branch => branch.restaurantId === restaurantId,
+  );
+  const branch =
+    restaurantBranches.find(item => item.id === branchId) ||
+    restaurantBranches[0];
+
+  return branch;
+};
+
+const resolveValidTableForRestaurant = async ({
+  restaurantId,
+  branchId,
+  tableId,
+}: {
+  restaurantId: string;
+  branchId?: string;
+  tableId?: string;
+}) => {
+  if (!tableId) {
+    return undefined;
+  }
+
+  const tables = (await readArray<RestaurantTable>(
+    WORKSPACE_STORAGE_KEYS.tables,
+  )).map(cleanTable);
+
+  return tables.find(
+    table =>
+      table.id === tableId &&
+      table.restaurantId === restaurantId &&
+      (!branchId || !table.branchId || table.branchId === branchId),
+  );
+};
+
 export const loadActiveRestaurantContext =
   async (): Promise<RestaurantMenuContext> => {
     const workspaces = await loadRestaurantWorkspaces();
@@ -262,6 +308,15 @@ export const loadActiveRestaurantContext =
     const workspace =
       workspaces.find(item => item.id === parsed.value?.restaurantId) ||
       defaultWorkspace;
+    const branch = await resolveValidBranchForRestaurant(
+      workspace.id,
+      parsed.value?.branchId,
+    );
+    const table = await resolveValidTableForRestaurant({
+      restaurantId: workspace.id,
+      branchId: branch?.id,
+      tableId: parsed.value?.tableId,
+    });
 
     if (!parsed.ok) {
       await AsyncStorage.removeItem(WORKSPACE_STORAGE_KEYS.activeContext);
@@ -270,11 +325,14 @@ export const loadActiveRestaurantContext =
     return {
       restaurantId: workspace.id,
       restaurantName: workspace.name,
-      branchId: parsed.value?.branchId,
-      tableId: parsed.value?.tableId,
-      tableNumber: parsed.value?.tableNumber,
-      qrCodeToken: parsed.value?.qrCodeToken,
+      branchId: branch?.id,
+      branchName: branch?.name,
+      tableId: table?.id,
+      tableNumber: table?.tableNumber || parsed.value?.tableNumber,
+      qrCodeToken: table?.qrCodeToken || parsed.value?.qrCodeToken,
       source: parsed.value?.source || 'local-demo',
+      role: parsed.value?.role,
+      allowedRestaurantIds: parsed.value?.allowedRestaurantIds,
     };
   };
 
@@ -289,14 +347,47 @@ export const saveActiveRestaurantContext = async (
     workspaces[0] ||
     getDefaultRestaurantWorkspace();
 
+  const restaurantChanged = workspace.id !== current.restaurantId;
+  const branchIdWasProvided = Object.prototype.hasOwnProperty.call(
+    context,
+    'branchId',
+  );
+  const tableIdWasProvided = Object.prototype.hasOwnProperty.call(
+    context,
+    'tableId',
+  );
+  const requestedBranchId = restaurantChanged
+    ? context.branchId
+    : branchIdWasProvided
+      ? context.branchId
+      : current.branchId;
+  const branch = await resolveValidBranchForRestaurant(
+    workspace.id,
+    requestedBranchId,
+  );
+  const requestedTableId = restaurantChanged
+    ? context.tableId
+    : tableIdWasProvided
+      ? context.tableId
+      : current.tableId;
+  const table = await resolveValidTableForRestaurant({
+    restaurantId: workspace.id,
+    branchId: branch?.id,
+    tableId: requestedTableId,
+  });
+
   const next: RestaurantMenuContext = {
     restaurantId: workspace.id,
     restaurantName: workspace.name,
-    branchId: context.branchId ?? current.branchId,
-    tableId: context.tableId ?? current.tableId,
-    tableNumber: context.tableNumber ?? current.tableNumber,
-    qrCodeToken: context.qrCodeToken ?? current.qrCodeToken,
+    branchId: branch?.id,
+    branchName: branch?.name,
+    tableId: table?.id,
+    tableNumber: table?.tableNumber || (tableIdWasProvided ? context.tableNumber : current.tableNumber),
+    qrCodeToken: table?.qrCodeToken || (tableIdWasProvided ? context.qrCodeToken : current.qrCodeToken),
     source: context.source || current.source || 'local-demo',
+    role: context.role || current.role,
+    allowedRestaurantIds:
+      context.allowedRestaurantIds || current.allowedRestaurantIds,
   };
 
   await AsyncStorage.setItem(
@@ -304,6 +395,27 @@ export const saveActiveRestaurantContext = async (
     JSON.stringify(next),
   );
   return next;
+};
+
+export const resetActiveRestaurantContext = async (
+  source: RestaurantMenuContext['source'] = 'local-demo',
+): Promise<RestaurantMenuContext> => {
+  const workspaces = await loadRestaurantWorkspaces();
+  const workspace =
+    workspaces.find(item => item.id === DEFAULT_RESTAURANT_ID) ||
+    workspaces[0] ||
+    getDefaultRestaurantWorkspace();
+
+  return saveActiveRestaurantContext({
+    restaurantId: workspace.id,
+    branchId: undefined,
+    tableId: undefined,
+    tableNumber: undefined,
+    qrCodeToken: undefined,
+    source,
+    role: undefined,
+    allowedRestaurantIds: undefined,
+  });
 };
 
 export const loadRestaurantBranches = async (restaurantId?: string) => {

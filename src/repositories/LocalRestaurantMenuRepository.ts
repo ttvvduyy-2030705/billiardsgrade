@@ -30,11 +30,13 @@ import {
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
+  registerRestaurantAdmin,
   saveCurrentCart,
   updateRestaurantOrderPaymentStatus,
   updateRestaurantOrderStatus,
   upsertMenuCategory,
   upsertMenuItem,
+  verifyRestaurantAdmin,
 } from 'services/restaurantMenuStorage';
 import {
   createRestaurantBranch,
@@ -52,15 +54,16 @@ import {
 
 export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
   async bootstrap(): Promise<void> {
-    // These loaders run the existing AsyncStorage schema migration safely.
+    // These loaders run the existing AsyncStorage schema migration safely and
+    // keep local menu/order/cart data scoped by active restaurantId.
+    const context = await loadActiveRestaurantContext();
     await Promise.all([
       loadRestaurantWorkspaces(),
-      loadRestaurantBranches(),
-      loadRestaurantTables(),
-      loadActiveRestaurantContext(),
-      loadMenuCategories(),
-      loadMenuItems(),
-      loadOrders(),
+      loadRestaurantBranches(context.restaurantId),
+      loadRestaurantTables(context.restaurantId),
+      loadMenuCategories(context.restaurantId),
+      loadMenuItems(context.restaurantId),
+      loadOrders(context.restaurantId),
     ]);
   }
 
@@ -76,6 +79,16 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
 
   listRestaurants(): Promise<RestaurantWorkspace[]> {
     return loadRestaurantWorkspaces();
+  }
+
+  async verifyAdminCredentials(username: string, password: string) {
+    const context = await this.getActiveContext();
+    return verifyRestaurantAdmin(username, password, context.restaurantId);
+  }
+
+  async registerAdminAccount(username: string, password: string) {
+    const context = await this.getActiveContext();
+    return registerRestaurantAdmin(username, password, context.restaurantId);
   }
 
   createRestaurant(
@@ -115,8 +128,9 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     return resolveRestaurantTableToken(token);
   }
 
-  getCategories(): Promise<MenuCategory[]> {
-    return loadMenuCategories();
+  async getCategories(): Promise<MenuCategory[]> {
+    const context = await this.getActiveContext();
+    return loadMenuCategories(context.restaurantId);
   }
 
   async createCategory(
@@ -141,15 +155,20 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     });
   }
 
-  deleteCategory(
+  async deleteCategory(
     id: string,
     options: DeleteCategoryOptions = {},
   ): Promise<CategoryMutationResult> {
-    return deleteMenuCategory(id, options);
+    const context = await this.getActiveContext();
+    return deleteMenuCategory(id, {
+      ...options,
+      restaurantId: options.restaurantId || context.restaurantId,
+    });
   }
 
-  getItems(): Promise<RestaurantMenuItem[]> {
-    return loadMenuItems();
+  async getItems(): Promise<RestaurantMenuItem[]> {
+    const context = await this.getActiveContext();
+    return loadMenuItems(context.restaurantId);
   }
 
   async createItem(
@@ -174,19 +193,25 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     });
   }
 
-  deleteItem(id: string): Promise<RestaurantMenuItem[]> {
-    return deleteMenuItem(id);
+  async deleteItem(id: string): Promise<RestaurantMenuItem[]> {
+    const context = await this.getActiveContext();
+    return deleteMenuItem(id, context.restaurantId);
   }
 
-  getOrders(): Promise<RestaurantOrder[]> {
-    return loadOrders();
+  async getOrders(): Promise<RestaurantOrder[]> {
+    const context = await this.getActiveContext();
+    const orders = await loadOrders(context.restaurantId);
+
+    return context.branchId
+      ? orders.filter(order => order.branchId === context.branchId)
+      : orders;
   }
 
   async createOrder(
     payload: RestaurantOrderPayload,
   ): Promise<RestaurantOrder[]> {
     const context = await this.getActiveContext();
-    return createRestaurantOrder({
+    const orders = await createRestaurantOrder({
       ...payload,
       restaurantId: payload.restaurantId || context.restaurantId,
       branchId: payload.branchId || context.branchId,
@@ -194,27 +219,44 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
       tableNumber: payload.tableNumber || context.tableNumber || '',
       orderSource: payload.orderSource || context.source || 'local-demo',
     });
+    return context.branchId
+      ? orders.filter(order => order.branchId === context.branchId)
+      : orders;
   }
 
-  updateOrderStatus(
+  async updateOrderStatus(
     orderId: string,
     status: RestaurantOrderStatus,
   ): Promise<RestaurantOrder[]> {
-    return updateRestaurantOrderStatus(orderId, status);
+    const context = await this.getActiveContext();
+    const orders = await updateRestaurantOrderStatus(
+      orderId,
+      status,
+      context.restaurantId,
+    );
+    return context.branchId
+      ? orders.filter(order => order.branchId === context.branchId)
+      : orders;
   }
 
-  updatePaymentStatus(
+  async updatePaymentStatus(
     orderId: string,
     paymentStatus: RestaurantPaymentStatus,
   ): Promise<RestaurantOrder[]> {
-    return updateRestaurantOrderPaymentStatus(orderId, paymentStatus);
+    const context = await this.getActiveContext();
+    const orders = await updateRestaurantOrderPaymentStatus(
+      orderId,
+      paymentStatus,
+      context.restaurantId,
+    );
+    return context.branchId
+      ? orders.filter(order => order.branchId === context.branchId)
+      : orders;
   }
 
   async getCurrentCart(): Promise<RestaurantCartState> {
-    const [context, cart] = await Promise.all([
-      this.getActiveContext(),
-      loadCurrentCart(),
-    ]);
+    const context = await this.getActiveContext();
+    const cart = await loadCurrentCart(context.restaurantId);
 
     return {
       ...cart,
@@ -227,15 +269,19 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
 
   async saveCurrentCart(cart: RestaurantCartState): Promise<void> {
     const context = await this.getActiveContext();
-    return saveCurrentCart({
-      ...cart,
-      restaurantId: cart.restaurantId || context.restaurantId,
-      branchId: cart.branchId || context.branchId,
-      tableId: cart.tableId || context.tableId,
-    });
+    return saveCurrentCart(
+      {
+        ...cart,
+        restaurantId: cart.restaurantId || context.restaurantId,
+        branchId: cart.branchId || context.branchId,
+        tableId: cart.tableId || context.tableId,
+      },
+      context.restaurantId,
+    );
   }
 
-  clearCurrentCart(): Promise<void> {
-    return clearCurrentCart();
+  async clearCurrentCart(): Promise<void> {
+    const context = await this.getActiveContext();
+    return clearCurrentCart(context.restaurantId);
   }
 }

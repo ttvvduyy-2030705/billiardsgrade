@@ -1,10 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
-  registerRestaurantAdmin,
-  verifyRestaurantAdmin,
-} from './restaurantMenuStorage';
-import {loadActiveRestaurantContext} from './restaurantWorkspaceStorage';
+  getActiveRestaurantContext,
+  registerRestaurantAdminCredentials,
+  setActiveRestaurantContext,
+  verifyRestaurantAdminCredentials,
+} from './restaurantMenuRepository';
+import {devWarn} from 'utils/devLogger';
 
 export type RestaurantAdminAuthProvider = 'local' | 'api';
 export type RestaurantAdminRole = 'OWNER' | 'MANAGER' | 'STAFF';
@@ -18,6 +20,7 @@ export type RestaurantAdminSession = {
   token?: string;
   activeRestaurantId?: string;
   activeRestaurantName?: string;
+  restaurantIds?: string[];
   signedInAt: string;
   expiresAt: string;
 };
@@ -50,23 +53,42 @@ const normalizeRole = (role?: string): RestaurantAdminRole => {
   return 'OWNER';
 };
 
-const createLocalSession = async (
-  username: string,
-): Promise<RestaurantAdminSession> => {
+const createAdminSession = async ({
+  username,
+  provider,
+  token,
+  userId,
+  role,
+  restaurantId,
+  restaurantIds,
+}: {
+  username: string;
+  provider: RestaurantAdminAuthProvider;
+  token?: string;
+  userId?: string;
+  role?: string;
+  restaurantId?: string;
+  restaurantIds?: string[];
+}): Promise<RestaurantAdminSession> => {
   const now = Date.now();
   const signedInAt = new Date(now).toISOString();
   const cleanUsername = normaliseUsername(username);
-  const context = await loadActiveRestaurantContext();
+  const context = await getActiveRestaurantContext();
 
   return {
     version: 1,
-    userId: createLocalUserId(cleanUsername),
+    userId: userId || createLocalUserId(cleanUsername),
     username: cleanUsername,
-    role: 'OWNER',
-    provider: 'local',
-    token: createLocalSessionToken(cleanUsername, signedInAt),
-    activeRestaurantId: context.restaurantId,
+    role: normalizeRole(role),
+    provider,
+    token:
+      token ||
+      (provider === 'api'
+        ? undefined
+        : createLocalSessionToken(cleanUsername, signedInAt)),
+    activeRestaurantId: restaurantId || context.restaurantId,
     activeRestaurantName: context.restaurantName,
+    restaurantIds: restaurantIds && restaurantIds.length > 0 ? restaurantIds : undefined,
     signedInAt,
     expiresAt: new Date(now + ADMIN_SESSION_TTL_MS).toISOString(),
   };
@@ -115,6 +137,9 @@ const normalizeSession = (
         : createLocalSessionToken(username, signedInAt)),
     activeRestaurantId: session.activeRestaurantId,
     activeRestaurantName: session.activeRestaurantName,
+    restaurantIds: Array.isArray(session.restaurantIds)
+      ? session.restaurantIds.filter(Boolean)
+      : undefined,
     signedInAt,
     expiresAt: session.expiresAt || nowIso(),
   };
@@ -149,7 +174,7 @@ export const getRestaurantAdminSession = async () => {
 
     return session;
   } catch (error) {
-    console.warn('[RestaurantAdminAuth] read session failed', error);
+    devWarn('[AUTH] read admin session failed', error);
     await clearRestaurantAdminSession();
     return null;
   }
@@ -166,7 +191,10 @@ export const loginRestaurantAdmin = async (
     return {ok: false, message: 'Vui lòng nhập tài khoản và mật khẩu Admin'};
   }
 
-  const result = await verifyRestaurantAdmin(cleanUsername, cleanPassword);
+  const result = await verifyRestaurantAdminCredentials(
+    cleanUsername,
+    cleanPassword,
+  );
 
   if (!result.ok) {
     return {
@@ -177,7 +205,24 @@ export const loginRestaurantAdmin = async (
     };
   }
 
-  const session = await createLocalSession(cleanUsername);
+  if (result.restaurantId) {
+    await setActiveRestaurantContext({
+      restaurantId: result.restaurantId,
+      source: 'admin',
+      role: result.role,
+      allowedRestaurantIds: result.restaurantIds,
+    });
+  }
+
+  const session = await createAdminSession({
+    username: cleanUsername,
+    provider: result.token ? 'api' : 'local',
+    token: result.token,
+    userId: result.userId,
+    role: result.role,
+    restaurantId: result.restaurantId,
+    restaurantIds: result.restaurantIds,
+  });
   await saveAdminSession(session);
 
   return {ok: true, message: 'Đăng nhập Admin thành công', session};
@@ -198,7 +243,10 @@ export const registerRestaurantAdminAccount = async (
     return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
   }
 
-  const result = await registerRestaurantAdmin(cleanUsername, cleanPassword);
+  const result = await registerRestaurantAdminCredentials(
+    cleanUsername,
+    cleanPassword,
+  );
 
   if (!result.ok) {
     return {ok: false, message: result.message};
@@ -210,6 +258,29 @@ export const registerRestaurantAdminAccount = async (
   };
 };
 
+
+export const updateRestaurantAdminSessionContext = async ({
+  restaurantId,
+  restaurantName,
+}: {
+  restaurantId?: string;
+  restaurantName?: string;
+}) => {
+  const current = await getRestaurantAdminSession();
+
+  if (!current) {
+    return null;
+  }
+
+  const next: RestaurantAdminSession = {
+    ...current,
+    activeRestaurantId: restaurantId || current.activeRestaurantId,
+    activeRestaurantName: restaurantName || current.activeRestaurantName,
+  };
+  await saveAdminSession(next);
+  return next;
+};
+
 export const refreshRestaurantAdminSession = async () => {
   const current = await getRestaurantAdminSession();
 
@@ -217,7 +288,15 @@ export const refreshRestaurantAdminSession = async () => {
     return null;
   }
 
-  const next = await createLocalSession(current.username);
+  const next = await createAdminSession({
+    username: current.username,
+    provider: current.provider,
+    token: current.token,
+    userId: current.userId,
+    role: current.role,
+    restaurantId: current.activeRestaurantId,
+    restaurantIds: current.restaurantIds,
+  });
   await saveAdminSession(next);
   return next;
 };
@@ -229,5 +308,6 @@ export const RestaurantAdminAuthService = {
   getSession: getRestaurantAdminSession,
   clearSession: clearRestaurantAdminSession,
   refreshSession: refreshRestaurantAdminSession,
+  updateSessionContext: updateRestaurantAdminSessionContext,
   isSessionValid: isRestaurantAdminSessionValid,
 };

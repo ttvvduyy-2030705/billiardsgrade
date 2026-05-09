@@ -47,6 +47,7 @@ import {
   useRestaurantCartStore,
 } from "../../stores/RestaurantCartStore";
 import { useRestaurantMenuStore } from "../../stores/RestaurantMenuStore";
+import { useRestaurantContextStore } from "../../stores/RestaurantContextStore";
 
 import type {
   MenuCategory,
@@ -676,6 +677,10 @@ const RestaurantMenuScreen = (props: Props) => {
     refreshMenuData,
   } = useRestaurantMenuStore();
   const {
+    context: restaurantContext,
+    hydrateRestaurantContext,
+  } = useRestaurantContextStore();
+  const {
     cart,
     cartModalVisible,
     cartSubmitting,
@@ -693,6 +698,7 @@ const RestaurantMenuScreen = (props: Props) => {
   const [checkingAdminRoute, setCheckingAdminRoute] = useState(false);
   const [tableError, setTableError] = useState("");
   const [cartError, setCartError] = useState("");
+  const [searchText, setSearchText] = useState("");
 
   const showMessage = useCallback((text: string) => {
     setMessage(text);
@@ -708,6 +714,7 @@ const RestaurantMenuScreen = (props: Props) => {
     async (source = "manual") => {
       void source;
 
+      await hydrateRestaurantContext({source: "customer"});
       const [, menuResult] = await Promise.all([
         hydrateCartFromStorage(),
         refreshMenuData(),
@@ -715,7 +722,12 @@ const RestaurantMenuScreen = (props: Props) => {
 
       updateMenuItemSnapshot(menuResult.items);
     },
-    [hydrateCartFromStorage, refreshMenuData, updateMenuItemSnapshot],
+    [
+      hydrateCartFromStorage,
+      hydrateRestaurantContext,
+      refreshMenuData,
+      updateMenuItemSnapshot,
+    ],
   );
 
   useEffect(() => {
@@ -759,11 +771,22 @@ const RestaurantMenuScreen = (props: Props) => {
   }, [items]);
 
   const visibleItems = useMemo(() => {
-    return items.filter(
-      (item) =>
-        item.status !== "HIDDEN" && item.categoryId === selectedCategory?.id,
-    );
-  }, [items, selectedCategory?.id]);
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (item.status === "HIDDEN" || item.categoryId !== selectedCategory?.id) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return `${item.name} ${item.description}`
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [items, searchText, selectedCategory?.id]);
 
   const categoryNameById = useMemo(() => {
     return categories.reduce<Record<string, string>>((result, category) => {
@@ -959,6 +982,18 @@ const RestaurantMenuScreen = (props: Props) => {
         </View>
 
         <View style={styles.headerAuthCenter}>
+          <View style={styles.headerTitleWrap}>
+            <RNText numberOfLines={1} style={styles.headerTitle}>
+              {restaurantContext?.restaurantName || "Menu nhà hàng"}
+            </RNText>
+            <RNText numberOfLines={1} style={styles.headerSubTitle}>
+              {restaurantContext?.tableNumber
+                ? `Bàn ${restaurantContext.tableNumber}`
+                : restaurantContext?.branchName
+                  ? restaurantContext.branchName
+                  : "Chọn món và gửi đơn theo đúng nhà hàng"}
+            </RNText>
+          </View>
           <Pressable
             disabled={checkingAdminRoute}
             onPress={() => void handleOpenAdmin()}
@@ -968,7 +1003,7 @@ const RestaurantMenuScreen = (props: Props) => {
             ]}
           >
             <RNText style={styles.headerAuthText}>
-              {checkingAdminRoute ? "Đang kiểm tra..." : "Quản trị nhà hàng"}
+              {checkingAdminRoute ? "Đang kiểm tra..." : "Quản trị"}
             </RNText>
           </Pressable>
         </View>
@@ -1084,6 +1119,21 @@ const RestaurantMenuScreen = (props: Props) => {
               {visibleItems.length} món
             </RNText>
           </View>
+
+          <RNView style={styles.menuSearchWrap}>
+            <RNText style={styles.inputLabel}>TÌM KIẾM MÓN</RNText>
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder="Nhập tên món, đồ uống..."
+              placeholderTextColor="rgba(255,255,255,0.42)"
+              autoCorrect={false}
+              returnKeyType="search"
+              selectionColor="#E22A32"
+              underlineColorAndroid="transparent"
+              style={styles.menuSearchInput}
+            />
+          </RNView>
 
           <FlatList
             key={menuListKey}

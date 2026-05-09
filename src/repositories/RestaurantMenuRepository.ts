@@ -51,6 +51,18 @@ export type RestaurantOrderPayload = Omit<
 
 export type DeleteCategoryOptions = {
   moveItemsToCategoryId?: string;
+  restaurantId?: string;
+  restaurantIds?: string[];
+};
+
+export type RestaurantAdminCredentialResult = {
+  ok: boolean;
+  message: string;
+  token?: string;
+  userId?: string;
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
+  restaurantId?: string;
+  restaurantIds?: string[];
 };
 
 export type CategoryMutationResult = {
@@ -77,6 +89,15 @@ export interface RestaurantMenuRepository {
   ): Promise<RestaurantMenuContext>;
 
   listRestaurants(): Promise<RestaurantWorkspace[]>;
+
+  verifyAdminCredentials(
+    username: string,
+    password: string,
+  ): Promise<RestaurantAdminCredentialResult>;
+  registerAdminAccount(
+    username: string,
+    password: string,
+  ): Promise<RestaurantAdminCredentialResult>;
   createRestaurant(
     payload: RestaurantWorkspacePayload,
   ): Promise<RestaurantWorkspace>;

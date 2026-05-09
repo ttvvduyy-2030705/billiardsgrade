@@ -1,6 +1,7 @@
 import type {
   CategoryMutationResult,
   DeleteCategoryOptions,
+  RestaurantAdminCredentialResult,
   RestaurantBranchPayload,
   RestaurantMenuCategoryPayload,
   RestaurantMenuContext,
@@ -24,9 +25,45 @@ import type {
   RestaurantPaymentStatus,
 } from 'services/restaurantMenuStorage';
 
+export type RestaurantMenuApiErrorCode =
+  | 'NETWORK_ERROR'
+  | 'TIMEOUT'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'SERVER_ERROR'
+  | 'API_ERROR';
+
+export class RestaurantMenuApiError extends Error {
+  status?: number;
+  code: RestaurantMenuApiErrorCode;
+  details?: unknown;
+
+  constructor({
+    code,
+    message,
+    status,
+    details,
+  }: {
+    code: RestaurantMenuApiErrorCode;
+    message: string;
+    status?: number;
+    details?: unknown;
+  }) {
+    super(message);
+    this.name = 'RestaurantMenuApiError';
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+}
+
 export type ApiRestaurantMenuRepositoryConfig = {
   baseUrl: string;
   defaultRestaurantId?: string;
+  timeoutMs?: number;
+  retryCount?: number;
   getAuthToken?: () => Promise<string | undefined> | string | undefined;
 };
 
@@ -34,15 +71,100 @@ type ApiRequestInit = {
   method?: string;
   body?: string;
   headers?: Record<string, string>;
+  timeoutMs?: number;
+  retryCount?: number;
+};
+
+const DEFAULT_API_TIMEOUT_MS = 15000;
+const DEFAULT_API_RETRY_COUNT = 1;
+
+const wait = (ms: number) =>
+  new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+
+const isReadRequest = (method?: string) => {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  return normalizedMethod === 'GET' || normalizedMethod === 'HEAD';
+};
+
+const toReadableApiMessage = (status: number, fallback: string) => {
+  switch (status) {
+    case 400:
+      return fallback || 'Dữ liệu gửi lên chưa hợp lệ.';
+    case 401:
+      return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    case 403:
+      return 'Tài khoản không có quyền thao tác dữ liệu này.';
+    case 404:
+      return 'Không tìm thấy dữ liệu cần xử lý.';
+    case 409:
+      return fallback || 'Dữ liệu bị trùng hoặc xung đột.';
+    default:
+      if (status >= 500) {
+        return 'Server menu đang lỗi. Vui lòng thử lại sau.';
+      }
+      return fallback || 'API menu trả về lỗi không xác định.';
+  }
+};
+
+const statusToErrorCode = (status: number): RestaurantMenuApiErrorCode => {
+  if (status === 401) {
+    return 'UNAUTHORIZED';
+  }
+  if (status === 403) {
+    return 'FORBIDDEN';
+  }
+  if (status === 404) {
+    return 'NOT_FOUND';
+  }
+  if (status === 400 || status === 409 || status === 422) {
+    return 'VALIDATION_ERROR';
+  }
+  if (status >= 500) {
+    return 'SERVER_ERROR';
+  }
+  return 'API_ERROR';
+};
+
+const parseResponseBody = async (response: Response) => {
+  const text = await response.text().catch(() => '');
+
+  if (!text) {
+    return {text: '', json: undefined as unknown};
+  }
+
+  try {
+    return {text, json: JSON.parse(text) as unknown};
+  } catch (_error) {
+    return {text, json: undefined as unknown};
+  }
+};
+
+const extractApiMessage = (body: {text: string; json: unknown}) => {
+  if (body.json && typeof body.json === 'object') {
+    const payload = body.json as Record<string, unknown>;
+    const message = payload.message || payload.error || payload.detail;
+
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim();
+    }
+  }
+
+  return body.text;
 };
 
 export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   private readonly baseUrl: string;
+  private readonly timeoutMs: number;
+  private readonly retryCount: number;
   private readonly getAuthToken?: ApiRestaurantMenuRepositoryConfig['getAuthToken'];
   private activeContext: RestaurantMenuContext;
 
   constructor(config: ApiRestaurantMenuRepositoryConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.timeoutMs = config.timeoutMs || DEFAULT_API_TIMEOUT_MS;
+    this.retryCount = Math.max(0, config.retryCount ?? DEFAULT_API_RETRY_COUNT);
     this.getAuthToken = config.getAuthToken;
     this.activeContext = {
       restaurantId: config.defaultRestaurantId || '',
@@ -56,9 +178,11 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
 
   getActiveContext(): Promise<RestaurantMenuContext> {
     if (!this.activeContext.restaurantId) {
-      throw new Error(
-        'Restaurant Menu API requires an active restaurantId before loading menu data.',
-      );
+      throw new RestaurantMenuApiError({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Restaurant Menu API requires an active restaurantId before loading menu data.',
+      });
     }
 
     return Promise.resolve(this.activeContext);
@@ -75,38 +199,107 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     return this.getActiveContext();
   }
 
-  private async request<T>(
+  private async requestOnce<T>(
     path: string,
     init: ApiRequestInit = {},
   ): Promise<T> {
     if (!this.baseUrl) {
-      throw new Error('Restaurant Menu API baseUrl is not configured.');
+      throw new RestaurantMenuApiError({
+        code: 'VALIDATION_ERROR',
+        message: 'Restaurant Menu API baseUrl is not configured.',
+      });
     }
 
     const token = await this.getAuthToken?.();
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(token ? {Authorization: `Bearer ${token}`} : {}),
-        ...(init.headers || {}),
-      },
-    });
+    const controller =
+      typeof AbortController !== 'undefined'
+        ? new AbortController()
+        : undefined;
+    const timeoutMs = init.timeoutMs || this.timeoutMs;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : undefined;
 
-    if (!response.ok) {
-      const message = await response.text().catch(() => '');
-      throw new Error(
-        `Restaurant Menu API error ${response.status}: ${message || response.statusText}`,
-      );
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: init.method || 'GET',
+        body: init.body,
+        signal: controller?.signal,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? {Authorization: `Bearer ${token}`} : {}),
+          ...(init.headers || {}),
+        },
+      });
+
+      if (!response.ok) {
+        const body = await parseResponseBody(response);
+        const rawMessage = extractApiMessage(body);
+        throw new RestaurantMenuApiError({
+          code: statusToErrorCode(response.status),
+          status: response.status,
+          message: toReadableApiMessage(response.status, rawMessage),
+          details: body.json || body.text,
+        });
+      }
+
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const body = await parseResponseBody(response);
+      return (body.json !== undefined ? body.json : undefined) as T;
+    } catch (error) {
+      if (error instanceof RestaurantMenuApiError) {
+        throw error;
+      }
+
+      const errorName = error instanceof Error ? error.name : '';
+      const timedOut = errorName === 'AbortError';
+      throw new RestaurantMenuApiError({
+        code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
+        message: timedOut
+          ? 'Kết nối API menu quá lâu. Vui lòng thử lại.'
+          : 'Không thể kết nối API menu. Kiểm tra mạng hoặc backend.',
+        details: error,
+      });
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
+  }
+
+  private async request<T>(
+    path: string,
+    init: ApiRequestInit = {},
+  ): Promise<T> {
+    const retryCount = Math.max(0, init.retryCount ?? this.retryCount);
+    const canRetry = isReadRequest(init.method);
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+      try {
+        return await this.requestOnce<T>(path, init);
+      } catch (error) {
+        lastError = error;
+        const apiError = error as Partial<RestaurantMenuApiError>;
+        const retryable =
+          canRetry &&
+          (apiError.code === 'NETWORK_ERROR' ||
+            apiError.code === 'TIMEOUT' ||
+            apiError.code === 'SERVER_ERROR');
+
+        if (!retryable || attempt >= retryCount) {
+          throw error;
+        }
+
+        await wait(250 * (attempt + 1));
+      }
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    const text = await response.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    throw lastError;
   }
 
   private async restaurantPath(path: string) {
@@ -115,14 +308,39 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     return `/restaurants/${encodeURIComponent(context.restaurantId)}${cleanPath}`;
   }
 
-  private normaliseOrders(orders: RawRestaurantOrder[]): RestaurantOrder[] {
+  private normaliseOrders(
+    orders: RawRestaurantOrder[],
+    restaurantId?: string,
+  ): RestaurantOrder[] {
     return Array.isArray(orders)
-      ? orders.map(order => normaliseRestaurantOrder(order))
+      ? orders.map(order => normaliseRestaurantOrder(order, restaurantId))
       : [];
   }
 
   listRestaurants(): Promise<RestaurantWorkspace[]> {
     return this.request<RestaurantWorkspace[]>('/restaurants');
+  }
+
+  async verifyAdminCredentials(
+    username: string,
+    password: string,
+  ): Promise<RestaurantAdminCredentialResult> {
+    return this.request<RestaurantAdminCredentialResult>('/auth/admin/login', {
+      method: 'POST',
+      body: JSON.stringify({username, password}),
+      retryCount: 0,
+    });
+  }
+
+  async registerAdminAccount(
+    username: string,
+    password: string,
+  ): Promise<RestaurantAdminCredentialResult> {
+    return this.request<RestaurantAdminCredentialResult>('/auth/admin/register', {
+      method: 'POST',
+      body: JSON.stringify({username, password}),
+      retryCount: 0,
+    });
   }
 
   createRestaurant(
@@ -187,9 +405,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       );
     }
 
-    return this.request<RestaurantTable[]>(
-      await this.restaurantPath('/tables'),
-    );
+    return this.request<RestaurantTable[]>(await this.restaurantPath('/tables'));
   }
 
   async createTable(payload: RestaurantTablePayload): Promise<RestaurantTable> {
@@ -220,11 +436,15 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   async createCategory(
     payload: RestaurantMenuCategoryPayload,
   ): Promise<CategoryMutationResult> {
+    const context = await this.getActiveContext();
     return this.request<CategoryMutationResult>(
       await this.restaurantPath('/menu/categories'),
       {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: payload.restaurantId || context.restaurantId,
+        }),
       },
     );
   }
@@ -233,11 +453,15 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     id: string,
     payload: RestaurantMenuCategoryPayload,
   ): Promise<CategoryMutationResult> {
+    const context = await this.getActiveContext();
     return this.request<CategoryMutationResult>(
       await this.restaurantPath(`/menu/categories/${encodeURIComponent(id)}`),
       {
         method: 'PATCH',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: payload.restaurantId || context.restaurantId,
+        }),
       },
     );
   }
@@ -264,11 +488,15 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   async createItem(
     payload: RestaurantMenuItemPayload,
   ): Promise<RestaurantMenuItem[]> {
+    const context = await this.getActiveContext();
     return this.request<RestaurantMenuItem[]>(
       await this.restaurantPath('/menu/items'),
       {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: payload.restaurantId || context.restaurantId,
+        }),
       },
     );
   }
@@ -277,11 +505,15 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     id: string,
     payload: RestaurantMenuItemPayload,
   ): Promise<RestaurantMenuItem[]> {
+    const context = await this.getActiveContext();
     return this.request<RestaurantMenuItem[]>(
       await this.restaurantPath(`/menu/items/${encodeURIComponent(id)}`),
       {
         method: 'PATCH',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: payload.restaurantId || context.restaurantId,
+        }),
       },
     );
   }
@@ -294,10 +526,17 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   }
 
   async getOrders(): Promise<RestaurantOrder[]> {
+    const context = await this.getActiveContext();
+    const branchQuery = context.branchId
+      ? `?branchId=${encodeURIComponent(context.branchId)}`
+      : '';
     const orders = await this.request<RawRestaurantOrder[]>(
-      await this.restaurantPath('/orders'),
+      await this.restaurantPath(`/orders${branchQuery}`),
     );
-    return this.normaliseOrders(orders);
+    const normalised = this.normaliseOrders(orders, context.restaurantId);
+    return context.branchId
+      ? normalised.filter(order => order.branchId === context.branchId)
+      : normalised;
   }
 
   async createOrder(
@@ -317,7 +556,10 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
         }),
       },
     );
-    return this.normaliseOrders(orders);
+    const normalised = this.normaliseOrders(orders, context.restaurantId);
+    return context.branchId
+      ? normalised.filter(order => order.branchId === context.branchId)
+      : normalised;
   }
 
   async updateOrderStatus(
@@ -333,7 +575,11 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
         body: JSON.stringify({orderStatus: status}),
       },
     );
-    return this.normaliseOrders(orders);
+    const context = await this.getActiveContext();
+    const normalised = this.normaliseOrders(orders, context.restaurantId);
+    return context.branchId
+      ? normalised.filter(order => order.branchId === context.branchId)
+      : normalised;
   }
 
   async updatePaymentStatus(
@@ -349,7 +595,11 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
         body: JSON.stringify({paymentStatus}),
       },
     );
-    return this.normaliseOrders(orders);
+    const context = await this.getActiveContext();
+    const normalised = this.normaliseOrders(orders, context.restaurantId);
+    return context.branchId
+      ? normalised.filter(order => order.branchId === context.branchId)
+      : normalised;
   }
 
   async getCurrentCart(): Promise<RestaurantCartState> {
@@ -357,7 +607,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     return this.request<RestaurantCartState>(
       await this.restaurantPath(
         context.tableId
-          ? `/tables/${context.tableId}/cart/current`
+          ? `/tables/${encodeURIComponent(context.tableId)}/cart/current`
           : '/menu/cart/current',
       ),
     );
@@ -368,7 +618,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     await this.request(
       await this.restaurantPath(
         context.tableId
-          ? `/tables/${context.tableId}/cart/current`
+          ? `/tables/${encodeURIComponent(context.tableId)}/cart/current`
           : '/menu/cart/current',
       ),
       {
@@ -388,7 +638,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     await this.request(
       await this.restaurantPath(
         context.tableId
-          ? `/tables/${context.tableId}/cart/current`
+          ? `/tables/${encodeURIComponent(context.tableId)}/cart/current`
           : '/menu/cart/current',
       ),
       {method: 'DELETE'},
