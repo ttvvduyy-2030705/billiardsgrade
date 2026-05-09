@@ -1,4 +1,4 @@
-import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,12 +6,13 @@ import {
   ScrollView,
   Text as RNText,
   View as RNView,
-} from 'react-native';
+} from "react-native";
 
-import images from 'assets';
-import Image from 'components/Image';
-import View from 'components/View';
-import {screens} from 'scenes/screens';
+import images from "assets";
+import Image from "components/Image";
+import View from "components/View";
+import { screens } from "scenes/screens";
+import { devWarn } from "utils/devLogger";
 import {
   AdminOrder,
   AdminOrderFilter,
@@ -24,20 +25,23 @@ import {
   saveAdminMenuItem,
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
-} from 'services/restaurantAdminStore';
+} from "services/restaurantAdminStore";
 import {
   clearRestaurantAdminSession,
   getRestaurantAdminSession,
-} from '../../services/restaurantAdminAuthService';
-import type {MenuCategory, RestaurantMenuItem} from 'services/restaurantMenuStorage';
-import useScreenSystemUI from 'theme/systemUI';
-import useDesignSystem from 'theme/useDesignSystem';
-import {Navigation} from 'types/navigation';
+} from "../../services/restaurantAdminAuthService";
+import type {
+  MenuCategory,
+  RestaurantMenuItem,
+} from "services/restaurantMenuRepository";
+import useScreenSystemUI from "theme/systemUI";
+import useDesignSystem from "theme/useDesignSystem";
+import { Navigation } from "types/navigation";
 
-import AdminMenuManagementScreen from './components/AdminMenuManagementScreen';
-import AdminOrdersScreen from './components/AdminOrdersScreen';
-import AdminSidebar, {AdminDashboardTab} from './components/AdminSidebar';
-import createStyles from './styles';
+import AdminMenuManagementScreen from "./components/AdminMenuManagementScreen";
+import AdminOrdersScreen from "./components/AdminOrdersScreen";
+import AdminSidebar, { AdminDashboardTab } from "./components/AdminSidebar";
+import createStyles from "./styles";
 
 type Props = Navigation & {
   adminUsername?: string;
@@ -45,25 +49,58 @@ type Props = Navigation & {
 
 type OrderFilter = AdminOrderFilter;
 
-let adminDashboardActiveTabSession: AdminDashboardTab = 'orders';
+let adminDashboardActiveTabSession: AdminDashboardTab = "orders";
+
+const ADMIN_SESSION_CHECK_TIMEOUT_MS = 2500;
+
+const withTimeout = async <T,>(
+  promise: Promise<T>,
+  fallback: T,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeoutId = setTimeout(
+          () => resolve(fallback),
+          ADMIN_SESSION_CHECK_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
 
 const RestaurantAdminDashboardScreen = (props: Props) => {
-  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
+  useScreenSystemUI({ variant: "fullscreen", barStyle: "light-content" });
 
-  const {adaptive, design} = useDesignSystem();
+  const { adaptive, design } = useDesignSystem();
   const isWide = adaptive.width >= 900;
-  const styles = useMemo(() => createStyles({design, isWide}), [design, isWide]);
+  const styles = useMemo(
+    () => createStyles({ design, isWide }),
+    [design, isWide],
+  );
+  const navigate = props.navigate;
+  const replace = props.replace;
 
   const [activeTab, setActiveTabState] = useState<AdminDashboardTab>(
     () => adminDashboardActiveTabSession,
   );
-  const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL');
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>("ALL");
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [sessionUsername, setSessionUsername] = useState(props.adminUsername || '');
+  const [authErrorMessage, setAuthErrorMessage] = useState("");
+  const [sessionUsername, setSessionUsername] = useState(
+    props.adminUsername || "",
+  );
 
   const setActiveTab = useCallback((nextTab: AdminDashboardTab) => {
     adminDashboardActiveTabSession = nextTab;
@@ -74,36 +111,92 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     adminDashboardActiveTabSession = activeTab;
   }, [activeTab]);
 
+  const resetSensitiveData = useCallback(() => {
+    setOrders([]);
+    setMenuItems([]);
+    setCategories([]);
+    setOrderFilter("ALL");
+    setSessionUsername("");
+    adminDashboardActiveTabSession = "orders";
+    setActiveTabState("orders");
+  }, []);
+
+  const redirectToLogin = useCallback(() => {
+    const params = {
+      initialMode: "login",
+      resetAuthDraft: true,
+    };
+
+    if (typeof replace === "function") {
+      replace({
+        name: screens.restaurantAdminLogin,
+        params,
+      });
+      return;
+    }
+
+    navigate(screens.restaurantAdminLogin, params);
+  }, [navigate, replace]);
+
   const loadData = useCallback(async () => {
-    setRefreshing(true);
+    setAuthErrorMessage("");
+
     try {
+      const session = await withTimeout(getRestaurantAdminSession(), null);
+
+      if (!session) {
+        resetSensitiveData();
+        setAuthChecking(false);
+        redirectToLogin();
+        return;
+      }
+
+      setSessionUsername(session.username);
+      setRefreshing(true);
+
       const next = await loadRestaurantAdminData();
       setOrders(next.orders);
       setMenuItems(next.menuItems);
       setCategories(next.categories);
+    } catch (error) {
+      devWarn("[RestaurantAdminDashboard] load data failed", error);
+      setAuthErrorMessage("Không thể tải dữ liệu quản trị. Vui lòng thử lại.");
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [redirectToLogin, resetSensitiveData]);
 
   useEffect(() => {
     let isMounted = true;
 
     const checkSession = async () => {
-      const session = await getRestaurantAdminSession();
+      try {
+        const session = await withTimeout(getRestaurantAdminSession(), null);
 
-      if (!isMounted) {
-        return;
-      }
+        if (!isMounted) {
+          return;
+        }
 
-      if (!session) {
+        if (!session) {
+          resetSensitiveData();
+          setAuthChecking(false);
+          redirectToLogin();
+          return;
+        }
+
+        setSessionUsername(session.username);
         setAuthChecking(false);
-        props.navigate(screens.restaurantAdminLogin);
-        return;
-      }
+      } catch (error) {
+        devWarn("[RestaurantAdminDashboard] session check failed", error);
 
-      setSessionUsername(session.username);
-      setAuthChecking(false);
+        if (!isMounted) {
+          return;
+        }
+
+        resetSensitiveData();
+        setAuthChecking(false);
+        redirectToLogin();
+      }
     };
 
     void checkSession();
@@ -111,8 +204,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [redirectToLogin, resetSensitiveData]);
 
   useEffect(() => {
     if (!authChecking && sessionUsername) {
@@ -121,25 +213,34 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, [authChecking, loadData, sessionUsername]);
 
   const logout = async () => {
-    await clearRestaurantAdminSession();
-    adminDashboardActiveTabSession = 'orders';
-    props.navigate(screens.restaurantMenu);
+    setRefreshing(false);
+    setAuthChecking(false);
+
+    try {
+      await clearRestaurantAdminSession();
+    } catch (error) {
+      devWarn("[RestaurantAdminDashboard] logout failed", error);
+    } finally {
+      resetSensitiveData();
+      redirectToLogin();
+    }
   };
 
-  const onSaveMenuItem = async (input: Parameters<typeof saveAdminMenuItem>[0]) => {
+  const onSaveMenuItem = async (
+    input: Parameters<typeof saveAdminMenuItem>[0],
+  ) => {
     const nextItems = await saveAdminMenuItem(input);
     setMenuItems(nextItems);
-    adminDashboardActiveTabSession = 'menu';
-    setActiveTabState('menu');
+    adminDashboardActiveTabSession = "menu";
+    setActiveTabState("menu");
     return nextItems;
   };
-
 
   const onDeleteMenuItem = async (itemId: string) => {
     const nextItems = await deleteAdminMenuItem(itemId);
     setMenuItems(nextItems);
-    adminDashboardActiveTabSession = 'menu';
-    setActiveTabState('menu');
+    adminDashboardActiveTabSession = "menu";
+    setActiveTabState("menu");
     return nextItems;
   };
 
@@ -148,8 +249,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   ) => {
     const result = await saveAdminMenuCategory(input);
     setCategories(result.categories);
-    adminDashboardActiveTabSession = 'menu';
-    setActiveTabState('menu');
+    adminDashboardActiveTabSession = "menu";
+    setActiveTabState("menu");
     return result;
   };
 
@@ -157,15 +258,21 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     categoryId: string,
     moveItemsToCategoryId?: string,
   ) => {
-    const result = await deleteAdminMenuCategory(categoryId, moveItemsToCategoryId);
+    const result = await deleteAdminMenuCategory(
+      categoryId,
+      moveItemsToCategoryId,
+    );
     setCategories(result.categories);
     setMenuItems(result.menuItems);
-    adminDashboardActiveTabSession = 'menu';
-    setActiveTabState('menu');
+    adminDashboardActiveTabSession = "menu";
+    setActiveTabState("menu");
     return result;
   };
 
-  const onChangeOrderStatus = async (orderId: string, status: AdminOrderStatus) => {
+  const onChangeOrderStatus = async (
+    orderId: string,
+    status: AdminOrderStatus,
+  ) => {
     const nextOrders = await updateAdminOrderStatus(orderId, status);
     setOrders(nextOrders);
   };
@@ -185,7 +292,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         <View style={styles.glowBottom} />
         <RNView style={styles.authGuardCard}>
           <ActivityIndicator color="#FFFFFF" />
-          <RNText style={styles.authGuardTitle}>Đang kiểm tra phiên Admin...</RNText>
+          <RNText style={styles.authGuardTitle}>
+            Đang kiểm tra phiên Admin...
+          </RNText>
           <RNText style={styles.authGuardHint}>
             Vui lòng đăng nhập nếu phiên quản trị đã hết hạn.
           </RNText>
@@ -204,9 +313,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           <RNText style={styles.authGuardHint}>
             Bạn cần đăng nhập trước khi vào khu quản trị nhà hàng.
           </RNText>
-          <Pressable
-            onPress={() => props.navigate(screens.restaurantAdminLogin)}
-            style={styles.logoutButton}>
+          <Pressable onPress={redirectToLogin} style={styles.logoutButton}>
             <RNText style={styles.logoutText}>Đi tới đăng nhập</RNText>
           </Pressable>
         </RNView>
@@ -221,12 +328,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
       <RNView style={styles.header}>
         <RNView style={styles.headerLeft}>
-          <Image source={images.logoSmall} style={styles.logo} resizeMode="contain" />
+          <Image
+            source={images.logoSmall}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <RNView>
             <RNText style={styles.eyebrow}>APlus Restaurant POS</RNText>
             <RNText style={styles.headerTitle}>Admin Dashboard</RNText>
             <RNText style={styles.headerMeta}>
-              Xin chào {sessionUsername} · Phiên quản trị local
+              Xin chào {sessionUsername} · Phiên quản trị đang hoạt động
             </RNText>
           </RNView>
         </RNView>
@@ -235,22 +346,37 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         </Pressable>
       </RNView>
 
+      {authErrorMessage ? (
+        <RNView style={styles.inlineErrorBox}>
+          <RNText style={styles.inlineErrorText}>{authErrorMessage}</RNText>
+        </RNView>
+      ) : null}
+
       <RNView style={styles.body}>
-        <AdminSidebar activeTab={activeTab} onChangeTab={setActiveTab} styles={styles} />
+        <AdminSidebar
+          activeTab={activeTab}
+          onChangeTab={setActiveTab}
+          styles={styles}
+        />
 
         <RNView style={styles.contentPanel}>
           <ScrollView
             style={styles.contentScroll}
             contentContainerStyle={styles.contentScrollBody}
             refreshControl={
-              activeTab === 'orders' ? (
-                <RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor="#FFFFFF" />
+              activeTab === "orders" ? (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={loadData}
+                  tintColor="#FFFFFF"
+                />
               ) : undefined
             }
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
-            showsVerticalScrollIndicator={false}>
-            {activeTab === 'orders' ? (
+            showsVerticalScrollIndicator={false}
+          >
+            {activeTab === "orders" ? (
               <AdminOrdersScreen
                 orders={orders}
                 filter={orderFilter}

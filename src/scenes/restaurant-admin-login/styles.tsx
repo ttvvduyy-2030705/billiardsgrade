@@ -211,12 +211,6 @@ const createStyles = ({design}: Args) => {
       fontWeight: '900',
       textDecorationLine: 'underline',
     },
-    testHint: {
-      color: 'rgba(255,255,255,0.45)',
-      fontSize: font.small,
-      marginTop: spacing.sm,
-      textAlign: 'center',
-    },
   });
 };
 

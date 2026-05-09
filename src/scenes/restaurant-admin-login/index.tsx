@@ -1,4 +1,4 @@
-import React, {memo, useCallback, useMemo, useState} from 'react';
+import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
 import {
   NativeModules,
   Platform,
@@ -13,6 +13,7 @@ import Image from 'components/Image';
 import View from 'components/View';
 import {screens} from 'scenes/screens';
 import {
+  getRestaurantAdminSession,
   loginRestaurantAdmin,
   registerRestaurantAdminAccount,
 } from '../../services/restaurantAdminAuthService';
@@ -28,6 +29,7 @@ type AuthFormValues = Record<AuthField, string>;
 
 type Props = Navigation & {
   initialMode?: AuthMode;
+  resetAuthDraft?: boolean;
 };
 
 const EMPTY_FORM_VALUES: AuthFormValues = {
@@ -50,6 +52,31 @@ let adminAuthDraftVersion = 0;
 
 const AuthInputModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
+
+const AUTH_SESSION_CHECK_TIMEOUT_MS = 2500;
+
+const withTimeout = async <T,>(
+  promise: Promise<T>,
+  fallback: T,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>(resolve => {
+        timeoutId = setTimeout(
+          () => resolve(fallback),
+          AUTH_SESSION_CHECK_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
 
 const cloneDraftSession = (): AuthFormValues => ({...adminAuthDraftSession});
 
@@ -95,15 +122,79 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
   const {design} = useDesignSystem();
   const styles = useMemo(() => createStyles({design}), [design]);
+  const navigate = props.navigate;
+  const replace = props.replace;
 
-  const initialMode = props.initialMode === 'register' ? 'register' : adminAuthModeSession;
+  const initialMode =
+    props.initialMode === 'register' ? 'register' : adminAuthModeSession;
   const [authMode, setAuthModeState] = useState<AuthMode>(initialMode);
-  const [formValues, setFormValues] = useState<AuthFormValues>(() => cloneDraftSession());
+  const [formValues, setFormValues] = useState<AuthFormValues>(() =>
+    cloneDraftSession(),
+  );
   const [, setDraftVersion] = useState(adminAuthDraftVersion);
   const [activeField, setActiveField] = useState<AuthField | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const routeToDashboard = useCallback(
+    (adminUsername: string) => {
+      const params = {adminUsername};
+
+      if (typeof replace === 'function') {
+        replace({
+          name: screens.restaurantAdminDashboard,
+          params,
+        });
+        return;
+      }
+
+      navigate(screens.restaurantAdminDashboard, params);
+    },
+    [navigate, replace],
+  );
+
+  useEffect(() => {
+    if (!props.resetAuthDraft) {
+      return;
+    }
+
+    adminAuthModeSession = 'login';
+    resetDraftSession();
+    setAuthModeState('login');
+    setActiveField(null);
+    setErrorMessage('');
+    setInfoMessage('');
+    setSubmitting(false);
+    setFormValues(cloneDraftSession());
+    setDraftVersion(adminAuthDraftVersion);
+  }, [props.resetAuthDraft]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const routeExistingSession = async () => {
+      try {
+        const session = await withTimeout(getRestaurantAdminSession(), null);
+
+        if (!isMounted || !session) {
+          return;
+        }
+
+        routeToDashboard(session.username);
+      } catch (error) {
+        console.warn('[RestaurantAdminLogin] session check failed', error);
+      }
+    };
+
+    if (authMode === 'login') {
+      void routeExistingSession();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authMode, routeToDashboard]);
 
   const syncDraftToUi = useCallback(() => {
     const nextSnapshot = cloneDraftSession();
@@ -139,7 +230,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
   const getFieldPlaceholder = (field: AuthField) => {
     if (field === 'username') {
-      return authMode === 'login' ? 'Nhập tài khoản Admin' : 'Tạo tài khoản Admin';
+      return authMode === 'login'
+        ? 'Nhập tài khoản Admin'
+        : 'Tạo tài khoản Admin';
     }
 
     if (field === 'password') {
@@ -206,6 +299,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     setErrorMessage('');
     setInfoMessage('');
 
+    let nextDashboardUsername = '';
+
     try {
       const result = await loginRestaurantAdmin(
         currentValues.username,
@@ -217,11 +312,19 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         return;
       }
 
-      props.navigate(screens.restaurantAdminDashboard, {
-        adminUsername: result.session.username,
-      });
+      nextDashboardUsername = result.session.username;
+      updateDraftField('password', '');
+      updateDraftField('confirmPassword', '');
+      syncDraftToUi();
+    } catch (error) {
+      console.warn('[RestaurantAdminLogin] login failed', error);
+      setErrorMessage('Không thể đăng nhập Admin. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
+    }
+
+    if (nextDashboardUsername) {
+      routeToDashboard(nextDashboardUsername);
     }
   };
 
@@ -263,6 +366,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       });
       syncDraftToUi();
       requestAnimationFrame(syncDraftToUi);
+    } catch (error) {
+      console.warn('[RestaurantAdminLogin] register failed', error);
+      setErrorMessage('Không thể đăng ký Admin. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }
@@ -304,7 +410,11 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           ]}>
           <RNText
             numberOfLines={1}
-            style={displayValue ? styles.inputButtonText : styles.inputButtonPlaceholder}>
+            style={
+              displayValue
+                ? styles.inputButtonText
+                : styles.inputButtonPlaceholder
+            }>
             {displayValue || placeholder}
           </RNText>
         </Pressable>
@@ -321,7 +431,11 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         <Pressable onPress={props.goBack} style={styles.backButton}>
           <RNText style={styles.backText}>‹ Quay lại menu</RNText>
         </Pressable>
-        <Image source={images.logoSmall} style={styles.logo} resizeMode="contain" />
+        <Image
+          source={images.logoSmall}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
 
       <ScrollView
@@ -338,7 +452,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           <RNText style={styles.hint}>
             {isLogin
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
-              : 'Tạo tài khoản Admin local cho giai đoạn demo. Phần này đã được tách riêng để sau này thay bằng API/backend thật.'}
+              : 'Tạo tài khoản quản trị cho nhà hàng. Phần đăng nhập đã được tách thành service riêng để sau này chuyển sang backend thật.'}
           </RNText>
 
           {renderNativeInputField(
@@ -377,7 +491,10 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
           <Pressable
             onPress={submit}
-            style={[styles.loginButton, submitting ? styles.loginButtonDisabled : null]}>
+            style={[
+              styles.loginButton,
+              submitting ? styles.loginButtonDisabled : null,
+            ]}>
             <RNText style={styles.loginText}>
               {submitting
                 ? isLogin
@@ -394,14 +511,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               onPress={() => switchMode(isLogin ? 'register' : 'login')}
               style={styles.switchButton}>
               <RNText style={styles.switchText}>
-                {isLogin ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
+                {isLogin
+                  ? 'Chưa có tài khoản? Đăng ký'
+                  : 'Đã có tài khoản? Đăng nhập'}
               </RNText>
             </Pressable>
           </RNView>
-
-          <RNText style={styles.testHint}>
-            Demo hiện dùng tài khoản Admin local trên thiết bị. Khi có backend, service đăng nhập có thể đổi sang API mà không phải sửa màn hình.
-          </RNText>
         </RNView>
       </ScrollView>
     </RNView>

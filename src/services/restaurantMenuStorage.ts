@@ -1,34 +1,43 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { devWarn } from "utils/devLogger";
 import {
   cleanupRestaurantMenuImageIfUnused,
   getMenuItemImageValue,
-} from './restaurantMenuImage';
+} from "./restaurantMenuImage";
 
-export {getMenuItemImageValue, normaliseMenuImageUri} from './restaurantMenuImage';
+export {
+  getMenuItemImageValue,
+  normaliseMenuImageUri,
+} from "./restaurantMenuImage";
 
 export const RESTAURANT_STORAGE_KEYS = {
-  schemaVersion: 'restaurant_menu_schema_version',
-  categories: 'menu_categories',
-  menuItems: 'menu_items',
-  orders: 'restaurant_orders',
-  currentCart: 'current_cart',
-  adminAccounts: 'admin_accounts',
-  legacyAdminAccounts: 'restaurant_admin_accounts',
+  schemaVersion: "restaurant_menu_schema_version",
+  categories: "menu_categories",
+  menuItems: "menu_items",
+  orders: "restaurant_orders",
+  currentCart: "current_cart",
+  adminAccounts: "admin_accounts",
+  legacyAdminAccounts: "restaurant_admin_accounts",
 };
 
-const CURRENT_SCHEMA_VERSION = '20260424_menu_drinks_food_v1';
+const CURRENT_SCHEMA_VERSION = "20260509_menu_order_payment_v2";
 
 export type MenuCategory = {
   id: string;
+  /** Future backend/multi-restaurant scope. Local demo records may omit it. */
+  restaurantId?: string;
   name: string;
+  sortOrder?: number;
   createdAt?: string;
   updatedAt?: string;
 };
 
-export type RestaurantMenuItemStatus = 'SELLING' | 'HIDDEN' | 'OUT_OF_STOCK';
+export type RestaurantMenuItemStatus = "SELLING" | "HIDDEN" | "OUT_OF_STOCK";
 
 export type RestaurantMenuItem = {
   id: string;
+  /** Future backend/multi-restaurant scope. Local demo records may omit it. */
+  restaurantId?: string;
   categoryId: string;
   name: string;
   price: number;
@@ -51,20 +60,30 @@ export type RestaurantCartItem = {
 };
 
 export type RestaurantCartState = {
+  /** Future backend/multi-restaurant scope. Local demo carts may omit it. */
+  restaurantId?: string;
+  branchId?: string;
+  tableId?: string;
   tableNumber: string;
   note: string;
   items: RestaurantCartItem[];
 };
 
 export type RestaurantOrderStatus =
-  | 'new'
-  | 'accepted'
-  | 'preparing'
-  | 'completed'
-  | 'cancelled';
+  | "NEW"
+  | "ACCEPTED"
+  | "PREPARING"
+  | "COMPLETED"
+  | "CANCELLED";
 
-type LegacyRestaurantOrderStatus = RestaurantOrderStatus | 'served' | 'paid' | string;
-type RawRestaurantOrder = Omit<Partial<RestaurantOrder>, 'status' | 'paymentStatus'> & {
+type LegacyRestaurantOrderStatus = RestaurantOrderStatus | string;
+export type RawRestaurantOrder = Omit<
+  Partial<RestaurantOrder>,
+  "orderStatus" | "status" | "paymentStatus"
+> & {
+  /** Canonical field from Batch 2 onward. */
+  orderStatus?: LegacyRestaurantOrderStatus;
+  /** Legacy field from older local/admin builds. Kept only for migration. */
   status?: LegacyRestaurantOrderStatus;
   paymentStatus?: RestaurantPaymentStatus | string;
 };
@@ -77,15 +96,21 @@ export type RestaurantOrderItem = {
   note?: string;
 };
 
-export type RestaurantPaymentStatus = 'UNPAID' | 'PAID';
+export type RestaurantPaymentStatus = "UNPAID" | "PAID";
 
 export type RestaurantOrder = {
   id: string;
+  /** Required once ApiRepository/server mode is enabled. Optional for old local demo orders. */
+  restaurantId?: string;
+  branchId?: string;
+  tableId?: string;
+  orderSource?: "admin" | "customer" | "local-demo";
   tableNumber: string;
   items: RestaurantOrderItem[];
   note: string;
   total: number;
-  status: RestaurantOrderStatus;
+  /** Processing status. Never store PAID here; payment is kept in paymentStatus. */
+  orderStatus: RestaurantOrderStatus;
   paymentStatus: RestaurantPaymentStatus;
   createdAt: string;
   updatedAt: string;
@@ -94,6 +119,8 @@ export type RestaurantOrder = {
 export type RestaurantAdminAccount = {
   username: string;
   password: string;
+  restaurantIds?: string[];
+  activeRestaurantId?: string;
   createdAt: string;
 };
 
@@ -105,19 +132,19 @@ const createId = (prefix: string) => {
 
 const sampleTime = nowIso();
 
-export const DEFAULT_DRINK_CATEGORY_ID = 'drink';
-export const DEFAULT_FOOD_CATEGORY_ID = 'food';
+export const DEFAULT_DRINK_CATEGORY_ID = "drink";
+export const DEFAULT_FOOD_CATEGORY_ID = "food";
 
 export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
   {
     id: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Đồ uống',
+    name: "Đồ uống",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
     id: DEFAULT_FOOD_CATEGORY_ID,
-    name: 'Đồ ăn',
+    name: "Đồ ăn",
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -125,49 +152,49 @@ export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
 
 export const defaultMenuItems: RestaurantMenuItem[] = [
   {
-    id: 'sample_coca',
+    id: "sample_coca",
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Coca',
+    name: "Coca",
     price: 25000,
-    description: 'Coca-Cola lạnh, phục vụ nhanh tại bàn.',
+    description: "Coca-Cola lạnh, phục vụ nhanh tại bàn.",
     imageUrl:
-      'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80',
+      "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80",
     available: true,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: 'sample_fanta',
+    id: "sample_fanta",
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Fanta',
+    name: "Fanta",
     price: 25000,
-    description: 'Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.',
+    description: "Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.",
     imageUrl:
-      'https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80',
+      "https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80",
     available: true,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: 'sample_mirinda',
+    id: "sample_mirinda",
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Mirinda',
+    name: "Mirinda",
     price: 25000,
-    description: 'Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.',
+    description: "Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.",
     imageUrl:
-      'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80',
+      "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80",
     available: true,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: 'sample_pepsi',
+    id: "sample_pepsi",
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Pepsi',
+    name: "Pepsi",
     price: 25000,
-    description: 'Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.',
+    description: "Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.",
     imageUrl:
-      'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80',
+      "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80",
     available: true,
     createdAt: sampleTime,
     updatedAt: sampleTime,
@@ -175,42 +202,42 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
 ];
 
 const legacySeedCategoryIds = [
-  'hotpot',
-  'meat',
-  'seafood',
-  'vegetable',
-  'snack',
-  'combo',
-  'other',
+  "hotpot",
+  "meat",
+  "seafood",
+  "vegetable",
+  "snack",
+  "combo",
+  "other",
 ];
 
 const legacySeedItemIds = [
-  'sample_hotpot_combo',
-  'sample_beef_plate',
-  'sample_seafood_plate',
-  'sample_mushroom_set',
-  'sample_snack_combo',
-  'sample_iced_tea',
+  "sample_hotpot_combo",
+  "sample_beef_plate",
+  "sample_seafood_plate",
+  "sample_mushroom_set",
+  "sample_snack_combo",
+  "sample_iced_tea",
 ];
 
 const normalise = (value?: string) => {
-  return (value || '')
+  return (value || "")
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim();
 };
 
 const safeJsonParse = <T>(value: string | null, fallback: T) => {
   if (!value) {
-    return {value: fallback, ok: true};
+    return { value: fallback, ok: true };
   }
 
   try {
-    return {value: JSON.parse(value) as T, ok: true};
+    return { value: JSON.parse(value) as T, ok: true };
   } catch (error) {
-    console.warn('[RestaurantMenuStorage] invalid JSON, reset safe fallback', error);
-    return {value: fallback, ok: false};
+    devWarn("[RestaurantMenuStorage] invalid JSON, reset safe fallback", error);
+    return { value: fallback, ok: false };
   }
 };
 
@@ -239,7 +266,9 @@ const seedDefaultMenu = async () => {
 };
 
 const ensureSchema = async () => {
-  const version = await AsyncStorage.getItem(RESTAURANT_STORAGE_KEYS.schemaVersion);
+  const version = await AsyncStorage.getItem(
+    RESTAURANT_STORAGE_KEYS.schemaVersion,
+  );
   const [storedCategories, storedItems] = await Promise.all([
     readArray<MenuCategory>(RESTAURANT_STORAGE_KEYS.categories),
     readArray<RestaurantMenuItem>(RESTAURANT_STORAGE_KEYS.menuItems),
@@ -251,11 +280,13 @@ const ensureSchema = async () => {
       return;
     }
 
-    const nextCategories = ensureDefaultCategories(storedCategories.map(cleanCategory));
+    const nextCategories = ensureDefaultCategories(
+      storedCategories.map(cleanCategory),
+    );
     await writeArray(RESTAURANT_STORAGE_KEYS.categories, nextCategories);
     await writeArray(
       RESTAURANT_STORAGE_KEYS.menuItems,
-      storedItems.map(item => migrateMenuItem(item, nextCategories)),
+      storedItems.map((item) => migrateMenuItem(item, nextCategories)),
     );
     await AsyncStorage.setItem(
       RESTAURANT_STORAGE_KEYS.schemaVersion,
@@ -266,11 +297,13 @@ const ensureSchema = async () => {
 
 const cleanCategory = (category: Partial<MenuCategory>): MenuCategory => {
   const timestamp = nowIso();
-  const cleanName = (category.name || '').trim() || 'Đồ uống';
+  const cleanName = (category.name || "").trim() || "Đồ uống";
 
   return {
-    id: category.id || createId('cat'),
+    id: category.id || createId("cat"),
+    restaurantId: category.restaurantId,
     name: cleanName,
+    sortOrder: category.sortOrder,
     createdAt: category.createdAt || timestamp,
     updatedAt: category.updatedAt || timestamp,
   };
@@ -280,49 +313,62 @@ const ensureDefaultCategories = (categories: MenuCategory[]) => {
   const cleaned = categories.map(cleanCategory);
   const withoutDuplicateNames = cleaned.filter(
     (category, index, source) =>
-      source.findIndex(item => normalise(item.name) === normalise(category.name)) === index,
+      source.findIndex(
+        (item) => normalise(item.name) === normalise(category.name),
+      ) === index,
   );
 
   // Defaults are only used when there is no category data yet. After the first
   // seed, Admin must be able to rename/delete Đồ uống and Đồ ăn like normal
   // dynamic categories. Do not force them back into AsyncStorage on every load.
-  return withoutDuplicateNames.length > 0 ? withoutDuplicateNames : DEFAULT_MENU_CATEGORIES;
+  return withoutDuplicateNames.length > 0
+    ? withoutDuplicateNames
+    : DEFAULT_MENU_CATEGORIES;
 };
 
-const resolveCategoryId = (value: string | undefined, categories: MenuCategory[]) => {
+const resolveCategoryId = (
+  value: string | undefined,
+  categories: MenuCategory[],
+) => {
   const raw = normalise(value);
   const drinkCategory =
-    categories.find(category => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
-    categories.find(category => normalise(category.name) === normalise('Đồ uống')) ||
+    categories.find((category) => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
+    categories.find(
+      (category) => normalise(category.name) === normalise("Đồ uống"),
+    ) ||
     categories[0];
   const foodCategory =
-    categories.find(category => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
-    categories.find(category => normalise(category.name) === normalise('Đồ ăn')) ||
+    categories.find((category) => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
+    categories.find(
+      (category) => normalise(category.name) === normalise("Đồ ăn"),
+    ) ||
     drinkCategory;
 
   if (!raw) {
     return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
   }
 
-  const byId = categories.find(category => normalise(category.id) === raw);
+  const byId = categories.find((category) => normalise(category.id) === raw);
   if (byId) {
     return byId.id;
   }
 
-  const byName = categories.find(category => normalise(category.name) === raw);
+  const byName = categories.find(
+    (category) => normalise(category.name) === raw,
+  );
   if (byName) {
     return byName.id;
   }
 
   if (
-    raw.includes('uong') ||
-    raw.includes('drink') ||
-    raw.includes('coca') ||
-    raw.includes('pepsi') ||
-    raw.includes('fanta') ||
-    raw.includes('mirinda') ||
-    raw.includes('tra') ||
-    raw.includes('nuoc')
+    raw.includes("uong") ||
+    raw.includes("drink") ||
+    raw.includes("coca") ||
+    raw.includes("pepsi") ||
+    raw.includes("fanta") ||
+    raw.includes("mirinda") ||
+    raw.includes("tra") ||
+    raw.includes("nuoc")
   ) {
     return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
   }
@@ -334,11 +380,15 @@ const normaliseMenuItemStatus = (
   status: RestaurantMenuItemStatus | undefined,
   available?: boolean,
 ): RestaurantMenuItemStatus => {
-  if (status === 'HIDDEN' || status === 'OUT_OF_STOCK' || status === 'SELLING') {
+  if (
+    status === "HIDDEN" ||
+    status === "OUT_OF_STOCK" ||
+    status === "SELLING"
+  ) {
     return status;
   }
 
-  return available === false ? 'HIDDEN' : 'SELLING';
+  return available === false ? "HIDDEN" : "SELLING";
 };
 
 const migrateMenuItem = (
@@ -346,19 +396,23 @@ const migrateMenuItem = (
   categories: MenuCategory[],
 ): RestaurantMenuItem => {
   const timestamp = nowIso();
-  const categoryId = resolveCategoryId(item.categoryId || item.category, categories);
+  const categoryId = resolveCategoryId(
+    item.categoryId || item.category,
+    categories,
+  );
   const status = normaliseMenuItemStatus(item.status, item.available);
   const imageUrl = getMenuItemImageValue(item);
 
   return {
-    id: item.id || createId('dish'),
+    id: item.id || createId("dish"),
+    restaurantId: item.restaurantId,
     categoryId,
-    name: (item.name || 'Món chưa đặt tên').trim(),
+    name: (item.name || "Món chưa đặt tên").trim(),
     price: Number(item.price) || 0,
-    description: item.description || '',
+    description: item.description || "",
     imageUrl,
     imageUri: undefined,
-    available: status === 'SELLING',
+    available: status === "SELLING",
     status,
     createdAt: item.createdAt || timestamp,
     updatedAt: item.updatedAt || timestamp,
@@ -375,7 +429,9 @@ export const getMenuCategories = () => DEFAULT_MENU_CATEGORIES;
 
 export const loadMenuCategories = async (): Promise<MenuCategory[]> => {
   await ensureSchema();
-  const stored = await readArray<MenuCategory>(RESTAURANT_STORAGE_KEYS.categories);
+  const stored = await readArray<MenuCategory>(
+    RESTAURANT_STORAGE_KEYS.categories,
+  );
 
   if (stored.length === 0) {
     await seedDefaultMenu();
@@ -402,89 +458,110 @@ export const saveMenuCategories = async (categories: MenuCategory[]) => {
 };
 
 export const upsertMenuCategory = async (
-  input: Partial<MenuCategory> & {name: string},
-): Promise<{ok: boolean; message: string; categories: MenuCategory[]}> => {
+  input: Partial<MenuCategory> & { name: string },
+): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
   const cleanName = input.name.trim();
 
   if (!cleanName) {
     return {
       ok: false,
-      message: 'Vui lòng nhập tên danh mục',
+      message: "Vui lòng nhập tên danh mục",
       categories: await loadMenuCategories(),
     };
   }
 
   const current = await loadMenuCategories();
   const existedName = current.some(
-    category =>
-      category.id !== input.id && normalise(category.name) === normalise(cleanName),
+    (category) =>
+      category.id !== input.id &&
+      normalise(category.name) === normalise(cleanName),
   );
 
   if (existedName) {
-    return {ok: false, message: 'Danh mục này đã tồn tại', categories: current};
+    return {
+      ok: false,
+      message: "Danh mục này đã tồn tại",
+      categories: current,
+    };
   }
 
   const timestamp = nowIso();
   const nextCategory: MenuCategory = {
-    id: input.id || createId('cat'),
+    id: input.id || createId("cat"),
+    restaurantId: input.restaurantId,
     name: cleanName,
+    sortOrder: input.sortOrder,
     createdAt: input.createdAt || timestamp,
     updatedAt: timestamp,
   };
 
   const nextCategories = input.id
-    ? current.map(category => (category.id === input.id ? nextCategory : category))
+    ? current.map((category) =>
+        category.id === input.id ? nextCategory : category,
+      )
     : [...current, nextCategory];
 
   const categories = await saveMenuCategories(nextCategories);
 
   return {
     ok: true,
-    message: input.id ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục mới',
+    message: input.id ? "Đã cập nhật danh mục" : "Đã thêm danh mục mới",
     categories,
   };
 };
 
 export const deleteMenuCategory = async (
   categoryId: string,
-  options: {moveItemsToCategoryId?: string} = {},
-): Promise<{ok: boolean; message: string; categories: MenuCategory[]}> => {
-  const [categories, items] = await Promise.all([loadMenuCategories(), loadMenuItems()]);
-  const targetCategory = categories.find(category => category.id === categoryId);
+  options: { moveItemsToCategoryId?: string } = {},
+): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
+  const [categories, items] = await Promise.all([
+    loadMenuCategories(),
+    loadMenuItems(),
+  ]);
+  const targetCategory = categories.find(
+    (category) => category.id === categoryId,
+  );
 
   if (!targetCategory) {
-    return {ok: false, message: 'Không tìm thấy danh mục cần xoá', categories};
+    return {
+      ok: false,
+      message: "Không tìm thấy danh mục cần xoá",
+      categories,
+    };
   }
 
   if (categories.length <= 1) {
     return {
       ok: false,
-      message: 'Menu cần ít nhất 1 danh mục.',
+      message: "Menu cần ít nhất 1 danh mục.",
       categories,
     };
   }
 
-  const nextCategories = categories.filter(category => category.id !== categoryId);
+  const nextCategories = categories.filter(
+    (category) => category.id !== categoryId,
+  );
   const fallbackCategory =
-    nextCategories.find(category => category.id === options.moveItemsToCategoryId) ||
-    nextCategories[0];
+    nextCategories.find(
+      (category) => category.id === options.moveItemsToCategoryId,
+    ) || nextCategories[0];
 
   if (!fallbackCategory) {
     return {
       ok: false,
-      message: 'Không có danh mục thay thế để chuyển món.',
+      message: "Không có danh mục thay thế để chuyển món.",
       categories,
     };
   }
 
-  const usedItems = items.filter(item => item.categoryId === categoryId);
+  const usedItems = items.filter((item) => item.categoryId === categoryId);
   const savedCategories = await saveMenuCategories(nextCategories);
 
   if (usedItems.length > 0) {
     const timestamp = nowIso();
-    const movedItems = items.map(item =>
+    const movedItems = items.map((item) =>
       item.categoryId === categoryId
-        ? {...item, categoryId: fallbackCategory.id, updatedAt: timestamp}
+        ? { ...item, categoryId: fallbackCategory.id, updatedAt: timestamp }
         : item,
     );
 
@@ -494,16 +571,20 @@ export const deleteMenuCategory = async (
   const message =
     usedItems.length > 0
       ? `Đã xoá danh mục và chuyển ${usedItems.length} món sang “${fallbackCategory.name}”`
-      : 'Đã xoá danh mục';
+      : "Đã xoá danh mục";
 
-  return {ok: true, message, categories: savedCategories};
+  return { ok: true, message, categories: savedCategories };
 };
 
 export const getCategoryNameById = (
   categoryId: string,
   categories: MenuCategory[] = DEFAULT_MENU_CATEGORIES,
 ) => {
-  return categories.find(category => category.id === categoryId)?.name || categories[0]?.name || 'Chưa phân loại';
+  return (
+    categories.find((category) => category.id === categoryId)?.name ||
+    categories[0]?.name ||
+    "Chưa phân loại"
+  );
 };
 
 export const loadMenuItems = async (): Promise<RestaurantMenuItem[]> => {
@@ -514,12 +595,14 @@ export const loadMenuItems = async (): Promise<RestaurantMenuItem[]> => {
   );
 
   if (stored.length === 0) {
-    const seededItems = defaultMenuItems.map(item => migrateMenuItem(item, categories));
+    const seededItems = defaultMenuItems.map((item) =>
+      migrateMenuItem(item, categories),
+    );
     await writeArray(RESTAURANT_STORAGE_KEYS.menuItems, seededItems);
     return seededItems;
   }
 
-  const migrated = stored.map(item => migrateMenuItem(item, categories));
+  const migrated = stored.map((item) => migrateMenuItem(item, categories));
   const needsMigration = JSON.stringify(stored) !== JSON.stringify(migrated);
 
   if (needsMigration) {
@@ -533,51 +616,51 @@ export const saveMenuItems = async (items: RestaurantMenuItem[]) => {
   const categories = await loadMenuCategories();
   await writeArray(
     RESTAURANT_STORAGE_KEYS.menuItems,
-    items.map(item => migrateMenuItem(item, categories)),
+    items.map((item) => migrateMenuItem(item, categories)),
   );
 };
 
 export const upsertMenuItem = async (
-  input: Omit<RestaurantMenuItem, 'id' | 'createdAt' | 'updatedAt' | 'available'> & {
+  input: Omit<
+    RestaurantMenuItem,
+    "id" | "createdAt" | "updatedAt" | "available"
+  > & {
     id?: string;
     createdAt?: string;
     available?: boolean;
   },
 ): Promise<RestaurantMenuItem[]> => {
-  const [current, categories] = await Promise.all([loadMenuItems(), loadMenuCategories()]);
+  const [current, categories] = await Promise.all([
+    loadMenuItems(),
+    loadMenuCategories(),
+  ]);
   const timestamp = nowIso();
   const status = normaliseMenuItemStatus(input.status, input.available);
   const cleanImageUrl = getMenuItemImageValue(input);
-  const itemId = input.id || createId('dish');
-  const existingItem = current.find(item => item.id === itemId);
+  const itemId = input.id || createId("dish");
+  const existingItem = current.find((item) => item.id === itemId);
   const oldImage = getMenuItemImageValue(existingItem);
-
-  console.log(
-    `[AdminMenuStore] before update itemId=${itemId} oldImage=${oldImage || 'none'}`,
-  );
-  console.log(
-    `[AdminMenuStore] update itemId=${itemId} newImage=${cleanImageUrl || 'none'}`,
-  );
 
   const nextItem: RestaurantMenuItem = {
     ...(existingItem || {}),
     id: itemId,
+    restaurantId: input.restaurantId || existingItem?.restaurantId,
     categoryId: resolveCategoryId(input.categoryId, categories),
     name: input.name.trim(),
     price: Number(input.price) || 0,
     description: input.description.trim(),
     imageUrl: cleanImageUrl,
     imageUri: undefined,
-    available: status === 'SELLING',
+    available: status === "SELLING",
     status,
     createdAt: input.createdAt || existingItem?.createdAt || timestamp,
     updatedAt: timestamp,
   };
 
-  const existingIndex = current.findIndex(item => item.id === nextItem.id);
+  const existingIndex = current.findIndex((item) => item.id === nextItem.id);
   const nextItems =
     existingIndex >= 0
-      ? current.map(item => (item.id === nextItem.id ? nextItem : item))
+      ? current.map((item) => (item.id === nextItem.id ? nextItem : item))
       : [nextItem, ...current];
 
   await saveMenuItems(nextItems);
@@ -585,72 +668,90 @@ export const upsertMenuItem = async (
   if (oldImage && oldImage !== cleanImageUrl) {
     await cleanupRestaurantMenuImageIfUnused(
       oldImage,
-      nextItems.map(item => getMenuItemImageValue(item)),
+      nextItems.map((item) => getMenuItemImageValue(item)),
     );
   }
-
-  const afterUpdate = nextItems.find(item => item.id === nextItem.id);
-  console.log(
-    `[AdminMenuStore] after update image=${getMenuItemImageValue(afterUpdate) || 'none'}`,
-  );
 
   return nextItems;
 };
 
 export const deleteMenuItem = async (itemId: string) => {
   const current = await loadMenuItems();
-  const deletedItem = current.find(item => item.id === itemId);
+  const deletedItem = current.find((item) => item.id === itemId);
   const deletedImage = getMenuItemImageValue(deletedItem);
-  const nextItems = current.filter(item => item.id !== itemId);
+  const nextItems = current.filter((item) => item.id !== itemId);
 
   await saveMenuItems(nextItems);
 
   if (deletedImage) {
     await cleanupRestaurantMenuImageIfUnused(
       deletedImage,
-      nextItems.map(item => getMenuItemImageValue(item)),
+      nextItems.map((item) => getMenuItemImageValue(item)),
     );
   }
 
   return nextItems;
 };
 
-const normaliseOrderStatus = (status?: LegacyRestaurantOrderStatus): RestaurantOrderStatus => {
-  switch (String(status || '').toLowerCase()) {
-    case 'accepted':
-      return 'accepted';
-    case 'preparing':
-      return 'preparing';
-    case 'served':
-    case 'completed':
-      return 'completed';
-    case 'paid':
-      // Legacy builds used `paid` as an order status. In the new model, payment
-      // is stored separately, so the order itself becomes completed and the
-      // payment flag is migrated to PAID in normalisePaymentStatus.
-      return 'completed';
-    case 'cancelled':
-      return 'cancelled';
-    case 'new':
+export const normaliseOrderStatus = (
+  status?: LegacyRestaurantOrderStatus,
+): RestaurantOrderStatus => {
+  switch (
+    String(status || "")
+      .trim()
+      .toUpperCase()
+  ) {
+    case "ACCEPTED":
+      return "ACCEPTED";
+    case "PREPARING":
+      return "PREPARING";
+    case "SERVED":
+    case "COMPLETED":
+      return "COMPLETED";
+    case "CANCELLED":
+      return "CANCELLED";
+    case "PAID":
+      // Legacy builds incorrectly used `paid` as an order processing status.
+      // Do not blindly mark the kitchen/service flow as completed here; Batch 2
+      // migrates payment to paymentStatus and keeps the processing state safe.
+      return "NEW";
+    case "NEW":
     default:
-      return 'new';
+      return "NEW";
   }
 };
 
-const normalisePaymentStatus = (order: RawRestaurantOrder): RestaurantPaymentStatus => {
-  const legacyStatus = String(order.status || '').toLowerCase();
-  return order.paymentStatus === 'PAID' || legacyStatus === 'paid' ? 'PAID' : 'UNPAID';
+export const normalisePaymentStatus = (
+  order: RawRestaurantOrder,
+): RestaurantPaymentStatus => {
+  const paymentStatus = String(order.paymentStatus || "")
+    .trim()
+    .toUpperCase();
+  const legacyStatus = String(order.status || order.orderStatus || "")
+    .trim()
+    .toUpperCase();
+
+  return paymentStatus === "PAID" || legacyStatus === "PAID"
+    ? "PAID"
+    : "UNPAID";
 };
 
-const normaliseRestaurantOrder = (order: RawRestaurantOrder): RestaurantOrder => {
+export const normaliseRestaurantOrder = (
+  order: RawRestaurantOrder,
+): RestaurantOrder => {
   const timestamp = nowIso();
   return {
-    id: String(order.id || createId('order')),
-    tableNumber: String(order.tableNumber || ''),
+    id: String(order.id || createId("order")),
+    restaurantId: order.restaurantId,
+    branchId: order.branchId,
+    tableId: order.tableId,
+    orderSource:
+      order.orderSource || (order.restaurantId ? "customer" : "local-demo"),
+    tableNumber: String(order.tableNumber || ""),
     items: Array.isArray(order.items) ? order.items : [],
-    note: String(order.note || ''),
+    note: String(order.note || ""),
     total: Number(order.total) || 0,
-    status: normaliseOrderStatus(order.status),
+    orderStatus: normaliseOrderStatus(order.orderStatus || order.status),
     paymentStatus: normalisePaymentStatus(order),
     createdAt: order.createdAt || timestamp,
     updatedAt: order.updatedAt || order.createdAt || timestamp,
@@ -658,18 +759,39 @@ const normaliseRestaurantOrder = (order: RawRestaurantOrder): RestaurantOrder =>
 };
 
 export const loadOrders = async (): Promise<RestaurantOrder[]> => {
-  const orders = await readArray<RawRestaurantOrder>(
+  const rawOrders = await readArray<RawRestaurantOrder>(
     RESTAURANT_STORAGE_KEYS.orders,
   );
-  return orders.map(normaliseRestaurantOrder);
+  const orders = rawOrders.map(normaliseRestaurantOrder);
+  const needsOrderMigration = rawOrders.some((order, index) => {
+    const normalised = orders[index];
+    return (
+      order.status !== undefined ||
+      order.orderStatus !== normalised.orderStatus ||
+      String(order.paymentStatus || "UNPAID").toUpperCase() !==
+        normalised.paymentStatus
+    );
+  });
+
+  if (needsOrderMigration) {
+    await saveOrders(orders);
+  }
+
+  return orders;
 };
 
 export const saveOrders = async (orders: RestaurantOrder[]) => {
-  await writeArray(RESTAURANT_STORAGE_KEYS.orders, orders.map(normaliseRestaurantOrder));
+  await writeArray(
+    RESTAURANT_STORAGE_KEYS.orders,
+    orders.map(normaliseRestaurantOrder),
+  );
 };
 
 export const createRestaurantOrder = async (
-  payload: Omit<RestaurantOrder, 'id' | 'status' | 'paymentStatus' | 'createdAt' | 'updatedAt'> & {
+  payload: Omit<
+    RestaurantOrder,
+    "id" | "orderStatus" | "paymentStatus" | "createdAt" | "updatedAt"
+  > & {
     paymentStatus?: RestaurantPaymentStatus;
   },
 ): Promise<RestaurantOrder[]> => {
@@ -677,9 +799,9 @@ export const createRestaurantOrder = async (
   const timestamp = nowIso();
   const order: RestaurantOrder = {
     ...payload,
-    id: createId('order'),
-    status: 'new',
-    paymentStatus: payload.paymentStatus || 'UNPAID',
+    id: createId("order"),
+    orderStatus: "NEW",
+    paymentStatus: payload.paymentStatus || "UNPAID",
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -694,9 +816,31 @@ export const updateRestaurantOrderStatus = async (
 ): Promise<RestaurantOrder[]> => {
   const current = await loadOrders();
   const timestamp = nowIso();
-  const nextOrders = current.map(order =>
-    order.id === orderId ? {...order, status, updatedAt: timestamp} : order,
+  const nextOrders = current.map((order) =>
+    order.id === orderId
+      ? {
+          ...order,
+          orderStatus: normaliseOrderStatus(status),
+          updatedAt: timestamp,
+        }
+      : order,
   );
+  await saveOrders(nextOrders);
+  return nextOrders;
+};
+
+export const updateRestaurantOrderPaymentStatus = async (
+  orderId: string,
+  paymentStatus: RestaurantPaymentStatus,
+): Promise<RestaurantOrder[]> => {
+  const current = await loadOrders();
+  const timestamp = nowIso();
+  const nextOrders = current.map((order) =>
+    order.id === orderId
+      ? { ...order, paymentStatus, updatedAt: timestamp }
+      : order,
+  );
+
   await saveOrders(nextOrders);
   return nextOrders;
 };
@@ -704,8 +848,11 @@ export const updateRestaurantOrderStatus = async (
 export const loadCurrentCart = async (): Promise<RestaurantCartState> => {
   const value = await AsyncStorage.getItem(RESTAURANT_STORAGE_KEYS.currentCart);
   const parsed = safeJsonParse<RestaurantCartState>(value, {
-    tableNumber: '',
-    note: '',
+    restaurantId: undefined,
+    branchId: undefined,
+    tableId: undefined,
+    tableNumber: "",
+    note: "",
     items: [],
   });
 
@@ -715,16 +862,19 @@ export const loadCurrentCart = async (): Promise<RestaurantCartState> => {
 
   const items = Array.isArray(parsed.value.items)
     ? parsed.value.items
-        .map(item => ({
-          itemId: String(item.itemId || ''),
+        .map((item) => ({
+          itemId: String(item.itemId || ""),
           quantity: Math.max(0, Number(item.quantity) || 0),
         }))
-        .filter(item => item.itemId && item.quantity > 0)
+        .filter((item) => item.itemId && item.quantity > 0)
     : [];
 
   return {
-    tableNumber: parsed.value.tableNumber || '',
-    note: parsed.value.note || '',
+    restaurantId: parsed.value.restaurantId,
+    branchId: parsed.value.branchId,
+    tableId: parsed.value.tableId,
+    tableNumber: parsed.value.tableNumber || "",
+    note: parsed.value.note || "",
     items,
   };
 };
@@ -733,8 +883,11 @@ export const saveCurrentCart = async (cart: RestaurantCartState) => {
   await AsyncStorage.setItem(
     RESTAURANT_STORAGE_KEYS.currentCart,
     JSON.stringify({
-      tableNumber: cart.tableNumber || '',
-      note: cart.note || '',
+      restaurantId: cart.restaurantId,
+      branchId: cart.branchId,
+      tableId: cart.tableId,
+      tableNumber: cart.tableNumber || "",
+      note: cart.note || "",
       items: Array.isArray(cart.items) ? cart.items : [],
     }),
   );
@@ -767,55 +920,55 @@ const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
 export const registerRestaurantAdmin = async (
   username: string,
   password: string,
-): Promise<{ok: boolean; message: string}> => {
+): Promise<{ ok: boolean; message: string }> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
+    return { ok: false, message: "Vui lòng nhập tên tài khoản và mật khẩu" };
   }
 
   const accounts = await loadAdminAccounts();
   const existed = accounts.some(
-    account => normalise(account.username) === normalise(cleanUsername),
+    (account) => normalise(account.username) === normalise(cleanUsername),
   );
 
   if (existed) {
-    return {ok: false, message: 'Tài khoản admin đã tồn tại'};
+    return { ok: false, message: "Tài khoản admin đã tồn tại" };
   }
 
   // DEMO LOCAL ONLY: password is stored in AsyncStorage for the first offline version.
   // Replace this with backend auth + hashed password/session before production restaurant deployment.
   const nextAccounts = [
     ...accounts,
-    {username: cleanUsername, password: cleanPassword, createdAt: nowIso()},
+    { username: cleanUsername, password: cleanPassword, createdAt: nowIso() },
   ];
   await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, nextAccounts);
 
-  return {ok: true, message: 'Đăng ký admin local thành công'};
+  return { ok: true, message: "Đăng ký admin local thành công" };
 };
 
 export const verifyRestaurantAdmin = async (
   username: string,
   password: string,
-): Promise<{ok: boolean; message: string}> => {
+): Promise<{ ok: boolean; message: string }> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
+    return { ok: false, message: "Vui lòng nhập tên tài khoản và mật khẩu" };
   }
 
   const accounts = await loadAdminAccounts();
   const matched = accounts.some(
-    account =>
+    (account) =>
       normalise(account.username) === normalise(cleanUsername) &&
       account.password === cleanPassword,
   );
 
   if (!matched) {
-    return {ok: false, message: 'Tên tài khoản hoặc mật khẩu chưa đúng'};
+    return { ok: false, message: "Tên tài khoản hoặc mật khẩu chưa đúng" };
   }
 
-  return {ok: true, message: 'Đăng nhập admin thành công'};
+  return { ok: true, message: "Đăng nhập admin thành công" };
 };

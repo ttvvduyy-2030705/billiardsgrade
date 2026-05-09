@@ -9,20 +9,31 @@ type Metrics = {
 
 const createStyles = (design: DesignSystem, metrics: Metrics) => {
   const {spacing, font, radius, icon, safeArea, border, control} = design;
-  const isWide = metrics.width >= 760;
+  const isLandscape = metrics.width > metrics.height;
+  const useSidebarLayout =
+    metrics.width >= 760 || (isLandscape && metrics.width >= 640);
   const isCompact = metrics.width < 560;
   const isShort = metrics.height < 620;
   const horizontalPadding = Math.max(spacing.md, safeArea.left + spacing.md);
-  const categoryWidth = Math.min(250, metrics.width * 0.25);
-  const stackedCategoryHeight = isShort ? 116 : 132;
-  const stackedCartHorizontalPadding = Math.max(spacing.sm, safeArea.left + spacing.sm);
+  const categoryWidth = Math.min(268, Math.max(196, metrics.width * 0.26));
+  const stackedCategoryHeight = isShort ? 108 : 124;
+  const cartBarBottomOffset =
+    Math.max(safeArea.bottom, spacing.sm) + spacing.md;
+  const cartBarMinHeight = control.buttonHeight + spacing.xs;
+  const menuListBottomPadding =
+    cartBarMinHeight + cartBarBottomOffset + spacing.lg;
+  const stackedCartHorizontalPadding = Math.max(
+    spacing.sm,
+    safeArea.left + spacing.sm,
+  );
   // Match the image block used by Admin / Quản lý món.
   // The customer card uses the shared custom View component, whose default
   // alignItems is flex-start; without an explicit stretch/width the image area
   // can shrink and the image looks invisible.
-  const dishImageHeight = isWide ? 130 : 150;
-  const dishCardWidth = isWide ? '31.7%' : isCompact ? '100%' : '48.5%';
-  const adminDishCardWidth = isWide ? '32%' : '100%';
+  const dishImageHeight = useSidebarLayout ? 130 : 150;
+  const dishCardWidth =
+    metrics.width >= 980 ? '31.7%' : isCompact ? '100%' : '48.5%';
+  const adminDishCardWidth = useSidebarLayout ? '32%' : '100%';
 
   return StyleSheet.create({
     screen: {
@@ -69,7 +80,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       zIndex: 5,
     },
     headerSide: {
-      width: isWide ? 158 : 104,
+      width: useSidebarLayout ? 158 : 104,
       flexDirection: 'row',
       alignItems: 'center',
     },
@@ -148,8 +159,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       fontWeight: '900',
     },
     headerLogo: {
-      width: isWide ? icon.xl * 2.25 : icon.xl * 1.7,
-      height: isWide ? icon.xl * 1.2 : icon.xl,
+      width: useSidebarLayout ? icon.xl * 2.25 : icon.xl * 1.7,
+      height: useSidebarLayout ? icon.xl * 1.2 : icon.xl,
     },
     notice: {
       marginHorizontal: horizontalPadding,
@@ -172,7 +183,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     customerShell: {
       flex: 1,
-      flexDirection: isWide ? 'row' : 'column',
+      flexDirection: useSidebarLayout ? 'row' : 'column',
       paddingHorizontal: horizontalPadding,
       paddingTop: spacing.md,
       paddingBottom: spacing.sm,
@@ -181,8 +192,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       alignItems: 'stretch',
     },
     categoryColumn: {
-      width: isWide ? categoryWidth : '100%',
-      maxHeight: isWide ? undefined : stackedCategoryHeight,
+      width: useSidebarLayout ? categoryWidth : '100%',
+      maxHeight: useSidebarLayout ? undefined : stackedCategoryHeight,
       borderRadius: radius.xl,
       borderWidth: border.thin,
       borderColor: 'rgba(255,255,255,0.10)',
@@ -196,10 +207,14 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     categoryHeader: {
       paddingHorizontal: spacing.md,
-      paddingVertical: isWide ? spacing.md : spacing.sm,
+      paddingVertical: useSidebarLayout ? spacing.md : spacing.sm,
       borderBottomWidth: border.thin,
       borderBottomColor: 'rgba(255,255,255,0.08)',
       backgroundColor: 'rgba(255,255,255,0.035)',
+    },
+    categoryList: {
+      flexGrow: useSidebarLayout ? 1 : 0,
+      flexShrink: useSidebarLayout ? 1 : 0,
     },
     categoryTitle: {
       color: '#FFFFFF',
@@ -214,7 +229,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     categoryListContent: {
       padding: spacing.sm,
-      paddingBottom: isWide ? spacing.lg : spacing.sm,
+      paddingBottom: useSidebarLayout ? spacing.lg : spacing.sm,
     },
     categoryListContentHorizontal: {
       flexDirection: 'row',
@@ -232,7 +247,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       backgroundColor: '#111116',
       paddingHorizontal: spacing.sm,
       justifyContent: 'center',
-      marginBottom: isWide ? spacing.sm : 0,
+      marginBottom: useSidebarLayout ? spacing.sm : 0,
     },
     categoryItemHorizontal: {
       width: Math.max(132, Math.min(184, metrics.width * 0.34)),
@@ -262,6 +277,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     menuColumn: {
       flex: 1,
       width: '100%',
+      minHeight: 0,
       borderRadius: radius.xl,
       borderWidth: border.thin,
       borderColor: 'rgba(255,255,255,0.10)',
@@ -310,7 +326,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     menuGridContent: {
       padding: isCompact ? spacing.sm : spacing.md,
-      paddingBottom: isWide ? spacing.xxl * 3.2 : spacing.xxl * 3.6,
+      paddingBottom: menuListBottomPadding,
     },
     menuGrid: {
       flexDirection: 'row',
@@ -318,9 +334,14 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       justifyContent: 'space-between',
       rowGap: spacing.md,
     },
+    menuGridColumnWrapper: {
+      justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
     dishCard: {
       width: dishCardWidth as any,
       alignItems: 'stretch',
+      marginBottom: spacing.md,
       borderRadius: radius.xl,
       borderWidth: border.thin,
       borderColor: 'rgba(255,255,255,0.10)',
@@ -495,10 +516,12 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     cartBottomBar: {
       position: 'absolute',
-      left: isWide ? undefined : stackedCartHorizontalPadding,
-      right: isWide ? horizontalPadding + spacing.md : stackedCartHorizontalPadding,
-      bottom: safeArea.bottom + spacing.lg,
-      width: isWide ? Math.min(430, metrics.width * 0.42) : undefined,
+      left: useSidebarLayout ? undefined : stackedCartHorizontalPadding,
+      right: useSidebarLayout
+        ? horizontalPadding + spacing.md
+        : stackedCartHorizontalPadding,
+      bottom: cartBarBottomOffset,
+      width: useSidebarLayout ? Math.min(430, metrics.width * 0.42) : undefined,
       minHeight: control.buttonHeight + spacing.xs,
       borderRadius: radius.xl,
       backgroundColor: '#C91D24',
@@ -840,7 +863,6 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       shadowOpacity: 0.52,
       shadowOffset: {width: 0, height: -12},
       shadowRadius: spacing.lg,
-      elevation: 24,
     },
     fieldInputHeader: {
       flexDirection: 'row',
@@ -907,7 +929,9 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     fieldInputTextArea: {
       width: '100%',
-      minHeight: isShort ? control.fieldHeight * 1.55 : control.fieldHeight * 2.1,
+      minHeight: isShort
+        ? control.fieldHeight * 1.55
+        : control.fieldHeight * 2.1,
       maxHeight: metrics.height * 0.26,
       borderRadius: radius.lg,
       borderWidth: border.thin,
@@ -1188,7 +1212,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       rowGap: spacing.sm,
     },
     formField: {
-      width: isWide ? '49%' : '100%',
+      width: useSidebarLayout ? '49%' : '100%',
     },
     fullField: {
       width: '100%',

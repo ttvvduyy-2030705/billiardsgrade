@@ -1,0 +1,1 @@
+Batch 11 visual priority polish: prioritize dishes over restaurant/category chrome, force horizontal category strip, expand dish cards, remove emoji/special characters that cause font issues, and simplify customer-facing copy.

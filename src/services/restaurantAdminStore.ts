@@ -4,10 +4,11 @@ import {
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
-  saveOrders,
+  updateRestaurantOrderPaymentStatus,
+  updateRestaurantOrderStatus,
   upsertMenuCategory,
   upsertMenuItem,
-} from './restaurantMenuStorage';
+} from './restaurantMenuRepository';
 import {getMenuItemImageValue} from './restaurantMenuImage';
 
 import type {
@@ -16,19 +17,15 @@ import type {
   RestaurantMenuItemStatus,
   RestaurantOrder,
   RestaurantOrderStatus,
-} from './restaurantMenuStorage';
+} from './restaurantMenuRepository';
 
-export type AdminOrderStatus =
-  | 'NEW'
-  | 'ACCEPTED'
-  | 'PREPARING'
-  | 'COMPLETED'
-  | 'CANCELLED';
+export type AdminOrderStatus = RestaurantOrderStatus;
 
 export type AdminPaymentStatus = 'UNPAID' | 'PAID';
 export type AdminOrderFilter = AdminOrderStatus | 'ALL' | AdminPaymentStatus;
 
-export type AdminOrder = Omit<RestaurantOrder, 'status'> & {
+export type AdminOrder = RestaurantOrder & {
+  /** UI alias only. Canonical processing state is orderStatus. */
   status: AdminOrderStatus;
   paymentStatus: AdminPaymentStatus;
 };
@@ -79,45 +76,35 @@ export const ADMIN_ORDER_FILTERS: AdminOrderFilter[] = [
 
 const toAdminStatus = (status?: RestaurantOrderStatus): AdminOrderStatus => {
   switch (status) {
-    case 'accepted':
-      return 'ACCEPTED';
-    case 'preparing':
-      return 'PREPARING';
-    case 'completed':
-      return 'COMPLETED';
-    case 'cancelled':
-      return 'CANCELLED';
-    case 'new':
+    case 'ACCEPTED':
+    case 'PREPARING':
+    case 'COMPLETED':
+    case 'CANCELLED':
+      return status;
+    case 'NEW':
     default:
       return 'NEW';
   }
 };
 
 const toStorageStatus = (status: AdminOrderStatus): RestaurantOrderStatus => {
-  switch (status) {
-    case 'ACCEPTED':
-      return 'accepted';
-    case 'PREPARING':
-      return 'preparing';
-    case 'COMPLETED':
-      return 'completed';
-    case 'CANCELLED':
-      return 'cancelled';
-    case 'NEW':
-    default:
-      return 'new';
-  }
+  return toAdminStatus(status);
 };
 
 const toPaymentStatus = (order: RestaurantOrder): AdminPaymentStatus => {
   return order.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID';
 };
 
-const toAdminOrder = (order: RestaurantOrder): AdminOrder => ({
-  ...order,
-  status: toAdminStatus(order.status),
-  paymentStatus: toPaymentStatus(order),
-});
+const toAdminOrder = (order: RestaurantOrder): AdminOrder => {
+  const orderStatus = toAdminStatus(order.orderStatus);
+
+  return {
+    ...order,
+    orderStatus,
+    status: orderStatus,
+    paymentStatus: toPaymentStatus(order),
+  };
+};
 
 export const loadRestaurantAdminData = async () => {
   const [categories, menuItems, orders] = await Promise.all([
@@ -136,10 +123,6 @@ export const loadRestaurantAdminData = async () => {
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
   const cleanImageUrl = getMenuItemImageValue(input);
 
-  console.log(
-    `[AdminMenuForm] submit image=${cleanImageUrl || 'none'}`,
-  );
-
   const nextItems = await upsertMenuItem({
     id: input.id,
     createdAt: input.createdAt,
@@ -152,32 +135,19 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     available: input.status === 'SELLING',
   });
 
-  const savedItem = input.id
-    ? nextItems.find(item => item.id === input.id)
-    : nextItems[0];
-
-  console.log('[Admin Food Image Save] food object =', savedItem);
-  console.log(
-    `[AdminMenuStore] after update item image=${getMenuItemImageValue(savedItem) || 'none'}`,
-  );
-
   return nextItems;
 };
-
 
 export const deleteAdminMenuItem = async (itemId: string) => {
   const nextItems = await deleteMenuItem(itemId);
 
-  console.log(`[AdminMenuStore] delete item id=${itemId}`);
-
   return nextItems;
 };
 
-export const saveAdminMenuCategory = async (input: Partial<MenuCategory> & {name: string}) => {
+export const saveAdminMenuCategory = async (
+  input: Partial<MenuCategory> & {name: string},
+) => {
   const result = await upsertMenuCategory(input);
-  console.log(
-    `[AdminCategoryStore] save category id=${input.id || 'new'} name=${input.name.trim()} ok=${result.ok}`,
-  );
   return result;
 };
 
@@ -188,32 +158,18 @@ export const deleteAdminMenuCategory = async (
   const result = await deleteMenuCategory(categoryId, {moveItemsToCategoryId});
   const menuItems = await loadMenuItems();
 
-  console.log(
-    `[AdminCategoryStore] delete category id=${categoryId} moveTo=${moveItemsToCategoryId || 'auto'} ok=${result.ok}`,
-  );
-
   return {...result, menuItems};
 };
-
 
 export const updateAdminOrderStatus = async (
   orderId: string,
   status: AdminOrderStatus,
 ) => {
-  const current = await loadOrders();
-  const timestamp = new Date().toISOString();
-  const nextOrders = current.map(order =>
-    order.id === orderId
-      ? {
-          ...order,
-          status: toStorageStatus(status),
-          paymentStatus: order.paymentStatus || 'UNPAID',
-          updatedAt: timestamp,
-        }
-      : order,
+  const nextOrders = await updateRestaurantOrderStatus(
+    orderId,
+    toStorageStatus(status),
   );
 
-  await saveOrders(nextOrders);
   return nextOrders.map(toAdminOrder);
 };
 
@@ -221,22 +177,11 @@ export const updateAdminOrderPaymentStatus = async (
   orderId: string,
   paymentStatus: AdminPaymentStatus,
 ) => {
-  const current = await loadOrders();
-  const timestamp = new Date().toISOString();
-  const nextOrders = current.map(order =>
-    order.id === orderId
-      ? {
-          ...order,
-          paymentStatus,
-          // Payment is independent from kitchen/order progress. Marking an
-          // order as PAID must not auto-complete a NEW/ACCEPTED/PREPARING order.
-          status: order.status,
-          updatedAt: timestamp,
-        }
-      : order,
+  const nextOrders = await updateRestaurantOrderPaymentStatus(
+    orderId,
+    paymentStatus,
   );
 
-  await saveOrders(nextOrders);
   return nextOrders.map(toAdminOrder);
 };
 
@@ -244,7 +189,10 @@ export const getCategoryLabel = (
   categoryId: string,
   categories: MenuCategory[],
 ) => {
-  return categories.find(category => category.id === categoryId)?.name || 'Chưa phân loại';
+  return (
+    categories.find(category => category.id === categoryId)?.name ||
+    'Chưa phân loại'
+  );
 };
 
 export const getMenuItemStatusLabel = (item: RestaurantMenuItem) => {

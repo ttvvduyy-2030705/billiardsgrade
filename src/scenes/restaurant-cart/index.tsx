@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
+  NativeModules,
   Platform,
   Pressable,
   ScrollView,
@@ -22,9 +23,11 @@ import View from 'components/View';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {Navigation} from 'types/navigation';
-import {createRestaurantOrder} from 'services/restaurantMenuStorage';
-import type {RestaurantMenuItem} from 'services/restaurantMenuStorage';
-import {useRestaurantCartStore} from '../../stores/RestaurantCartStore';
+import type {RestaurantMenuItem} from 'services/restaurantMenuRepository';
+import {
+  normalizeRestaurantTableNumber,
+  useRestaurantCartStore,
+} from '../../stores/RestaurantCartStore';
 import {useRestaurantMenuStore} from '../../stores/RestaurantMenuStore';
 import createStyles from './styles';
 
@@ -41,11 +44,10 @@ const formatCurrency = (value: number) => {
   return `${Math.max(0, value || 0).toLocaleString('vi-VN')}đ`;
 };
 
-const normalizeTableInput = (value: string) => {
-  return String(value || '')
-    .replace(/[\r\n\t]+/g, ' ')
-    .replace(/\s{2,}/g, ' ');
-};
+const normalizeTableInput = normalizeRestaurantTableNumber;
+
+const AndroidCartInputModule =
+  Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
 
 const RestaurantCartScreen = (props: Props) => {
   useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
@@ -60,15 +62,13 @@ const RestaurantCartScreen = (props: Props) => {
   const {
     cart,
     cartSubmitting,
-    setCart,
-    setCartSubmitting,
     hydrateCartFromStorage,
-    persistCurrentCart,
-    clearCart,
     changeQuantity,
+    commitCartFields,
     updateMenuItemSnapshot,
     getSnapshotMenuItem,
     getActiveCart,
+    submitCurrentCartOrder,
   } = useRestaurantCartStore();
   const {items, refreshMenuData} = useRestaurantMenuStore();
 
@@ -77,7 +77,6 @@ const RestaurantCartScreen = (props: Props) => {
   const [tableError, setTableError] = useState('');
   const [cartError, setCartError] = useState('');
   const [message, setMessage] = useState('');
-  const submitLockRef = useRef(false);
   const tableNumberRef = useRef('');
   const noteRef = useRef('');
 
@@ -117,12 +116,18 @@ const RestaurantCartScreen = (props: Props) => {
     }, [refreshData]),
   );
 
+  const menuItemById = useMemo(() => {
+    return items.reduce<Record<string, RestaurantMenuItem>>((result, item) => {
+      result[item.id] = item;
+      return result;
+    }, {});
+  }, [items]);
+
   const cartRows = useMemo(() => {
     return cart.items
       .map(cartItem => {
         const menuItem =
-          items.find(item => item.id === cartItem.itemId) ||
-          getSnapshotMenuItem(cartItem.itemId);
+          menuItemById[cartItem.itemId] || getSnapshotMenuItem(cartItem.itemId);
 
         if (!menuItem || cartItem.quantity <= 0) {
           return null;
@@ -136,7 +141,7 @@ const RestaurantCartScreen = (props: Props) => {
         };
       })
       .filter(Boolean) as CartRow[];
-  }, [cart.items, getSnapshotMenuItem, items]);
+  }, [cart.items, getSnapshotMenuItem, menuItemById]);
 
   const total = useMemo(
     () => cartRows.reduce((result, row) => result + row.lineTotal, 0),
@@ -144,22 +149,15 @@ const RestaurantCartScreen = (props: Props) => {
   );
 
   const commitInputs = useCallback(() => {
-    const activeCart = getActiveCart();
-    const nextCart = {
-      ...activeCart,
+    return commitCartFields({
       tableNumber: normalizeTableInput(tableNumberRef.current).trim(),
       note: noteRef.current,
-    };
-
-    setCart(nextCart);
-    void persistCurrentCart(nextCart);
-    return nextCart;
-  }, [getActiveCart, persistCurrentCart, setCart]);
+    });
+  }, [commitCartFields]);
 
   const handleGoBack = useCallback(() => {
     commitInputs();
     Keyboard.dismiss();
-    props.goBack();
   }, [commitInputs, props]);
 
   const handleTableChange = useCallback((value: string) => {
@@ -177,6 +175,89 @@ const RestaurantCartScreen = (props: Props) => {
     setNote(value);
   }, []);
 
+  const showNativeCartInput = useCallback(
+    async ({
+      title,
+      placeholder,
+      initialValue,
+      keyboardType,
+      source,
+    }: {
+      title: string;
+      placeholder: string;
+      initialValue: string;
+      keyboardType: 'text' | 'note';
+      source: string;
+    }) => {
+      if (Platform.OS !== 'android') {
+        return null;
+      }
+
+      const nativeDialog = (AndroidCartInputModule as any)
+        ?.showCartTextInputDialog;
+      if (typeof nativeDialog !== 'function') {
+        return null;
+      }
+
+      return nativeDialog(
+        title,
+        placeholder,
+        initialValue,
+        keyboardType,
+        source,
+      );
+    },
+    [],
+  );
+
+  const openTableInput = useCallback(async () => {
+    try {
+      const nextValue = await showNativeCartInput({
+        title: 'Nhập số bàn',
+        placeholder: 'VD: Bàn 08, VIP1, A12',
+        initialValue: tableNumberRef.current,
+        keyboardType: 'text',
+        source: 'restaurant-cart-screen-table',
+      });
+
+      if (typeof nextValue === 'string') {
+        handleTableChange(nextValue);
+        commitCartFields({
+          tableNumber: normalizeTableInput(nextValue),
+          note: noteRef.current,
+        });
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[RestaurantCartScreen] native table input failed', error);
+      }
+    }
+  }, [commitCartFields, handleTableChange, showNativeCartInput]);
+
+  const openNoteInput = useCallback(async () => {
+    try {
+      const nextValue = await showNativeCartInput({
+        title: 'Nhập ghi chú',
+        placeholder: 'Thêm ghi chú cho đơn hàng',
+        initialValue: noteRef.current,
+        keyboardType: 'note',
+        source: 'restaurant-cart-screen-note',
+      });
+
+      if (typeof nextValue === 'string') {
+        handleNoteChange(nextValue);
+        commitCartFields({
+          tableNumber: tableNumberRef.current,
+          note: nextValue,
+        });
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[RestaurantCartScreen] native note input failed', error);
+      }
+    }
+  }, [commitCartFields, handleNoteChange, showNativeCartInput]);
+
   const handleQuantity = useCallback(
     (itemId: string, delta: number) => {
       changeQuantity(itemId, delta);
@@ -186,87 +267,48 @@ const RestaurantCartScreen = (props: Props) => {
   );
 
   const handleSubmit = useCallback(async () => {
-    if (cartSubmitting || submitLockRef.current) {
+    if (cartSubmitting) {
       return;
     }
 
     const activeCart = commitInputs();
-    const cleanTableNumber = activeCart.tableNumber.trim();
+    const result = await submitCurrentCartOrder({
+      fallbackItemsById: menuItemById,
+    });
 
-    if (cartRows.length === 0) {
-      setCartError('Vui lòng chọn món trước khi gửi đơn.');
-      setTableError('');
+    if (!result.ok) {
+      if (result.reason === 'TABLE_REQUIRED' || result.reason === 'TABLE_INVALID') {
+        setTableError(result.message);
+        setCartError('');
+        return;
+      }
+
+      if (result.reason !== 'ALREADY_SUBMITTING') {
+        setTableError('');
+        setCartError(result.message);
+      }
       return;
     }
 
-    if (!cleanTableNumber) {
-      setTableError('Vui lòng nhập số bàn.');
-      setCartError('');
-      return;
-    }
+    const shortOrderId = result.orderId.slice(-6).toUpperCase();
+    const tableNumberForMessage =
+      result.tableNumber || activeCart.tableNumber.trim();
 
-    const invalidRows = cartRows.filter(
-      row => row.item.status !== 'SELLING' || row.item.available === false,
-    );
-
-    if (invalidRows.length > 0) {
-      setCartError(
-        'Có món đã hết hàng hoặc bị ẩn. Vui lòng xoá món đó khỏi giỏ.',
-      );
-      setTableError('');
-      return;
-    }
-
-    const orderItems = cartRows.map(row => ({
-      itemId: row.item.id,
-      name: row.item.name,
-      price: row.item.price,
-      quantity: row.quantity,
-    }));
-
-    submitLockRef.current = true;
-    setCartSubmitting(true);
+    setTableNumber('');
+    setNote('');
+    setTableError('');
     setCartError('');
-    setMessage('');
-
-    try {
-      const nextOrders = await createRestaurantOrder({
-        tableNumber: cleanTableNumber,
-        note: activeCart.note.trim(),
-        items: orderItems,
-        total,
-      });
-      const createdOrder = nextOrders[0];
-      const shortOrderId = String(createdOrder?.id || '')
-        .slice(-6)
-        .toUpperCase();
-
-      await clearCart();
-      setTableNumber('');
-      setNote('');
-      setTableError('');
-      setCartError('');
-      setMessage(
-        shortOrderId
-          ? `Đã gửi đơn #${shortOrderId} cho bàn ${cleanTableNumber}.`
-          : `Đã gửi đơn cho bàn ${cleanTableNumber}.`,
-      );
-      Keyboard.dismiss();
-      props.goBack();
-    } catch (error) {
-      setCartError('Không thể gửi đơn. Vui lòng thử lại.');
-    } finally {
-      submitLockRef.current = false;
-      setCartSubmitting(false);
-    }
+    setMessage(
+      shortOrderId
+        ? `Đã gửi đơn #${shortOrderId} cho bàn ${tableNumberForMessage}.`
+        : `Đã gửi đơn cho bàn ${tableNumberForMessage}.`,
+    );
+    Keyboard.dismiss();
   }, [
-    cartRows,
     cartSubmitting,
-    clearCart,
     commitInputs,
-    props,
-    setCartSubmitting,
-    total,
+    menuItemById,
+    submitCurrentCartOrder,
   ]);
 
   const renderCartRow = (row: CartRow) => {
@@ -292,17 +334,21 @@ const RestaurantCartScreen = (props: Props) => {
           </RNText>
           <RNView style={styles.quantityControlSmall}>
             <Pressable
+              disabled={cartSubmitting}
               onPress={() => handleQuantity(row.itemId, -1)}
-              style={styles.quantityButtonSmall}>
+              style={[
+                styles.quantityButtonSmall,
+                cartSubmitting ? styles.disabledButton : null,
+              ]}>
               <RNText style={styles.quantityButtonText}>−</RNText>
             </Pressable>
             <RNText style={styles.quantityTextSmall}>{row.quantity}</RNText>
             <Pressable
-              disabled={!canIncrease}
+              disabled={cartSubmitting || !canIncrease}
               onPress={() => handleQuantity(row.itemId, 1)}
               style={[
                 styles.quantityButtonSmall,
-                !canIncrease ? styles.disabledButton : null,
+                cartSubmitting || !canIncrease ? styles.disabledButton : null,
               ]}>
               <RNText style={styles.quantityButtonText}>+</RNText>
             </Pressable>
@@ -362,51 +408,94 @@ const RestaurantCartScreen = (props: Props) => {
           </RNView>
 
           <RNView style={styles.infoSection}>
-            <RNView
-              style={[
-                styles.inputWrap,
-                tableError ? styles.inputWrapError : null,
-              ]}>
-              <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
-              <TextInput
-                value={tableNumber}
-                onChangeText={handleTableChange}
-                onBlur={commitInputs}
-                placeholder="VD: Bàn 08, VIP1, A12"
-                placeholderTextColor="rgba(255,255,255,0.42)"
-                keyboardType="default"
-                returnKeyType="next"
-                blurOnSubmit={false}
-                autoCorrect={false}
-                autoCapitalize="characters"
-                selectionColor="#E22A32"
-                underlineColorAndroid="transparent"
-                style={styles.input}
-              />
-            </RNView>
+            {Platform.OS === 'android' ? (
+              <Pressable
+                disabled={cartSubmitting}
+                onPress={openTableInput}
+                style={[
+                  styles.inputWrap,
+                  styles.cartDisplayField,
+                  tableError ? styles.inputWrapError : null,
+                ]}>
+                <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
+                <RNText
+                  numberOfLines={1}
+                  style={[
+                    styles.cartDisplayValue,
+                    !tableNumber ? styles.cartDisplayPlaceholder : null,
+                  ]}>
+                  {tableNumber || 'VD: Bàn 08, VIP1, A12'}
+                </RNText>
+              </Pressable>
+            ) : (
+              <RNView
+                style={[
+                  styles.inputWrap,
+                  tableError ? styles.inputWrapError : null,
+                ]}>
+                <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
+                <TextInput
+                  value={tableNumber}
+                  onChangeText={handleTableChange}
+                  onBlur={commitInputs}
+                  placeholder="VD: Bàn 08, VIP1, A12"
+                  placeholderTextColor="rgba(255,255,255,0.42)"
+                  keyboardType="default"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  autoCorrect={false}
+                  autoCapitalize="characters"
+                  selectionColor="#E22A32"
+                  underlineColorAndroid="transparent"
+                  style={styles.input}
+                />
+              </RNView>
+            )}
             {tableError ? (
               <RNText style={styles.fieldErrorText}>{tableError}</RNText>
             ) : null}
 
-            <RNView style={styles.inputWrap}>
-              <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
-              <TextInput
-                value={note}
-                onChangeText={handleNoteChange}
-                onBlur={commitInputs}
-                placeholder="Thêm ghi chú cho đơn hàng"
-                placeholderTextColor="rgba(255,255,255,0.42)"
-                keyboardType="default"
-                returnKeyType="default"
-                multiline
-                blurOnSubmit={false}
-                autoCorrect={false}
-                textAlignVertical="top"
-                selectionColor="#E22A32"
-                underlineColorAndroid="transparent"
-                style={styles.textArea}
-              />
-            </RNView>
+            {Platform.OS === 'android' ? (
+              <Pressable
+                disabled={cartSubmitting}
+                onPress={openNoteInput}
+                style={[
+                  styles.inputWrap,
+                  styles.cartDisplayField,
+                  styles.cartDisplayFieldMultiline,
+                ]}>
+                <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
+                <RNText
+                  numberOfLines={3}
+                  style={[
+                    styles.cartDisplayValue,
+                    styles.cartDisplayValueMultiline,
+                    !note ? styles.cartDisplayPlaceholder : null,
+                  ]}>
+                  {note || 'Thêm ghi chú cho đơn hàng'}
+                </RNText>
+              </Pressable>
+            ) : (
+              <RNView style={styles.inputWrap}>
+                <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
+                <TextInput
+                  value={note}
+                  onChangeText={handleNoteChange}
+                  onBlur={commitInputs}
+                  placeholder="Thêm ghi chú cho đơn hàng"
+                  placeholderTextColor="rgba(255,255,255,0.42)"
+                  keyboardType="default"
+                  returnKeyType="default"
+                  multiline
+                  blurOnSubmit={false}
+                  autoCorrect={false}
+                  textAlignVertical="top"
+                  selectionColor="#E22A32"
+                  underlineColorAndroid="transparent"
+                  style={styles.textArea}
+                />
+              </RNView>
+            )}
           </RNView>
 
           {cartError ? (

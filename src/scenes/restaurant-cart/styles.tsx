@@ -240,6 +240,28 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       paddingBottom: spacing.xs,
       alignItems: 'stretch',
     },
+    cartDisplayField: {
+      minHeight: control.fieldHeight + spacing.md,
+      justifyContent: 'center',
+    },
+    cartDisplayFieldMultiline: {
+      minHeight: control.fieldHeight + spacing.lg,
+    },
+    cartDisplayValue: {
+      width: '100%',
+      color: '#FFFFFF',
+      fontSize: font.bodyLarge,
+      fontWeight: '900',
+      marginTop: spacing.xxs,
+    },
+    cartDisplayValueMultiline: {
+      fontSize: font.body,
+      lineHeight: font.body * 1.35,
+    },
+    cartDisplayPlaceholder: {
+      color: 'rgba(255,255,255,0.42)',
+      fontWeight: '800',
+    },
     inputWrapError: {
       borderColor: '#FF4C4C',
       backgroundColor: 'rgba(255,40,40,0.12)',

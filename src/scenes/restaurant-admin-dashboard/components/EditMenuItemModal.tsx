@@ -8,7 +8,11 @@ import {
   View as RNView,
 } from 'react-native';
 
-import type {MenuCategory, RestaurantMenuItem} from 'services/restaurantMenuStorage';
+import type {
+  MenuCategory,
+  RestaurantMenuItem,
+} from 'services/restaurantMenuRepository';
+import {getMenuItemImageValue} from 'services/restaurantMenuImage';
 
 type Props = {
   visible: boolean;
@@ -28,7 +32,14 @@ type Props = {
   }) => void;
 };
 
-const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}: Props) => {
+const EditMenuItemModal = ({
+  visible,
+  item,
+  categories,
+  styles,
+  onClose,
+  onSave,
+}: Props) => {
   const defaultCategoryId = categories[0]?.id || 'drink';
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -47,12 +58,15 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
     setPrice(item ? String(item.price || '') : '');
     setCategoryId(item?.categoryId || defaultCategoryId);
     setDescription(item?.description || '');
-    setImageUrl(item?.imageUrl || item?.imageUri || '');
+    setImageUrl(getMenuItemImageValue(item));
     setAvailable(item?.available !== false);
     setError('');
   }, [defaultCategoryId, item, visible]);
 
-  const priceValue = useMemo(() => Number(String(price).replace(/[^0-9]/g, '')), [price]);
+  const priceValue = useMemo(
+    () => Number(String(price).replace(/[^0-9]/g, '')),
+    [price],
+  );
 
   const submit = () => {
     if (!name.trim()) {
@@ -72,26 +86,36 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
       price: priceValue,
       categoryId,
       description: description.trim(),
-      imageUrl: imageUrl.trim(),
+      imageUrl: getMenuItemImageValue({imageUrl}),
       available,
     });
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}>
       <RNView style={styles.modalBackdrop}>
         <RNView style={styles.editModalCard}>
           <RNView style={styles.editModalHeader}>
             <RNView>
-              <RNText style={styles.editModalTitle}>{item ? 'Sửa món' : 'Thêm món mới'}</RNText>
-              <RNText style={styles.editModalHint}>Dữ liệu lưu local, sau này thay bằng API admin.</RNText>
+              <RNText style={styles.editModalTitle}>
+                {item ? 'Sửa món' : 'Thêm món mới'}
+              </RNText>
+              <RNText style={styles.editModalHint}>
+                Dữ liệu lưu local, sau này thay bằng API admin.
+              </RNText>
             </RNView>
             <Pressable onPress={onClose} style={styles.modalCloseButton}>
               <RNText style={styles.modalCloseText}>×</RNText>
             </Pressable>
           </RNView>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
             <RNText style={styles.inputLabel}>Tên món</RNText>
             <TextInput
               value={name}
@@ -119,7 +143,10 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
                   <Pressable
                     key={category.id}
                     onPress={() => setCategoryId(category.id)}
-                    style={[styles.categoryPickChip, active ? styles.categoryPickChipActive : null]}>
+                    style={[
+                      styles.categoryPickChip,
+                      active ? styles.categoryPickChipActive : null,
+                    ]}>
                     <RNText
                       style={[
                         styles.categoryPickText,
@@ -145,15 +172,29 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
             <RNView style={styles.categoryPickerWrap}>
               <Pressable
                 onPress={() => setAvailable(true)}
-                style={[styles.categoryPickChip, available ? styles.categoryPickChipActive : null]}>
-                <RNText style={[styles.categoryPickText, available ? styles.categoryPickTextActive : null]}>
+                style={[
+                  styles.categoryPickChip,
+                  available ? styles.categoryPickChipActive : null,
+                ]}>
+                <RNText
+                  style={[
+                    styles.categoryPickText,
+                    available ? styles.categoryPickTextActive : null,
+                  ]}>
                   Đang bán
                 </RNText>
               </Pressable>
               <Pressable
                 onPress={() => setAvailable(false)}
-                style={[styles.categoryPickChip, !available ? styles.categoryPickChipActive : null]}>
-                <RNText style={[styles.categoryPickText, !available ? styles.categoryPickTextActive : null]}>
+                style={[
+                  styles.categoryPickChip,
+                  !available ? styles.categoryPickChipActive : null,
+                ]}>
+                <RNText
+                  style={[
+                    styles.categoryPickText,
+                    !available ? styles.categoryPickTextActive : null,
+                  ]}>
                   Tạm ẩn / hết hàng
                 </RNText>
               </Pressable>
