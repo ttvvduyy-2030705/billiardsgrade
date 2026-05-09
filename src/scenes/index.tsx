@@ -89,7 +89,8 @@ const buildCustomTitleOptions = (
   };
 };
 
-const getWrappedHome = () => withWrapper(screens.home, require('./home').default);
+const getWrappedHome = () =>
+  withWrapper(screens.home, require('./home').default);
 const getWrappedLivePlatform = () =>
   withWrapper(screens.livePlatform, require('./live-platform').default);
 const getWrappedLivePlatformSetup = () =>
@@ -124,6 +125,8 @@ const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
 const getWrappedRestaurantMenu = () =>
   withWrapper(screens.restaurantMenu, require('./restaurant-menu').default);
+const getWrappedRestaurantCart = () =>
+  withWrapper(screens.restaurantCart, require('./restaurant-cart').default);
 const getWrappedRestaurantAdminLogin = () =>
   withWrapper(
     screens.restaurantAdminLogin,
@@ -159,89 +162,95 @@ const StackScreens = () => {
   return (
     <SubscriptionProvider>
       <Stack.Navigator initialRouteName={screens.home}>
-      <Stack.Screen
-        name={screens.home}
-        getComponent={getWrappedHome}
-        options={buildOptions(screens.home, true)}
-      />
+        <Stack.Screen
+          name={screens.home}
+          getComponent={getWrappedHome}
+          options={buildOptions(screens.home, true)}
+        />
 
-      <Stack.Screen
-        name={screens.livePlatform}
-        getComponent={getWrappedLivePlatform}
-        options={buildCustomTitleOptions('Chọn nền tảng livestream', true)}
-      />
+        <Stack.Screen
+          name={screens.livePlatform}
+          getComponent={getWrappedLivePlatform}
+          options={buildCustomTitleOptions('Chọn nền tảng livestream', true)}
+        />
 
-      <Stack.Screen
-        name={screens.livePlatformSetup}
-        getComponent={getWrappedLivePlatformSetup}
-        options={buildCustomTitleOptions('Thiết lập livestream', true)}
-      />
+        <Stack.Screen
+          name={screens.livePlatformSetup}
+          getComponent={getWrappedLivePlatformSetup}
+          options={buildCustomTitleOptions('Thiết lập livestream', true)}
+        />
 
-      <Stack.Screen
-        name={screens.livePlatformSetupFacebook}
-        getComponent={getWrappedLivePlatformSetupFacebook}
-        options={buildCustomTitleOptions('Thiết lập livestream', true)}
-      />
+        <Stack.Screen
+          name={screens.livePlatformSetupFacebook}
+          getComponent={getWrappedLivePlatformSetupFacebook}
+          options={buildCustomTitleOptions('Thiết lập livestream', true)}
+        />
 
-      <Stack.Screen
-        name={screens.livePlatformSetupYoutube}
-        getComponent={getWrappedLivePlatformSetupYoutube}
-        options={buildCustomTitleOptions('Thiết lập livestream', true)}
-      />
+        <Stack.Screen
+          name={screens.livePlatformSetupYoutube}
+          getComponent={getWrappedLivePlatformSetupYoutube}
+          options={buildCustomTitleOptions('Thiết lập livestream', true)}
+        />
 
-      <Stack.Screen
-        name={screens.livePlatformSetupTiktok}
-        getComponent={getWrappedLivePlatformSetupTiktok}
-        options={buildCustomTitleOptions('Thiết lập livestream', true)}
-      />
+        <Stack.Screen
+          name={screens.livePlatformSetupTiktok}
+          getComponent={getWrappedLivePlatformSetupTiktok}
+          options={buildCustomTitleOptions('Thiết lập livestream', true)}
+        />
 
-      <Stack.Screen
-        name={screens.gameSettings}
-        getComponent={getWrappedGameSettings}
-        options={buildOptions(screens.gameSettings, true)}
-      />
+        <Stack.Screen
+          name={screens.gameSettings}
+          getComponent={getWrappedGameSettings}
+          options={buildOptions(screens.gameSettings, true)}
+        />
 
-      <Stack.Screen
-        name={screens.gamePlay}
-        getComponent={getWrappedGamePlay}
-        options={buildOptions(screens.gamePlay, true)}
-      />
+        <Stack.Screen
+          name={screens.gamePlay}
+          getComponent={getWrappedGamePlay}
+          options={buildOptions(screens.gamePlay, true)}
+        />
 
-      <Stack.Screen
-        name={screens.history}
-        getComponent={getWrappedHistory}
-        options={buildOptions(screens.history, true)}
-      />
+        <Stack.Screen
+          name={screens.history}
+          getComponent={getWrappedHistory}
+          options={buildOptions(screens.history, true)}
+        />
 
-      <Stack.Screen
-        name={screens.playback}
-        getComponent={getWrappedPlayback}
-        options={buildOptions(screens.playback, true)}
-      />
+        <Stack.Screen
+          name={screens.playback}
+          getComponent={getWrappedPlayback}
+          options={buildOptions(screens.playback, true)}
+        />
 
-      <Stack.Screen
-        name={screens.configs}
-        getComponent={getWrappedConfigs}
-        options={buildOptions(screens.configs, true)}
-      />
+        <Stack.Screen
+          name={screens.configs}
+          getComponent={getWrappedConfigs}
+          options={buildOptions(screens.configs, true)}
+        />
 
-      <Stack.Screen
-        name={screens.restaurantMenu}
-        getComponent={getWrappedRestaurantMenu}
-        options={buildCustomTitleOptions('Menu gọi món', true)}
-      />
+        <Stack.Screen
+          name={screens.restaurantMenu}
+          getComponent={getWrappedRestaurantMenu}
+          options={buildCustomTitleOptions('Menu gọi món', true)}
+        />
 
-      <Stack.Screen
-        name={screens.restaurantAdminLogin}
-        getComponent={getWrappedRestaurantAdminLogin}
-        options={buildCustomTitleOptions('Đăng nhập Admin', true)}
-      />
+        <Stack.Screen
+          name={screens.restaurantCart}
+          getComponent={getWrappedRestaurantCart}
+          options={buildCustomTitleOptions('Giỏ hàng', true)}
+        />
 
-      <Stack.Screen
-        name={screens.restaurantAdminDashboard}
-        getComponent={getWrappedRestaurantAdminDashboard}
-        options={buildCustomTitleOptions('Admin bán hàng', true)}
-      />
+        <Stack.Screen
+          name={screens.restaurantAdminLogin}
+          getComponent={getWrappedRestaurantAdminLogin}
+          options={buildCustomTitleOptions('Đăng nhập Admin', true)}
+        />
+
+        <Stack.Screen
+          name={screens.restaurantAdminDashboard}
+          getComponent={getWrappedRestaurantAdminDashboard}
+          options={buildCustomTitleOptions('Admin bán hàng', true)}
+        />
       </Stack.Navigator>
     </SubscriptionProvider>
   );

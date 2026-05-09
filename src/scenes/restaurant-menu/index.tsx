@@ -1,11 +1,10 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {
+  ActivityIndicator,
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
-  Modal,
-  NativeModules,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +17,7 @@ import type {ImageResizeMode, ImageStyle, StyleProp} from 'react-native';
 import images from 'assets';
 import Image from 'components/Image';
 import View from 'components/View';
-import useScreenSystemUI, {configureSystemUI} from 'theme/systemUI';
+import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {screens} from 'scenes/screens';
 import {Navigation} from 'types/navigation';
@@ -31,18 +30,13 @@ import {
   getMenuItemImageValue,
   getRestaurantMenuImageSource,
 } from 'services/restaurantMenuImage';
-import {
-  useRestaurantCartStore,
-  type RestaurantCartFieldType,
-} from '../../stores/RestaurantCartStore';
+import {useRestaurantCartStore} from '../../stores/RestaurantCartStore';
 import {useRestaurantMenuStore} from '../../stores/RestaurantMenuStore';
-
-const CartImmersiveModule =
-  Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
 
 import type {
   MenuCategory,
   RestaurantCartItem,
+  RestaurantCartState,
   RestaurantMenuItem,
 } from 'services/restaurantMenuStorage';
 
@@ -50,23 +44,41 @@ import createStyles from './styles';
 
 type Props = Navigation;
 
-type CartFieldInputType = RestaurantCartFieldType;
+type CartFieldDraft = {
+  tableNumber: string;
+  note: string;
+};
 
-type CartFieldInputState = {
+type RestaurantCartRow = {
+  itemId: string;
+  quantity: number;
+  item: RestaurantMenuItem;
+  lineTotal: number;
+};
+
+type RestaurantCartOverlayProps = {
   visible: boolean;
-  type: CartFieldInputType;
-  draftValue: string;
+  cart: RestaurantCartState;
+  rows: RestaurantCartRow[];
+  total: number;
+  badgeCount: number;
+  tableError: string;
+  cartError: string;
+  submitting: boolean;
+  styles: ReturnType<typeof createStyles>;
+  onClose: (draft: CartFieldDraft) => void;
+  onSubmit: (draft: CartFieldDraft) => void;
+  onChangeQuantity: (itemId: string, delta: number) => void;
+  onClearTableError: () => void;
 };
 
 const formatCurrency = (value: number) => {
   return `${Math.max(0, value || 0).toLocaleString('vi-VN')}đ`;
 };
 
-const createClosedCartFieldInput = (): CartFieldInputState => ({
-  visible: false,
-  type: 'table',
-  draftValue: '',
-});
+const normalizeTableInput = (value: string) => {
+  return value.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ');
+};
 
 type MenuDishImageProps = {
   itemId: string;
@@ -83,6 +95,8 @@ const MenuDishImage = memo(({
   style,
   resizeMode = 'cover',
 }: MenuDishImageProps) => {
+  void adminView;
+
   const [failed, setFailed] = useState(false);
   const cleanImageValue = imageValue.trim();
 
@@ -102,6 +116,225 @@ const MenuDishImage = memo(({
       resizeMode={resizeMode}
       onError={() => setFailed(true)}
     />
+  );
+});
+
+const RestaurantCartOverlay = memo(({
+  visible,
+  cart,
+  rows,
+  total,
+  badgeCount,
+  tableError,
+  cartError,
+  submitting,
+  styles,
+  onClose,
+  onSubmit,
+  onChangeQuantity,
+  onClearTableError,
+}: RestaurantCartOverlayProps) => {
+  const [tableNumber, setTableNumber] = useState('');
+  const [note, setNote] = useState('');
+  const wasVisibleRef = useRef(false);
+
+  useEffect(() => {
+    if (visible && !wasVisibleRef.current) {
+      setTableNumber(cart.tableNumber || '');
+      setNote(cart.note || '');
+    }
+
+    wasVisibleRef.current = visible;
+  }, [cart.note, cart.tableNumber, visible]);
+
+  const getDraft = useCallback((): CartFieldDraft => {
+    return {
+      tableNumber: normalizeTableInput(tableNumber).trim(),
+      note,
+    };
+  }, [note, tableNumber]);
+
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    onClose(getDraft());
+  }, [getDraft, onClose]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !visible) {
+      return;
+    }
+
+    const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleClose();
+      return true;
+    });
+
+    return () => {
+      backSubscription.remove();
+    };
+  }, [handleClose, visible]);
+
+  const handleTableChange = useCallback(
+    (value: string) => {
+      const nextValue = normalizeTableInput(value);
+      setTableNumber(nextValue);
+
+      if (tableError && nextValue.trim()) {
+        onClearTableError();
+      }
+    },
+    [onClearTableError, tableError],
+  );
+
+  const handleSubmit = useCallback(() => {
+    Keyboard.dismiss();
+    onSubmit(getDraft());
+  }, [getDraft, onSubmit]);
+
+  const renderCartRow = (row: RestaurantCartRow) => {
+    const canIncrease = row.item.status === 'SELLING' && row.item.available !== false;
+
+    return (
+      <RNView key={row.itemId} style={styles.cartRow}>
+        <RNView style={styles.cartRowMain}>
+          <RNText style={styles.cartItemName}>{row.item.name}</RNText>
+          <RNText style={styles.cartMeta}>
+            {formatCurrency(row.item.price)} × {row.quantity}
+          </RNText>
+          {!canIncrease ? (
+            <RNText style={styles.fieldErrorText}>Món này hiện không thể đặt thêm.</RNText>
+          ) : null}
+        </RNView>
+        <RNView style={styles.cartRowRight}>
+          <RNText style={styles.cartLineTotal}>{formatCurrency(row.lineTotal)}</RNText>
+          <RNView style={styles.quantityControlSmall}>
+            <Pressable
+              onPress={() => onChangeQuantity(row.itemId, -1)}
+              style={styles.quantityButtonSmall}>
+              <RNText style={styles.quantityButtonText}>−</RNText>
+            </Pressable>
+            <RNText style={styles.quantityTextSmall}>{row.quantity}</RNText>
+            <Pressable
+              disabled={!canIncrease}
+              onPress={() => onChangeQuantity(row.itemId, 1)}
+              style={[styles.quantityButtonSmall, !canIncrease ? {opacity: 0.35} : null]}>
+              <RNText style={styles.quantityButtonText}>+</RNText>
+            </Pressable>
+          </RNView>
+        </RNView>
+      </RNView>
+    );
+  };
+
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <RNView pointerEvents="auto" style={styles.cartModalRoot}>
+      <RNView pointerEvents="none" style={styles.cartModalDimLayer} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.cartModalKeyboardLayer}>
+        <RNView style={styles.cartModalCard}>
+          <RNView style={styles.cartModalHeader}>
+            <RNView>
+              <RNText style={styles.cartModalTitle}>Giỏ hàng</RNText>
+              <RNText style={styles.cartModalSubTitle}>
+                {badgeCount} loại món · {formatCurrency(total)}
+              </RNText>
+            </RNView>
+            <Pressable onPress={handleClose} style={styles.closeButton}>
+              <RNText style={styles.closeButtonText}>×</RNText>
+            </Pressable>
+          </RNView>
+
+          <ScrollView
+            style={styles.cartList}
+            contentContainerStyle={styles.cartListContent}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="none"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}>
+            {rows.length === 0 ? (
+              <RNView style={styles.emptyState}>
+                <RNText style={styles.emptyIcon}>🧺</RNText>
+                <RNText style={styles.emptyText}>Giỏ hàng đang trống</RNText>
+                <RNText style={styles.emptySubText}>
+                  Chọn món trong menu để tạo đơn gọi món.
+                </RNText>
+              </RNView>
+            ) : (
+              rows.map(renderCartRow)
+            )}
+
+            <RNView style={styles.totalRow}>
+              <RNText style={styles.totalLabel}>Tổng hoá đơn</RNText>
+              <RNText style={styles.totalValue}>{formatCurrency(total)}</RNText>
+            </RNView>
+
+            <RNView style={styles.cartInfoSection}>
+              <RNView style={[styles.inputWrap, tableError ? styles.inputWrapError : null]}>
+                <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
+                <TextInput
+                  value={tableNumber}
+                  onChangeText={handleTableChange}
+                  placeholder="VD: Bàn 08, VIP1, A12"
+                  placeholderTextColor="rgba(255,255,255,0.42)"
+                  keyboardType="default"
+                  returnKeyType="done"
+                  blurOnSubmit={false}
+                  onSubmitEditing={Keyboard.dismiss}
+                  autoCorrect={false}
+                  autoCapitalize="characters"
+                  selectionColor="#E22A32"
+                  underlineColorAndroid="transparent"
+                  style={styles.input}
+                />
+              </RNView>
+              {tableError ? <RNText style={styles.fieldErrorText}>{tableError}</RNText> : null}
+
+              <RNView style={styles.inputWrap}>
+                <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder="Thêm ghi chú cho đơn hàng"
+                  placeholderTextColor="rgba(255,255,255,0.42)"
+                  keyboardType="default"
+                  returnKeyType="default"
+                  multiline
+                  blurOnSubmit={false}
+                  autoCorrect={false}
+                  textAlignVertical="top"
+                  selectionColor="#E22A32"
+                  underlineColorAndroid="transparent"
+                  style={styles.textArea}
+                />
+              </RNView>
+            </RNView>
+
+            {cartError ? <RNText style={styles.fieldErrorText}>{cartError}</RNText> : null}
+          </ScrollView>
+
+          <RNView style={styles.cartModalFooter}>
+            <Pressable
+              disabled={submitting}
+              onPress={handleSubmit}
+              style={[styles.primaryButton, submitting ? {opacity: 0.65} : null]}>
+              {submitting ? (
+                <RNView style={{flexDirection: 'row', alignItems: 'center', columnGap: 8}}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <RNText style={styles.primaryButtonText}>Đang gửi đơn...</RNText>
+                </RNView>
+              ) : (
+                <RNText style={styles.primaryButtonText}>Gửi đơn</RNText>
+              )}
+            </Pressable>
+          </RNView>
+        </RNView>
+      </KeyboardAvoidingView>
+    </RNView>
   );
 });
 
@@ -127,94 +360,34 @@ const RestaurantMenuScreen = (props: Props) => {
     cart,
     cartHydrated,
     cartModalVisible,
-    cartDisplayVersion,
     cartSubmitting,
     setCartSubmitting,
+    setCart,
     hydrateCartFromStorage,
     persistCurrentCart,
     clearCart,
     changeQuantity: changeCartQuantity,
-    commitCartFieldValue,
     setCartModalVisible,
     updateMenuItemSnapshot,
     getSnapshotMenuItem,
     getActiveCart,
   } = useRestaurantCartStore();
-  const [cartFieldInput, setCartFieldInput] = useState<CartFieldInputState>(
-    createClosedCartFieldInput,
-  );
+
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [tableError, setTableError] = useState('');
   const [cartError, setCartError] = useState('');
-  const [cartFieldKeyboardHeight, setCartFieldKeyboardHeight] = useState(0);
-  const cartOpenStartedAtRef = useRef(0);
-  const cartFieldInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
-  const cartInputFocusedRef = useRef(false);
-  const cartKeyboardVisibleRef = useRef(false);
-  const cartFullscreenTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const cartFieldInputFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cartFieldInputVisibleRef = useRef(false);
+  const cartSubmitLockRef = useRef(false);
 
   const showMessage = useCallback((text: string) => {
     setMessage(text);
     setErrorMessage('');
   }, []);
 
-  const clearCartFullscreenTimers = useCallback(() => {
-    cartFullscreenTimersRef.current.forEach(timer => clearTimeout(timer));
-    cartFullscreenTimersRef.current = [];
+  const showError = useCallback((text: string) => {
+    setErrorMessage(text);
+    setMessage('');
   }, []);
-
-  const clearCartFieldInputFocusTimer = useCallback(() => {
-    if (cartFieldInputFocusTimerRef.current) {
-      clearTimeout(cartFieldInputFocusTimerRef.current);
-      cartFieldInputFocusTimerRef.current = null;
-    }
-  }, []);
-
-  const pauseCartInputImmersive = useCallback((source: string) => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
-    CartImmersiveModule?.pauseForCartInput?.(source);
-  }, []);
-
-  const resumeCartInputImmersive = useCallback((source: string) => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
-    CartImmersiveModule?.resumeAfterCartInput?.(source);
-  }, []);
-
-  const showNativeCartFieldDialog = useCallback(
-    (
-      type: CartFieldInputType,
-      initialValue: string,
-      source: string,
-    ): Promise<string | null> | null => {
-      if (Platform.OS !== 'android') {
-        return null;
-      }
-
-      const nativeDialog = (CartImmersiveModule as any)?.showCartTextInputDialog;
-      if (typeof nativeDialog !== 'function') {
-        return null;
-      }
-
-      const isTable = type === 'table';
-      return nativeDialog(
-        isTable ? 'Số bàn' : 'Ghi chú',
-        isTable ? 'VD: Bàn 08' : 'Nhập ghi chú cho đơn hàng',
-        initialValue,
-        isTable ? 'text' : 'note',
-        source,
-      );
-    },
-    [],
-  );
 
   const refreshData = useCallback(async (source = 'manual') => {
     void source;
@@ -295,12 +468,7 @@ const RestaurantMenuScreen = (props: Props) => {
           lineTotal: menuItem.price * cartItem.quantity,
         };
       })
-      .filter(Boolean) as Array<{
-      itemId: string;
-      quantity: number;
-      item: RestaurantMenuItem;
-      lineTotal: number;
-    }>;
+      .filter(Boolean) as RestaurantCartRow[];
   }, [cart.items, getSnapshotMenuItem, items]);
 
   const cartTotal = useMemo(
@@ -310,289 +478,41 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const cartBadgeCount = cartRows.length;
 
-  const displayCart = useMemo(() => {
-    // cartDisplayVersion forces this memo to refresh immediately after the
-    // native Android input dialog writes Số bàn/Ghi chú and closes.
-    return getActiveCart();
-  }, [cart, cartDisplayVersion, getActiveCart]);
+  const commitCartFieldsToStore = useCallback(
+    (draft: CartFieldDraft) => {
+      const activeCart = getActiveCart();
+      const tableNumber = normalizeTableInput(draft.tableNumber || '').trim();
+      const note = draft.note || '';
+      const nextCart = {
+        ...activeCart,
+        tableNumber,
+        note,
+      };
+
+      if (activeCart.tableNumber !== tableNumber || activeCart.note !== note) {
+        setCart(nextCart);
+      }
+
+      return nextCart;
+    },
+    [getActiveCart, setCart],
+  );
 
   const closeCart = useCallback(
-    (source: string) => {
-      clearCartFullscreenTimers();
-      clearCartFieldInputFocusTimer();
+    (draft: CartFieldDraft) => {
+      commitCartFieldsToStore(draft);
       Keyboard.dismiss();
-      cartFieldInputVisibleRef.current = false;
-      setCartFieldInput(current =>
-        current.visible ? {...current, visible: false} : current,
-      );
-      cartInputFocusedRef.current = false;
-      cartKeyboardVisibleRef.current = false;
-      resumeCartInputImmersive('cart-close-' + source);
       setCartModalVisible(false);
     },
-    [
-      clearCartFieldInputFocusTimer,
-      clearCartFullscreenTimers,
-      resumeCartInputImmersive,
-      setCartModalVisible,
-    ],
+    [commitCartFieldsToStore, setCartModalVisible],
   );
 
   const openCart = useCallback(() => {
-    clearCartFullscreenTimers();
-    cartOpenStartedAtRef.current = Date.now();
     setTableError('');
     setCartError('');
     setErrorMessage('');
     setCartModalVisible(true);
-  }, [clearCartFullscreenTimers, setCartModalVisible]);
-
-  useEffect(() => {
-    cartFieldInputVisibleRef.current = cartFieldInput.visible;
-
-    if (cartFieldInput.visible) {
-      cartInputFocusedRef.current = true;
-    }
-
-    return () => {
-      clearCartFieldInputFocusTimer();
-    };
-  }, [cartFieldInput.visible, clearCartFieldInputFocusTimer]);
-
-  const reinforceFullscreen = useCallback((source: string) => {
-    if (
-      cartFieldInputVisibleRef.current ||
-      cartInputFocusedRef.current ||
-      cartKeyboardVisibleRef.current
-    ) {
-      return;
-    }
-
-    configureSystemUI({
-      barStyle: 'light-content',
-      backgroundColor: 'transparent',
-      animated: false,
-    });
-  }, []);
-
-  const scheduleCartInputRestore = useCallback(
-    (source: string, delay = 520) => {
-      clearCartFullscreenTimers();
-
-      const restoreWhenClosed = () => {
-        if (cartFieldInputVisibleRef.current || cartKeyboardVisibleRef.current) {
-          const waitTimer = setTimeout(restoreWhenClosed, 240);
-          cartFullscreenTimersRef.current.push(waitTimer);
-          return;
-        }
-
-        cartInputFocusedRef.current = false;
-        resumeCartInputImmersive(source);
-        reinforceFullscreen(source);
-      };
-
-      const timer = setTimeout(restoreWhenClosed, delay);
-      cartFullscreenTimersRef.current.push(timer);
-    },
-    [clearCartFullscreenTimers, reinforceFullscreen, resumeCartInputImmersive],
-  );
-
-  const commitCartFieldInputValue = useCallback(
-    (type: CartFieldInputType, value: string) => {
-      commitCartFieldValue(type, value);
-
-      if (type === 'table') {
-        setTableError('');
-      }
-    },
-    [commitCartFieldValue],
-  );
-
-  const openCartFieldInput = useCallback(
-    async (type: CartFieldInputType) => {
-      const source = `[CartFieldInput] open field: ${type}`;
-      const activeCart = getActiveCart();
-      const initialValue = type === 'table' ? activeCart.tableNumber : activeCart.note;
-
-      if (cartFieldInputVisibleRef.current) {
-        return;
-      }
-
-      clearCartFullscreenTimers();
-      clearCartFieldInputFocusTimer();
-
-      cartFieldInputVisibleRef.current = true;
-      cartInputFocusedRef.current = true;
-      cartKeyboardVisibleRef.current = false;
-      pauseCartInputImmersive(source);
-
-      setCartFieldKeyboardHeight(0);
-      setCartFieldInput({
-        visible: true,
-        type,
-        draftValue: initialValue,
-      });
-
-      const nativeDialogPromise = showNativeCartFieldDialog(type, initialValue, source);
-
-      if (!nativeDialogPromise) {
-        // Non-Android fallback keeps the existing React overlay path. Android
-        // must use the native EditText dialog so CartOverlay cannot steal focus.
-        return;
-      }
-
-      try {
-        const nextValue = await nativeDialogPromise;
-
-        if (typeof nextValue === 'string') {
-          commitCartFieldInputValue(type, nextValue);
-        } else {
-          // User cancelled native input dialog.
-        }
-      } catch (error) {
-        setCartError('Không thể nhập thông tin giỏ hàng. Vui lòng thử lại.');
-      } finally {
-        clearCartFullscreenTimers();
-        clearCartFieldInputFocusTimer();
-        setCartFieldKeyboardHeight(0);
-        cartFieldInputVisibleRef.current = false;
-        cartInputFocusedRef.current = false;
-        cartKeyboardVisibleRef.current = false;
-        setCartFieldInput(createClosedCartFieldInput());
-        Keyboard.dismiss();
-        scheduleCartInputRestore('cart-field-native-dialog-closed', 450);
-      }
-    },
-    [
-      clearCartFieldInputFocusTimer,
-      clearCartFullscreenTimers,
-      commitCartFieldInputValue,
-      getActiveCart,
-      pauseCartInputImmersive,
-      scheduleCartInputRestore,
-      showNativeCartFieldDialog,
-    ],
-  );
-
-  const cancelCartFieldInput = useCallback(() => {
-    clearCartFieldInputFocusTimer();
-    clearCartFullscreenTimers();
-    setCartFieldInput(current =>
-      current.visible ? {...current, visible: false} : current,
-    );
-    setCartFieldKeyboardHeight(0);
-    cartFieldInputVisibleRef.current = false;
-    Keyboard.dismiss();
-    scheduleCartInputRestore('cart-field-cancel');
-  }, [
-    clearCartFieldInputFocusTimer,
-    clearCartFullscreenTimers,
-    scheduleCartInputRestore,
-  ]);
-
-  const saveCartFieldInput = useCallback(() => {
-    clearCartFieldInputFocusTimer();
-    clearCartFullscreenTimers();
-    setCartFieldInput(current => {
-      if (!current.visible) {
-        return current;
-      }
-
-      commitCartFieldInputValue(current.type, current.draftValue);
-      return {...current, visible: false};
-    });
-
-    setCartFieldKeyboardHeight(0);
-    cartFieldInputVisibleRef.current = false;
-    Keyboard.dismiss();
-    scheduleCartInputRestore('cart-field-commit');
-  }, [
-    clearCartFieldInputFocusTimer,
-    clearCartFullscreenTimers,
-    commitCartFieldInputValue,
-    scheduleCartInputRestore,
-  ]);
-
-  useEffect(() => {
-    clearCartFullscreenTimers();
-
-    if (!cartModalVisible) {
-      reinforceFullscreen('cart-hidden');
-      return;
-    }
-
-    // Apply fullscreen once when the cart first opens. Do not schedule delayed
-    // immersive calls here: if the user taps Số bàn/Ghi chú immediately after
-    // opening the cart, delayed immersive calls can steal TextInput focus and
-    // close the IME.
-    reinforceFullscreen('cart-visible');
-
-    return () => {
-      clearCartFullscreenTimers();
-    };
-  }, [cartModalVisible, clearCartFullscreenTimers, reinforceFullscreen]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android' || !cartModalVisible) {
-      return;
-    }
-
-    const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (cartFieldInputVisibleRef.current) {
-        cancelCartFieldInput();
-        return true;
-      }
-
-      closeCart('android-back');
-      return true;
-    });
-
-    return () => {
-      backSubscription.remove();
-    };
-  }, [cancelCartFieldInput, cartModalVisible, closeCart]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
-    const keyboardShow = Keyboard.addListener('keyboardDidShow', event => {
-      clearCartFullscreenTimers();
-      cartKeyboardVisibleRef.current = true;
-      if (cartFieldInputVisibleRef.current) {
-        setCartFieldKeyboardHeight(event.endCoordinates?.height || 0);
-        pauseCartInputImmersive('[CartFieldInput] keyboard-show');
-      }
-      // Do not force immersive while the IME is opening; doing so can
-      // steal TextInput focus on Android and immediately dismiss keyboard.
-    });
-    const keyboardHide = Keyboard.addListener('keyboardDidHide', () => {
-      cartKeyboardVisibleRef.current = false;
-      setCartFieldKeyboardHeight(0);
-
-      clearCartFullscreenTimers();
-
-      if (cartFieldInputVisibleRef.current) {
-        // The input dock remains open. Do not restore immersive or force refocus
-        // here; doing either can create a keyboard show/hide loop on Android.
-        cartInputFocusedRef.current = false;
-        return;
-      }
-
-      scheduleCartInputRestore('[CartFieldInput] keyboard-hide', 320);
-    });
-
-    return () => {
-      keyboardShow.remove();
-      keyboardHide.remove();
-      clearCartFullscreenTimers();
-    };
-  }, [
-    clearCartFullscreenTimers,
-    pauseCartInputImmersive,
-    scheduleCartInputRestore,
-  ]);
+  }, [setCartModalVisible]);
 
   const changeQuantity = useCallback(
     (itemId: string, delta: number) => {
@@ -602,23 +522,33 @@ const RestaurantMenuScreen = (props: Props) => {
     [changeCartQuantity],
   );
 
-  const onSubmitOrder = useCallback(async () => {
-    if (cartSubmitting) {
+  const onSubmitOrder = useCallback(async (draft: CartFieldDraft) => {
+    if (cartSubmitting || cartSubmitLockRef.current) {
       return;
     }
 
-    const activeCart = getActiveCart();
+    const activeCart = commitCartFieldsToStore(draft);
     const tableNumber = activeCart.tableNumber.trim();
 
     if (cartRows.length === 0) {
-      setCartError('Vui lòng chọn món');
+      setCartError('Vui lòng chọn món trước khi gửi đơn.');
       setTableError('');
       return;
     }
 
     if (!tableNumber) {
-      setTableError('Vui lòng nhập số bàn');
+      setTableError('Vui lòng nhập số bàn.');
       setCartError('');
+      return;
+    }
+
+    const invalidRows = cartRows.filter(
+      row => row.item.status !== 'SELLING' || row.item.available === false,
+    );
+
+    if (invalidRows.length > 0) {
+      setCartError('Có món đã hết hàng hoặc bị ẩn. Vui lòng xoá món đó khỏi giỏ.');
+      setTableError('');
       return;
     }
 
@@ -629,22 +559,34 @@ const RestaurantMenuScreen = (props: Props) => {
       quantity: row.quantity,
     }));
 
+    cartSubmitLockRef.current = true;
     setCartSubmitting(true);
 
     try {
-      await createRestaurantOrder({
+      const nextOrders = await createRestaurantOrder({
         tableNumber,
         note: activeCart.note.trim(),
         items: orderItems,
         total: cartTotal,
       });
+      const createdOrder = nextOrders[0];
+      const shortOrderId = String(createdOrder?.id || '').slice(-6).toUpperCase();
 
       await clearCart();
       setTableError('');
       setCartError('');
-      closeCart('submit-success');
-      showMessage(`Đã gửi đơn cho bàn ${tableNumber}. Admin/quầy có thể xem ngay.`);
+      Keyboard.dismiss();
+      setCartModalVisible(false);
+      showMessage(
+        shortOrderId
+          ? `Đã gửi đơn #${shortOrderId} cho bàn ${tableNumber}.`
+          : `Đã gửi đơn cho bàn ${tableNumber}.`,
+      );
+    } catch (error) {
+      setCartError('Không thể gửi đơn. Vui lòng thử lại.');
+      showError('Không thể gửi đơn. Giỏ hàng vẫn được giữ nguyên.');
     } finally {
+      cartSubmitLockRef.current = false;
       setCartSubmitting(false);
     }
   }, [
@@ -652,9 +594,10 @@ const RestaurantMenuScreen = (props: Props) => {
     cartSubmitting,
     cartTotal,
     clearCart,
-    closeCart,
-    getActiveCart,
+    commitCartFieldsToStore,
+    setCartModalVisible,
     setCartSubmitting,
+    showError,
     showMessage,
   ]);
 
@@ -705,51 +648,8 @@ const RestaurantMenuScreen = (props: Props) => {
     );
   };
 
-  const renderCartDisplayField = ({
-    label,
-    value,
-    placeholder,
-    onPress,
-    multiline = false,
-    hasError = false,
-  }: {
-    label: string;
-    value: string;
-    placeholder: string;
-    onPress: () => void;
-    multiline?: boolean;
-    hasError?: boolean;
-  }) => {
-    const displayValue = value.trim();
-
-    return (
-      <Pressable
-        style={[
-          styles.inputWrap,
-          styles.cartDisplayField,
-          multiline ? styles.cartDisplayFieldMultiline : null,
-          hasError ? styles.inputWrapError : null,
-        ]}
-        onPress={onPress}
-        android_disableSound>
-        <RNText style={styles.inputLabel}>{label}</RNText>
-        <RNText
-          style={[
-            styles.cartDisplayValue,
-            !displayValue ? styles.cartDisplayPlaceholder : null,
-            multiline ? styles.cartDisplayValueMultiline : null,
-          ]}
-          numberOfLines={multiline ? 3 : 1}>
-          {displayValue || placeholder}
-        </RNText>
-      </Pressable>
-    );
-  };
-
-
   const renderCategoryColumn = () => {
     return (
-
       <View style={styles.categoryColumn}>
         <View style={styles.categoryHeader}>
           <RNText style={styles.categoryTitle}>Danh mục</RNText>
@@ -759,6 +659,7 @@ const RestaurantMenuScreen = (props: Props) => {
           horizontal={isCustomerStacked}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.categoryListContent,
             isCustomerStacked ? styles.categoryListContentHorizontal : null,
@@ -789,7 +690,7 @@ const RestaurantMenuScreen = (props: Props) => {
   const renderQuantityOrAdd = (item: RestaurantMenuItem) => {
     const quantity = cartItemMap[item.id]?.quantity || 0;
 
-    if (item.status === 'OUT_OF_STOCK' || !item.available) {
+    if (item.status === 'OUT_OF_STOCK' || item.available === false) {
       return (
         <RNText style={styles.disabledText}>
           {item.status === 'OUT_OF_STOCK' ? 'Hết hàng' : 'Tạm ẩn'}
@@ -825,7 +726,6 @@ const RestaurantMenuScreen = (props: Props) => {
   const renderDishCard = (item: RestaurantMenuItem) => {
     const itemImageValue = getMenuItemImageValue(item);
 
-    
     return (
       <View key={`${item.id}-${itemImageValue || 'no-image'}`} style={styles.dishCard}>
         <View style={styles.dishImageWrap}>
@@ -877,6 +777,7 @@ const RestaurantMenuScreen = (props: Props) => {
 
           <ScrollView
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.menuGridContent}>
             {visibleItems.length === 0 ? (
               <View style={styles.emptyState}>
@@ -909,225 +810,23 @@ const RestaurantMenuScreen = (props: Props) => {
     );
   };
 
-  const renderCartRow = (row: (typeof cartRows)[number]) => {
+  const renderCartOverlay = () => {
     return (
-      <View key={row.itemId} style={styles.cartRow}>
-        <View style={styles.cartRowMain}>
-          <RNText style={styles.cartItemName}>{row.item.name}</RNText>
-          <RNText style={styles.cartMeta}>
-            {formatCurrency(row.item.price)} × {row.quantity}
-          </RNText>
-        </View>
-        <View style={styles.cartRowRight}>
-          <RNText style={styles.cartLineTotal}>{formatCurrency(row.lineTotal)}</RNText>
-          <View style={styles.quantityControlSmall}>
-            <Pressable
-              onPress={() => changeQuantity(row.itemId, -1)}
-              style={styles.quantityButtonSmall}>
-              <RNText style={styles.quantityButtonText}>−</RNText>
-            </Pressable>
-            <RNText style={styles.quantityTextSmall}>{row.quantity}</RNText>
-            <Pressable
-              onPress={() => changeQuantity(row.itemId, 1)}
-              style={styles.quantityButtonSmall}>
-              <RNText style={styles.quantityButtonText}>+</RNText>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  const renderCartFieldInputOverlay = () => {
-    if (Platform.OS === 'android') {
-      // Android uses a native AlertDialog/EditText launched from
-      // CartImmersiveModule.showCartTextInputDialog. Keeping a React Native
-      // Modal/TextInput here creates a second window inside immersive mode and
-      // is the source of the keyboard show/hide flicker.
-      return null;
-    }
-
-    const isTable = cartFieldInput.type === 'table';
-    const title = isTable ? 'Số bàn' : 'Ghi chú';
-    const placeholder = isTable ? 'VD: Bàn 08' : 'Nhập ghi chú cho đơn hàng';
-
-    const focusFieldInput = () => {
-      clearCartFieldInputFocusTimer();
-      cartFieldInputFocusTimerRef.current = setTimeout(() => {
-        if (!cartFieldInputVisibleRef.current) {
-          return;
-        }
-
-          cartInputFocusedRef.current = true;
-                cartFieldInputRef.current?.focus();
-      }, 0);
-    };
-
-    return (
-      <Modal
-        visible={cartFieldInput.visible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        presentationStyle="overFullScreen"
-        onRequestClose={cancelCartFieldInput}
-        onShow={() => {
-            requestAnimationFrame(focusFieldInput);
-        }}>
-        <RNView style={styles.fieldInputOverlayRoot}>
-          <RNView pointerEvents="none" style={styles.fieldInputOverlayBackdrop} />
-          <KeyboardAvoidingView
-            pointerEvents="box-none"
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={0}
-            style={[
-              styles.fieldInputKeyboardLayer,
-              Platform.OS === 'android' && cartFieldKeyboardHeight > 0
-                ? {paddingBottom: cartFieldKeyboardHeight + 10}
-                : null,
-            ]}>
-            <RNView style={styles.fieldInputPanel}>
-              <RNView style={styles.fieldInputHeader}>
-                <Pressable
-                  onPress={cancelCartFieldInput}
-                  style={styles.fieldInputActionButton}
-                  android_disableSound>
-                  <RNText style={styles.fieldInputCancelText}>Huỷ</RNText>
-                </Pressable>
-                <RNView style={styles.fieldInputTitleWrap}>
-                  <RNText style={styles.fieldInputTitle}>{title}</RNText>
-                  <RNText style={styles.fieldInputSubtitle}>
-                    {isTable ? 'Nhập số bàn cho đơn gọi món' : 'Nhập một dòng ghi chú'}
-                  </RNText>
-                </RNView>
-                <Pressable
-                  onPress={saveCartFieldInput}
-                  style={[styles.fieldInputActionButton, styles.fieldInputSaveButton]}
-                  android_disableSound>
-                  <RNText style={styles.fieldInputSaveText}>Xong</RNText>
-                </Pressable>
-              </RNView>
-
-              <TextInput
-                ref={cartFieldInputRef}
-                value={cartFieldInput.draftValue}
-                onChangeText={text =>
-                  setCartFieldInput(current => ({...current, draftValue: text}))
-                }
-                onFocus={() => {
-                  clearCartFullscreenTimers();
-                              cartInputFocusedRef.current = true;
-                  pauseCartInputImmersive('[CartFieldInput] input focused');
-                }}
-                onBlur={() => {
-                  if (!cartFieldInputVisibleRef.current) {
-              cartInputFocusedRef.current = false;
-                  }
-                }}
-                placeholder={placeholder}
-                placeholderTextColor="rgba(255,255,255,0.42)"
-                keyboardType="default"
-                multiline={!isTable}
-                blurOnSubmit
-                returnKeyType="done"
-                onSubmitEditing={saveCartFieldInput}
-                autoFocus
-                showSoftInputOnFocus
-                autoCorrect={false}
-                style={styles.fieldInputTextInput}
-                selectionColor="#E22A32"
-                underlineColorAndroid="transparent"
-              />
-            </RNView>
-          </KeyboardAvoidingView>
-        </RNView>
-      </Modal>
-    );
-  };
-
-  const renderCartModal = () => {
-    if (!cartModalVisible) {
-      return null;
-    }
-
-    return (
-      <RNView style={styles.cartModalRoot}>
-        <RNView style={styles.cartModalDimLayer} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.cartModalKeyboardLayer}>
-          <RNView style={styles.cartModalCard}>
-            <View style={styles.cartModalHeader}>
-              <View>
-                <RNText style={styles.cartModalTitle}>Giỏ hàng</RNText>
-                <RNText style={styles.cartModalSubTitle}>
-                  {cartBadgeCount} loại món · {formatCurrency(cartTotal)}
-                </RNText>
-              </View>
-              <Pressable
-                onPress={() => closeCart('close-button')}
-                style={styles.closeButton}>
-                <RNText style={styles.closeButtonText}>×</RNText>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              style={styles.cartList}
-              contentContainerStyle={styles.cartListContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}>
-              {cartRows.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <RNText style={styles.emptyIcon}>🧺</RNText>
-                  <RNText style={styles.emptyText}>Giỏ hàng đang trống</RNText>
-                  <RNText style={styles.emptySubText}>
-                    Chọn Coca, Fanta, Mirinda hoặc Pepsi để tạo đơn.
-                  </RNText>
-                </View>
-              ) : (
-                cartRows.map(renderCartRow)
-              )}
-
-              <View style={styles.totalRow}>
-                <RNText style={styles.totalLabel}>Tổng tiền</RNText>
-                <RNText style={styles.totalValue}>{formatCurrency(cartTotal)}</RNText>
-              </View>
-
-              {cartError ? <RNText style={styles.fieldErrorText}>{cartError}</RNText> : null}
-            </ScrollView>
-
-            <View style={styles.cartModalFooter}>
-              {renderCartDisplayField({
-                label: 'SỐ BÀN',
-                value: displayCart.tableNumber,
-                placeholder: 'Chưa nhập số bàn',
-                hasError: Boolean(tableError),
-                onPress: () => openCartFieldInput('table'),
-              })}
-              {tableError ? (
-                <RNText style={styles.fieldErrorText}>{tableError}</RNText>
-              ) : null}
-              {renderCartDisplayField({
-                label: 'GHI CHÚ',
-                value: displayCart.note,
-                placeholder: 'Thêm ghi chú',
-                multiline: true,
-                onPress: () => openCartFieldInput('note'),
-              })}
-              <Pressable
-                disabled={cartSubmitting}
-                onPress={() => {
-                  onSubmitOrder();
-                }}
-                style={[styles.primaryButton, cartSubmitting ? {opacity: 0.65} : null]}>
-                <RNText style={styles.primaryButtonText}>
-                  {cartSubmitting ? 'Đang gửi...' : 'Gửi đơn'}
-                </RNText>
-              </Pressable>
-            </View>
-          </RNView>
-        </KeyboardAvoidingView>
-      </RNView>
+      <RestaurantCartOverlay
+        visible={cartModalVisible}
+        cart={cart}
+        rows={cartRows}
+        total={cartTotal}
+        badgeCount={cartBadgeCount}
+        tableError={tableError}
+        cartError={cartError}
+        submitting={cartSubmitting}
+        styles={styles}
+        onClose={closeCart}
+        onSubmit={onSubmitOrder}
+        onChangeQuantity={changeQuantity}
+        onClearTableError={() => setTableError('')}
+      />
     );
   };
 
@@ -1138,8 +837,7 @@ const RestaurantMenuScreen = (props: Props) => {
       {renderTopBar()}
       {renderNotice()}
       {renderCustomerMenu()}
-      {renderCartModal()}
-      {renderCartFieldInputOverlay()}
+      {renderCartOverlay()}
     </View>
   );
 };

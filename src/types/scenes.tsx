@@ -11,6 +11,7 @@ export type Screens = {
   playback: string;
   configs: string;
   restaurantMenu: string;
+  restaurantCart: string;
   restaurantAdminLogin: string;
   restaurantAdminDashboard: string;
   //Helper

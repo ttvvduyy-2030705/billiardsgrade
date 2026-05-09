@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {
   clearCurrentCart,
@@ -30,107 +30,152 @@ type CartSetter =
   | RestaurantCartState
   | ((previous: RestaurantCartState) => RestaurantCartState);
 
-export const useRestaurantCartStore = () => {
-  const [cart, setCartState] = useState<RestaurantCartState>(() =>
-    createEmptyRestaurantCart(),
-  );
-  const [cartHydrated, setCartHydrated] = useState(false);
-  const [cartModalVisible, setCartModalVisibleState] = useState(false);
-  const [cartDisplayVersion, setCartDisplayVersion] = useState(0);
-  const [cartSubmitting, setCartSubmitting] = useState(false);
+type CartStoreSnapshot = {
+  cart: RestaurantCartState;
+  cartHydrated: boolean;
+  cartModalVisible: boolean;
+  cartDisplayVersion: number;
+  cartSubmitting: boolean;
+};
 
-  const cartRef = useRef<RestaurantCartState>(cart);
-  const hydratedRef = useRef(false);
-  const mutationVersionRef = useRef(0);
-  const hydrateRequestIdRef = useRef(0);
-  const menuItemSnapshotRef = useRef<Record<string, RestaurantMenuItem>>({});
+const listeners = new Set<() => void>();
+
+const storeState: {
+  cart: RestaurantCartState;
+  cartHydrated: boolean;
+  cartModalVisible: boolean;
+  cartDisplayVersion: number;
+  cartSubmitting: boolean;
+  mutationVersion: number;
+  hydrateRequestId: number;
+  menuItemSnapshot: Record<string, RestaurantMenuItem>;
+} = {
+  cart: createEmptyRestaurantCart(),
+  cartHydrated: false,
+  cartModalVisible: false,
+  cartDisplayVersion: 0,
+  cartSubmitting: false,
+  mutationVersion: 0,
+  hydrateRequestId: 0,
+  menuItemSnapshot: {},
+};
+
+const getSnapshot = (): CartStoreSnapshot => ({
+  cart: storeState.cart,
+  cartHydrated: storeState.cartHydrated,
+  cartModalVisible: storeState.cartModalVisible,
+  cartDisplayVersion: storeState.cartDisplayVersion,
+  cartSubmitting: storeState.cartSubmitting,
+});
+
+const emitChange = () => {
+  listeners.forEach(listener => listener());
+};
+
+const replaceCartState = (nextCart: RestaurantCartState) => {
+  storeState.cart = nextCart;
+  storeState.cartHydrated = true;
+  storeState.mutationVersion += 1;
+  emitChange();
+};
+
+const bumpCartDisplayVersion = () => {
+  storeState.cartDisplayVersion += 1;
+  emitChange();
+};
+
+const bumpCartDisplayVersionAfterInput = () => {
+  bumpCartDisplayVersion();
+
+  requestAnimationFrame(() => {
+    bumpCartDisplayVersion();
+  });
+
+  setTimeout(() => {
+    bumpCartDisplayVersion();
+  }, 80);
+
+  setTimeout(() => {
+    bumpCartDisplayVersion();
+  }, 240);
+};
+
+const resolveCartSetter = (next: CartSetter) => {
+  return typeof next === 'function'
+    ? (next as (previous: RestaurantCartState) => RestaurantCartState)(storeState.cart)
+    : next;
+};
+
+export const useRestaurantCartStore = () => {
+  const [, forceRender] = useState(0);
+  const cartRef = useRef<RestaurantCartState>(storeState.cart);
+
+  useEffect(() => {
+    const listener = () => {
+      cartRef.current = storeState.cart;
+      forceRender(version => version + 1);
+    };
+
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+
+  const snapshot = getSnapshot();
+  cartRef.current = snapshot.cart;
 
   const replaceCart = useCallback((nextCart: RestaurantCartState) => {
-    cartRef.current = nextCart;
-    hydratedRef.current = true;
-    mutationVersionRef.current += 1;
-    setCartHydrated(true);
-    setCartState(nextCart);
+    replaceCartState(nextCart);
   }, []);
 
-  const setCart = useCallback(
-    (next: CartSetter) => {
-      const resolved =
-        typeof next === 'function'
-          ? (next as (previous: RestaurantCartState) => RestaurantCartState)(
-              cartRef.current,
-            )
-          : next;
-
-      replaceCart(resolved);
-      return resolved;
-    },
-    [replaceCart],
-  );
-
-  const bumpCartDisplayVersion = useCallback(() => {
-    setCartDisplayVersion(version => version + 1);
+  const setCart = useCallback((next: CartSetter) => {
+    const resolved = resolveCartSetter(next);
+    replaceCartState(resolved);
+    return resolved;
   }, []);
-
-  const bumpCartDisplayVersionAfterNativeDialog = useCallback(() => {
-    bumpCartDisplayVersion();
-
-    requestAnimationFrame(() => {
-      bumpCartDisplayVersion();
-    });
-
-    setTimeout(() => {
-      bumpCartDisplayVersion();
-    }, 80);
-
-    setTimeout(() => {
-      bumpCartDisplayVersion();
-    }, 240);
-  }, [bumpCartDisplayVersion]);
 
   const hydrateCartFromStorage = useCallback(async () => {
-    const requestId = hydrateRequestIdRef.current + 1;
-    const startedAtVersion = mutationVersionRef.current;
-    hydrateRequestIdRef.current = requestId;
+    const requestId = storeState.hydrateRequestId + 1;
+    const startedAtVersion = storeState.mutationVersion;
+    storeState.hydrateRequestId = requestId;
 
     const nextCart = await loadCurrentCart();
 
-    if (requestId !== hydrateRequestIdRef.current) {
-      return cartRef.current;
+    if (requestId !== storeState.hydrateRequestId) {
+      return storeState.cart;
     }
 
     const mutationHappenedDuringLoad =
-      mutationVersionRef.current !== startedAtVersion;
-    const current = cartRef.current;
+      storeState.mutationVersion !== startedAtVersion;
+    const current = storeState.cart;
     const currentHasCart = hasRestaurantCartContent(current);
     const loadedHasCart = hasRestaurantCartContent(nextCart);
 
     if (mutationHappenedDuringLoad || (currentHasCart && !loadedHasCart)) {
-      hydratedRef.current = true;
-      setCartHydrated(true);
-      setCartState(current);
+      storeState.cartHydrated = true;
+      emitChange();
       return current;
     }
 
-    cartRef.current = nextCart;
-    hydratedRef.current = true;
-    setCartHydrated(true);
-    setCartState(nextCart);
+    storeState.cart = nextCart;
+    storeState.cartHydrated = true;
+    emitChange();
     return nextCart;
   }, []);
 
   const persistCurrentCart = useCallback(async (nextCart?: RestaurantCartState) => {
-    const cartToSave = nextCart || cartRef.current;
-    cartRef.current = cartToSave;
+    const cartToSave = nextCart || storeState.cart;
+    storeState.cart = cartToSave;
     await saveCurrentCart(cartToSave);
   }, []);
 
   const clearCart = useCallback(async () => {
     const emptyCart = createEmptyRestaurantCart();
     await clearCurrentCart();
-    replaceCart(emptyCart);
+    replaceCartState(emptyCart);
     return emptyCart;
-  }, [replaceCart]);
+  }, []);
 
   const changeQuantity = useCallback(
     (itemId: string, delta: number) => {
@@ -167,22 +212,28 @@ export const useRestaurantCartStore = () => {
 
   const commitCartFieldValue = useCallback(
     (type: RestaurantCartFieldType, value: string) => {
-      const baseCart = cartRef.current;
+      const baseCart = storeState.cart;
       const nextCart =
         type === 'table'
           ? {...baseCart, tableNumber: value}
           : {...baseCart, note: value};
 
-      replaceCart(nextCart);
-      bumpCartDisplayVersionAfterNativeDialog();
-      void persistCurrentCart(nextCart);
+      replaceCartState(nextCart);
+      bumpCartDisplayVersionAfterInput();
+      void saveCurrentCart(nextCart);
       return nextCart;
     },
-    [bumpCartDisplayVersionAfterNativeDialog, persistCurrentCart, replaceCart],
+    [],
   );
 
   const setCartModalVisible = useCallback((visible: boolean) => {
-    setCartModalVisibleState(visible);
+    storeState.cartModalVisible = visible;
+    emitChange();
+  }, []);
+
+  const setCartSubmitting = useCallback((submitting: boolean) => {
+    storeState.cartSubmitting = submitting;
+    emitChange();
   }, []);
 
   const updateMenuItemSnapshot = useCallback((items: RestaurantMenuItem[]) => {
@@ -190,26 +241,26 @@ export const useRestaurantCartStore = () => {
       return;
     }
 
-    const nextSnapshot = {...menuItemSnapshotRef.current};
+    const nextSnapshot = {...storeState.menuItemSnapshot};
     items.forEach(item => {
       nextSnapshot[item.id] = item;
     });
-    menuItemSnapshotRef.current = nextSnapshot;
+    storeState.menuItemSnapshot = nextSnapshot;
   }, []);
 
   const getSnapshotMenuItem = useCallback((itemId: string) => {
-    return menuItemSnapshotRef.current[itemId];
+    return storeState.menuItemSnapshot[itemId];
   }, []);
 
-  const getActiveCart = useCallback(() => cartRef.current, []);
+  const getActiveCart = useCallback(() => storeState.cart, []);
 
   return {
-    cart,
+    cart: snapshot.cart,
     cartRef,
-    cartHydrated,
-    cartModalVisible,
-    cartDisplayVersion,
-    cartSubmitting,
+    cartHydrated: snapshot.cartHydrated,
+    cartModalVisible: snapshot.cartModalVisible,
+    cartDisplayVersion: snapshot.cartDisplayVersion,
+    cartSubmitting: snapshot.cartSubmitting,
     setCartSubmitting,
     setCart,
     replaceCart,

@@ -13,6 +13,7 @@ const screens: Screens = {
   playback: 'playback',
   configs: 'configs',
   restaurantMenu: 'restaurantMenu',
+  restaurantCart: 'restaurantCart',
   restaurantAdminLogin: 'restaurantAdminLogin',
   restaurantAdminDashboard: 'restaurantAdminDashboard',
   overlay: 'overlay',

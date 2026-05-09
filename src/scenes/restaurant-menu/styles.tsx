@@ -570,8 +570,6 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     cartModalRoot: {
       ...StyleSheet.absoluteFillObject,
-      width: '100%',
-      height: '100%',
       zIndex: 9999,
       elevation: 9999,
       alignItems: 'stretch',
@@ -657,7 +655,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     cartListContent: {
       width: '100%',
       padding: spacing.md,
-      paddingBottom: spacing.md,
+      paddingBottom: spacing.lg,
+      rowGap: spacing.sm,
     },
     cartModalFooter: {
       width: '100%',
@@ -668,7 +667,6 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
       paddingBottom: spacing.md,
-      rowGap: spacing.sm,
     },
     cartRow: {
       borderRadius: radius.lg,
@@ -724,6 +722,12 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       color: '#FFFFFF',
       fontSize: font.label,
       fontWeight: '900',
+    },
+    cartInfoSection: {
+      width: '100%',
+      alignSelf: 'stretch',
+      marginTop: spacing.sm,
+      rowGap: spacing.sm,
     },
     inputWrap: {
       width: '100%',
@@ -920,7 +924,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       color: '#FF6868',
       fontSize: font.small,
       fontWeight: '900',
-      marginTop: -spacing.xs,
+      marginTop: spacing.xxs,
       marginLeft: spacing.xs,
     },
     primaryButton: {
