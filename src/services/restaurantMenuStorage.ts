@@ -1,5 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import RNFS from 'react-native-fs';
+import {
+  cleanupRestaurantMenuImageIfUnused,
+  getMenuItemImageValue,
+} from './restaurantMenuImage';
+
+export {getMenuItemImageValue, normaliseMenuImageUri} from './restaurantMenuImage';
 
 export const RESTAURANT_STORAGE_KEYS = {
   schemaVersion: 'restaurant_menu_schema_version',
@@ -12,99 +17,6 @@ export const RESTAURANT_STORAGE_KEYS = {
 };
 
 const CURRENT_SCHEMA_VERSION = '20260424_menu_drinks_food_v1';
-
-const MENU_IMAGE_STORAGE_DIR = `${RNFS.DocumentDirectoryPath}/restaurant-menu-images`;
-
-const getImageExtensionFromUri = (uri: string) => {
-  const cleanUri = uri.split('?')[0].split('#')[0];
-  const match = cleanUri.match(/\.([a-zA-Z0-9]{2,5})$/);
-  const ext = match?.[1]?.toLowerCase();
-
-  if (ext && ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext)) {
-    return ext === 'jpeg' ? 'jpg' : ext;
-  }
-
-  return 'jpg';
-};
-
-const safeImageNamePart = (value?: string) => {
-  return (value || 'menu_item')
-    .replace(/[^a-zA-Z0-9_-]/g, '_')
-    .replace(/_+/g, '_')
-    .slice(0, 72);
-};
-
-export const normaliseMenuImageUri = (value?: string | null) => {
-  const cleanValue = (value || '').trim();
-
-  if (!cleanValue) {
-    return '';
-  }
-
-  if (/^(https?:|file:|content:|data:|asset:|ph:)/i.test(cleanValue)) {
-    return cleanValue;
-  }
-
-  if (cleanValue.startsWith('/')) {
-    return `file://${cleanValue}`;
-  }
-
-  return cleanValue;
-};
-
-export const persistRestaurantMenuImage = async ({
-  uri,
-  base64,
-  itemId,
-}: {
-  uri: string;
-  base64?: string;
-  itemId?: string;
-}) => {
-  const cleanUri = (uri || '').trim();
-
-  if (!cleanUri) {
-    return '';
-  }
-
-  if (/^https?:/i.test(cleanUri)) {
-    return cleanUri;
-  }
-
-  const alreadyInMenuStorage = cleanUri.includes('/restaurant-menu-images/');
-  if (alreadyInMenuStorage) {
-    return normaliseMenuImageUri(cleanUri);
-  }
-
-  if (!(await RNFS.exists(MENU_IMAGE_STORAGE_DIR))) {
-    await RNFS.mkdir(MENU_IMAGE_STORAGE_DIR);
-  }
-
-  const extension = getImageExtensionFromUri(cleanUri);
-  const fileName = `${safeImageNamePart(itemId)}_${Date.now()}.${extension}`;
-  const destinationPath = `${MENU_IMAGE_STORAGE_DIR}/${fileName}`;
-
-  try {
-    if (base64) {
-      await RNFS.writeFile(destinationPath, base64, 'base64');
-    } else {
-      const sourcePath = cleanUri.startsWith('file://')
-        ? cleanUri.replace('file://', '')
-        : cleanUri;
-      await RNFS.copyFile(sourcePath, destinationPath);
-    }
-
-    const persistedUri = `file://${destinationPath}`;
-    console.log(`[RestaurantMenuImage] persisted image uri=${persistedUri}`);
-    return persistedUri;
-  } catch (error) {
-    console.warn('[RestaurantMenuImage] persist image failed, keep original uri', error);
-    // Some Android pickers return content:// URIs that RNFS.copyFile cannot read
-    // if the picker does not provide base64. Keep the picker URI instead of
-    // failing the whole admin edit form, so the item can still be saved.
-    return normaliseMenuImageUri(cleanUri);
-  }
-};
 
 export type MenuCategory = {
   id: string;
@@ -429,14 +341,6 @@ const normaliseMenuItemStatus = (
   return available === false ? 'HIDDEN' : 'SELLING';
 };
 
-export const getMenuItemImageValue = (
-  item?: Partial<RestaurantMenuItem> | null,
-) => {
-  // imageUrl is the single source of truth for menu images. imageUri is only a
-  // legacy fallback so older local records keep rendering until migrated.
-  return normaliseMenuImageUri(item?.imageUrl || item?.imageUri || '');
-};
-
 const migrateMenuItem = (
   item: Partial<RestaurantMenuItem>,
   categories: MenuCategory[],
@@ -678,6 +582,13 @@ export const upsertMenuItem = async (
 
   await saveMenuItems(nextItems);
 
+  if (oldImage && oldImage !== cleanImageUrl) {
+    await cleanupRestaurantMenuImageIfUnused(
+      oldImage,
+      nextItems.map(item => getMenuItemImageValue(item)),
+    );
+  }
+
   const afterUpdate = nextItems.find(item => item.id === nextItem.id);
   console.log(
     `[AdminMenuStore] after update image=${getMenuItemImageValue(afterUpdate) || 'none'}`,
@@ -688,8 +599,19 @@ export const upsertMenuItem = async (
 
 export const deleteMenuItem = async (itemId: string) => {
   const current = await loadMenuItems();
+  const deletedItem = current.find(item => item.id === itemId);
+  const deletedImage = getMenuItemImageValue(deletedItem);
   const nextItems = current.filter(item => item.id !== itemId);
+
   await saveMenuItems(nextItems);
+
+  if (deletedImage) {
+    await cleanupRestaurantMenuImageIfUnused(
+      deletedImage,
+      nextItems.map(item => getMenuItemImageValue(item)),
+    );
+  }
+
   return nextItems;
 };
 

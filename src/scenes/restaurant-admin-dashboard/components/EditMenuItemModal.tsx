@@ -23,7 +23,7 @@ type Props = {
     price: number;
     categoryId: string;
     description: string;
-    imageUri?: string;
+    imageUrl?: string;
     available: boolean;
   }) => void;
 };
@@ -34,7 +34,7 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
   const [price, setPrice] = useState('');
   const [categoryId, setCategoryId] = useState(defaultCategoryId);
   const [description, setDescription] = useState('');
-  const [imageUri, setImageUri] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [available, setAvailable] = useState(true);
   const [error, setError] = useState('');
 
@@ -47,7 +47,7 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
     setPrice(item ? String(item.price || '') : '');
     setCategoryId(item?.categoryId || defaultCategoryId);
     setDescription(item?.description || '');
-    setImageUri(item?.imageUri || '');
+    setImageUrl(item?.imageUrl || item?.imageUri || '');
     setAvailable(item?.available !== false);
     setError('');
   }, [defaultCategoryId, item, visible]);
@@ -72,7 +72,7 @@ const EditMenuItemModal = ({visible, item, categories, styles, onClose, onSave}:
       price: priceValue,
       categoryId,
       description: description.trim(),
-      imageUri: imageUri.trim(),
+      imageUrl: imageUrl.trim(),
       available,
     });
   };

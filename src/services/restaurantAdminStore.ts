@@ -1,7 +1,6 @@
 import {
   deleteMenuCategory,
   deleteMenuItem,
-  getMenuItemImageValue,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
@@ -9,6 +8,7 @@ import {
   upsertMenuCategory,
   upsertMenuItem,
 } from './restaurantMenuStorage';
+import {getMenuItemImageValue} from './restaurantMenuImage';
 
 import type {
   MenuCategory,

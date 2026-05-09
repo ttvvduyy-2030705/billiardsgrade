@@ -1,4 +1,4 @@
-import React, {memo, useEffect, useMemo, useState} from 'react';
+import React, {memo, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Alert,
   Image as RNImage,
@@ -9,6 +9,7 @@ import {
   TextInput,
   View as RNView,
 } from 'react-native';
+import type {ImageResizeMode, ImageStyle, StyleProp} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 
 import {
@@ -22,8 +23,9 @@ import type {
 } from 'services/restaurantMenuStorage';
 import {
   getMenuItemImageValue,
+  getRestaurantMenuImageSource,
   persistRestaurantMenuImage,
-} from 'services/restaurantMenuStorage';
+} from 'services/restaurantMenuImage';
 
 const AdminFormImmersiveModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
@@ -62,7 +64,12 @@ type Props = {
 
 type ViewMode = 'list' | 'create' | 'edit' | 'categories';
 type MenuStatusFilter = 'ALL' | RestaurantMenuItemStatus;
-type MenuSortOption = 'CREATED_DESC' | 'NAME_ASC' | 'PRICE_ASC' | 'PRICE_DESC' | 'STATUS_ASC';
+type MenuSortOption =
+  | 'CREATED_DESC'
+  | 'NAME_ASC'
+  | 'PRICE_ASC'
+  | 'PRICE_DESC'
+  | 'STATUS_ASC';
 
 type AdminMenuFormSession = {
   viewMode: ViewMode;
@@ -124,6 +131,58 @@ const formatCurrency = (value: number) =>
 const createLocalMenuItemId = () => {
   return `admin_dish_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 };
+
+const createImmediateImagePreviewUri = (asset: {
+  uri?: string;
+  base64?: string;
+  type?: string;
+}) => {
+  const base64 = String(asset.base64 || '').trim();
+
+  if (base64) {
+    const mimeType = String(asset.type || 'image/jpeg').trim() || 'image/jpeg';
+    return `data:${mimeType};base64,${base64}`;
+  }
+
+  return String(asset.uri || '').trim();
+};
+
+type AdminMenuImageProps = {
+  imageValue: string;
+  imageKey: string;
+  style: StyleProp<ImageStyle>;
+  resizeMode?: ImageResizeMode;
+};
+
+const AdminMenuImage = memo(
+  ({
+    imageValue,
+    imageKey,
+    style,
+    resizeMode = 'cover',
+  }: AdminMenuImageProps) => {
+    const [failed, setFailed] = useState(false);
+    const cleanImageValue = getMenuItemImageValue({imageUrl: imageValue});
+
+    useEffect(() => {
+      setFailed(false);
+    }, [cleanImageValue]);
+
+    return (
+      <RNImage
+        key={`${imageKey}-${failed ? 'fallback' : cleanImageValue || 'empty'}`}
+        source={
+          failed
+            ? getRestaurantMenuImageSource()
+            : getRestaurantMenuImageSource({imageUrl: cleanImageValue})
+        }
+        style={style}
+        resizeMode={resizeMode}
+        onError={() => setFailed(true)}
+      />
+    );
+  },
+);
 
 const getInitialStatus = (
   item?: RestaurantMenuItem | null,
@@ -196,12 +255,17 @@ const AdminMenuManagementScreen = ({
   const [imageUrl, setImageUrlState] = useState(
     () => adminMenuFormSession.imageUrl,
   );
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(
+    () => adminMenuFormSession.imageUrl,
+  );
+  const [imagePreviewRevision, setImagePreviewRevision] = useState(0);
   const [status, setStatusState] = useState<RestaurantMenuItemStatus>(
     () => adminMenuFormSession.status,
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [imagePicking, setImagePicking] = useState(false);
+  const imagePickRequestIdRef = useRef(0);
   const [listError, setListError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<MenuStatusFilter>('ALL');
@@ -274,19 +338,30 @@ const AdminMenuManagementScreen = ({
           case 'PRICE_DESC':
             return Number(b.price || 0) - Number(a.price || 0);
           case 'STATUS_ASC':
-            return getItemStatusRank(a) - getItemStatusRank(b) || a.name.localeCompare(b.name, 'vi');
+            return (
+              getItemStatusRank(a) - getItemStatusRank(b) ||
+              a.name.localeCompare(b.name, 'vi')
+            );
           case 'CREATED_DESC':
           default:
             return getItemTimestamp(b) - getItemTimestamp(a);
         }
       });
-  }, [categories, categoryFilter, menuItems, searchTerm, sortOption, statusFilter]);
+  }, [
+    categories,
+    categoryFilter,
+    menuItems,
+    searchTerm,
+    sortOption,
+    statusFilter,
+  ]);
 
   const isFilteringMenu =
     !!searchTerm.trim() || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
 
   const formTitle = viewMode === 'edit' ? 'Sửa món' : 'Thêm món mới';
   const isFormMode = viewMode === 'create' || viewMode === 'edit';
+  const formPreviewImageUrl = imagePreviewUrl || imageUrl;
 
   const replaceFormSession = (next: AdminMenuFormSession) => {
     adminMenuFormSession = next;
@@ -297,14 +372,17 @@ const AdminMenuManagementScreen = ({
     setCategoryIdState(next.categoryId || defaultCategoryId);
     setDescriptionState(next.description);
     setImageUrlState(next.imageUrl);
+    setImagePreviewUrl(next.imageUrl);
+    setImagePreviewRevision(revision => revision + 1);
     setStatusState(next.status);
   };
 
   const updateDraft = (
     patch: Partial<AdminMenuFormSession>,
-    options: {syncReactState?: boolean} = {},
+    options: {syncReactState?: boolean; syncImagePreview?: boolean} = {},
   ) => {
     const syncReactState = options.syncReactState !== false;
+    const syncImagePreview = options.syncImagePreview !== false;
     adminMenuFormSession = {...adminMenuFormSession, ...patch};
 
     // Text fields are updated on every keystroke. Keep those values in the
@@ -335,6 +413,10 @@ const AdminMenuManagementScreen = ({
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'imageUrl')) {
       setImageUrlState(adminMenuFormSession.imageUrl);
+      if (syncImagePreview) {
+        setImagePreviewUrl(adminMenuFormSession.imageUrl);
+        setImagePreviewRevision(revision => revision + 1);
+      }
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'status')) {
       setStatusState(adminMenuFormSession.status);
@@ -453,13 +535,34 @@ const AdminMenuManagementScreen = ({
         return;
       }
 
+      const requestId = imagePickRequestIdRef.current + 1;
+      imagePickRequestIdRef.current = requestId;
+      const instantPreviewUri = createImmediateImagePreviewUri({
+        uri: pickedUri,
+        base64: pickedAsset?.base64,
+        type: pickedAsset?.type,
+      });
+
+      // Show the exact image just picked immediately in the edit form. Do not
+      // wait for RNFS to copy/persist it, and do not replace the preview with
+      // the persisted file URI afterwards. Android can keep the previous Image
+      // surface/cache for one frame, which made the admin think the first pick
+      // did nothing until selecting a second time.
+      setImagePreviewUrl(instantPreviewUri || pickedUri);
+      setImagePreviewRevision(revision => revision + 1);
+      updateDraft({imageUrl: pickedUri}, {syncImagePreview: false});
+
       const persistedUri = await persistRestaurantMenuImage({
         uri: pickedUri,
         base64: pickedAsset?.base64,
         itemId: selectedItemId || 'new_dish',
+        type: pickedAsset?.type,
+        fileName: pickedAsset?.fileName,
       });
 
-      updateDraft({imageUrl: persistedUri});
+      if (imagePickRequestIdRef.current === requestId) {
+        updateDraft({imageUrl: persistedUri || pickedUri}, {syncImagePreview: false});
+      }
     } catch (pickError) {
       console.warn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -1103,10 +1206,10 @@ const AdminMenuManagementScreen = ({
 
           <RNText style={styles.inputLabel}>Ảnh món</RNText>
           <RNView style={styles.imagePickerCard}>
-            {imageUrl ? (
-              <RNImage
-                key={`${selectedItemId || 'new'}-${imageUrl}`}
-                source={{uri: imageUrl}}
+            {formPreviewImageUrl ? (
+              <AdminMenuImage
+                imageKey={`${selectedItemId || 'new'}-${imagePreviewRevision}`}
+                imageValue={formPreviewImageUrl}
                 style={styles.imagePickerPreview}
                 resizeMode="cover"
               />
@@ -1124,7 +1227,9 @@ const AdminMenuManagementScreen = ({
 
             <RNView style={styles.imagePickerInfo}>
               <RNText style={styles.imagePickerTitle}>
-                {imageUrl ? 'Ảnh món đã chọn' : 'Chọn ảnh trực tiếp từ máy'}
+                {formPreviewImageUrl
+                  ? 'Ảnh món đã chọn'
+                  : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
                 Ảnh được lưu vào field imageUrl. Admin và menu khách cùng đọc
@@ -1138,14 +1243,15 @@ const AdminMenuManagementScreen = ({
                   <RNText style={styles.imagePickerButtonText}>
                     {imagePicking
                       ? 'Đang mở...'
-                      : imageUrl
+                      : formPreviewImageUrl
                         ? 'Đổi ảnh'
                         : 'Chọn ảnh từ máy'}
                   </RNText>
                 </Pressable>
-                {imageUrl ? (
+                {formPreviewImageUrl ? (
                   <Pressable
                     onPress={() => {
+                      imagePickRequestIdRef.current += 1;
                       updateDraft({imageUrl: ''});
                     }}
                     style={styles.imageRemoveButton}
@@ -1379,9 +1485,9 @@ const AdminMenuManagementScreen = ({
                 key={`${item.id}-${itemImageUri || 'no-image'}`}
                 style={styles.menuCard}>
                 {itemImageUri ? (
-                  <RNImage
-                    key={`${item.id}-${itemImageUri}`}
-                    source={{uri: itemImageUri}}
+                  <AdminMenuImage
+                    imageKey={item.id}
+                    imageValue={itemImageUri}
                     style={styles.menuThumb}
                     resizeMode="cover"
                   />
@@ -1423,9 +1529,14 @@ const AdminMenuManagementScreen = ({
                   <RNView style={styles.menuCardActionRow}>
                     <Pressable
                       onPress={() => openEdit(item)}
-                      style={[styles.secondaryButton, styles.menuCardActionButton]}
+                      style={[
+                        styles.secondaryButton,
+                        styles.menuCardActionButton,
+                      ]}
                       disabled={!!deletingItemId}>
-                      <RNText style={styles.secondaryButtonText}>Sửa món</RNText>
+                      <RNText style={styles.secondaryButtonText}>
+                        Sửa món
+                      </RNText>
                     </Pressable>
                     <Pressable
                       onPress={() => requestDeleteItem(item)}

@@ -14,7 +14,7 @@ import {
   View as RNView,
   Image as RNImage,
 } from 'react-native';
-import type {ImageResizeMode, ImageSourcePropType, ImageStyle, StyleProp} from 'react-native';
+import type {ImageResizeMode, ImageStyle, StyleProp} from 'react-native';
 import images from 'assets';
 import Image from 'components/Image';
 import View from 'components/View';
@@ -26,8 +26,11 @@ import {Navigation} from 'types/navigation';
 import {
   createRestaurantOrder,
   getCategoryNameById,
-  getMenuItemImageValue,
 } from 'services/restaurantMenuStorage';
+import {
+  getMenuItemImageValue,
+  getRestaurantMenuImageSource,
+} from 'services/restaurantMenuImage';
 import {
   useRestaurantCartStore,
   type RestaurantCartFieldType,
@@ -65,26 +68,6 @@ const createClosedCartFieldInput = (): CartFieldInputState => ({
   draftValue: '',
 });
 
-const getMenuImageSource = (rawImageValue?: string): ImageSourcePropType => {
-  const imageValue = (rawImageValue || '').trim();
-
-  if (!imageValue) {
-    return images.logoSmall;
-  }
-
-  if (
-    imageValue.startsWith('http://') ||
-    imageValue.startsWith('https://') ||
-    imageValue.startsWith('file://') ||
-    imageValue.startsWith('content://') ||
-    imageValue.startsWith('asset:/')
-  ) {
-    return {uri: imageValue};
-  }
-
-  return {uri: `file://${imageValue}`};
-};
-
 type MenuDishImageProps = {
   itemId: string;
   imageValue: string;
@@ -107,7 +90,9 @@ const MenuDishImage = memo(({
     setFailed(false);
   }, [cleanImageValue]);
 
-  const source = failed ? images.logoSmall : getMenuImageSource(cleanImageValue);
+  const source = failed
+    ? getRestaurantMenuImageSource()
+    : getRestaurantMenuImageSource({imageUrl: cleanImageValue});
 
   return (
     <RNImage
