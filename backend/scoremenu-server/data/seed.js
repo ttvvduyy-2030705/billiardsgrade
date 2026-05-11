@@ -1,8 +1,30 @@
 'use strict';
 
+const crypto = require('crypto');
+
 const now = '2026-05-09T00:00:00.000Z';
 
 const clone = value => JSON.parse(JSON.stringify(value));
+
+const hashPassword = (password, salt) =>
+  crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+
+const createSeedAdmin = ({id, username, password, role, restaurantIds, activeRestaurantId, branchIds = [], activeBranchId}) => {
+  const salt = `${id}_salt`;
+  return {
+    id,
+    username,
+    passwordSalt: salt,
+    passwordHash: hashPassword(password, salt),
+    role,
+    restaurantIds,
+    activeRestaurantId,
+    branchIds,
+    activeBranchId,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
 
 const createSeedDatabase = () => ({
   meta: {
@@ -223,26 +245,32 @@ const createSeedDatabase = () => ({
   orders: [],
   carts: {},
   adminUsers: [
-    {
+    createSeedAdmin({
       id: 'admin_aplus_owner',
       username: 'admin',
       password: 'admin123',
       role: 'OWNER',
       restaurantIds: ['aplus_billiards_hanoi', 'haidilao_demo'],
       activeRestaurantId: 'aplus_billiards_hanoi',
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
+    }),
+    createSeedAdmin({
       id: 'admin_aplus_staff',
       username: 'staff',
       password: 'staff123',
       role: 'STAFF',
       restaurantIds: ['aplus_billiards_hanoi'],
       activeRestaurantId: 'aplus_billiards_hanoi',
-      createdAt: now,
-      updatedAt: now,
-    },
+      branchIds: ['aplus_hanoi_main'],
+      activeBranchId: 'aplus_hanoi_main',
+    }),
+    createSeedAdmin({
+      id: 'admin_haidilao_owner',
+      username: 'haidilao',
+      password: 'admin123',
+      role: 'OWNER',
+      restaurantIds: ['haidilao_demo'],
+      activeRestaurantId: 'haidilao_demo',
+    }),
   ],
 });
 

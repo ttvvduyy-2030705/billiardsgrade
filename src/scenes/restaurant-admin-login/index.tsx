@@ -30,6 +30,8 @@ type AuthFormValues = Record<AuthField, string>;
 type Props = Navigation & {
   initialMode?: AuthMode;
   resetAuthDraft?: boolean;
+  skipAutoSessionCheck?: boolean;
+  logoutAt?: number;
 };
 
 const EMPTY_FORM_VALUES: AuthFormValues = {
@@ -187,14 +189,24 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       }
     };
 
-    if (authMode === 'login') {
+    if (
+      authMode === 'login' &&
+      !props.resetAuthDraft &&
+      !props.skipAutoSessionCheck
+    ) {
       void routeExistingSession();
     }
 
     return () => {
       isMounted = false;
     };
-  }, [authMode, routeToDashboard]);
+  }, [
+    authMode,
+    props.logoutAt,
+    props.resetAuthDraft,
+    props.skipAutoSessionCheck,
+    routeToDashboard,
+  ]);
 
   const syncDraftToUi = useCallback(() => {
     const nextSnapshot = cloneDraftSession();
@@ -216,6 +228,21 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     },
     [syncDraftToUi],
   );
+
+  const fillDemoAccount = (username: string, password: string) => {
+    const nextValues: AuthFormValues = {
+      username,
+      password,
+      confirmPassword: password,
+    };
+    adminAuthModeSession = 'login';
+    setAuthModeState('login');
+    replaceDraftSession(nextValues);
+    setFormValues(nextValues);
+    setDraftVersion(adminAuthDraftVersion);
+    setErrorMessage('');
+    setInfoMessage(`Đã điền tài khoản demo: ${username}`);
+  };
 
   const switchMode = (nextMode: AuthMode) => {
     adminAuthModeSession = nextMode;
@@ -454,6 +481,27 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
               : 'Tạo tài khoản quản trị cho nhà hàng. Phần đăng nhập đã được tách thành service riêng để sau này chuyển sang backend thật.'}
           </RNText>
+
+          {isLogin ? (
+            <RNView style={styles.demoAccountBox}>
+              <RNText style={styles.demoAccountTitle}>Tài khoản demo có sẵn</RNText>
+              <RNText style={styles.demoAccountHint}>
+                Dùng admin/admin123 để quản trị local demo. Không cần đăng ký nick mới.
+              </RNText>
+              <RNView style={styles.demoAccountActions}>
+                <Pressable
+                  onPress={() => fillDemoAccount('admin', 'admin123')}
+                  style={styles.demoAccountButton}>
+                  <RNText style={styles.demoAccountButtonText}>admin / admin123</RNText>
+                </Pressable>
+                <Pressable
+                  onPress={() => fillDemoAccount('haidilao', 'admin123')}
+                  style={styles.demoAccountButton}>
+                  <RNText style={styles.demoAccountButtonText}>haidilao / admin123</RNText>
+                </Pressable>
+              </RNView>
+            </RNView>
+          ) : null}
 
           {renderNativeInputField(
             'username',

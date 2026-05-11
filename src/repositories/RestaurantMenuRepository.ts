@@ -5,6 +5,7 @@ import type {
   RestaurantMenuItemStatus,
   RestaurantOrder,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
   RestaurantPaymentStatus,
 } from 'services/restaurantMenuStorage';
 import type {
@@ -13,6 +14,7 @@ import type {
   RestaurantMenuContext,
   RestaurantTable,
   RestaurantTablePayload,
+  RestaurantTableStatus,
   RestaurantWorkspace,
   RestaurantWorkspacePayload,
 } from 'services/restaurantWorkspaceStorage';
@@ -63,6 +65,8 @@ export type RestaurantAdminCredentialResult = {
   role?: 'OWNER' | 'MANAGER' | 'STAFF';
   restaurantId?: string;
   restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
 };
 
 export type CategoryMutationResult = {
@@ -111,6 +115,11 @@ export interface RestaurantMenuRepository {
 
   listTables(restaurantId?: string): Promise<RestaurantTable[]>;
   createTable(payload: RestaurantTablePayload): Promise<RestaurantTable>;
+  updateTable(
+    tableId: string,
+    payload: Partial<RestaurantTablePayload>,
+  ): Promise<RestaurantTable>;
+  deleteTable(tableId: string): Promise<RestaurantTable[]>;
   resolveTableToken(token: string): Promise<RestaurantMenuContext | null>;
 
   getCategories(): Promise<MenuCategory[]>;
@@ -143,6 +152,7 @@ export interface RestaurantMenuRepository {
   updatePaymentStatus(
     orderId: string,
     paymentStatus: RestaurantPaymentStatus,
+    paymentMethod?: RestaurantPaymentMethod,
   ): Promise<RestaurantOrder[]>;
 
   getCurrentCart(): Promise<RestaurantCartState>;
@@ -156,6 +166,7 @@ export type {
   RestaurantMenuContext,
   RestaurantTable,
   RestaurantTablePayload,
+  RestaurantTableStatus,
   RestaurantWorkspace,
   RestaurantWorkspacePayload,
 } from 'services/restaurantWorkspaceStorage';

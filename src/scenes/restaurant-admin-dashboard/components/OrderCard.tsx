@@ -1,13 +1,18 @@
 import React, {memo} from 'react';
-import {Pressable, Text as RNText, View as RNView} from 'react-native';
+import {Pressable, View as RNView} from 'react-native';
+import RNText from './AdminText';
 
 import {
   ADMIN_ORDER_STATUS_FLOW,
   ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_PAYMENT_METHOD_LABELS,
+  ADMIN_PAYMENT_METHODS,
   ADMIN_PAYMENT_STATUS_LABELS,
   AdminOrder,
   AdminOrderStatus,
+  AdminPaymentMethod,
   AdminPaymentStatus,
+  isAdminOrderStatusTransitionAllowed,
 } from 'services/restaurantAdminStore';
 
 import OrderStatusBadge from './OrderStatusBadge';
@@ -16,10 +21,15 @@ type Props = {
   order: AdminOrder;
   styles: any;
   onChangeStatus: (orderId: string, status: AdminOrderStatus) => void;
-  onChangePaymentStatus: (orderId: string, status: AdminPaymentStatus) => void;
+  onChangePaymentStatus: (
+    orderId: string,
+    status: AdminPaymentStatus,
+    method?: AdminPaymentMethod,
+  ) => void;
 };
 
-const formatCurrency = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+const formatCurrency = (value: number) =>
+  `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 
 const formatDateTime = (value: string) => {
   const date = new Date(value);
@@ -36,32 +46,52 @@ const formatDateTime = (value: string) => {
   });
 };
 
-const OrderCard = ({order, styles, onChangeStatus, onChangePaymentStatus}: Props) => {
+const OrderCard = ({
+  order,
+  styles,
+  onChangeStatus,
+  onChangePaymentStatus,
+}: Props) => {
   return (
     <RNView style={styles.orderCard}>
       <RNView style={styles.orderHeader}>
         <RNView style={styles.orderTitleBlock}>
-          <RNText style={styles.orderCode} numberOfLines={1}>{order.id}</RNText>
-          <RNText style={styles.orderTable}>Bàn {order.tableNumber || 'chưa nhập'}</RNText>
-          <RNText style={styles.orderTime}>{formatDateTime(order.createdAt)}</RNText>
+          <RNText style={styles.orderCode} numberOfLines={1}>
+            {order.id}
+          </RNText>
+          <RNText style={styles.orderTable}>
+            Bàn {order.tableNumber || 'chưa nhập'}
+          </RNText>
+          <RNText style={styles.orderTime}>
+            {formatDateTime(order.createdAt)}
+          </RNText>
         </RNView>
         <RNView style={styles.orderBadgeColumn}>
           <OrderStatusBadge status={order.status} styles={styles} />
-          <OrderStatusBadge paymentStatus={order.paymentStatus} styles={styles} />
+          <OrderStatusBadge
+            paymentStatus={order.paymentStatus}
+            styles={styles}
+          />
         </RNView>
       </RNView>
 
       {order.note ? (
-        <RNText style={styles.orderNote} numberOfLines={2}>Ghi chú: {order.note}</RNText>
+        <RNText style={styles.orderNote} numberOfLines={2}>
+          Ghi chú: {order.note}
+        </RNText>
       ) : null}
 
       <RNView style={styles.orderItems}>
         {order.items.map(item => (
-          <RNView key={`${order.id}_${item.itemId}`} style={styles.orderItemRow}>
+          <RNView
+            key={`${order.id}_${item.itemId}`}
+            style={styles.orderItemRow}>
             <RNText style={styles.orderItemName} numberOfLines={1}>
               {item.quantity} × {item.name}
             </RNText>
-            <RNText style={styles.orderItemPrice}>{formatCurrency(item.price * item.quantity)}</RNText>
+            <RNText style={styles.orderItemPrice}>
+              {formatCurrency(item.price * item.quantity)}
+            </RNText>
           </RNView>
         ))}
       </RNView>
@@ -75,12 +105,26 @@ const OrderCard = ({order, styles, onChangeStatus, onChangePaymentStatus}: Props
       <RNView style={styles.actionChipWrap}>
         {ADMIN_ORDER_STATUS_FLOW.map(status => {
           const active = order.status === status;
+          const enabled = isAdminOrderStatusTransitionAllowed(
+            order.status,
+            status,
+          );
           return (
             <Pressable
               key={status}
+              disabled={!enabled}
               onPress={() => onChangeStatus(order.id, status)}
-              style={[styles.actionChip, active ? styles.actionChipActive : null]}>
-              <RNText style={[styles.actionChipText, active ? styles.actionChipTextActive : null]}>
+              style={[
+                styles.actionChip,
+                active ? styles.actionChipActive : null,
+                !enabled ? styles.actionChipDisabled : null,
+              ]}>
+              <RNText
+                style={[
+                  styles.actionChipText,
+                  active ? styles.actionChipTextActive : null,
+                  !enabled ? styles.actionChipTextDisabled : null,
+                ]}>
                 {ADMIN_ORDER_STATUS_LABELS[status]}
               </RNText>
             </Pressable>
@@ -95,10 +139,49 @@ const OrderCard = ({order, styles, onChangeStatus, onChangePaymentStatus}: Props
           return (
             <Pressable
               key={status}
-              onPress={() => onChangePaymentStatus(order.id, status)}
-              style={[styles.actionChip, active ? styles.paymentChipActive : null]}>
-              <RNText style={[styles.actionChipText, active ? styles.actionChipTextActive : null]}>
+              onPress={() =>
+                onChangePaymentStatus(
+                  order.id,
+                  status,
+                  order.paymentMethod || 'MOCK',
+                )
+              }
+              style={[
+                styles.actionChip,
+                active ? styles.paymentChipActive : null,
+              ]}>
+              <RNText
+                style={[
+                  styles.actionChipText,
+                  active ? styles.actionChipTextActive : null,
+                ]}>
                 {ADMIN_PAYMENT_STATUS_LABELS[status]}
+              </RNText>
+            </Pressable>
+          );
+        })}
+      </RNView>
+
+      <RNText style={styles.actionLabel}>Phương thức</RNText>
+      <RNView style={styles.actionChipWrap}>
+        {ADMIN_PAYMENT_METHODS.map(method => {
+          const active = (order.paymentMethod || 'MOCK') === method;
+          return (
+            <Pressable
+              key={method}
+              onPress={() =>
+                onChangePaymentStatus(order.id, order.paymentStatus, method)
+              }
+              style={[
+                styles.actionChip,
+                active ? styles.paymentMethodChipActive : null,
+              ]}>
+              <RNText
+                style={[
+                  styles.actionChipText,
+                  active ? styles.actionChipTextActive : null,
+                ]}>
+                {ADMIN_PAYMENT_METHOD_LABELS[method]}
               </RNText>
             </Pressable>
           );

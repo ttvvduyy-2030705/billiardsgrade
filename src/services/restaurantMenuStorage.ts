@@ -11,6 +11,7 @@ export {
 } from "./restaurantMenuImage";
 
 const DEFAULT_LOCAL_RESTAURANT_ID = "local_demo_restaurant";
+const HAIDILAO_LOCAL_RESTAURANT_ID = "haidilao_local_demo";
 
 export const RESTAURANT_STORAGE_KEYS = {
   schemaVersion: "restaurant_menu_schema_version",
@@ -22,7 +23,7 @@ export const RESTAURANT_STORAGE_KEYS = {
   legacyAdminAccounts: "restaurant_admin_accounts",
 };
 
-const CURRENT_SCHEMA_VERSION = "20260509_menu_order_payment_restaurant_scope_v3";
+const CURRENT_SCHEMA_VERSION = "20260510_local_multirestaurant_order_payment_v4";
 
 export type MenuCategory = {
   id: string;
@@ -101,6 +102,12 @@ export type RestaurantOrderItem = {
 export type RestaurantPaymentStatus = "UNPAID" | "PAID";
 export type RestaurantPaymentMethod = "CASH" | "BANK_TRANSFER" | "MOCK";
 
+export const RESTAURANT_PAYMENT_METHODS: RestaurantPaymentMethod[] = [
+  "CASH",
+  "BANK_TRANSFER",
+  "MOCK",
+];
+
 export type RestaurantPayment = {
   id: string;
   restaurantId?: string;
@@ -144,6 +151,82 @@ export type RestaurantAdminAccount = {
 };
 
 const nowIso = () => new Date().toISOString();
+
+const getDefaultLocalAdminAccounts = (): RestaurantAdminAccount[] => {
+  const timestamp = nowIso();
+
+  return [
+    {
+      username: "admin",
+      password: "admin123",
+      restaurantIds: [DEFAULT_LOCAL_RESTAURANT_ID, HAIDILAO_LOCAL_RESTAURANT_ID],
+      activeRestaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
+      role: "OWNER",
+      createdAt: timestamp,
+    },
+    {
+      username: "haidilao",
+      password: "admin123",
+      restaurantIds: [HAIDILAO_LOCAL_RESTAURANT_ID],
+      activeRestaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+      role: "OWNER",
+      createdAt: timestamp,
+    },
+    {
+      username: "staff",
+      password: "staff123",
+      restaurantIds: [DEFAULT_LOCAL_RESTAURANT_ID],
+      activeRestaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
+      role: "STAFF",
+      createdAt: timestamp,
+    },
+  ];
+};
+
+const mergeDefaultLocalAdminAccounts = (
+  accounts: RestaurantAdminAccount[],
+) => {
+  const defaults = getDefaultLocalAdminAccounts();
+  const defaultsByUsername = new Map(
+    defaults.map(account => [normalise(account.username), account]),
+  );
+  const seen = new Set<string>();
+  let changed = false;
+
+  const merged = accounts.map(account => {
+    const usernameKey = normalise(account.username);
+    const defaultAccount = defaultsByUsername.get(usernameKey);
+    seen.add(usernameKey);
+
+    if (!defaultAccount) {
+      return account;
+    }
+
+    const upgraded: RestaurantAdminAccount = {
+      ...account,
+      password: defaultAccount.password,
+      restaurantIds: defaultAccount.restaurantIds,
+      activeRestaurantId: defaultAccount.activeRestaurantId,
+      role: defaultAccount.role,
+    };
+
+    if (JSON.stringify(upgraded) !== JSON.stringify(account)) {
+      changed = true;
+    }
+
+    return upgraded;
+  });
+
+  const missingDefaults = defaults.filter(
+    account => !seen.has(normalise(account.username)),
+  );
+
+  if (missingDefaults.length > 0) {
+    changed = true;
+  }
+
+  return changed ? [...merged, ...missingDefaults] : accounts;
+};
 
 const createId = (prefix: string) => {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -225,6 +308,108 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
     updatedAt: sampleTime,
   },
 ];
+
+const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [
+  {
+    id: "haidilao_hotpot",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    name: "Nước lẩu",
+    sortOrder: 1,
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: "haidilao_meat",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    name: "Thịt nhúng",
+    sortOrder: 2,
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: "haidilao_side",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    name: "Rau - món kèm",
+    sortOrder: 3,
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+];
+
+const HAIDILAO_LOCAL_MENU_ITEMS: RestaurantMenuItem[] = [
+  {
+    id: "haidilao_mushroom_hotpot",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    categoryId: "haidilao_hotpot",
+    name: "Lẩu nấm thanh ngọt",
+    price: 189000,
+    description: "Nước lẩu nấm dịu vị, phù hợp dùng cùng thịt bò và rau tươi.",
+    imageUrl:
+      "https://images.unsplash.com/photo-1512003867696-6d5ce6835040?auto=format&fit=crop&w=900&q=80",
+    available: true,
+    status: "SELLING",
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: "haidilao_spicy_hotpot",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    categoryId: "haidilao_hotpot",
+    name: "Lẩu cay Tứ Xuyên",
+    price: 199000,
+    description: "Vị cay thơm, hợp với đồ nhúng bò, hải sản và viên thả lẩu.",
+    imageUrl:
+      "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
+    available: true,
+    status: "SELLING",
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: "haidilao_beef_plate",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    categoryId: "haidilao_meat",
+    name: "Ba chỉ bò Mỹ",
+    price: 129000,
+    description: "Thịt bò cắt lát mỏng, nhúng nhanh trong nước lẩu đang sôi.",
+    imageUrl:
+      "https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=900&q=80",
+    available: true,
+    status: "SELLING",
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: "haidilao_vegetable_set",
+    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
+    categoryId: "haidilao_side",
+    name: "Set rau nấm tổng hợp",
+    price: 79000,
+    description: "Rau xanh, nấm và đồ ăn kèm cho bàn lẩu.",
+    imageUrl:
+      "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80",
+    available: true,
+    status: "SELLING",
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+];
+
+const getSeedCategoriesForRestaurant = (restaurantId: string) => {
+  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
+    return HAIDILAO_LOCAL_CATEGORIES;
+  }
+
+  return DEFAULT_MENU_CATEGORIES;
+};
+
+const getSeedItemsForRestaurant = (restaurantId: string) => {
+  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
+    return HAIDILAO_LOCAL_MENU_ITEMS;
+  }
+
+  return defaultMenuItems;
+};
 
 const legacySeedCategoryIds = [
   "hotpot",
@@ -360,10 +545,10 @@ const ensureDefaultCategories = (
 
 const seedDefaultMenu = async (restaurantId = DEFAULT_LOCAL_RESTAURANT_ID) => {
   const scopedKeys = getScopedKeys(restaurantId);
-  const categories = DEFAULT_MENU_CATEGORIES.map(category =>
+  const categories = getSeedCategoriesForRestaurant(scopedKeys.restaurantId).map(category =>
     cleanCategory(category, scopedKeys.restaurantId),
   );
-  const seededItems = defaultMenuItems.map(item =>
+  const seededItems = getSeedItemsForRestaurant(scopedKeys.restaurantId).map(item =>
     migrateMenuItem(item, categories, scopedKeys.restaurantId),
   );
 
@@ -860,6 +1045,30 @@ export const normalisePaymentStatus = (
     : "UNPAID";
 };
 
+export const normalisePaymentMethod = (
+  method?: RestaurantPaymentMethod | string,
+): RestaurantPaymentMethod => {
+  const normalized = String(method || "")
+    .trim()
+    .toUpperCase();
+
+  return RESTAURANT_PAYMENT_METHODS.includes(
+    normalized as RestaurantPaymentMethod,
+  )
+    ? (normalized as RestaurantPaymentMethod)
+    : "MOCK";
+};
+
+export const calculateRestaurantOrderTotal = (
+  items: RestaurantOrderItem[] = [],
+) => {
+  return items.reduce((sum, item) => {
+    const quantity = Math.max(0, Number(item.quantity || 0));
+    const price = Math.max(0, Number(item.price || 0));
+    return sum + price * quantity;
+  }, 0);
+};
+
 export const normaliseRestaurantOrder = (
   order: RawRestaurantOrder,
   restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
@@ -875,18 +1084,20 @@ export const normaliseRestaurantOrder = (
     tableNumber: String(order.tableNumber || ""),
     items: Array.isArray(order.items) ? order.items : [],
     note: String(order.note || ""),
-    total: Number(order.total) || 0,
+    total: calculateRestaurantOrderTotal(
+      Array.isArray(order.items) ? order.items : [],
+    ),
     orderStatus: normaliseOrderStatus(order.orderStatus || order.status),
     paymentStatus: normalisePaymentStatus(order),
-    paymentMethod: order.paymentMethod || "CASH",
+    paymentMethod: normalisePaymentMethod(order.paymentMethod),
     createdAt: order.createdAt || timestamp,
     updatedAt: order.updatedAt || order.createdAt || timestamp,
   };
 };
 
 const ORDER_STATUS_TRANSITIONS: Record<RestaurantOrderStatus, RestaurantOrderStatus[]> = {
-  NEW: ["NEW", "ACCEPTED", "PREPARING", "CANCELLED"],
-  ACCEPTED: ["ACCEPTED", "PREPARING", "COMPLETED", "CANCELLED"],
+  NEW: ["NEW", "ACCEPTED", "CANCELLED"],
+  ACCEPTED: ["ACCEPTED", "PREPARING", "CANCELLED"],
   PREPARING: ["PREPARING", "COMPLETED", "CANCELLED"],
   COMPLETED: ["COMPLETED"],
   CANCELLED: ["CANCELLED"],
@@ -954,18 +1165,22 @@ export const createRestaurantOrder = async (
     "id" | "orderStatus" | "paymentStatus" | "createdAt" | "updatedAt"
   > & {
     paymentStatus?: RestaurantPaymentStatus;
+    paymentMethod?: RestaurantPaymentMethod;
   },
 ): Promise<RestaurantOrder[]> => {
   const restaurantId = resolveRestaurantScopeId(payload.restaurantId);
   const current = await loadOrders(restaurantId);
   const timestamp = nowIso();
+  const orderItems = Array.isArray(payload.items) ? payload.items : [];
   const order: RestaurantOrder = {
     ...payload,
+    items: orderItems,
+    total: calculateRestaurantOrderTotal(orderItems),
     restaurantId,
     id: createId("order"),
     orderStatus: "NEW",
     paymentStatus: payload.paymentStatus || "UNPAID",
-    paymentMethod: payload.paymentMethod || "CASH",
+    paymentMethod: normalisePaymentMethod(payload.paymentMethod),
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -1006,12 +1221,20 @@ export const updateRestaurantOrderPaymentStatus = async (
   orderId: string,
   paymentStatus: RestaurantPaymentStatus,
   restaurantId?: string,
+  paymentMethod?: RestaurantPaymentMethod,
 ): Promise<RestaurantOrder[]> => {
   const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
   const current = await loadOrders(scopedRestaurantId);
   const timestamp = nowIso();
   const nextOrders = current.map(order =>
-    order.id === orderId ? { ...order, paymentStatus, updatedAt: timestamp } : order,
+    order.id === orderId
+      ? {
+          ...order,
+          paymentStatus,
+          paymentMethod: normalisePaymentMethod(paymentMethod || order.paymentMethod),
+          updatedAt: timestamp,
+        }
+      : order,
   );
 
   await saveOrders(nextOrders, scopedRestaurantId);
@@ -1089,18 +1312,21 @@ const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
   );
 
   if (current.length > 0) {
-    return current;
+    const withDefaults = mergeDefaultLocalAdminAccounts(current);
+    if (JSON.stringify(withDefaults) !== JSON.stringify(current)) {
+      await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, withDefaults);
+    }
+    return withDefaults;
   }
 
   const legacy = await readArray<RestaurantAdminAccount>(
     RESTAURANT_STORAGE_KEYS.legacyAdminAccounts,
   );
 
-  if (legacy.length > 0) {
-    await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, legacy);
-  }
+  const seededAccounts = mergeDefaultLocalAdminAccounts(legacy);
+  await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, seededAccounts);
 
-  return legacy;
+  return seededAccounts;
 };
 
 export const registerRestaurantAdmin = async (
@@ -1192,19 +1418,22 @@ export const verifyRestaurantAdmin = async (
     matchedAccount.activeRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
   ];
   const role = matchedAccount.role || "OWNER";
+  const preferredRestaurantId =
+    matchedAccount.activeRestaurantId ||
+    accountRestaurantIds[0] ||
+    DEFAULT_LOCAL_RESTAURANT_ID;
+  const canUsePreferredRestaurant =
+    accountRestaurantIds.length === 0 ||
+    accountRestaurantIds.indexOf(preferredRestaurantId) >= 0;
   const canUseRequestedRestaurant =
-    role === "OWNER" || accountRestaurantIds.indexOf(targetRestaurantId) >= 0;
+    accountRestaurantIds.length === 0 ||
+    accountRestaurantIds.indexOf(targetRestaurantId) >= 0;
 
-  if (!canUseRequestedRestaurant) {
-    return {
-      ok: false,
-      message: "Tài khoản không có quyền truy cập nhà hàng đang chọn",
-    };
-  }
-
-  const scopedRestaurantId = canUseRequestedRestaurant
-    ? targetRestaurantId
-    : accountRestaurantIds[0] || DEFAULT_LOCAL_RESTAURANT_ID;
+  const scopedRestaurantId = canUsePreferredRestaurant
+    ? preferredRestaurantId
+    : canUseRequestedRestaurant
+      ? targetRestaurantId
+      : accountRestaurantIds[0] || DEFAULT_LOCAL_RESTAURANT_ID;
 
   return {
     ok: true,

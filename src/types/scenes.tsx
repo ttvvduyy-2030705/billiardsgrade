@@ -14,6 +14,9 @@ export type Screens = {
   restaurantCart: string;
   restaurantAdminLogin: string;
   restaurantAdminDashboard: string;
+  restaurantAdminOrders: string;
+  restaurantAdminMenuManagement: string;
+  restaurantAdminTables: string;
   //Helper
   overlay: string;
 };

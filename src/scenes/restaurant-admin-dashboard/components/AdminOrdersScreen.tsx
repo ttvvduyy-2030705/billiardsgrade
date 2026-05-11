@@ -1,5 +1,6 @@
 import React, {memo, useMemo} from 'react';
-import {Pressable, Text as RNText, View as RNView} from 'react-native';
+import {Pressable, View as RNView} from 'react-native';
+import RNText from './AdminText';
 
 import {
   ADMIN_ORDER_FILTERS,
@@ -7,12 +8,14 @@ import {
   AdminOrder,
   AdminOrderFilter,
   AdminOrderStatus,
+  AdminPaymentMethod,
   AdminPaymentStatus,
 } from 'services/restaurantAdminStore';
 
 import OrderCard from './OrderCard';
 
 type OrderFilter = AdminOrderFilter;
+type OrderSyncStatus = 'idle' | 'syncing' | 'online' | 'error' | 'paused';
 
 type Props = {
   orders: AdminOrder[];
@@ -20,7 +23,15 @@ type Props = {
   onChangeFilter: (filter: OrderFilter) => void;
   styles: any;
   onChangeStatus: (orderId: string, status: AdminOrderStatus) => void;
-  onChangePaymentStatus: (orderId: string, status: AdminPaymentStatus) => void;
+  onChangePaymentStatus: (
+    orderId: string,
+    status: AdminPaymentStatus,
+    method?: AdminPaymentMethod,
+  ) => void;
+  onRefreshOrders: () => void;
+  orderSyncStatus: OrderSyncStatus;
+  lastOrderSyncAt?: string;
+  newOrderNotice?: string;
 };
 
 const filterLabels: Record<OrderFilter, string> = {
@@ -41,6 +52,10 @@ const AdminOrdersScreen = ({
   styles,
   onChangeStatus,
   onChangePaymentStatus,
+  onRefreshOrders,
+  orderSyncStatus,
+  lastOrderSyncAt,
+  newOrderNotice,
 }: Props) => {
   const filteredOrders = useMemo(() => {
     if (filter === 'ALL') {
@@ -55,8 +70,28 @@ const AdminOrdersScreen = ({
   }, [filter, orders]);
 
   const newCount = orders.filter(order => order.status === 'NEW').length;
-  const preparingCount = orders.filter(order => order.status === 'PREPARING').length;
-  const unpaidCount = orders.filter(order => order.paymentStatus === 'UNPAID').length;
+  const preparingCount = orders.filter(
+    order => order.status === 'PREPARING',
+  ).length;
+  const unpaidCount = orders.filter(
+    order => order.paymentStatus === 'UNPAID',
+  ).length;
+
+  const syncLabel = (() => {
+    switch (orderSyncStatus) {
+      case 'syncing':
+        return 'Đang đồng bộ đơn...';
+      case 'online':
+        return 'Tự cập nhật mỗi 3 giây';
+      case 'error':
+        return 'Mất kết nối đơn hàng';
+      case 'paused':
+        return 'Tạm dừng khi rời tab đơn';
+      case 'idle':
+      default:
+        return 'Sẵn sàng đồng bộ';
+    }
+  })();
 
   return (
     <RNView>
@@ -80,9 +115,26 @@ const AdminOrdersScreen = ({
       </RNView>
 
       <RNView style={styles.sectionHeader}>
-        <RNView>
+        <RNView style={styles.sectionTitleBlock}>
           <RNText style={styles.sectionTitle}>Tiếp nhận đơn hàng</RNText>
-          <RNText style={styles.sectionHint}>Lọc nhanh, đổi trạng thái bếp và thanh toán.</RNText>
+          <RNText style={styles.sectionHint}>
+            Lọc nhanh, đổi trạng thái bếp và thanh toán.
+          </RNText>
+        </RNView>
+
+        <RNView style={styles.orderSyncPanel}>
+          {newOrderNotice ? (
+            <RNText style={styles.orderSyncNotice}>{newOrderNotice}</RNText>
+          ) : null}
+          <RNText style={styles.orderSyncStatus}>{syncLabel}</RNText>
+          {lastOrderSyncAt ? (
+            <RNText style={styles.orderSyncTime}>
+              Lần cuối: {lastOrderSyncAt}
+            </RNText>
+          ) : null}
+          <Pressable onPress={onRefreshOrders} style={styles.orderRefreshButton}>
+            <RNText style={styles.orderRefreshButtonText}>Làm mới đơn</RNText>
+          </Pressable>
         </RNView>
       </RNView>
 
@@ -93,9 +145,17 @@ const AdminOrdersScreen = ({
             <Pressable
               key={item}
               onPress={() => onChangeFilter(item)}
-              style={[styles.filterChip, active ? styles.filterChipActive : null]}>
-              <RNText style={[styles.filterText, active ? styles.filterTextActive : null]}>
-                {filterLabels[item] || ADMIN_ORDER_STATUS_LABELS[item as AdminOrderStatus]}
+              style={[
+                styles.filterChip,
+                active ? styles.filterChipActive : null,
+              ]}>
+              <RNText
+                style={[
+                  styles.filterText,
+                  active ? styles.filterTextActive : null,
+                ]}>
+                {filterLabels[item] ||
+                  ADMIN_ORDER_STATUS_LABELS[item as AdminOrderStatus]}
               </RNText>
             </Pressable>
           );
@@ -106,7 +166,9 @@ const AdminOrdersScreen = ({
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>🧾</RNText>
           <RNText style={styles.emptyText}>Chưa có đơn trong bộ lọc này</RNText>
-          <RNText style={styles.emptySubText}>Khi khách gửi giỏ hàng, đơn sẽ xuất hiện tại đây.</RNText>
+          <RNText style={styles.emptySubText}>
+            Khi khách gửi giỏ hàng, đơn sẽ xuất hiện tại đây.
+          </RNText>
         </RNView>
       ) : (
         <RNView style={styles.orderGrid}>

@@ -58,10 +58,15 @@ const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const reset = useCallback((index: number, routes: Array<any>) => {
-      navigation.reset(index, routes);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    const reset = useCallback(
+      (index: number, routes: Array<any>) => {
+        navigation.reset({
+          index,
+          routes,
+        });
+      },
+      [navigation],
+    );
 
     const replace = useCallback(
       ({name, params}: {name: string; params: Object}) => {
@@ -121,8 +126,20 @@ const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
           {...route.params} //destructuring props from route
         />
       ),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [],
+      [
+        addListener,
+        getLocale,
+        goBack,
+        isFocused,
+        navigate,
+        popToTop,
+        replace,
+        reset,
+        route.params,
+        setOptions,
+        setParams,
+        translate,
+      ],
     );
 
     if (!isReady) {

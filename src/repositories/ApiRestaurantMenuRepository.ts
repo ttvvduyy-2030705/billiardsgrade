@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   CategoryMutationResult,
   DeleteCategoryOptions,
@@ -22,6 +23,7 @@ import type {
   RestaurantMenuItem,
   RestaurantOrder,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
   RestaurantPaymentStatus,
 } from 'services/restaurantMenuStorage';
 
@@ -75,8 +77,15 @@ type ApiRequestInit = {
   retryCount?: number;
 };
 
+type PublicMenuPayload = {
+  context?: RestaurantMenuContext;
+  categories?: MenuCategory[];
+  items?: RestaurantMenuItem[];
+};
+
 const DEFAULT_API_TIMEOUT_MS = 15000;
 const DEFAULT_API_RETRY_COUNT = 1;
+const ADMIN_SESSION_STORAGE_KEY = 'restaurant_admin_session_v1';
 
 const wait = (ms: number) =>
   new Promise(resolve => {
@@ -154,12 +163,33 @@ const extractApiMessage = (body: {text: string; json: unknown}) => {
   return body.text;
 };
 
+const readStoredAdminToken = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return undefined;
+    }
+    const parsed = JSON.parse(raw) as {token?: string; expiresAt?: string};
+    const expiresAt = Date.parse(parsed.expiresAt || '');
+    if (!parsed.token || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      return undefined;
+    }
+    return parsed.token;
+  } catch (_error) {
+    return undefined;
+  }
+};
+
 export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly retryCount: number;
   private readonly getAuthToken?: ApiRestaurantMenuRepositoryConfig['getAuthToken'];
   private activeContext: RestaurantMenuContext;
+  private publicMenuCache: {
+    token: string;
+    payload: PublicMenuPayload;
+  } | null = null;
 
   constructor(config: ApiRestaurantMenuRepositoryConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -191,12 +221,59 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   async setActiveContext(
     context: Partial<RestaurantMenuContext>,
   ): Promise<RestaurantMenuContext> {
+    const previousToken = this.activeContext.qrCodeToken;
     this.activeContext = {
       ...this.activeContext,
       ...context,
       restaurantId: context.restaurantId || this.activeContext.restaurantId,
     };
+    if (previousToken !== this.activeContext.qrCodeToken) {
+      this.publicMenuCache = null;
+    }
     return this.getActiveContext();
+  }
+
+  private isCustomerTableContext(context: RestaurantMenuContext) {
+    return context.source === 'customer' && Boolean(context.qrCodeToken);
+  }
+
+  private async getPublicMenu(
+    context: RestaurantMenuContext,
+  ): Promise<PublicMenuPayload> {
+    const token = String(context.qrCodeToken || '').trim();
+    if (!token) {
+      throw new RestaurantMenuApiError({
+        code: 'VALIDATION_ERROR',
+        message: 'Thiếu QR bàn để tải menu khách.',
+      });
+    }
+
+    if (this.publicMenuCache?.token === token) {
+      return this.publicMenuCache.payload;
+    }
+
+    const payload = await this.request<PublicMenuPayload>(
+      `/public/menu/${encodeURIComponent(token)}`,
+    );
+    if (payload.context) {
+      this.activeContext = {
+        ...this.activeContext,
+        ...payload.context,
+        source: 'customer',
+      };
+    }
+    this.publicMenuCache = {token, payload};
+    return payload;
+  }
+
+  private async publicTablePath(suffix: string) {
+    const context = await this.getActiveContext();
+    const token = String(context.qrCodeToken || '').trim();
+    if (!this.isCustomerTableContext(context) || !token) {
+      return '';
+    }
+    const cleanSuffix = suffix.startsWith('/') ? suffix : `/${suffix}`;
+    return `/public/menu/${encodeURIComponent(token)}${cleanSuffix}`;
   }
 
   private async requestOnce<T>(
@@ -210,7 +287,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       });
     }
 
-    const token = await this.getAuthToken?.();
+    const token = (await this.getAuthToken?.()) || (await readStoredAdminToken());
     const controller =
       typeof AbortController !== 'undefined'
         ? new AbortController()
@@ -419,6 +496,29 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     });
   }
 
+  async updateTable(
+    tableId: string,
+    payload: Partial<RestaurantTablePayload>,
+  ): Promise<RestaurantTable> {
+    const targetRestaurantId =
+      payload.restaurantId || (await this.getActiveContext()).restaurantId;
+
+    return this.request<RestaurantTable>(
+      `/restaurants/${encodeURIComponent(targetRestaurantId)}/tables/${encodeURIComponent(tableId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  async deleteTable(tableId: string): Promise<RestaurantTable[]> {
+    return this.request<RestaurantTable[]>(
+      await this.restaurantPath(`/tables/${encodeURIComponent(tableId)}`),
+      {method: 'DELETE'},
+    );
+  }
+
   async resolveTableToken(
     token: string,
   ): Promise<RestaurantMenuContext | null> {
@@ -428,6 +528,12 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   }
 
   async getCategories(): Promise<MenuCategory[]> {
+    const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      const payload = await this.getPublicMenu(context);
+      return Array.isArray(payload.categories) ? payload.categories : [];
+    }
+
     return this.request<MenuCategory[]>(
       await this.restaurantPath('/menu/categories'),
     );
@@ -480,6 +586,12 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   }
 
   async getItems(): Promise<RestaurantMenuItem[]> {
+    const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      const payload = await this.getPublicMenu(context);
+      return Array.isArray(payload.items) ? payload.items : [];
+    }
+
     return this.request<RestaurantMenuItem[]>(
       await this.restaurantPath('/menu/items'),
     );
@@ -543,6 +655,26 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     payload: RestaurantOrderPayload,
   ): Promise<RestaurantOrder[]> {
     const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      const orders = await this.request<RawRestaurantOrder[]>(
+        await this.publicTablePath('/orders'),
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            items: payload.items,
+            note: payload.note,
+            paymentMethod: payload.paymentMethod,
+            paymentStatus: payload.paymentStatus,
+          }),
+          retryCount: 0,
+        },
+      );
+      const normalised = this.normaliseOrders(orders, context.restaurantId);
+      return context.branchId
+        ? normalised.filter(order => order.branchId === context.branchId)
+        : normalised;
+    }
+
     const orders = await this.request<RawRestaurantOrder[]>(
       await this.restaurantPath('/orders'),
       {
@@ -585,6 +717,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   async updatePaymentStatus(
     orderId: string,
     paymentStatus: RestaurantPaymentStatus,
+    paymentMethod?: RestaurantPaymentMethod,
   ): Promise<RestaurantOrder[]> {
     const orders = await this.request<RawRestaurantOrder[]>(
       await this.restaurantPath(
@@ -592,7 +725,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       ),
       {
         method: 'PATCH',
-        body: JSON.stringify({paymentStatus}),
+        body: JSON.stringify({paymentStatus, paymentMethod}),
       },
     );
     const context = await this.getActiveContext();
@@ -604,6 +737,12 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
 
   async getCurrentCart(): Promise<RestaurantCartState> {
     const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      return this.request<RestaurantCartState>(
+        await this.publicTablePath('/cart/current'),
+      );
+    }
+
     return this.request<RestaurantCartState>(
       await this.restaurantPath(
         context.tableId
@@ -615,6 +754,20 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
 
   async saveCurrentCart(cart: RestaurantCartState): Promise<void> {
     const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      await this.request(await this.publicTablePath('/cart/current'), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...cart,
+          restaurantId: context.restaurantId,
+          branchId: context.branchId,
+          tableId: context.tableId,
+          tableNumber: context.tableNumber,
+        }),
+      });
+      return;
+    }
+
     await this.request(
       await this.restaurantPath(
         context.tableId
@@ -635,6 +788,13 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
 
   async clearCurrentCart(): Promise<void> {
     const context = await this.getActiveContext();
+    if (this.isCustomerTableContext(context)) {
+      await this.request(await this.publicTablePath('/cart/current'), {
+        method: 'DELETE',
+      });
+      return;
+    }
+
     await this.request(
       await this.restaurantPath(
         context.tableId

@@ -1,61 +1,90 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
-  Text as RNText,
   View as RNView,
-} from "react-native";
+} from 'react-native';
 
-import images from "assets";
-import Image from "components/Image";
-import View from "components/View";
-import { screens } from "scenes/screens";
-import { devWarn } from "utils/devLogger";
+import images from 'assets';
+import Image from 'components/Image';
+import {screens} from 'scenes/screens';
+import {devWarn} from 'utils/devLogger';
 import {
   AdminOrder,
   AdminOrderFilter,
   AdminOrderStatus,
+  AdminPaymentMethod,
   AdminPaymentStatus,
+  AdminRestaurantTable,
   deleteAdminMenuCategory,
   deleteAdminMenuItem,
+  deleteAdminTable,
+  loadAdminOrders,
   loadRestaurantAdminData,
   saveAdminMenuCategory,
   saveAdminMenuItem,
+  saveAdminTable,
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
-} from "services/restaurantAdminStore";
+} from 'services/restaurantAdminStore';
 import {
   clearRestaurantAdminSession,
   getRestaurantAdminSession,
-} from "../../services/restaurantAdminAuthService";
+} from '../../services/restaurantAdminAuthService';
 import {
   resetRestaurantContextStore,
   useRestaurantContextStore,
-} from "../../stores/RestaurantContextStore";
+} from '../../stores/RestaurantContextStore';
 import type {
   MenuCategory,
+  RestaurantBranch,
   RestaurantMenuItem,
-} from "services/restaurantMenuRepository";
-import useScreenSystemUI from "theme/systemUI";
-import useDesignSystem from "theme/useDesignSystem";
-import { Navigation } from "types/navigation";
+} from 'services/restaurantMenuRepository';
+import useScreenSystemUI from 'theme/systemUI';
+import useDesignSystem from 'theme/useDesignSystem';
+import {Navigation} from 'types/navigation';
 
-import AdminMenuManagementScreen from "./components/AdminMenuManagementScreen";
-import AdminOrdersScreen from "./components/AdminOrdersScreen";
-import AdminSidebar, { AdminDashboardTab } from "./components/AdminSidebar";
-import createStyles from "./styles";
+import RNText from './components/AdminText';
+import AdminMenuManagementScreen from './components/AdminMenuManagementScreen';
+import AdminOrdersScreen from './components/AdminOrdersScreen';
+import AdminTablesScreen from './components/AdminTablesScreen';
+import {AdminDashboardTab} from './components/AdminSidebar';
+import createStyles from './styles';
 
 type Props = Navigation & {
   adminUsername?: string;
+  initialAdminTab?: AdminDashboardTab;
+  adminPageMode?: 'home' | 'single';
+  adminPageTitle?: string;
 };
 
 type OrderFilter = AdminOrderFilter;
+type OrderSyncStatus = 'idle' | 'syncing' | 'online' | 'error' | 'paused';
 
-let adminDashboardActiveTabSession: AdminDashboardTab = "orders";
+let adminDashboardActiveTabSession: AdminDashboardTab = 'orders';
 
 const ADMIN_SESSION_CHECK_TIMEOUT_MS = 2500;
+const ADMIN_ORDER_POLL_INTERVAL_MS = 3000;
+
+const ADMIN_TAB_LABELS: Record<AdminDashboardTab, string> = {
+  orders: 'Đơn hàng',
+  menu: 'Quản lý món',
+  tables: 'Bàn / QR',
+};
+
+const ADMIN_PAGE_DESCRIPTIONS: Record<AdminDashboardTab, string> = {
+  orders: 'Tiếp nhận đơn mới, đổi trạng thái món và cập nhật thanh toán.',
+  menu: 'Thêm/sửa món, danh mục, giá bán, trạng thái đang bán hoặc hết món.',
+  tables: 'Tạo bàn, khóa/ẩn bàn, quản lý QR token cho từng bàn.',
+};
+
+const ADMIN_PAGE_ICONS: Record<AdminDashboardTab, string> = {
+  orders: 'Đ',
+  menu: 'M',
+  tables: 'Q',
+};
 
 const withTimeout = async <T,>(
   promise: Promise<T>,
@@ -66,7 +95,7 @@ const withTimeout = async <T,>(
   try {
     return await Promise.race([
       promise,
-      new Promise<T>((resolve) => {
+      new Promise<T>(resolve => {
         timeoutId = setTimeout(
           () => resolve(fallback),
           ADMIN_SESSION_CHECK_TIMEOUT_MS,
@@ -81,31 +110,45 @@ const withTimeout = async <T,>(
 };
 
 const RestaurantAdminDashboardScreen = (props: Props) => {
-  useScreenSystemUI({ variant: "fullscreen", barStyle: "light-content" });
+  useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
 
-  const { adaptive, design } = useDesignSystem();
+  const {adaptive, design} = useDesignSystem();
   const isWide = adaptive.width >= 900;
   const styles = useMemo(
-    () => createStyles({ design, isWide }),
+    () => createStyles({design, isWide}),
     [design, isWide],
   );
   const navigate = props.navigate;
   const replace = props.replace;
+  const reset = props.reset;
+  const singlePageMode = props.adminPageMode === 'single';
+  const initialAdminTab = props.initialAdminTab || 'orders';
+  const headerTitle = singlePageMode
+    ? props.adminPageTitle || ADMIN_TAB_LABELS[initialAdminTab]
+    : 'Admin Dashboard';
 
-  const [activeTab, setActiveTabState] = useState<AdminDashboardTab>(
-    () => adminDashboardActiveTabSession,
+  const [activeTab, setActiveTabState] = useState<AdminDashboardTab>(() =>
+    singlePageMode ? initialAdminTab : adminDashboardActiveTabSession,
   );
-  const [orderFilter, setOrderFilter] = useState<OrderFilter>("ALL");
+  const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL');
+  const latestOrderIdsRef = useRef<Set<string>>(new Set());
+  const orderPollingInFlightRef = useRef(false);
+  const loggingOutRef = useRef(false);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [tables, setTables] = useState<AdminRestaurantTable[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [authErrorMessage, setAuthErrorMessage] = useState("");
+  const [authErrorMessage, setAuthErrorMessage] = useState('');
   const [sessionUsername, setSessionUsername] = useState(
-    props.adminUsername || "",
+    props.adminUsername || '',
   );
   const [contextSwitching, setContextSwitching] = useState(false);
+  const [orderSyncStatus, setOrderSyncStatus] =
+    useState<OrderSyncStatus>('idle');
+  const [lastOrderSyncAt, setLastOrderSyncAt] = useState('');
+  const [newOrderNotice, setNewOrderNotice] = useState('');
   const {
     context,
     restaurants,
@@ -125,26 +168,95 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, []);
 
   useEffect(() => {
+    if (singlePageMode) {
+      setActiveTabState(initialAdminTab);
+      adminDashboardActiveTabSession = initialAdminTab;
+    }
+  }, [initialAdminTab, singlePageMode]);
+
+  useEffect(() => {
     adminDashboardActiveTabSession = activeTab;
   }, [activeTab]);
+
+  const formatSyncTime = useCallback(() => {
+    return new Date().toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }, []);
+
+  const applyOrdersSnapshot = useCallback(
+    (
+      nextOrders: AdminOrder[],
+      options: {announceNew?: boolean} = {},
+    ) => {
+      const previousIds = latestOrderIdsRef.current;
+      const nextIds = new Set(nextOrders.map(order => order.id));
+
+      if (options.announceNew && previousIds.size > 0) {
+        const newOrders = nextOrders.filter(order => !previousIds.has(order.id));
+        if (newOrders.length > 0) {
+          setNewOrderNotice(
+            `${newOrders.length} đơn mới vừa vào khu quản trị`,
+          );
+        }
+      }
+
+      latestOrderIdsRef.current = nextIds;
+      setOrders(nextOrders);
+      setLastOrderSyncAt(formatSyncTime());
+    },
+    [formatSyncTime],
+  );
+
+  useEffect(() => {
+    if (!newOrderNotice) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setNewOrderNotice('');
+    }, 6500);
+
+    return () => clearTimeout(timer);
+  }, [newOrderNotice]);
 
   const resetSensitiveData = useCallback(() => {
     setOrders([]);
     setMenuItems([]);
     setCategories([]);
-    setOrderFilter("ALL");
-    setSessionUsername("");
-    adminDashboardActiveTabSession = "orders";
-    setActiveTabState("orders");
+    setTables([]);
+    setOrderFilter('ALL');
+    setSessionUsername('');
+    latestOrderIdsRef.current = new Set();
+    orderPollingInFlightRef.current = false;
+    setOrderSyncStatus('idle');
+    setLastOrderSyncAt('');
+    setNewOrderNotice('');
+    adminDashboardActiveTabSession = 'orders';
+    setActiveTabState('orders');
   }, []);
 
   const redirectToLogin = useCallback(() => {
     const params = {
-      initialMode: "login",
+      initialMode: 'login',
       resetAuthDraft: true,
+      skipAutoSessionCheck: true,
+      logoutAt: Date.now(),
     };
 
-    if (typeof replace === "function") {
+    if (typeof reset === 'function') {
+      reset(0, [
+        {
+          name: screens.restaurantAdminLogin,
+          params,
+        },
+      ]);
+      return;
+    }
+
+    if (typeof replace === 'function') {
       replace({
         name: screens.restaurantAdminLogin,
         params,
@@ -153,10 +265,56 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
 
     navigate(screens.restaurantAdminLogin, params);
-  }, [navigate, replace]);
+  }, [navigate, replace, reset]);
+
+  const refreshOrdersOnly = useCallback(
+    async (options: {silent?: boolean; announceNew?: boolean} = {}) => {
+      if (orderPollingInFlightRef.current) {
+        return;
+      }
+
+      orderPollingInFlightRef.current = true;
+      setOrderSyncStatus('syncing');
+
+      if (!options.silent) {
+        setRefreshing(true);
+      }
+
+      try {
+        const nextOrders = await loadAdminOrders();
+        applyOrdersSnapshot(nextOrders, {
+          announceNew: options.announceNew ?? true,
+        });
+        setOrderSyncStatus('online');
+        if (!options.silent) {
+          setAuthErrorMessage('');
+        }
+      } catch (error) {
+        devWarn('[RestaurantAdminDashboard] refresh orders failed', error);
+        setOrderSyncStatus('error');
+        if (!options.silent) {
+          setAuthErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Không thể tải đơn hàng mới. Vui lòng thử lại.',
+          );
+        }
+      } finally {
+        orderPollingInFlightRef.current = false;
+        if (!options.silent) {
+          setRefreshing(false);
+        }
+      }
+    },
+    [applyOrdersSnapshot],
+  );
 
   const loadData = useCallback(async () => {
-    setAuthErrorMessage("");
+    if (loggingOutRef.current) {
+      return;
+    }
+
+    setAuthErrorMessage('');
 
     try {
       const session = await withTimeout(getRestaurantAdminSession(), null);
@@ -170,24 +328,35 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
       setSessionUsername(session.username);
       setRefreshing(true);
-      await hydrateRestaurantContext({session, source: "admin"});
+      await hydrateRestaurantContext({session, source: 'admin'});
 
       const next = await loadRestaurantAdminData();
-      setOrders(next.orders);
+      applyOrdersSnapshot(next.orders, {announceNew: false});
+      setOrderSyncStatus('online');
       setMenuItems(next.menuItems);
       setCategories(next.categories);
+      setTables(next.tables || []);
     } catch (error) {
-      devWarn("[RestaurantAdminDashboard] load data failed", error);
-      setAuthErrorMessage("Không thể tải dữ liệu quản trị. Vui lòng thử lại.");
+      devWarn('[RestaurantAdminDashboard] load data failed', error);
+      setAuthErrorMessage('Không thể tải dữ liệu quản trị. Vui lòng thử lại.');
     } finally {
       setRefreshing(false);
     }
-  }, [hydrateRestaurantContext, redirectToLogin, resetSensitiveData]);
+  }, [
+    applyOrdersSnapshot,
+    hydrateRestaurantContext,
+    redirectToLogin,
+    resetSensitiveData,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
     const checkSession = async () => {
+      if (loggingOutRef.current) {
+        return;
+      }
+
       try {
         const session = await withTimeout(getRestaurantAdminSession(), null);
 
@@ -203,10 +372,10 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         }
 
         setSessionUsername(session.username);
-        await hydrateRestaurantContext({session, source: "admin"});
+        await hydrateRestaurantContext({session, source: 'admin'});
         setAuthChecking(false);
       } catch (error) {
-        devWarn("[RestaurantAdminDashboard] session check failed", error);
+        devWarn('[RestaurantAdminDashboard] session check failed', error);
 
         if (!isMounted) {
           return;
@@ -223,7 +392,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return () => {
       isMounted = false;
     };
-  }, [hydrateRestaurantContext, redirectToLogin, resetSensitiveData]);
+  }, [
+    applyOrdersSnapshot,
+    hydrateRestaurantContext,
+    redirectToLogin,
+    resetSensitiveData,
+  ]);
 
   useEffect(() => {
     if (!authChecking && sessionUsername) {
@@ -231,18 +405,50 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
   }, [authChecking, loadData, sessionUsername]);
 
+  useEffect(() => {
+    if (authChecking || !sessionUsername || contextSwitching) {
+      return undefined;
+    }
+
+    if (activeTab !== 'orders') {
+      setOrderSyncStatus('paused');
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      void refreshOrdersOnly({silent: true, announceNew: true});
+    }, ADMIN_ORDER_POLL_INTERVAL_MS);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [
+    activeTab,
+    authChecking,
+    contextSwitching,
+    refreshOrdersOnly,
+    sessionUsername,
+  ]);
+
   const logout = async () => {
+    if (loggingOutRef.current) {
+      return;
+    }
+
+    loggingOutRef.current = true;
+    orderPollingInFlightRef.current = true;
     setRefreshing(false);
     setAuthChecking(false);
+    setAuthErrorMessage('');
 
     try {
       await clearRestaurantAdminSession();
     } catch (error) {
-      devWarn("[RestaurantAdminDashboard] logout failed", error);
+      devWarn('[RestaurantAdminDashboard] logout failed', error);
     } finally {
       resetSensitiveData();
       resetRestaurantContextStore();
-      redirectToLogin();
+      requestAnimationFrame(redirectToLogin);
     }
   };
 
@@ -251,16 +457,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   ) => {
     const nextItems = await saveAdminMenuItem(input);
     setMenuItems(nextItems);
-    adminDashboardActiveTabSession = "menu";
-    setActiveTabState("menu");
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
     return nextItems;
   };
 
   const onDeleteMenuItem = async (itemId: string) => {
     const nextItems = await deleteAdminMenuItem(itemId);
     setMenuItems(nextItems);
-    adminDashboardActiveTabSession = "menu";
-    setActiveTabState("menu");
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
     return nextItems;
   };
 
@@ -269,8 +475,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   ) => {
     const result = await saveAdminMenuCategory(input);
     setCategories(result.categories);
-    adminDashboardActiveTabSession = "menu";
-    setActiveTabState("menu");
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
     return result;
   };
 
@@ -284,9 +490,41 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     );
     setCategories(result.categories);
     setMenuItems(result.menuItems);
-    adminDashboardActiveTabSession = "menu";
-    setActiveTabState("menu");
+    adminDashboardActiveTabSession = 'menu';
+    setActiveTabState('menu');
     return result;
+  };
+
+  const reloadTables = async () => {
+    const next = await loadRestaurantAdminData();
+    setTables(next.tables || []);
+    setMenuItems(next.menuItems);
+    setCategories(next.categories);
+    applyOrdersSnapshot(next.orders, {announceNew: false});
+  };
+
+  const onSaveTable = async (input: Parameters<typeof saveAdminTable>[0]) => {
+    const nextTable = await saveAdminTable(input);
+    setTables(current => {
+      const existed = current.some(table => table.id === nextTable.id);
+      if (existed) {
+        return current.map(table =>
+          table.id === nextTable.id ? nextTable : table,
+        );
+      }
+      return [nextTable, ...current];
+    });
+    adminDashboardActiveTabSession = 'tables';
+    setActiveTabState('tables');
+    return nextTable;
+  };
+
+  const onDeleteTable = async (tableId: string) => {
+    const nextTables = await deleteAdminTable(tableId);
+    setTables(nextTables);
+    adminDashboardActiveTabSession = 'tables';
+    setActiveTabState('tables');
+    return nextTables;
   };
 
   const onChangeOrderStatus = async (
@@ -294,15 +532,20 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     status: AdminOrderStatus,
   ) => {
     const nextOrders = await updateAdminOrderStatus(orderId, status);
-    setOrders(nextOrders);
+    applyOrdersSnapshot(nextOrders, {announceNew: false});
   };
 
   const onChangePaymentStatus = async (
     orderId: string,
     status: AdminPaymentStatus,
+    method?: AdminPaymentMethod,
   ) => {
-    const nextOrders = await updateAdminOrderPaymentStatus(orderId, status);
-    setOrders(nextOrders);
+    const nextOrders = await updateAdminOrderPaymentStatus(
+      orderId,
+      status,
+      method,
+    );
+    applyOrdersSnapshot(nextOrders, {announceNew: false});
   };
 
   const handleSwitchRestaurant = async (restaurantId: string) => {
@@ -311,17 +554,17 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
 
     setContextSwitching(true);
-    setAuthErrorMessage("");
+    setAuthErrorMessage('');
 
     try {
       await switchRestaurant(restaurantId);
       await loadData();
     } catch (error) {
-      devWarn("[RestaurantAdminDashboard] switch restaurant failed", error);
+      devWarn('[RestaurantAdminDashboard] switch restaurant failed', error);
       setAuthErrorMessage(
         error instanceof Error
           ? error.message
-          : "Không thể chuyển nhà hàng. Vui lòng thử lại.",
+          : 'Không thể chuyển nhà hàng. Vui lòng thử lại.',
       );
     } finally {
       setContextSwitching(false);
@@ -334,21 +577,150 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
 
     setContextSwitching(true);
-    setAuthErrorMessage("");
+    setAuthErrorMessage('');
 
     try {
       await switchBranch(branchId);
       await loadData();
     } catch (error) {
-      devWarn("[RestaurantAdminDashboard] switch branch failed", error);
+      devWarn('[RestaurantAdminDashboard] switch branch failed', error);
       setAuthErrorMessage(
         error instanceof Error
           ? error.message
-          : "Không thể chuyển chi nhánh. Vui lòng thử lại.",
+          : 'Không thể chuyển chi nhánh. Vui lòng thử lại.',
       );
     } finally {
       setContextSwitching(false);
     }
+  };
+
+
+  const getPageScreenName = useCallback((tab: AdminDashboardTab) => {
+    switch (tab) {
+      case 'menu':
+        return screens.restaurantAdminMenuManagement;
+      case 'tables':
+        return screens.restaurantAdminTables;
+      case 'orders':
+      default:
+        return screens.restaurantAdminOrders;
+    }
+  }, []);
+
+  const openAdminPage = useCallback(
+    (tab: AdminDashboardTab) => {
+      adminDashboardActiveTabSession = tab;
+      navigate(getPageScreenName(tab), {
+        adminUsername: sessionUsername,
+      });
+    },
+    [getPageScreenName, navigate, sessionUsername],
+  );
+
+  const goToAdminHome = useCallback(() => {
+    const params = {adminUsername: sessionUsername};
+
+    if (typeof replace === 'function') {
+      replace({
+        name: screens.restaurantAdminDashboard,
+        params,
+      });
+      return;
+    }
+
+    navigate(screens.restaurantAdminDashboard, params);
+  }, [navigate, replace, sessionUsername]);
+
+  const renderPageContextBar = () => {
+    return (
+      <RNView style={styles.pageContextBar}>
+        <RNText style={styles.pageContextText}>
+          {context?.restaurantName || 'Chưa chọn nhà hàng'}
+          {context?.branchName ? ` · ${context.branchName}` : ''}
+        </RNText>
+      </RNView>
+    );
+  };
+
+  const renderAdminHome = () => {
+    const pageCards: Array<{
+      tab: AdminDashboardTab;
+      count: number;
+      meta: string;
+    }> = [
+      {
+        tab: 'orders',
+        count: orders.length,
+        meta: `${orders.length} đơn đang tải trong ngữ cảnh hiện tại`,
+      },
+      {
+        tab: 'menu',
+        count: menuItems.length,
+        meta: `${menuItems.length} món · ${categories.length} danh mục`,
+      },
+      {
+        tab: 'tables',
+        count: tables.length,
+        meta: `${tables.length} bàn/QR trong nhà hàng hoặc chi nhánh`,
+      },
+    ];
+
+    return (
+      <ScrollView
+        style={styles.homeScroll}
+        contentContainerStyle={styles.homeScrollBody}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={loadData}
+            tintColor="#FFFFFF"
+          />
+        }
+        keyboardShouldPersistTaps="always"
+        showsVerticalScrollIndicator={false}>
+        <RNView style={styles.homeIntroCard}>
+          <RNText style={styles.homeIntroEyebrow}>Khu quản trị</RNText>
+          <RNText style={styles.homeIntroTitle}>
+            Chọn một khu vực để quản lý
+          </RNText>
+          <RNText style={styles.homeIntroHint}>
+            Mỗi phần admin đã được tách thành một trang riêng để tránh vỡ layout,
+            chữ đè nhau hoặc không nhìn hết nội dung trên Android.
+          </RNText>
+        </RNView>
+
+        <RNView style={styles.adminPageGrid}>
+          {pageCards.map(card => (
+            <Pressable
+              key={card.tab}
+              accessibilityRole="button"
+              hitSlop={8}
+              android_ripple={{color: 'rgba(255,255,255,0.08)'}}
+              onPress={() => openAdminPage(card.tab)}
+              style={({pressed}) => [
+                styles.adminPageCard,
+                pressed ? styles.sidebarItemPressed : null,
+              ]}>
+              <RNText style={styles.adminPageIcon}>
+                {ADMIN_PAGE_ICONS[card.tab]}
+              </RNText>
+              <RNView style={styles.adminPageContent}>
+                <RNText style={styles.adminPageTitle}>
+                  {ADMIN_TAB_LABELS[card.tab]}
+                </RNText>
+                <RNText style={styles.adminPageHint}>
+                  {ADMIN_PAGE_DESCRIPTIONS[card.tab]}
+                </RNText>
+                <RNText style={styles.adminPageMeta}>{card.meta}</RNText>
+              </RNView>
+              <RNText style={styles.adminPageArrow}>Mở →</RNText>
+            </Pressable>
+          ))}
+        </RNView>
+
+        {renderWorkspaceSwitcher()}
+      </ScrollView>
+    );
   };
 
   const renderWorkspaceSwitcher = () => {
@@ -365,18 +737,20 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           <RNView style={styles.workspaceTitleBlock}>
             <RNText style={styles.workspaceEyebrow}>Ngữ cảnh vận hành</RNText>
             <RNText style={styles.workspaceTitle}>
-              {context?.restaurantName || "Chưa chọn nhà hàng"}
+              {context?.restaurantName || 'Chưa chọn nhà hàng'}
             </RNText>
             <RNText style={styles.workspaceHint}>
               {context?.branchName
                 ? `Chi nhánh: ${context.branchName}`
                 : branchCount > 0
-                  ? "Chọn chi nhánh để lọc đơn/bàn"
-                  : "Nhà hàng hiện tại chưa có chi nhánh"}
+                  ? 'Chọn chi nhánh để lọc đơn/bàn'
+                  : 'Nhà hàng hiện tại chưa có chi nhánh'}
             </RNText>
           </RNView>
           <RNText style={styles.workspaceStatusPill}>
-            {contextLoading || contextSwitching ? "Đang đồng bộ..." : "Đã cô lập dữ liệu"}
+            {contextLoading || contextSwitching
+              ? 'Đang đồng bộ...'
+              : 'Đã cô lập dữ liệu'}
           </RNText>
         </RNView>
 
@@ -388,84 +762,80 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           </RNView>
         ) : null}
 
-        <RNView style={styles.workspaceSection}>
-          <RNText style={styles.workspaceSectionLabel}>Nhà hàng</RNText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.workspaceChipRow}
-          >
-            {accessibleRestaurants.length > 0 ? (
-              accessibleRestaurants.map(restaurant => {
-                const active = restaurant.id === context?.restaurantId;
-                return (
-                  <Pressable
-                    key={restaurant.id}
-                    disabled={active || contextSwitching}
-                    onPress={() => void handleSwitchRestaurant(restaurant.id)}
-                    style={[
-                      styles.workspaceChip,
-                      active ? styles.workspaceChipActive : null,
-                      contextSwitching ? styles.workspaceChipDisabled : null,
-                    ]}
-                  >
-                    <RNText
+        <RNView style={styles.workspaceControlsGrid}>
+          <RNView style={styles.workspaceSection}>
+            <RNText style={styles.workspaceSectionLabel}>Nhà hàng</RNText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.workspaceChipRow}>
+              {accessibleRestaurants.length > 0 ? (
+                accessibleRestaurants.map(restaurant => {
+                  const active = restaurant.id === context?.restaurantId;
+                  return (
+                    <Pressable
+                      key={restaurant.id}
+                      disabled={active || contextSwitching}
+                      onPress={() => void handleSwitchRestaurant(restaurant.id)}
                       style={[
-                        styles.workspaceChipText,
-                        active ? styles.workspaceChipTextActive : null,
-                      ]}
-                    >
-                      {restaurant.name}
-                    </RNText>
-                  </Pressable>
-                );
-              })
-            ) : (
-              <RNText style={styles.workspaceEmptyText}>
-                Tài khoản chưa được cấp quyền nhà hàng nào.
-              </RNText>
-            )}
-          </ScrollView>
-        </RNView>
+                        styles.workspaceChip,
+                        active ? styles.workspaceChipActive : null,
+                        contextSwitching ? styles.workspaceChipDisabled : null,
+                      ]}>
+                      <RNText
+                        style={[
+                          styles.workspaceChipText,
+                          active ? styles.workspaceChipTextActive : null,
+                        ]}>
+                        {restaurant.name}
+                      </RNText>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <RNText style={styles.workspaceEmptyText}>
+                  Tài khoản chưa được cấp quyền nhà hàng nào.
+                </RNText>
+              )}
+            </ScrollView>
+          </RNView>
 
-        <RNView style={styles.workspaceSection}>
-          <RNText style={styles.workspaceSectionLabel}>Chi nhánh</RNText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.workspaceChipRow}
-          >
-            {branches.length > 0 ? (
-              branches.map(branch => {
-                const active = branch.id === context?.branchId;
-                return (
-                  <Pressable
-                    key={branch.id}
-                    disabled={active || contextSwitching}
-                    onPress={() => void handleSwitchBranch(branch.id)}
-                    style={[
-                      styles.workspaceChip,
-                      active ? styles.workspaceChipActive : null,
-                      contextSwitching ? styles.workspaceChipDisabled : null,
-                    ]}
-                  >
-                    <RNText
+          <RNView style={styles.workspaceSection}>
+            <RNText style={styles.workspaceSectionLabel}>Chi nhánh</RNText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.workspaceChipRow}>
+              {branches.length > 0 ? (
+                branches.map(branch => {
+                  const active = branch.id === context?.branchId;
+                  return (
+                    <Pressable
+                      key={branch.id}
+                      disabled={active || contextSwitching}
+                      onPress={() => void handleSwitchBranch(branch.id)}
                       style={[
-                        styles.workspaceChipText,
-                        active ? styles.workspaceChipTextActive : null,
-                      ]}
-                    >
-                      {branch.name}
-                    </RNText>
-                  </Pressable>
-                );
-              })
-            ) : (
-              <RNText style={styles.workspaceEmptyText}>
-                Chưa có chi nhánh trong nhà hàng này.
-              </RNText>
-            )}
-          </ScrollView>
+                        styles.workspaceChip,
+                        active ? styles.workspaceChipActive : null,
+                        contextSwitching ? styles.workspaceChipDisabled : null,
+                      ]}>
+                      <RNText
+                        style={[
+                          styles.workspaceChipText,
+                          active ? styles.workspaceChipTextActive : null,
+                        ]}>
+                        {branch.name}
+                      </RNText>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <RNText style={styles.workspaceEmptyText}>
+                  Chưa có chi nhánh trong nhà hàng này.
+                </RNText>
+              )}
+            </ScrollView>
+          </RNView>
         </RNView>
       </RNView>
     );
@@ -473,9 +843,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
   if (authChecking) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.glowTop} />
-        <View style={styles.glowBottom} />
+      <RNView style={styles.screen}>
+        <RNView pointerEvents="none" style={styles.glowTop} />
+        <RNView pointerEvents="none" style={styles.glowBottom} />
         <RNView style={styles.authGuardCard}>
           <ActivityIndicator color="#FFFFFF" />
           <RNText style={styles.authGuardTitle}>
@@ -485,15 +855,15 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             Vui lòng đăng nhập nếu phiên quản trị đã hết hạn.
           </RNText>
         </RNView>
-      </View>
+      </RNView>
     );
   }
 
   if (!sessionUsername) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.glowTop} />
-        <View style={styles.glowBottom} />
+      <RNView style={styles.screen}>
+        <RNView pointerEvents="none" style={styles.glowTop} />
+        <RNView pointerEvents="none" style={styles.glowBottom} />
         <RNView style={styles.authGuardCard}>
           <RNText style={styles.authGuardTitle}>Cần đăng nhập Admin</RNText>
           <RNText style={styles.authGuardHint}>
@@ -503,14 +873,14 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             <RNText style={styles.logoutText}>Đi tới đăng nhập</RNText>
           </Pressable>
         </RNView>
-      </View>
+      </RNView>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.glowTop} />
-      <View style={styles.glowBottom} />
+    <RNView style={styles.screen}>
+      <RNView pointerEvents="none" style={styles.glowTop} />
+      <RNView pointerEvents="none" style={styles.glowBottom} />
 
       <RNView style={styles.header}>
         <RNView style={styles.headerLeft}>
@@ -521,18 +891,23 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           />
           <RNView>
             <RNText style={styles.eyebrow}>APlus Restaurant POS</RNText>
-            <RNText style={styles.headerTitle}>Admin Dashboard</RNText>
+            <RNText style={styles.headerTitle}>{headerTitle}</RNText>
             <RNText style={styles.headerMeta}>
               Xin chào {sessionUsername} · Phiên quản trị đang hoạt động
             </RNText>
           </RNView>
         </RNView>
-        <Pressable onPress={() => void logout()} style={styles.logoutButton}>
-          <RNText style={styles.logoutText}>Đăng xuất</RNText>
-        </Pressable>
+        <RNView style={styles.headerActions}>
+          {singlePageMode ? (
+            <Pressable onPress={goToAdminHome} style={styles.backToAdminButton}>
+              <RNText style={styles.backToAdminText}>← Admin</RNText>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={() => void logout()} style={styles.logoutButton}>
+            <RNText style={styles.logoutText}>Đăng xuất</RNText>
+          </Pressable>
+        </RNView>
       </RNView>
-
-      {renderWorkspaceSwitcher()}
 
       {authErrorMessage ? (
         <RNView style={styles.inlineErrorBox}>
@@ -540,54 +915,71 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         </RNView>
       ) : null}
 
-      <RNView style={styles.body}>
-        <AdminSidebar
-          activeTab={activeTab}
-          onChangeTab={setActiveTab}
-          styles={styles}
-        />
+      <RNView pointerEvents="box-none" style={styles.body}>
+        {singlePageMode ? (
+          <RNView pointerEvents="auto" style={styles.contentPanel}>
+            <ScrollView
+              style={styles.contentScroll}
+              contentContainerStyle={styles.contentScrollBody}
+              refreshControl={
+                activeTab === 'orders' ? (
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={loadData}
+                    tintColor="#FFFFFF"
+                  />
+                ) : undefined
+              }
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}>
+              {renderPageContextBar()}
 
-        <RNView style={styles.contentPanel}>
-          <ScrollView
-            style={styles.contentScroll}
-            contentContainerStyle={styles.contentScrollBody}
-            refreshControl={
-              activeTab === "orders" ? (
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={loadData}
-                  tintColor="#FFFFFF"
+              {activeTab === 'orders' ? (
+                <AdminOrdersScreen
+                  orders={orders}
+                  filter={orderFilter}
+                  onChangeFilter={setOrderFilter}
+                  styles={styles}
+                  onChangeStatus={onChangeOrderStatus}
+                  onChangePaymentStatus={onChangePaymentStatus}
+                  onRefreshOrders={() =>
+                    void refreshOrdersOnly({silent: false, announceNew: false})
+                  }
+                  orderSyncStatus={orderSyncStatus}
+                  lastOrderSyncAt={lastOrderSyncAt}
+                  newOrderNotice={newOrderNotice}
                 />
-              ) : undefined
-            }
-            keyboardShouldPersistTaps="always"
-            keyboardDismissMode="none"
-            showsVerticalScrollIndicator={false}
-          >
-            {activeTab === "orders" ? (
-              <AdminOrdersScreen
-                orders={orders}
-                filter={orderFilter}
-                onChangeFilter={setOrderFilter}
-                styles={styles}
-                onChangeStatus={onChangeOrderStatus}
-                onChangePaymentStatus={onChangePaymentStatus}
-              />
-            ) : (
-              <AdminMenuManagementScreen
-                menuItems={menuItems}
-                categories={categories}
-                styles={styles}
-                onSaveItem={onSaveMenuItem}
-                onSaveCategory={onSaveMenuCategory}
-                onDeleteItem={onDeleteMenuItem}
-                onDeleteCategory={onDeleteMenuCategory}
-              />
-            )}
-          </ScrollView>
-        </RNView>
+              ) : activeTab === 'tables' ? (
+                <AdminTablesScreen
+                  tables={tables}
+                  branches={branches as RestaurantBranch[]}
+                  activeBranchId={context?.branchId}
+                  activeRestaurantId={context?.restaurantId}
+                  styles={styles}
+                  onSaveTable={onSaveTable}
+                  onDeleteTable={onDeleteTable}
+                  onReloadTables={reloadTables}
+                />
+              ) : (
+                <AdminMenuManagementScreen
+                  menuItems={menuItems}
+                  categories={categories}
+                  styles={styles}
+                  onSaveItem={onSaveMenuItem}
+                  onSaveCategory={onSaveMenuCategory}
+                  onDeleteItem={onDeleteMenuItem}
+                  onDeleteCategory={onDeleteMenuCategory}
+                />
+              )}
+            </ScrollView>
+          </RNView>
+        ) : (
+          renderAdminHome()
+        )}
       </RNView>
-    </View>
+    </RNView>
   );
 };
 

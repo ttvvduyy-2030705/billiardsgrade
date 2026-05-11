@@ -14,6 +14,7 @@ import type {
   RestaurantOrderPayload,
   RestaurantTable,
   RestaurantTablePayload,
+  RestaurantTableStatus,
   RestaurantWorkspace,
   RestaurantWorkspacePayload,
 } from 'repositories/RestaurantMenuRepository';
@@ -23,6 +24,7 @@ import type {
   RestaurantMenuItem,
   RestaurantOrder,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
   RestaurantPaymentStatus,
 } from './restaurantMenuStorage';
 
@@ -39,6 +41,7 @@ export type {
   RestaurantOrderPayload,
   RestaurantTable,
   RestaurantTablePayload,
+  RestaurantTableStatus,
   RestaurantWorkspace,
   RestaurantWorkspacePayload,
 } from 'repositories/RestaurantMenuRepository';
@@ -52,6 +55,7 @@ export type {
   RestaurantOrder,
   RestaurantOrderItem,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
   RestaurantPaymentStatus,
 } from './restaurantMenuStorage';
 export {
@@ -61,6 +65,7 @@ export {
   getCategoryNameById,
   getDefaultMenuItems,
   getMenuCategories,
+  RESTAURANT_PAYMENT_METHODS,
 } from './restaurantMenuStorage';
 export {
   DEFAULT_RESTAURANT_ID,
@@ -206,6 +211,19 @@ export const createRestaurantTable = (
   return activeRepository.createTable(payload);
 };
 
+export const updateRestaurantTable = (
+  tableId: string,
+  payload: Partial<RestaurantTablePayload>,
+): Promise<RestaurantTable> => {
+  return activeRepository.updateTable(tableId, payload);
+};
+
+export const deleteRestaurantTable = (
+  tableId: string,
+): Promise<RestaurantTable[]> => {
+  return activeRepository.deleteTable(tableId);
+};
+
 export const resolveRestaurantTableToken = (
   token: string,
 ): Promise<RestaurantMenuContext | null> => {
@@ -277,8 +295,9 @@ export const updateRestaurantOrderStatus = (
 export const updateRestaurantOrderPaymentStatus = (
   orderId: string,
   paymentStatus: RestaurantPaymentStatus,
+  paymentMethod?: RestaurantPaymentMethod,
 ): Promise<RestaurantOrder[]> => {
-  return activeRepository.updatePaymentStatus(orderId, paymentStatus);
+  return activeRepository.updatePaymentStatus(orderId, paymentStatus, paymentMethod);
 };
 
 export const loadCurrentCart = (): Promise<RestaurantCartState> => {

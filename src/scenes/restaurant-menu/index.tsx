@@ -34,6 +34,7 @@ import View from "components/View";
 import useScreenSystemUI from "theme/systemUI";
 import useDesignSystem from "theme/useDesignSystem";
 import { screens } from "scenes/screens";
+import { RESTAURANT_MENU_ENV_CONFIG } from "config/restaurantMenu";
 import { devWarn } from "utils/devLogger";
 import { Navigation } from "types/navigation";
 
@@ -58,7 +59,12 @@ import type {
 
 import createStyles from "./styles";
 
-type Props = Navigation;
+type Props = Navigation & {
+  /** QR/deep-link token of the physical table. */
+  qrToken?: string;
+  tableToken?: string;
+  tableQrToken?: string;
+};
 
 type CartFieldDraft = {
   tableNumber: string;
@@ -89,6 +95,7 @@ type RestaurantCartOverlayProps = {
   tableError: string;
   cartError: string;
   submitting: boolean;
+  tableLocked: boolean;
   styles: ReturnType<typeof createStyles>;
   onClose: (draft: CartFieldDraft) => void;
   onSubmit: (draft: CartFieldDraft) => void;
@@ -256,6 +263,7 @@ const RestaurantCartOverlay = memo(
     tableError,
     cartError,
     submitting,
+    tableLocked,
     styles,
     onClose,
     onSubmit,
@@ -520,7 +528,7 @@ const RestaurantCartOverlay = memo(
               <RNView style={styles.cartInfoSection}>
                 {Platform.OS === "android" ? (
                   <Pressable
-                    disabled={submitting}
+                    disabled={submitting || tableLocked}
                     onPress={openTableInput}
                     style={[
                       styles.inputWrap,
@@ -528,7 +536,9 @@ const RestaurantCartOverlay = memo(
                       tableError ? styles.inputWrapError : null,
                     ]}
                   >
-                    <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
+                    <RNText style={styles.inputLabel}>
+                      {tableLocked ? "BÀN TỪ QR" : "SỐ BÀN"}
+                    </RNText>
                     <RNText
                       numberOfLines={1}
                       style={[
@@ -536,7 +546,10 @@ const RestaurantCartOverlay = memo(
                         !tableNumber ? styles.cartDisplayPlaceholder : null,
                       ]}
                     >
-                      {tableNumber || "VD: Bàn 08, VIP1, A12"}
+                      {tableNumber ||
+                        (tableLocked
+                          ? "Đã nhận từ QR bàn"
+                          : "VD: Bàn 08, VIP1, A12")}
                     </RNText>
                   </Pressable>
                 ) : (
@@ -546,12 +559,18 @@ const RestaurantCartOverlay = memo(
                       tableError ? styles.inputWrapError : null,
                     ]}
                   >
-                    <RNText style={styles.inputLabel}>SỐ BÀN</RNText>
+                    <RNText style={styles.inputLabel}>
+                      {tableLocked ? "BÀN TỪ QR" : "SỐ BÀN"}
+                    </RNText>
                     <TextInput
                       value={tableNumber}
                       onChangeText={handleTableChange}
-                      editable={!submitting}
-                      placeholder="VD: Bàn 08, VIP1, A12"
+                      editable={!submitting && !tableLocked}
+                      placeholder={
+                        tableLocked
+                          ? "Đã nhận từ QR bàn"
+                          : "VD: Bàn 08, VIP1, A12"
+                      }
                       placeholderTextColor="rgba(255,255,255,0.42)"
                       keyboardType="default"
                       returnKeyType="done"
@@ -679,6 +698,7 @@ const RestaurantMenuScreen = (props: Props) => {
   const {
     context: restaurantContext,
     hydrateRestaurantContext,
+    enterCustomerTable,
   } = useRestaurantContextStore();
   const {
     cart,
@@ -700,6 +720,16 @@ const RestaurantMenuScreen = (props: Props) => {
   const [cartError, setCartError] = useState("");
   const [searchText, setSearchText] = useState("");
 
+  const routeQrToken = useMemo(() => {
+    return (
+      props.qrToken ||
+      props.tableToken ||
+      props.tableQrToken ||
+      RESTAURANT_MENU_ENV_CONFIG.defaultTableToken ||
+      ""
+    ).trim();
+  }, [props.qrToken, props.tableQrToken, props.tableToken]);
+
   const showMessage = useCallback((text: string) => {
     setMessage(text);
     setErrorMessage("");
@@ -714,7 +744,18 @@ const RestaurantMenuScreen = (props: Props) => {
     async (source = "manual") => {
       void source;
 
-      await hydrateRestaurantContext({source: "customer"});
+      const contextSnapshot = routeQrToken
+        ? await enterCustomerTable(routeQrToken)
+        : await hydrateRestaurantContext({source: "customer"});
+
+      if (!contextSnapshot.context) {
+        showError(
+          contextSnapshot.errorMessage ||
+            "Không xác định được menu nhà hàng. Vui lòng quét lại QR trên bàn.",
+        );
+        return;
+      }
+
       const [, menuResult] = await Promise.all([
         hydrateCartFromStorage(),
         refreshMenuData(),
@@ -724,8 +765,11 @@ const RestaurantMenuScreen = (props: Props) => {
     },
     [
       hydrateCartFromStorage,
+      enterCustomerTable,
       hydrateRestaurantContext,
       refreshMenuData,
+      routeQrToken,
+      showError,
       updateMenuItemSnapshot,
     ],
   );
@@ -1181,6 +1225,12 @@ const RestaurantMenuScreen = (props: Props) => {
   };
 
   const renderCartOverlay = () => {
+    const tableLocked = Boolean(
+      restaurantContext?.source === "customer" &&
+        restaurantContext?.qrCodeToken &&
+        restaurantContext?.tableId,
+    );
+
     return (
       <RestaurantCartOverlay
         visible={cartModalVisible}
@@ -1191,6 +1241,7 @@ const RestaurantMenuScreen = (props: Props) => {
         tableError={tableError}
         cartError={cartError}
         submitting={cartSubmitting}
+        tableLocked={tableLocked}
         styles={styles}
         onClose={closeCart}
         onSubmit={onSubmitOrder}

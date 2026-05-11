@@ -21,6 +21,8 @@ export type RestaurantAdminSession = {
   activeRestaurantId?: string;
   activeRestaurantName?: string;
   restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
   signedInAt: string;
   expiresAt: string;
 };
@@ -61,6 +63,8 @@ const createAdminSession = async ({
   role,
   restaurantId,
   restaurantIds,
+  branchIds,
+  activeBranchId,
 }: {
   username: string;
   provider: RestaurantAdminAuthProvider;
@@ -69,6 +73,8 @@ const createAdminSession = async ({
   role?: string;
   restaurantId?: string;
   restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
 }): Promise<RestaurantAdminSession> => {
   const now = Date.now();
   const signedInAt = new Date(now).toISOString();
@@ -89,6 +95,8 @@ const createAdminSession = async ({
     activeRestaurantId: restaurantId || context.restaurantId,
     activeRestaurantName: context.restaurantName,
     restaurantIds: restaurantIds && restaurantIds.length > 0 ? restaurantIds : undefined,
+    branchIds: branchIds && branchIds.length > 0 ? branchIds : undefined,
+    activeBranchId,
     signedInAt,
     expiresAt: new Date(now + ADMIN_SESSION_TTL_MS).toISOString(),
   };
@@ -140,6 +148,10 @@ const normalizeSession = (
     restaurantIds: Array.isArray(session.restaurantIds)
       ? session.restaurantIds.filter(Boolean)
       : undefined,
+    branchIds: Array.isArray(session.branchIds)
+      ? session.branchIds.filter(Boolean)
+      : undefined,
+    activeBranchId: session.activeBranchId,
     signedInAt,
     expiresAt: session.expiresAt || nowIso(),
   };
@@ -208,6 +220,7 @@ export const loginRestaurantAdmin = async (
   if (result.restaurantId) {
     await setActiveRestaurantContext({
       restaurantId: result.restaurantId,
+      branchId: result.activeBranchId,
       source: 'admin',
       role: result.role,
       allowedRestaurantIds: result.restaurantIds,
@@ -222,6 +235,8 @@ export const loginRestaurantAdmin = async (
     role: result.role,
     restaurantId: result.restaurantId,
     restaurantIds: result.restaurantIds,
+    branchIds: result.branchIds,
+    activeBranchId: result.activeBranchId,
   });
   await saveAdminSession(session);
 
@@ -296,6 +311,8 @@ export const refreshRestaurantAdminSession = async () => {
     role: current.role,
     restaurantId: current.activeRestaurantId,
     restaurantIds: current.restaurantIds,
+    branchIds: current.branchIds,
+    activeBranchId: current.activeBranchId,
   });
   await saveAdminSession(next);
   return next;

@@ -3,10 +3,10 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Text as RNText,
   TextInput,
   View as RNView,
 } from 'react-native';
+import RNText from './AdminText';
 
 import type {
   MenuCategory,

@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
-import {Text as RNText, View as RNView} from 'react-native';
+import {View as RNView} from 'react-native';
+import RNText from './AdminText';
 
 import {
   ADMIN_ORDER_STATUS_LABELS,
@@ -22,17 +23,24 @@ const statusColors: Record<AdminOrderStatus, {bg: string; border: string}> = {
   CANCELLED: {bg: 'rgba(130,130,140,0.18)', border: 'rgba(180,180,190,0.22)'},
 };
 
-const paymentColors: Record<AdminPaymentStatus, {bg: string; border: string}> = {
-  UNPAID: {bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.14)'},
-  PAID: {bg: 'rgba(9,168,107,0.22)', border: 'rgba(60,210,150,0.36)'},
-};
+const paymentColors: Record<AdminPaymentStatus, {bg: string; border: string}> =
+  {
+    UNPAID: {bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.14)'},
+    PAID: {bg: 'rgba(9,168,107,0.22)', border: 'rgba(60,210,150,0.36)'},
+  };
 
 const OrderStatusBadge = ({status, paymentStatus, styles}: Props) => {
   if (paymentStatus) {
     const color = paymentColors[paymentStatus];
     return (
-      <RNView style={[styles.badge, {backgroundColor: color.bg, borderColor: color.border}]}>
-        <RNText style={styles.badgeText}>{ADMIN_PAYMENT_STATUS_LABELS[paymentStatus]}</RNText>
+      <RNView
+        style={[
+          styles.badge,
+          {backgroundColor: color.bg, borderColor: color.border},
+        ]}>
+        <RNText style={styles.badgeText}>
+          {ADMIN_PAYMENT_STATUS_LABELS[paymentStatus]}
+        </RNText>
       </RNView>
     );
   }
@@ -43,8 +51,14 @@ const OrderStatusBadge = ({status, paymentStatus, styles}: Props) => {
 
   const color = statusColors[status];
   return (
-    <RNView style={[styles.badge, {backgroundColor: color.bg, borderColor: color.border}]}>
-      <RNText style={styles.badgeText}>{ADMIN_ORDER_STATUS_LABELS[status]}</RNText>
+    <RNView
+      style={[
+        styles.badge,
+        {backgroundColor: color.bg, borderColor: color.border},
+      ]}>
+      <RNText style={styles.badgeText}>
+        {ADMIN_ORDER_STATUS_LABELS[status]}
+      </RNText>
     </RNView>
   );
 };

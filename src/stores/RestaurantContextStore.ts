@@ -7,6 +7,7 @@ import {
   loadRestaurantBranches,
   loadRestaurantTables,
   loadRestaurantWorkspaces,
+  resolveRestaurantTableToken,
   setActiveRestaurantContext,
 } from '../services/restaurantMenuRepository';
 import type {
@@ -98,18 +99,26 @@ const resolveAllowedRestaurantIds = (
     return restaurants.map(restaurant => restaurant.id);
   }
 
-  if (session.role === 'OWNER') {
-    // Local batch-11 demo treats OWNER as workspace owner so the admin can
-    // switch restaurants to prove isolation. API mode should return exact
-    // access rules from backend in session.restaurantIds later.
-    return restaurants.map(restaurant => restaurant.id);
-  }
-
-  const ids = normaliseIdList([
+  const sessionRestaurantIds = normaliseIdList([
     ...(session.restaurantIds || []),
     session.activeRestaurantId,
   ]);
-  return ids.length > 0 ? ids : restaurants.map(restaurant => restaurant.id);
+
+  if (sessionRestaurantIds.length > 0) {
+    return sessionRestaurantIds;
+  }
+
+  if (session.provider === 'api') {
+    return restaurants.map(restaurant => restaurant.id);
+  }
+
+  if (session.role === 'OWNER') {
+    // Local demo accounts without explicit restaurantIds can still manage all
+    // workspaces, but seeded accounts such as haidilao/staff stay isolated.
+    return restaurants.map(restaurant => restaurant.id);
+  }
+
+  return restaurants.map(restaurant => restaurant.id);
 };
 
 const applySnapshot = ({
@@ -338,6 +347,124 @@ const switchBranchContext = async (branchId: string) => {
   return getSnapshot();
 };
 
+const enterCustomerTableContext = async (qrToken: string) => {
+  const cleanToken = String(qrToken || '').trim();
+  const requestId = storeState.requestId + 1;
+  storeState.requestId = requestId;
+  setLoading(true);
+
+  if (!cleanToken) {
+    storeState.errorMessage = 'Thiếu mã QR bàn. Vui lòng quét lại QR trên bàn.';
+    storeState.hydrated = true;
+    storeState.contextVersion += 1;
+    emitChange();
+    setLoading(false);
+    return getSnapshot();
+  }
+
+  try {
+    await bootstrapRestaurantMenuRepository();
+    const resolvedContext = await resolveRestaurantTableToken(cleanToken);
+
+    if (requestId !== storeState.requestId) {
+      return getSnapshot();
+    }
+
+    if (!resolvedContext?.restaurantId || !resolvedContext.tableId) {
+      storeState.errorMessage =
+        'QR bàn không hợp lệ, đã bị khóa hoặc không còn tồn tại.';
+      storeState.hydrated = true;
+      storeState.contextVersion += 1;
+      emitChange();
+      return getSnapshot();
+    }
+
+    const currentContext = storeState.context || (await getActiveRestaurantContext().catch(() => null));
+    const contextChanged =
+      !currentContext ||
+      currentContext.restaurantId !== resolvedContext.restaurantId ||
+      currentContext.branchId !== resolvedContext.branchId ||
+      currentContext.tableId !== resolvedContext.tableId ||
+      currentContext.qrCodeToken !== resolvedContext.qrCodeToken;
+
+    if (contextChanged) {
+      try {
+        await clearCurrentCart();
+      } catch (error) {
+        devWarn('[RestaurantContext] clear old cart before QR join failed', error);
+      }
+      resetScopedStores();
+    }
+
+    const context = await setActiveRestaurantContext({
+      ...resolvedContext,
+      qrCodeToken: resolvedContext.qrCodeToken || cleanToken,
+      source: 'customer',
+    });
+
+    applySnapshot({
+      context,
+      restaurants: context.restaurantId
+        ? [
+            {
+              id: context.restaurantId,
+              name: context.restaurantName || 'Nhà hàng',
+              createdAt: '',
+              updatedAt: '',
+            },
+          ]
+        : [],
+      branches: context.branchId
+        ? [
+            {
+              id: context.branchId,
+              restaurantId: context.restaurantId,
+              name: context.branchName || 'Chi nhánh',
+              createdAt: '',
+              updatedAt: '',
+            },
+          ]
+        : [],
+      tables: context.tableId
+        ? [
+            {
+              id: context.tableId,
+              restaurantId: context.restaurantId,
+              branchId: context.branchId,
+              tableNumber: context.tableNumber || '',
+              qrCodeToken: context.qrCodeToken || cleanToken,
+              createdAt: '',
+              updatedAt: '',
+            },
+          ]
+        : [],
+      allowedRestaurantIds: [context.restaurantId],
+      errorMessage: '',
+      permissionMessage: '',
+    });
+
+    return getSnapshot();
+  } catch (error) {
+    devWarn('[RestaurantContext] QR customer join failed', error);
+
+    if (requestId === storeState.requestId) {
+      storeState.errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Không thể mở menu từ QR. Vui lòng thử lại.';
+      storeState.hydrated = true;
+      storeState.contextVersion += 1;
+      emitChange();
+    }
+
+    return getSnapshot();
+  } finally {
+    if (requestId === storeState.requestId) {
+      setLoading(false);
+    }
+  }
+};
+
 export const resetRestaurantContextStore = () => {
   storeState.context = null;
   storeState.restaurants = [];
@@ -388,6 +515,11 @@ export const useRestaurantContextStore = () => {
     [],
   );
 
+  const enterCustomerTable = useCallback(
+    (qrToken: string) => enterCustomerTableContext(qrToken),
+    [],
+  );
+
   return {
     context: snapshot.context,
     restaurants: snapshot.restaurants,
@@ -400,6 +532,7 @@ export const useRestaurantContextStore = () => {
     permissionMessage: snapshot.permissionMessage,
     contextVersion: snapshot.contextVersion,
     hydrateRestaurantContext,
+    enterCustomerTable,
     switchRestaurant,
     switchBranch,
   };

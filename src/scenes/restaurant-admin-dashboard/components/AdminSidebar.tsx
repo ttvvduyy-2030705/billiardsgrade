@@ -1,7 +1,8 @@
 import React, {memo} from 'react';
-import {Pressable, Text as RNText, View as RNView} from 'react-native';
+import {Pressable, View as RNView} from 'react-native';
+import RNText from './AdminText';
 
-export type AdminDashboardTab = 'orders' | 'menu';
+export type AdminDashboardTab = 'orders' | 'menu' | 'tables';
 
 type Props = {
   activeTab: AdminDashboardTab;
@@ -9,9 +10,15 @@ type Props = {
   styles: any;
 };
 
-const tabs: Array<{id: AdminDashboardTab; label: string; icon: string; hint: string}> = [
+const tabs: Array<{
+  id: AdminDashboardTab;
+  label: string;
+  icon: string;
+  hint: string;
+}> = [
   {id: 'orders', label: 'Đơn hàng', icon: 'Đ', hint: 'Tiếp nhận & xử lý'},
   {id: 'menu', label: 'Quản lý món', icon: 'M', hint: 'Sản phẩm & giá'},
+  {id: 'tables', label: 'Bàn / QR', icon: 'Q', hint: 'Bàn ăn & mã quét'},
 ];
 
 const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {
@@ -27,11 +34,30 @@ const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {
         return (
           <Pressable
             key={tab.id}
+            accessibilityRole="button"
+            accessibilityState={{selected: active}}
+            hitSlop={10}
+            android_ripple={{color: 'rgba(255,255,255,0.08)'}}
+            onPressIn={() => onChangeTab(tab.id)}
             onPress={() => onChangeTab(tab.id)}
-            style={[styles.sidebarItem, active ? styles.sidebarItemActive : null]}>
-            <RNText style={[styles.sidebarIcon, active ? styles.sidebarIconActive : null]}>{tab.icon}</RNText>
+            style={({pressed}) => [
+              styles.sidebarItem,
+              active ? styles.sidebarItemActive : null,
+              pressed ? styles.sidebarItemPressed : null,
+            ]}>
+            <RNText
+              style={[
+                styles.sidebarIcon,
+                active ? styles.sidebarIconActive : null,
+              ]}>
+              {tab.icon}
+            </RNText>
             <RNView style={styles.sidebarTextBlock}>
-              <RNText style={[styles.sidebarLabel, active ? styles.sidebarLabelActive : null]}>
+              <RNText
+                style={[
+                  styles.sidebarLabel,
+                  active ? styles.sidebarLabelActive : null,
+                ]}>
                 {tab.label}
               </RNText>
               <RNText style={styles.sidebarItemHint}>{tab.hint}</RNText>

@@ -6,6 +6,11 @@ export type RestaurantMenuEnvironmentConfig = {
   apiTimeoutMs: number;
   apiRetryCount: number;
   defaultRestaurantId?: string;
+  /**
+   * Development helper for opening the customer menu from the Home button.
+   * In production this value should come from a QR/deep link route param.
+   */
+  defaultTableToken?: string;
 };
 
 /**
@@ -19,5 +24,7 @@ export const RESTAURANT_MENU_ENV_CONFIG: RestaurantMenuEnvironmentConfig = {
   apiBaseUrl: '', // Example for Android emulator: 'http://10.0.2.2:4012'
   apiTimeoutMs: 15000,
   apiRetryCount: 1,
-  defaultRestaurantId: 'local_demo_restaurant', // API seed example: 'aplus_billiards_hanoi'
+  defaultRestaurantId: 'haidilao_local_demo', // API seed example: 'haidilao_demo'
+  // Local demo tokens: 'qr_haidilao_local_01' or 'qr_local_main_01'. API seed examples: 'qr_haidilao_main_01', 'qr_aplus_main_01'
+  defaultTableToken: 'qr_haidilao_local_01',
 };

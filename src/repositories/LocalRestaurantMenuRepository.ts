@@ -19,6 +19,7 @@ import type {
   RestaurantMenuItem,
   RestaurantOrder,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
   RestaurantPaymentStatus,
 } from 'services/restaurantMenuStorage';
 import {
@@ -43,6 +44,7 @@ import {
   createRestaurantTable,
   createRestaurantWorkspace,
   deleteRestaurantBranch,
+  deleteRestaurantTable,
   loadActiveRestaurantContext,
   loadRestaurantBranches,
   loadRestaurantTables,
@@ -50,6 +52,7 @@ import {
   resolveRestaurantTableToken,
   saveActiveRestaurantContext,
   updateRestaurantBranch,
+  updateRestaurantTable,
 } from 'services/restaurantWorkspaceStorage';
 
 export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
@@ -122,6 +125,17 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
 
   createTable(payload: RestaurantTablePayload): Promise<RestaurantTable> {
     return createRestaurantTable(payload);
+  }
+
+  updateTable(
+    tableId: string,
+    payload: Partial<RestaurantTablePayload>,
+  ): Promise<RestaurantTable> {
+    return updateRestaurantTable(tableId, payload);
+  }
+
+  deleteTable(tableId: string): Promise<RestaurantTable[]> {
+    return deleteRestaurantTable(tableId);
   }
 
   resolveTableToken(token: string): Promise<RestaurantMenuContext | null> {
@@ -242,12 +256,14 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
   async updatePaymentStatus(
     orderId: string,
     paymentStatus: RestaurantPaymentStatus,
+    paymentMethod?: RestaurantPaymentMethod,
   ): Promise<RestaurantOrder[]> {
     const context = await this.getActiveContext();
     const orders = await updateRestaurantOrderPaymentStatus(
       orderId,
       paymentStatus,
       context.restaurantId,
+      paymentMethod,
     );
     return context.branchId
       ? orders.filter(order => order.branchId === context.branchId)

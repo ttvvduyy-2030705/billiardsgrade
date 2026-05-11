@@ -1,6 +1,6 @@
 import 'react-native-get-random-values';
 import React, {useCallback, useEffect, useState} from 'react';
-import {StyleSheet} from 'react-native';
+import {StyleSheet, Text as RNText, TextInput as RNTextInput} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {RealmProvider} from '@realm/react';
 import {Provider} from 'react-redux';
@@ -27,6 +27,19 @@ import {
 } from 'data/realm/models/player';
 import RemoteControl from 'utils/remote';
 
+
+const installTextScalingGuard = () => {
+  // The admin/menu UI uses fixed touch targets. Large Android font scaling can
+  // make button labels overlap, so keep text stable inside the restaurant app.
+  [RNText, RNTextInput].forEach(Component => {
+    const componentAsAny = Component as any;
+    componentAsAny.defaultProps = {
+      ...(componentAsAny.defaultProps || {}),
+      allowFontScaling: false,
+      maxFontSizeMultiplier: 1,
+    };
+  });
+};
 
 const installReleaseLogFilter = () => {
   if (__DEV__) {
@@ -88,6 +101,7 @@ const App = (): React.JSX.Element => {
   const [currentLanguage, setCurrentLanguage] = useState('vi');
 
   const initApp = useCallback(async () => {
+    installTextScalingGuard();
     installReleaseLogFilter();
     await DeviceInfo.getInstanceId();
     const language = await loadLanguage();

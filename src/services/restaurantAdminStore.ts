@@ -1,13 +1,17 @@
 import {
   deleteMenuCategory,
   deleteMenuItem,
+  deleteRestaurantTable,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
+  loadRestaurantTables,
   updateRestaurantOrderPaymentStatus,
   updateRestaurantOrderStatus,
   upsertMenuCategory,
+  updateRestaurantTable,
   upsertMenuItem,
+  createRestaurantTable,
 } from './restaurantMenuRepository';
 import {getMenuItemImageValue} from './restaurantMenuImage';
 
@@ -17,11 +21,17 @@ import type {
   RestaurantMenuItemStatus,
   RestaurantOrder,
   RestaurantOrderStatus,
+  RestaurantPaymentMethod,
+  RestaurantTable,
+  RestaurantTablePayload,
 } from './restaurantMenuRepository';
 
 export type AdminOrderStatus = RestaurantOrderStatus;
+export type AdminRestaurantTable = RestaurantTable;
+export type AdminRestaurantTableForm = RestaurantTablePayload & {id?: string};
 
 export type AdminPaymentStatus = 'UNPAID' | 'PAID';
+export type AdminPaymentMethod = RestaurantPaymentMethod;
 export type AdminOrderFilter = AdminOrderStatus | 'ALL' | AdminPaymentStatus;
 
 export type AdminOrder = RestaurantOrder & {
@@ -55,6 +65,18 @@ export const ADMIN_PAYMENT_STATUS_LABELS: Record<AdminPaymentStatus, string> = {
   PAID: 'Đã thanh toán',
 };
 
+export const ADMIN_PAYMENT_METHOD_LABELS: Record<AdminPaymentMethod, string> = {
+  CASH: 'Tiền mặt',
+  BANK_TRANSFER: 'Chuyển khoản',
+  MOCK: 'Test/mock',
+};
+
+export const ADMIN_PAYMENT_METHODS: AdminPaymentMethod[] = [
+  'CASH',
+  'BANK_TRANSFER',
+  'MOCK',
+];
+
 export const ADMIN_ORDER_STATUS_FLOW: AdminOrderStatus[] = [
   'NEW',
   'ACCEPTED',
@@ -62,6 +84,22 @@ export const ADMIN_ORDER_STATUS_FLOW: AdminOrderStatus[] = [
   'COMPLETED',
   'CANCELLED',
 ];
+
+const ADMIN_ORDER_STATUS_TRANSITIONS: Record<
+  AdminOrderStatus,
+  AdminOrderStatus[]
+> = {
+  NEW: ['NEW', 'ACCEPTED', 'CANCELLED'],
+  ACCEPTED: ['ACCEPTED', 'PREPARING', 'CANCELLED'],
+  PREPARING: ['PREPARING', 'COMPLETED', 'CANCELLED'],
+  COMPLETED: ['COMPLETED'],
+  CANCELLED: ['CANCELLED'],
+};
+
+export const isAdminOrderStatusTransitionAllowed = (
+  fromStatus: AdminOrderStatus,
+  toStatus: AdminOrderStatus,
+) => ADMIN_ORDER_STATUS_TRANSITIONS[fromStatus].includes(toStatus);
 
 export const ADMIN_ORDER_FILTERS: AdminOrderFilter[] = [
   'ALL',
@@ -103,21 +141,62 @@ const toAdminOrder = (order: RestaurantOrder): AdminOrder => {
     orderStatus,
     status: orderStatus,
     paymentStatus: toPaymentStatus(order),
+    paymentMethod: order.paymentMethod || 'MOCK',
   };
 };
 
+const sortAdminOrders = (orders: AdminOrder[]) =>
+  [...orders].sort((a, b) =>
+    String(b.createdAt || '').localeCompare(String(a.createdAt || '')),
+  );
+
+export const mapToAdminOrders = (orders: RestaurantOrder[]) =>
+  sortAdminOrders(orders.map(toAdminOrder));
+
+export const loadAdminOrders = async () => {
+  const orders = await loadOrders();
+  return mapToAdminOrders(orders);
+};
+
 export const loadRestaurantAdminData = async () => {
-  const [categories, menuItems, orders] = await Promise.all([
+  const [categories, menuItems, orders, tables] = await Promise.all([
     loadMenuCategories(),
     loadMenuItems(),
     loadOrders(),
+    loadRestaurantTables(),
   ]);
 
   return {
     categories,
     menuItems,
-    orders: orders.map(toAdminOrder),
+    orders: mapToAdminOrders(orders),
+    tables,
   };
+};
+
+
+export const loadAdminTables = async () => {
+  return loadRestaurantTables();
+};
+
+export const saveAdminTable = async (input: AdminRestaurantTableForm) => {
+  const payload: RestaurantTablePayload = {
+    restaurantId: input.restaurantId,
+    branchId: input.branchId,
+    tableNumber: input.tableNumber,
+    qrCodeToken: input.qrCodeToken,
+    status: input.status,
+  };
+
+  if (input.id) {
+    return updateRestaurantTable(input.id, payload);
+  }
+
+  return createRestaurantTable(payload);
+};
+
+export const deleteAdminTable = async (tableId: string) => {
+  return deleteRestaurantTable(tableId);
 };
 
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
@@ -170,19 +249,21 @@ export const updateAdminOrderStatus = async (
     toStorageStatus(status),
   );
 
-  return nextOrders.map(toAdminOrder);
+  return mapToAdminOrders(nextOrders);
 };
 
 export const updateAdminOrderPaymentStatus = async (
   orderId: string,
   paymentStatus: AdminPaymentStatus,
+  paymentMethod?: AdminPaymentMethod,
 ) => {
   const nextOrders = await updateRestaurantOrderPaymentStatus(
     orderId,
     paymentStatus,
+    paymentMethod,
   );
 
-  return nextOrders.map(toAdminOrder);
+  return mapToAdminOrders(nextOrders);
 };
 
 export const getCategoryLabel = (

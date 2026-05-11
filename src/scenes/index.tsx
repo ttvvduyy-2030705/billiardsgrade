@@ -137,6 +137,21 @@ const getWrappedRestaurantAdminDashboard = () =>
     screens.restaurantAdminDashboard,
     require('./restaurant-admin-dashboard').default,
   );
+const getWrappedRestaurantAdminOrders = () =>
+  withWrapper(
+    screens.restaurantAdminOrders,
+    require('./restaurant-admin-orders').default,
+  );
+const getWrappedRestaurantAdminMenuManagement = () =>
+  withWrapper(
+    screens.restaurantAdminMenuManagement,
+    require('./restaurant-admin-menu-management').default,
+  );
+const getWrappedRestaurantAdminTables = () =>
+  withWrapper(
+    screens.restaurantAdminTables,
+    require('./restaurant-admin-tables').default,
+  );
 
 const LIVE_FIX_BUILD = '20260425-restaurant-menu-haidilao-polish';
 
@@ -250,6 +265,24 @@ const StackScreens = () => {
           name={screens.restaurantAdminDashboard}
           getComponent={getWrappedRestaurantAdminDashboard}
           options={buildCustomTitleOptions('Admin bán hàng', true)}
+        />
+
+        <Stack.Screen
+          name={screens.restaurantAdminOrders}
+          getComponent={getWrappedRestaurantAdminOrders}
+          options={buildCustomTitleOptions('Đơn hàng', true)}
+        />
+
+        <Stack.Screen
+          name={screens.restaurantAdminMenuManagement}
+          getComponent={getWrappedRestaurantAdminMenuManagement}
+          options={buildCustomTitleOptions('Quản lý món', true)}
+        />
+
+        <Stack.Screen
+          name={screens.restaurantAdminTables}
+          getComponent={getWrappedRestaurantAdminTables}
+          options={buildCustomTitleOptions('Bàn / QR', true)}
         />
       </Stack.Navigator>
     </SubscriptionProvider>

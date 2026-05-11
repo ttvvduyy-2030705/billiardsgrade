@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   clearCurrentCart,
   createRestaurantOrder,
+  getActiveRestaurantContext,
   loadCurrentCart,
   saveCurrentCart,
 } from "../services/restaurantMenuRepository";
@@ -20,6 +21,7 @@ export type RestaurantCartSubmitIssue =
   | "EMPTY_CART"
   | "TABLE_REQUIRED"
   | "TABLE_INVALID"
+  | "CONTEXT_REQUIRED"
   | "INVALID_ITEMS"
   | "SUBMIT_FAILED";
 
@@ -450,9 +452,15 @@ export const useRestaurantCartStore = () => {
       }
 
       const activeCart = normalizeCartState(storeState.cart);
-      const tableValidation = validateRestaurantTableNumber(
-        activeCart.tableNumber,
-      );
+      const context = await getActiveRestaurantContext().catch(() => null);
+      const scopedCart = {
+        ...activeCart,
+        restaurantId: activeCart.restaurantId || context?.restaurantId,
+        branchId: activeCart.branchId || context?.branchId,
+        tableId: activeCart.tableId || context?.tableId,
+        tableNumber: activeCart.tableNumber || context?.tableNumber || "",
+      };
+      const tableValidation = validateRestaurantTableNumber(scopedCart.tableNumber);
       const tableNumber = tableValidation.value;
       const fallbackItemsById = options.fallbackItemsById || {};
       const rows = resolveCartRows(fallbackItemsById);
@@ -490,6 +498,22 @@ export const useRestaurantCartStore = () => {
         };
       }
 
+      const requiresQrTableScope =
+        context?.source === "customer" &&
+        Boolean(context.qrCodeToken || context.tableId || context.branchId);
+
+      if (
+        !scopedCart.restaurantId ||
+        (requiresQrTableScope && (!scopedCart.branchId || !scopedCart.tableId))
+      ) {
+        return {
+          ok: false,
+          reason: "CONTEXT_REQUIRED",
+          message:
+            "Không xác định được nhà hàng/chi nhánh/bàn. Vui lòng quét lại mã QR trên bàn.",
+        };
+      }
+
       const invalidRows = rows.filter(
         (row) => row.item.status !== "SELLING" || row.item.available === false,
       );
@@ -520,12 +544,12 @@ export const useRestaurantCartStore = () => {
 
       try {
         const nextOrders = await createRestaurantOrder({
-          restaurantId: activeCart.restaurantId,
-          branchId: activeCart.branchId,
-          tableId: activeCart.tableId,
+          restaurantId: scopedCart.restaurantId,
+          branchId: scopedCart.branchId,
+          tableId: scopedCart.tableId,
           orderSource: "customer",
           tableNumber,
-          note: activeCart.note.trim(),
+          note: scopedCart.note.trim(),
           items: orderItems,
           total,
         });

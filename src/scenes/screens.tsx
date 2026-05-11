@@ -16,6 +16,9 @@ const screens: Screens = {
   restaurantCart: 'restaurantCart',
   restaurantAdminLogin: 'restaurantAdminLogin',
   restaurantAdminDashboard: 'restaurantAdminDashboard',
+  restaurantAdminOrders: 'restaurantAdminOrders',
+  restaurantAdminMenuManagement: 'restaurantAdminMenuManagement',
+  restaurantAdminTables: 'restaurantAdminTables',
   overlay: 'overlay',
 };
 

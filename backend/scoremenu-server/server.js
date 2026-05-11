@@ -11,9 +11,13 @@ const HOST = process.env.SCOREMENU_HOST || '0.0.0.0';
 const DATA_FILE = process.env.SCOREMENU_DB_FILE || path.join(__dirname, 'data', 'db.json');
 const SCHEMA_FILE = path.join(__dirname, 'data', 'schema.json');
 const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD === '1';
+const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret_change_me';
+const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24);
+
 
 const ORDER_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'COMPLETED', 'CANCELLED'];
 const PAYMENT_STATUSES = ['UNPAID', 'PAID'];
+const PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'MOCK'];
 const ITEM_STATUSES = ['SELLING', 'HIDDEN', 'OUT_OF_STOCK'];
 const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'LOCKED', 'HIDDEN'];
 
@@ -100,6 +104,35 @@ const getPathParts = url => {
 const cleanString = value => String(value || '').trim();
 const normalizeKey = value => cleanString(value).toLowerCase();
 
+const hashPassword = (password, salt) =>
+  crypto.createHash('sha256').update(`${salt || ''}:${String(password || '')}`).digest('hex');
+
+const createPasswordRecord = password => {
+  const salt = crypto.randomBytes(12).toString('hex');
+  return {passwordSalt: salt, passwordHash: hashPassword(password, salt)};
+};
+
+const verifyPassword = (user, password) => {
+  if (!user) {
+    return false;
+  }
+  if (user.passwordHash) {
+    return user.passwordHash === hashPassword(password, user.passwordSalt || '');
+  }
+  // Backwards compatible for existing local db.json files created before v7.
+  return Boolean(user.password && user.password === password);
+};
+
+const migratePlainPasswordIfNeeded = (user, password) => {
+  if (!user || user.passwordHash || !user.password || user.password !== password) {
+    return false;
+  }
+  Object.assign(user, createPasswordRecord(password), {updatedAt: nowIso()});
+  delete user.password;
+  return true;
+};
+
+
 const asPublicRestaurant = restaurant => ({
   id: restaurant.id,
   name: restaurant.name,
@@ -116,20 +149,58 @@ const getToken = req => {
   return auth.slice(7).trim();
 };
 
-const createToken = user => {
-  const payload = JSON.stringify({
+const createSignedToken = payload => {
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', TOKEN_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+  return `${encodedPayload}.${signature}`;
+};
+
+const createToken = user =>
+  createSignedToken({
     userId: user.id,
     username: user.username,
     role: user.role,
-    ts: Date.now(),
+    restaurantIds: user.restaurantIds || [],
+    branchIds: user.branchIds || [],
+    branchIdsByRestaurant: user.branchIdsByRestaurant || {},
+    iat: Date.now(),
+    exp: Date.now() + TOKEN_TTL_MS,
     nonce: crypto.randomBytes(6).toString('hex'),
   });
-  return Buffer.from(payload).toString('base64url');
-};
 
 const readTokenPayload = token => {
   try {
-    return JSON.parse(Buffer.from(token, 'base64url').toString('utf8'));
+    const rawToken = cleanString(token);
+    if (!rawToken) {
+      return null;
+    }
+
+    if (rawToken.includes('.')) {
+      const [encodedPayload, signature] = rawToken.split('.');
+      const expectedSignature = crypto
+        .createHmac('sha256', TOKEN_SECRET)
+        .update(encodedPayload)
+        .digest('base64url');
+
+      if (!signature || signature !== expectedSignature) {
+        return null;
+      }
+
+      const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+      if (!payload?.userId || !payload.exp || Number(payload.exp) <= Date.now()) {
+        return null;
+      }
+      return payload;
+    }
+
+    // Old unsigned demo tokens are accepted only while auth guard is off.
+    if (!ENABLE_AUTH_GUARD) {
+      return JSON.parse(Buffer.from(rawToken, 'base64url').toString('utf8'));
+    }
+    return null;
   } catch (_error) {
     return null;
   }
@@ -174,6 +245,90 @@ const requireRestaurantAccess = (db, req, res, restaurantId) => {
   return {restaurant, user};
 };
 
+const getUserBranchIds = (user, restaurantId) => {
+  if (!user || !restaurantId) {
+    return [];
+  }
+  const scoped = user.branchIdsByRestaurant?.[restaurantId];
+  const ids = Array.isArray(scoped) && scoped.length > 0 ? scoped : user.branchIds;
+  return Array.isArray(ids) ? ids.map(cleanString).filter(Boolean) : [];
+};
+
+const isBranchRestricted = (user, restaurantId) => {
+  if (!ENABLE_AUTH_GUARD || !user || user.role === 'OWNER') {
+    return false;
+  }
+  return getUserBranchIds(user, restaurantId).length > 0;
+};
+
+const canAccessBranch = (user, restaurantId, branchId) => {
+  if (!branchId || !isBranchRestricted(user, restaurantId)) {
+    return true;
+  }
+  return getUserBranchIds(user, restaurantId).includes(branchId);
+};
+
+const requireBranchAccess = (res, user, restaurantId, branchId) => {
+  if (canAccessBranch(user, restaurantId, branchId)) {
+    return true;
+  }
+  fail(res, 403, 'Tài khoản không có quyền truy cập chi nhánh này.');
+  return false;
+};
+
+const requireRole = (res, user, allowedRoles, actionLabel) => {
+  if (!ENABLE_AUTH_GUARD || !user) {
+    return true;
+  }
+  if (allowedRoles.includes(user.role)) {
+    return true;
+  }
+  fail(res, 403, actionLabel || 'Tài khoản không có quyền thực hiện thao tác này.');
+  return false;
+};
+
+const filterBranchesForUser = (branches, user, restaurantId) => {
+  if (!isBranchRestricted(user, restaurantId)) {
+    return branches;
+  }
+  const allowed = getUserBranchIds(user, restaurantId);
+  return branches.filter(branch => allowed.includes(branch.id));
+};
+
+const filterTablesForUser = (tables, user, restaurantId) => {
+  if (!isBranchRestricted(user, restaurantId)) {
+    return tables;
+  }
+  const allowed = getUserBranchIds(user, restaurantId);
+  return tables.filter(table => !table.branchId || allowed.includes(table.branchId));
+};
+
+const filterOrdersForUser = (orders, user, restaurantId) => {
+  if (!isBranchRestricted(user, restaurantId)) {
+    return orders;
+  }
+  const allowed = getUserBranchIds(user, restaurantId);
+  return orders.filter(order => !order.branchId || allowed.includes(order.branchId));
+};
+
+const audit = (action, {user, restaurantId, branchId, targetId} = {}) => {
+  if (process.env.SCOREMENU_AUDIT_LOG === '0') {
+    return;
+  }
+  console.log(
+    '[scoremenu-audit]',
+    JSON.stringify({
+      at: nowIso(),
+      action,
+      userId: user?.id,
+      role: user?.role,
+      restaurantId,
+      branchId,
+      targetId,
+    }),
+  );
+};
+
 const sortByOrderAndName = (a, b) => {
   const orderDelta = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
   if (orderDelta !== 0) {
@@ -210,6 +365,46 @@ const findBranch = (db, restaurantId, branchId) =>
 
 const findTable = (db, restaurantId, tableId) =>
   db.tables.find(table => table.id === tableId && table.restaurantId === restaurantId);
+
+const findTableByQrToken = (db, token) => {
+  const cleanToken = cleanString(token);
+  if (!cleanToken) {
+    return null;
+  }
+  return db.tables.find(table => table.qrCodeToken === cleanToken) || null;
+};
+
+const isPublicTableUsable = table =>
+  Boolean(table) && table.status !== 'LOCKED' && table.status !== 'HIDDEN';
+
+const getPublicTableScope = (db, token) => {
+  const table = findTableByQrToken(db, token);
+
+  if (!isPublicTableUsable(table)) {
+    return null;
+  }
+
+  const restaurant = db.restaurants.find(item => item.id === table.restaurantId);
+  const branch = db.branches.find(
+    item => item.id === table.branchId && item.restaurantId === table.restaurantId,
+  );
+
+  return {
+    restaurant,
+    branch,
+    table,
+    context: {
+      restaurantId: table.restaurantId,
+      restaurantName: restaurant?.name,
+      branchId: table.branchId,
+      branchName: branch?.name,
+      tableId: table.id,
+      tableNumber: table.tableNumber,
+      qrCodeToken: table.qrCodeToken,
+      source: 'customer',
+    },
+  };
+};
 
 const ensureBranch = (db, restaurantId, branchId) => {
   if (!branchId) {
@@ -290,28 +485,34 @@ const normalizeOrderItems = (db, restaurantId, rawItems) => {
   return rawItems.map(rawItem => {
     const itemId = cleanString(rawItem.itemId || rawItem.id);
     const menuItem = db.items.find(item => item.id === itemId && item.restaurantId === restaurantId);
-    const quantity = Math.max(1, Number(rawItem.quantity || 1));
-    const price = Number(rawItem.price ?? menuItem?.price ?? 0);
-    const name = cleanString(rawItem.name || menuItem?.name);
+    const quantity = Math.max(1, Math.floor(Number(rawItem.quantity || 1)));
 
-    if (!itemId || !name) {
+    if (!itemId) {
       throw new Error('Món trong đơn hàng chưa hợp lệ.');
+    }
+    if (!menuItem) {
+      throw new Error('Có món không thuộc menu của nhà hàng hiện tại.');
+    }
+    if (menuItem.status !== 'SELLING' || menuItem.available === false) {
+      throw new Error(`Món ${menuItem.name || itemId} hiện không thể đặt.`);
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error('Số lượng món trong đơn hàng chưa hợp lệ.');
     }
-    if (!Number.isFinite(price) || price < 0) {
-      throw new Error('Giá món trong đơn hàng chưa hợp lệ.');
-    }
 
     return {
       itemId,
-      name,
-      price,
+      name: menuItem.name,
+      price: Number(menuItem.price || 0),
       quantity,
       note: cleanString(rawItem.note),
     };
   });
+};
+
+const normalizePaymentMethod = method => {
+  const normalized = cleanString(method).toUpperCase();
+  return PAYMENT_METHODS.includes(normalized) ? normalized : 'MOCK';
 };
 
 const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
@@ -338,6 +539,9 @@ const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
   const paymentStatus = PAYMENT_STATUSES.includes(payload.paymentStatus)
     ? payload.paymentStatus
     : existing?.paymentStatus || 'UNPAID';
+  const paymentMethod = normalizePaymentMethod(
+    payload.paymentMethod || existing?.paymentMethod,
+  );
 
   return {
     id: cleanString(payload.id) || existing?.id || createId('order'),
@@ -351,7 +555,7 @@ const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
     total,
     orderStatus,
     paymentStatus,
-    paymentMethod: payload.paymentMethod || existing?.paymentMethod || 'MOCK',
+    paymentMethod,
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp,
   };
@@ -367,8 +571,14 @@ const canChangeOrderStatus = (from, to) => {
   if (to === 'CANCELLED') {
     return true;
   }
-  const rank = {NEW: 1, ACCEPTED: 2, PREPARING: 3, COMPLETED: 4};
-  return Number(rank[to] || 0) >= Number(rank[from] || 0);
+  const allowed = {
+    NEW: ['NEW', 'ACCEPTED', 'CANCELLED'],
+    ACCEPTED: ['ACCEPTED', 'PREPARING', 'CANCELLED'],
+    PREPARING: ['PREPARING', 'COMPLETED', 'CANCELLED'],
+    COMPLETED: ['COMPLETED'],
+    CANCELLED: ['CANCELLED'],
+  };
+  return (allowed[from] || []).includes(to);
 };
 
 const routeAuth = async (req, res, db, parts) => {
@@ -383,9 +593,12 @@ const routeAuth = async (req, res, db, parts) => {
 
   if (parts[2] === 'login' && req.method === 'POST') {
     const user = db.adminUsers.find(item => normalizeKey(item.username) === normalizeKey(username));
-    if (!user || user.password !== password) {
+    if (!verifyPassword(user, password)) {
       fail(res, 401, 'Tài khoản hoặc mật khẩu chưa đúng.');
       return true;
+    }
+    if (migratePlainPasswordIfNeeded(user, password)) {
+      saveDb(db);
     }
 
     ok(res, {
@@ -396,6 +609,8 @@ const routeAuth = async (req, res, db, parts) => {
       role: user.role,
       restaurantId: user.activeRestaurantId || user.restaurantIds?.[0],
       restaurantIds: user.restaurantIds || [],
+      branchIds: user.branchIds || [],
+      activeBranchId: user.activeBranchId,
     });
     return true;
   }
@@ -412,13 +627,15 @@ const routeAuth = async (req, res, db, parts) => {
 
     const timestamp = nowIso();
     const defaultRestaurantId = db.restaurants[0]?.id || 'restaurant_default';
+    const passwordRecord = createPasswordRecord(password);
     const user = {
       id: createId('admin'),
       username,
-      password,
+      ...passwordRecord,
       role: 'OWNER',
       restaurantIds: [defaultRestaurantId],
       activeRestaurantId: defaultRestaurantId,
+      branchIds: [],
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -432,6 +649,8 @@ const routeAuth = async (req, res, db, parts) => {
       role: user.role,
       restaurantId: user.activeRestaurantId,
       restaurantIds: user.restaurantIds,
+      branchIds: user.branchIds || [],
+      activeBranchId: user.activeBranchId,
     });
     return true;
   }
@@ -441,11 +660,28 @@ const routeAuth = async (req, res, db, parts) => {
 
 const routeRestaurants = async (req, res, db, parts) => {
   if (parts.length === 1 && req.method === 'GET') {
-    ok(res, db.restaurants.map(asPublicRestaurant));
+    const user = getUserFromRequest(db, req);
+    if (ENABLE_AUTH_GUARD && !user) {
+      fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
+      return true;
+    }
+    const restaurants = ENABLE_AUTH_GUARD && user
+      ? db.restaurants.filter(restaurant => canAccessRestaurant(user, restaurant.id))
+      : db.restaurants;
+    ok(res, restaurants.map(asPublicRestaurant));
     return true;
   }
 
   if (parts.length === 1 && req.method === 'POST') {
+    const user = getUserFromRequest(db, req);
+    if (ENABLE_AUTH_GUARD && !user) {
+      fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
+      return true;
+    }
+    if (!requireRole(res, user, ['OWNER'], 'Chỉ chủ nhà hàng mới được tạo nhà hàng mới.')) {
+      return true;
+    }
+
     const body = await parseBody(req);
     const name = cleanString(body.name);
     if (!name) {
@@ -461,7 +697,7 @@ const routeRestaurants = async (req, res, db, parts) => {
     const restaurant = {
       id: cleanString(body.id) || createId('restaurant'),
       name,
-      ownerId: cleanString(body.ownerId),
+      ownerId: cleanString(body.ownerId) || user?.id,
       status: 'ACTIVE',
       logoUrl: cleanString(body.logoUrl),
       createdAt: timestamp,
@@ -478,7 +714,15 @@ const routeRestaurants = async (req, res, db, parts) => {
       updatedAt: timestamp,
     };
     db.branches.push(branch);
+    if (user && !Array.isArray(user.restaurantIds)) {
+      user.restaurantIds = [];
+    }
+    if (user && !user.restaurantIds.includes(restaurant.id)) {
+      user.restaurantIds.push(restaurant.id);
+      user.updatedAt = timestamp;
+    }
     saveDb(db);
+    audit('restaurant.create', {user, restaurantId: restaurant.id});
     created(res, asPublicRestaurant(restaurant));
     return true;
   }
@@ -486,13 +730,17 @@ const routeRestaurants = async (req, res, db, parts) => {
   return false;
 };
 
-const routeBranches = async (req, res, db, restaurantId, parts) => {
+const routeBranches = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 3 && req.method === 'GET') {
-    ok(res, db.branches.filter(branch => branch.restaurantId === restaurantId));
+    const branches = db.branches.filter(branch => branch.restaurantId === restaurantId);
+    ok(res, filterBranchesForUser(branches, user, restaurantId));
     return true;
   }
 
   if (parts.length === 3 && req.method === 'POST') {
+    if (!requireRole(res, user, ['OWNER'], 'Chỉ chủ nhà hàng mới được tạo chi nhánh.')) {
+      return true;
+    }
     const body = await parseBody(req);
     const name = cleanString(body.name);
     if (!name) {
@@ -511,14 +759,21 @@ const routeBranches = async (req, res, db, restaurantId, parts) => {
     };
     db.branches.push(branch);
     saveDb(db);
+    audit('branch.create', {user, restaurantId, branchId: branch.id, targetId: branch.id});
     created(res, branch);
     return true;
   }
 
   if (parts.length === 4 && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER'], 'Chỉ chủ nhà hàng mới được sửa chi nhánh.')) {
+      return true;
+    }
     const branch = findBranch(db, restaurantId, parts[3]);
     if (!branch) {
       fail(res, 404, 'Không tìm thấy chi nhánh.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, branch.id)) {
       return true;
     }
     const body = await parseBody(req);
@@ -534,12 +789,19 @@ const routeBranches = async (req, res, db, restaurantId, parts) => {
       updatedAt: nowIso(),
     });
     saveDb(db);
+    audit('branch.update', {user, restaurantId, branchId: branch.id, targetId: branch.id});
     ok(res, branch);
     return true;
   }
 
   if (parts.length === 4 && req.method === 'DELETE') {
+    if (!requireRole(res, user, ['OWNER'], 'Chỉ chủ nhà hàng mới được xoá chi nhánh.')) {
+      return true;
+    }
     const branchId = parts[3];
+    if (!requireBranchAccess(res, user, restaurantId, branchId)) {
+      return true;
+    }
     const before = db.branches.length;
     db.branches = db.branches.filter(branch => !(branch.id === branchId && branch.restaurantId === restaurantId));
     if (before === db.branches.length) {
@@ -552,20 +814,25 @@ const routeBranches = async (req, res, db, restaurantId, parts) => {
         : table,
     );
     saveDb(db);
-    ok(res, db.branches.filter(branch => branch.restaurantId === restaurantId));
+    audit('branch.delete', {user, restaurantId, branchId, targetId: branchId});
+    ok(res, filterBranchesForUser(db.branches.filter(branch => branch.restaurantId === restaurantId), user, restaurantId));
     return true;
   }
 
   return false;
 };
 
-const routeTables = async (req, res, db, restaurantId, parts) => {
+const routeTables = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 3 && req.method === 'GET') {
-    ok(res, db.tables.filter(table => table.restaurantId === restaurantId));
+    const tables = db.tables.filter(table => table.restaurantId === restaurantId);
+    ok(res, filterTablesForUser(tables, user, restaurantId));
     return true;
   }
 
   if (parts.length === 3 && req.method === 'POST') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền tạo bàn/QR.')) {
+      return true;
+    }
     const body = await parseBody(req);
     const tableNumber = cleanString(body.tableNumber || body.tableCode || body.number);
     const branchId = cleanString(body.branchId);
@@ -575,6 +842,9 @@ const routeTables = async (req, res, db, restaurantId, parts) => {
     }
     if (branchId && !ensureBranch(db, restaurantId, branchId)) {
       fail(res, 400, 'Chi nhánh không thuộc nhà hàng hiện tại.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, branchId)) {
       return true;
     }
     const timestamp = nowIso();
@@ -588,22 +858,124 @@ const routeTables = async (req, res, db, restaurantId, parts) => {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    const duplicateTable = db.tables.some(item =>
+      item.restaurantId === restaurantId &&
+      String(item.tableNumber || '').trim().toLowerCase() === String(tableNumber || '').trim().toLowerCase()
+    );
+    if (duplicateTable) {
+      fail(res, 409, 'Bàn này đã tồn tại trong nhà hàng hiện tại.');
+      return true;
+    }
+    const duplicateQr = db.tables.some(item => item.qrCodeToken === table.qrCodeToken);
+    if (duplicateQr) {
+      fail(res, 409, 'Mã QR này đã được dùng cho bàn khác.');
+      return true;
+    }
     db.tables.push(table);
     saveDb(db);
+    audit('table.create', {user, restaurantId, branchId: table.branchId, targetId: table.id});
     created(res, table);
+    return true;
+  }
+
+  if (parts.length === 4 && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa bàn/QR.')) {
+      return true;
+    }
+    const table = findTable(db, restaurantId, parts[3]);
+    if (!table) {
+      fail(res, 404, 'Không tìm thấy bàn cần cập nhật.');
+      return true;
+    }
+    const body = await parseBody(req);
+    const tableNumber = cleanString(body.tableNumber ?? body.tableCode ?? body.number ?? table.tableNumber);
+    const branchId = cleanString(body.branchId ?? table.branchId);
+    const qrCodeToken = cleanString(body.qrCodeToken ?? table.qrCodeToken);
+    if (!tableNumber) {
+      fail(res, 400, 'Vui lòng nhập số bàn.');
+      return true;
+    }
+    if (branchId && !ensureBranch(db, restaurantId, branchId)) {
+      fail(res, 400, 'Chi nhánh không thuộc nhà hàng hiện tại.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, table.branchId) || !requireBranchAccess(res, user, restaurantId, branchId)) {
+      return true;
+    }
+    const duplicateTable = db.tables.some(item =>
+      item.id !== table.id &&
+      item.restaurantId === restaurantId &&
+      String(item.tableNumber || '').trim().toLowerCase() === String(tableNumber || '').trim().toLowerCase()
+    );
+    if (duplicateTable) {
+      fail(res, 409, 'Bàn này đã tồn tại trong nhà hàng hiện tại.');
+      return true;
+    }
+    const duplicateQr = db.tables.some(item =>
+      item.id !== table.id && item.qrCodeToken === qrCodeToken
+    );
+    if (duplicateQr) {
+      fail(res, 409, 'Mã QR này đã được dùng cho bàn khác.');
+      return true;
+    }
+    Object.assign(table, {
+      branchId: branchId || undefined,
+      tableNumber,
+      qrCodeToken: qrCodeToken || table.qrCodeToken,
+      status: TABLE_STATUSES.includes(body.status) ? body.status : table.status || 'AVAILABLE',
+      updatedAt: nowIso(),
+    });
+    saveDb(db);
+    audit('table.update', {user, restaurantId, branchId: table.branchId, targetId: table.id});
+    ok(res, table);
+    return true;
+  }
+
+  if (parts.length === 4 && req.method === 'DELETE') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền xoá bàn/QR.')) {
+      return true;
+    }
+    const tableId = parts[3];
+    const table = findTable(db, restaurantId, tableId);
+    if (!table) {
+      fail(res, 404, 'Không tìm thấy bàn cần xoá.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, table.branchId)) {
+      return true;
+    }
+    const before = db.tables.length;
+    db.tables = db.tables.filter(
+      table => !(table.id === tableId && table.restaurantId === restaurantId),
+    );
+    if (before === db.tables.length) {
+      fail(res, 404, 'Không tìm thấy bàn cần xoá.');
+      return true;
+    }
+    Object.keys(db.carts || {}).forEach(key => {
+      if (key.includes(tableId)) {
+        delete db.carts[key];
+      }
+    });
+    saveDb(db);
+    audit('table.delete', {user, restaurantId, branchId: table.branchId, targetId: tableId});
+    ok(res, filterTablesForUser(db.tables.filter(table => table.restaurantId === restaurantId), user, restaurantId));
     return true;
   }
 
   return false;
 };
 
-const routeCategories = async (req, res, db, restaurantId, parts) => {
+const routeCategories = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 4 && req.method === 'GET') {
     ok(res, getRestaurantCategories(db, restaurantId));
     return true;
   }
 
   if (parts.length === 4 && req.method === 'POST') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền thêm danh mục.')) {
+      return true;
+    }
     const body = await parseBody(req);
     try {
       const category = normalizeCategoryPayload(body, restaurantId);
@@ -613,6 +985,7 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
       }
       db.categories.push(category);
       saveDb(db);
+      audit('category.create', {user, restaurantId, targetId: category.id});
       created(res, buildCategoryResult(db, restaurantId, 'Đã thêm danh mục.'));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu danh mục chưa hợp lệ.');
@@ -621,6 +994,9 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
   }
 
   if (parts.length === 5 && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa danh mục.')) {
+      return true;
+    }
     const category = db.categories.find(item => item.id === parts[4] && item.restaurantId === restaurantId);
     if (!category) {
       fail(res, 404, 'Không tìm thấy danh mục.');
@@ -631,6 +1007,7 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
       const next = normalizeCategoryPayload(body, restaurantId, category);
       Object.assign(category, next);
       saveDb(db);
+      audit('category.update', {user, restaurantId, targetId: category.id});
       ok(res, buildCategoryResult(db, restaurantId, 'Đã cập nhật danh mục.'));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu danh mục chưa hợp lệ.');
@@ -639,6 +1016,9 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
   }
 
   if (parts.length === 5 && req.method === 'DELETE') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền xoá danh mục.')) {
+      return true;
+    }
     const categoryId = parts[4];
     const category = db.categories.find(item => item.id === categoryId && item.restaurantId === restaurantId);
     if (!category) {
@@ -662,6 +1042,7 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
       return {...item, status: 'HIDDEN', available: false, updatedAt: nowIso()};
     });
     saveDb(db);
+    audit('category.delete', {user, restaurantId, targetId: categoryId});
     ok(res, buildCategoryResult(db, restaurantId, 'Đã xóa danh mục.'));
     return true;
   }
@@ -669,13 +1050,16 @@ const routeCategories = async (req, res, db, restaurantId, parts) => {
   return false;
 };
 
-const routeItems = async (req, res, db, restaurantId, parts) => {
+const routeItems = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 4 && req.method === 'GET') {
     ok(res, getRestaurantItems(db, restaurantId));
     return true;
   }
 
   if (parts.length === 4 && req.method === 'POST') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền thêm món.')) {
+      return true;
+    }
     const body = await parseBody(req);
     try {
       const item = normalizeItemPayload(body, restaurantId);
@@ -685,6 +1069,7 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
       }
       db.items.push(item);
       saveDb(db);
+      audit('item.create', {user, restaurantId, targetId: item.id});
       created(res, getRestaurantItems(db, restaurantId));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu món chưa hợp lệ.');
@@ -693,6 +1078,9 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
   }
 
   if (parts.length === 5 && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa món.')) {
+      return true;
+    }
     const item = db.items.find(entry => entry.id === parts[4] && entry.restaurantId === restaurantId);
     if (!item) {
       fail(res, 404, 'Không tìm thấy món.');
@@ -707,6 +1095,7 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
       }
       Object.assign(item, next);
       saveDb(db);
+      audit('item.update', {user, restaurantId, targetId: item.id});
       ok(res, getRestaurantItems(db, restaurantId));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu món chưa hợp lệ.');
@@ -715,6 +1104,9 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
   }
 
   if (parts.length === 5 && req.method === 'DELETE') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền xoá món.')) {
+      return true;
+    }
     const itemId = parts[4];
     const before = db.items.length;
     db.items = db.items.filter(item => !(item.id === itemId && item.restaurantId === restaurantId));
@@ -723,6 +1115,7 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
       return true;
     }
     saveDb(db);
+    audit('item.delete', {user, restaurantId, targetId: itemId});
     ok(res, getRestaurantItems(db, restaurantId));
     return true;
   }
@@ -730,22 +1123,36 @@ const routeItems = async (req, res, db, restaurantId, parts) => {
   return false;
 };
 
-const routeOrders = async (req, res, db, restaurantId, parts, query) => {
+const routeOrders = async (req, res, db, restaurantId, parts, query, user) => {
   if (parts.length === 3 && req.method === 'GET') {
-    ok(res, getRestaurantOrders(db, restaurantId, cleanString(query.get('branchId'))));
+    const requestedBranchId = cleanString(query.get('branchId'));
+    if (!requireBranchAccess(res, user, restaurantId, requestedBranchId)) {
+      return true;
+    }
+    const orders = getRestaurantOrders(db, restaurantId, requestedBranchId);
+    ok(res, filterOrdersForUser(orders, user, restaurantId));
     return true;
   }
 
   if (parts.length === 3 && req.method === 'POST') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền tạo đơn.')) {
+      return true;
+    }
     const body = await parseBody(req);
     try {
+      const table = body.tableId ? findTable(db, restaurantId, cleanString(body.tableId)) : null;
+      const targetBranchId = cleanString(body.branchId || table?.branchId);
+      if (!requireBranchAccess(res, user, restaurantId, targetBranchId)) {
+        return true;
+      }
       const order = normalizeOrderPayload(db, restaurantId, body);
       db.orders.unshift(order);
       if (order.tableId) {
         delete db.carts[cartKey(order)];
       }
       saveDb(db);
-      created(res, getRestaurantOrders(db, restaurantId, order.branchId));
+      audit('order.create.admin', {user, restaurantId, branchId: order.branchId, targetId: order.id});
+      ok(res, filterOrdersForUser(getRestaurantOrders(db, restaurantId, order.branchId), user, restaurantId));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
     }
@@ -753,9 +1160,15 @@ const routeOrders = async (req, res, db, restaurantId, parts, query) => {
   }
 
   if (parts.length === 5 && parts[4] === 'status' && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền đổi trạng thái đơn.')) {
+      return true;
+    }
     const order = db.orders.find(item => item.id === parts[3] && item.restaurantId === restaurantId);
     if (!order) {
       fail(res, 404, 'Không tìm thấy đơn hàng.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, order.branchId)) {
       return true;
     }
     const body = await parseBody(req);
@@ -765,20 +1178,27 @@ const routeOrders = async (req, res, db, restaurantId, parts, query) => {
       return true;
     }
     if (!canChangeOrderStatus(order.orderStatus, nextStatus)) {
-      fail(res, 409, 'Không thể chuyển ngược trạng thái đơn đã hoàn tất hoặc đã hủy.');
+      fail(res, 409, 'Không thể chuyển trạng thái đơn không đúng luồng hoặc đơn đã hoàn tất/hủy.');
       return true;
     }
     order.orderStatus = nextStatus;
     order.updatedAt = nowIso();
     saveDb(db);
-    ok(res, getRestaurantOrders(db, restaurantId, order.branchId));
+    audit('order.status.update', {user, restaurantId, branchId: order.branchId, targetId: order.id});
+    ok(res, filterOrdersForUser(getRestaurantOrders(db, restaurantId, order.branchId), user, restaurantId));
     return true;
   }
 
   if (parts.length === 5 && parts[4] === 'payment' && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền cập nhật thanh toán.')) {
+      return true;
+    }
     const order = db.orders.find(item => item.id === parts[3] && item.restaurantId === restaurantId);
     if (!order) {
       fail(res, 404, 'Không tìm thấy đơn hàng.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, order.branchId)) {
       return true;
     }
     const body = await parseBody(req);
@@ -788,17 +1208,18 @@ const routeOrders = async (req, res, db, restaurantId, parts, query) => {
       return true;
     }
     order.paymentStatus = paymentStatus;
-    order.paymentMethod = body.paymentMethod || order.paymentMethod || 'MOCK';
+    order.paymentMethod = normalizePaymentMethod(body.paymentMethod || order.paymentMethod);
     order.updatedAt = nowIso();
     saveDb(db);
-    ok(res, getRestaurantOrders(db, restaurantId, order.branchId));
+    audit('order.payment.update', {user, restaurantId, branchId: order.branchId, targetId: order.id});
+    ok(res, filterOrdersForUser(getRestaurantOrders(db, restaurantId, order.branchId), user, restaurantId));
     return true;
   }
 
   return false;
 };
 
-const routeCart = async (req, res, db, restaurantId, parts) => {
+const routeCart = async (req, res, db, restaurantId, parts, user) => {
   const isMenuCart = parts[2] === 'menu' && parts[3] === 'cart' && parts[4] === 'current';
   const isTableCart = parts[2] === 'tables' && parts[4] === 'cart' && parts[5] === 'current';
   if (!isMenuCart && !isTableCart) {
@@ -809,6 +1230,9 @@ const routeCart = async (req, res, db, restaurantId, parts) => {
   const table = tableId ? findTable(db, restaurantId, tableId) : null;
   if (tableId && !table) {
     fail(res, 404, 'Không tìm thấy bàn.');
+    return true;
+  }
+  if (table && !requireBranchAccess(res, user, restaurantId, table.branchId)) {
     return true;
   }
   const scope = {
@@ -858,54 +1282,95 @@ const routeTableToken = (req, res, db, parts) => {
   if (req.method !== 'GET' || parts.length !== 3) {
     return false;
   }
-  const token = parts[2];
-  const table = db.tables.find(item => item.qrCodeToken === token);
-  if (!table || table.status === 'LOCKED' || table.status === 'HIDDEN') {
+  const scope = getPublicTableScope(db, parts[2]);
+  if (!scope) {
     ok(res, null);
     return true;
   }
-  const restaurant = db.restaurants.find(item => item.id === table.restaurantId);
-  const branch = db.branches.find(item => item.id === table.branchId && item.restaurantId === table.restaurantId);
-  ok(res, {
-    restaurantId: table.restaurantId,
-    restaurantName: restaurant?.name,
-    branchId: table.branchId,
-    branchName: branch?.name,
-    tableId: table.id,
-    tableNumber: table.tableNumber,
-    qrCodeToken: table.qrCodeToken,
-    source: 'customer',
-  });
+  ok(res, scope.context);
   return true;
 };
 
-const routePublicMenu = (req, res, db, parts) => {
-  if (req.method !== 'GET' || parts.length !== 3) {
+const routePublicMenu = async (req, res, db, parts) => {
+  if (parts.length < 3) {
     return false;
   }
+
   const token = parts[2];
-  const table = db.tables.find(item => item.qrCodeToken === token);
-  if (!table || table.status === 'LOCKED' || table.status === 'HIDDEN') {
+  const scope = getPublicTableScope(db, token);
+  if (!scope) {
     fail(res, 404, 'QR bàn không tồn tại hoặc đang bị khóa.');
     return true;
   }
-  const restaurant = db.restaurants.find(item => item.id === table.restaurantId);
-  const branch = db.branches.find(item => item.id === table.branchId && item.restaurantId === table.restaurantId);
-  ok(res, {
-    context: {
-      restaurantId: table.restaurantId,
-      restaurantName: restaurant?.name,
-      branchId: table.branchId,
-      branchName: branch?.name,
-      tableId: table.id,
-      tableNumber: table.tableNumber,
-      qrCodeToken: table.qrCodeToken,
-      source: 'customer',
-    },
-    categories: getRestaurantCategories(db, table.restaurantId),
-    items: getRestaurantItems(db, table.restaurantId).filter(item => item.status !== 'HIDDEN'),
-  });
-  return true;
+
+  if (parts.length === 3 && req.method === 'GET') {
+    ok(res, {
+      context: scope.context,
+      categories: getRestaurantCategories(db, scope.table.restaurantId),
+      items: getRestaurantItems(db, scope.table.restaurantId).filter(item => item.status !== 'HIDDEN'),
+    });
+    return true;
+  }
+
+  if (parts.length === 4 && parts[3] === 'orders' && req.method === 'POST') {
+    const body = await parseBody(req);
+    try {
+      const order = normalizeOrderPayload(db, scope.table.restaurantId, {
+        ...body,
+        restaurantId: scope.table.restaurantId,
+        branchId: scope.table.branchId,
+        tableId: scope.table.id,
+        tableNumber: scope.table.tableNumber,
+        orderSource: 'customer',
+      });
+      db.orders.unshift(order);
+      delete db.carts[cartKey(order)];
+      saveDb(db);
+      audit('order.create.public', {restaurantId: scope.table.restaurantId, branchId: order.branchId, targetId: order.id});
+      created(res, [order]);
+    } catch (error) {
+      fail(res, 400, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
+    }
+    return true;
+  }
+
+  if (parts.length === 5 && parts[3] === 'cart' && parts[4] === 'current') {
+    const key = cartKey(scope.context);
+
+    if (req.method === 'GET') {
+      ok(res, db.carts[key] || emptyCart(scope.context));
+      return true;
+    }
+
+    if (req.method === 'PATCH') {
+      const body = await parseBody(req);
+      const cart = {
+        restaurantId: scope.table.restaurantId,
+        branchId: scope.table.branchId,
+        tableId: scope.table.id,
+        tableNumber: scope.table.tableNumber,
+        note: cleanString(body.note),
+        items: Array.isArray(body.items)
+          ? body.items
+              .map(item => ({itemId: cleanString(item.itemId), quantity: Math.max(1, Number(item.quantity || 1))}))
+              .filter(item => item.itemId)
+          : [],
+      };
+      db.carts[key] = cart;
+      saveDb(db);
+      ok(res, cart);
+      return true;
+    }
+
+    if (req.method === 'DELETE') {
+      delete db.carts[key];
+      saveDb(db);
+      noContent(res);
+      return true;
+    }
+  }
+
+  return false;
 };
 
 const routeRestaurantScoped = async (req, res, db, parts, query) => {
@@ -920,21 +1385,21 @@ const routeRestaurantScoped = async (req, res, db, parts, query) => {
   }
 
   if (parts[2] === 'branches') {
-    return routeBranches(req, res, db, restaurantId, parts);
+    return routeBranches(req, res, db, restaurantId, parts, access.user);
   }
   if (parts[2] === 'tables' && parts[4] !== 'cart') {
-    return routeTables(req, res, db, restaurantId, parts);
+    return routeTables(req, res, db, restaurantId, parts, access.user);
   }
   if (parts[2] === 'menu' && parts[3] === 'categories') {
-    return routeCategories(req, res, db, restaurantId, parts);
+    return routeCategories(req, res, db, restaurantId, parts, access.user);
   }
   if (parts[2] === 'menu' && parts[3] === 'items') {
-    return routeItems(req, res, db, restaurantId, parts);
+    return routeItems(req, res, db, restaurantId, parts, access.user);
   }
   if (parts[2] === 'orders') {
-    return routeOrders(req, res, db, restaurantId, parts, query);
+    return routeOrders(req, res, db, restaurantId, parts, query, access.user);
   }
-  if (await routeCart(req, res, db, restaurantId, parts)) {
+  if (await routeCart(req, res, db, restaurantId, parts, access.user)) {
     return true;
   }
 
@@ -990,7 +1455,7 @@ const handleRequest = async (req, res) => {
       return;
     }
 
-    if (parts[0] === 'public' && parts[1] === 'menu' && routePublicMenu(req, res, db, parts)) {
+    if (parts[0] === 'public' && parts[1] === 'menu' && (await routePublicMenu(req, res, db, parts))) {
       return;
     }
 
