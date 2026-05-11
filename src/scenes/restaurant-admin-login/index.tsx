@@ -12,6 +12,7 @@ import images from 'assets';
 import Image from 'components/Image';
 import View from 'components/View';
 import {screens} from 'scenes/screens';
+import {RESTAURANT_MENU_ENV_CONFIG} from 'config/restaurantMenu';
 import {
   getRestaurantAdminSession,
   loginRestaurantAdmin,
@@ -126,6 +127,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
   const styles = useMemo(() => createStyles({design}), [design]);
   const navigate = props.navigate;
   const replace = props.replace;
+  const reset = props.reset;
 
   const initialMode =
     props.initialMode === 'register' ? 'register' : adminAuthModeSession;
@@ -138,6 +140,43 @@ const RestaurantAdminLoginScreen = (props: Props) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const openCustomerMenu = useCallback(() => {
+    const customerToken = String(
+      RESTAURANT_MENU_ENV_CONFIG.defaultTableToken || '',
+    ).trim();
+    const params = customerToken
+      ? {
+          qrToken: customerToken,
+          tableToken: customerToken,
+          tableQrToken: customerToken,
+        }
+      : undefined;
+
+    // The admin login screen can be the only route after logout reset. Calling
+    // navigation.goBack() in that state triggers "GO_BACK was not handled".
+    // Return to the customer menu explicitly and pass the QR token again so the
+    // menu is resolved from customer QR context, not from the last admin context.
+    if (typeof reset === 'function') {
+      reset(0, [
+        {
+          name: screens.restaurantMenu,
+          params,
+        },
+      ]);
+      return;
+    }
+
+    if (typeof replace === 'function') {
+      replace({
+        name: screens.restaurantMenu,
+        params,
+      });
+      return;
+    }
+
+    navigate(screens.restaurantMenu, params);
+  }, [navigate, replace, reset]);
 
   const routeToDashboard = useCallback(
     (adminUsername: string) => {
@@ -455,8 +494,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       <View style={styles.glowBottom} />
 
       <View style={styles.topRow}>
-        <Pressable onPress={props.goBack} style={styles.backButton}>
-          <RNText style={styles.backText}>‹ Quay lại menu</RNText>
+        <Pressable onPress={openCustomerMenu} style={styles.backButton}>
+          <RNText style={styles.backText}>‹ Về menu khách</RNText>
         </Pressable>
         <Image
           source={images.logoSmall}

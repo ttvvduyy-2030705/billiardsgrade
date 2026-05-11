@@ -54,9 +54,10 @@ const withWrapper = (SceneName: string, Scene: FunctionComponent) => {
     );
 
     const goBack = useCallback(() => {
-      navigation.goBack();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+      if (typeof navigation.canGoBack === 'function' && navigation.canGoBack()) {
+        navigation.goBack();
+      }
+    }, [navigation]);
 
     const reset = useCallback(
       (index: number, routes: Array<any>) => {
