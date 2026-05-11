@@ -5,7 +5,9 @@
   "scripts": {
     "android": "react-native run-android",
     "start": "react-native start",
-    "clean": "cd android && gradlew clean"
+    "clean": "cd android && gradlew clean",
+    "scoremenu:server": "node backend/scoremenu-server/server.js",
+    "scoremenu:server:reset": "node backend/scoremenu-server/scripts/reset-db.js"
   },
   "dependencies": {
     "@openspacelabs/react-native-zoomable-view": "^2.4.2",

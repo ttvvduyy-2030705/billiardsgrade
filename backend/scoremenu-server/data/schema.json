@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "scoremenu_backend_schema_v1_batch12",
+  "engine": "json-file-mvp",
+  "tables": {
+    "restaurants": {
+      "primaryKey": "id",
+      "required": ["id", "name", "createdAt", "updatedAt"],
+      "indexes": ["ownerId", "status"]
+    },
+    "branches": {
+      "primaryKey": "id",
+      "required": ["id", "restaurantId", "name", "createdAt", "updatedAt"],
+      "indexes": ["restaurantId"]
+    },
+    "tables": {
+      "primaryKey": "id",
+      "required": ["id", "restaurantId", "tableNumber", "qrCodeToken", "createdAt", "updatedAt"],
+      "indexes": ["restaurantId", "branchId", "qrCodeToken"]
+    },
+    "categories": {
+      "primaryKey": "id",
+      "required": ["id", "restaurantId", "name", "createdAt", "updatedAt"],
+      "indexes": ["restaurantId", "sortOrder"]
+    },
+    "items": {
+      "primaryKey": "id",
+      "required": ["id", "restaurantId", "categoryId", "name", "price", "createdAt", "updatedAt"],
+      "indexes": ["restaurantId", "categoryId", "status"]
+    },
+    "orders": {
+      "primaryKey": "id",
+      "required": ["id", "restaurantId", "tableNumber", "items", "total", "orderStatus", "paymentStatus", "createdAt", "updatedAt"],
+      "indexes": ["restaurantId", "branchId", "tableId", "orderStatus", "paymentStatus", "createdAt"]
+    },
+    "adminUsers": {
+      "primaryKey": "id",
+      "required": ["id", "username", "password", "role", "restaurantIds", "activeRestaurantId", "createdAt", "updatedAt"],
+      "indexes": ["username", "role", "restaurantIds"]
+    },
+    "carts": {
+      "primaryKey": "scopeKey",
+      "required": ["restaurantId", "tableNumber", "items"],
+      "indexes": ["restaurantId", "branchId", "tableId"]
+    }
+  },
+  "foreignKeys": [
+    "branches.restaurantId -> restaurants.id",
+    "tables.restaurantId -> restaurants.id",
+    "tables.branchId -> branches.id",
+    "categories.restaurantId -> restaurants.id",
+    "items.restaurantId -> restaurants.id",
+    "items.categoryId -> categories.id",
+    "orders.restaurantId -> restaurants.id",
+    "orders.branchId -> branches.id",
+    "orders.tableId -> tables.id"
+  ]
+}

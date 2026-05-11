@@ -1,0 +1,15 @@
+{
+  "name": "scoremenu-server",
+  "version": "0.12.0",
+  "private": true,
+  "description": "Batch 12 MVP backend for ScoreMenu menu/admin/order API.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "SCOREMENU_PORT=4012 node server.js",
+    "reset": "node scripts/reset-db.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
