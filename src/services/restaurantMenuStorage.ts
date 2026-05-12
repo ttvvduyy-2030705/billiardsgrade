@@ -18,12 +18,13 @@ export const RESTAURANT_STORAGE_KEYS = {
   categories: "menu_categories",
   menuItems: "menu_items",
   orders: "restaurant_orders",
+  billSessions: "restaurant_bill_sessions",
   currentCart: "current_cart",
   adminAccounts: "admin_accounts",
   legacyAdminAccounts: "restaurant_admin_accounts",
 };
 
-const CURRENT_SCHEMA_VERSION = "20260510_local_multirestaurant_order_payment_v4";
+const CURRENT_SCHEMA_VERSION = "20260512_batch16_bill_session_model_v1";
 
 export type MenuCategory = {
   id: string;
@@ -62,12 +63,47 @@ export type RestaurantCartItem = {
   quantity: number;
 };
 
+export type RestaurantBillSessionStatus =
+  | "OPEN"
+  | "PAYMENT_REQUESTED"
+  | "PAID"
+  | "CLOSED"
+  | "CANCELLED";
+
+export const RESTAURANT_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
+  "OPEN",
+  "PAYMENT_REQUESTED",
+  "PAID",
+  "CLOSED",
+  "CANCELLED",
+];
+
+export const CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
+  "OPEN",
+  "PAYMENT_REQUESTED",
+];
+
+export const FINAL_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
+  "PAID",
+  "CLOSED",
+  "CANCELLED",
+];
+
 export type RestaurantCartState = {
   /** Required in Batch 10 repository/API foundation. */
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
+  /**
+   * Batch 16 rule: before the first successful order, customer can choose/input a table.
+   * Once billSessionId is present, UI should show lockedTableNumber readonly instead.
+   */
   tableNumber: string;
+  guestSessionId?: string;
+  billSessionId?: string;
+  lockedTableId?: string;
+  lockedTableNumber?: string;
+  billStatus?: RestaurantBillSessionStatus;
   note: string;
   items: RestaurantCartItem[];
 };
@@ -101,6 +137,7 @@ export type RestaurantOrderItem = {
 
 export type RestaurantPaymentStatus = "UNPAID" | "PAID";
 export type RestaurantPaymentMethod = "CASH" | "BANK_TRANSFER" | "MOCK";
+export type RestaurantBillPaymentStatus = "PAYMENT_REQUESTED" | "PAID";
 
 export const RESTAURANT_PAYMENT_METHODS: RestaurantPaymentMethod[] = [
   "CASH",
@@ -120,6 +157,105 @@ export type RestaurantPayment = {
   updatedAt: string;
 };
 
+export type RestaurantBillPaymentPayload = {
+  status?: RestaurantBillPaymentStatus;
+  paymentStatus?: RestaurantPaymentStatus;
+  paymentMethod?: RestaurantPaymentMethod;
+  discountTotal?: number;
+  serviceFeeTotal?: number;
+  note?: string;
+};
+
+export type RestaurantBillClosePayload = {
+  note?: string;
+};
+
+export type RestaurantBillOrderSummary = {
+  orderId: string;
+  orderNumber: number;
+  orderStatus: RestaurantOrderStatus;
+  paymentStatus: RestaurantPaymentStatus;
+  itemCount: number;
+  total: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RestaurantBillSummary = {
+  billSessionId: string;
+  restaurantId: string;
+  branchId?: string;
+  tableId?: string;
+  tableNumber: string;
+  status: RestaurantBillSessionStatus;
+  orderCount: number;
+  orders: RestaurantBillOrderSummary[];
+  subtotal: number;
+  discountTotal: number;
+  serviceFeeTotal: number;
+  total: number;
+  paymentMethod?: RestaurantPaymentMethod;
+  openedAt: string;
+  paymentRequestedAt?: string;
+  paidAt?: string;
+  closedAt?: string;
+};
+
+export type RestaurantBillTableChangeLog = {
+  id: string;
+  auditLogId?: string;
+  fromBranchId?: string;
+  fromTableId?: string;
+  fromTableNumber?: string;
+  toBranchId?: string;
+  toTableId?: string;
+  toTableNumber: string;
+  changedByUserId?: string;
+  changedByUsername?: string;
+  changedByRole?: string;
+  reason?: string;
+  changedAt: string;
+};
+
+export type RestaurantBillSession = {
+  id: string;
+  restaurantId: string;
+  branchId?: string;
+  tableId?: string;
+  tableNumber: string;
+  guestSessionId?: string;
+  status: RestaurantBillSessionStatus;
+  orderIds: string[];
+  orderCount: number;
+  subtotal: number;
+  discountTotal: number;
+  serviceFeeTotal: number;
+  total: number;
+  paymentMethod?: RestaurantPaymentMethod;
+  note?: string;
+  tableChangeLogs?: RestaurantBillTableChangeLog[];
+  summary?: RestaurantBillSummary;
+  openedAt: string;
+  paymentRequestedAt?: string;
+  paidAt?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RestaurantTableBill = RestaurantBillSession;
+
+// Unprefixed aliases are intentional: the product plan names these contracts BillSession/TableBill.
+export type BillSessionStatus = RestaurantBillSessionStatus;
+export type BillPaymentStatus = RestaurantBillPaymentStatus;
+export type BillPaymentPayload = RestaurantBillPaymentPayload;
+export type BillClosePayload = RestaurantBillClosePayload;
+export type BillOrderSummary = RestaurantBillOrderSummary;
+export type BillSummary = RestaurantBillSummary;
+export type BillTableChangeLog = RestaurantBillTableChangeLog;
+export type BillSession = RestaurantBillSession;
+export type TableBill = RestaurantTableBill;
+
 export type RestaurantOrderSource = "admin" | "customer" | "local-demo";
 
 export type RestaurantOrder = {
@@ -128,6 +264,8 @@ export type RestaurantOrder = {
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
+  billSessionId?: string;
+  guestSessionId?: string;
   orderSource?: RestaurantOrderSource;
   tableNumber: string;
   items: RestaurantOrderItem[];
@@ -139,6 +277,24 @@ export type RestaurantOrder = {
   paymentMethod?: RestaurantPaymentMethod;
   createdAt: string;
   updatedAt: string;
+};
+
+export type RawRestaurantBillSession = Partial<RestaurantBillSession> & {
+  billSessionId?: string;
+  billTotal?: number;
+  summary?: RestaurantBillSummary;
+  status?: RestaurantBillSessionStatus | string;
+  paymentMethod?: RestaurantPaymentMethod | string;
+  orders?: RawRestaurantOrder[];
+  orderSummaries?: RestaurantBillOrderSummary[];
+};
+
+export type RestaurantBillSessionDetail = RestaurantBillSession & {
+  billSessionId: string;
+  billTotal: number;
+  orders: RestaurantOrder[];
+  orderSummaries: RestaurantBillOrderSummary[];
+  summary: RestaurantBillSummary;
 };
 
 export type RestaurantAdminAccount = {
@@ -479,6 +635,10 @@ const getScopedKeys = (restaurantId?: string) => {
       scopeId,
     ),
     orders: getRestaurantScopedStorageKey(RESTAURANT_STORAGE_KEYS.orders, scopeId),
+    billSessions: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.billSessions,
+      scopeId,
+    ),
     currentCart: getRestaurantScopedStorageKey(
       RESTAURANT_STORAGE_KEYS.currentCart,
       scopeId,
@@ -1059,6 +1219,63 @@ export const normalisePaymentMethod = (
     : "MOCK";
 };
 
+export const normaliseBillSessionStatus = (
+  status?: RestaurantBillSessionStatus | string,
+): RestaurantBillSessionStatus => {
+  const normalized = String(status || "")
+    .trim()
+    .toUpperCase();
+
+  return RESTAURANT_BILL_SESSION_STATUSES.includes(
+    normalized as RestaurantBillSessionStatus,
+  )
+    ? (normalized as RestaurantBillSessionStatus)
+    : "OPEN";
+};
+
+export const canCustomerAddOrderToBillSession = (
+  status?: RestaurantBillSessionStatus | string,
+) => {
+  return CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES.includes(
+    normaliseBillSessionStatus(status),
+  );
+};
+
+export const isFinalBillSessionStatus = (
+  status?: RestaurantBillSessionStatus | string,
+) => {
+  return FINAL_BILL_SESSION_STATUSES.includes(normaliseBillSessionStatus(status));
+};
+
+export const createBillOrderSummary = (
+  order: RestaurantOrder,
+  index: number,
+): RestaurantBillOrderSummary => ({
+  orderId: order.id,
+  orderNumber: index + 1,
+  orderStatus: order.orderStatus,
+  paymentStatus: order.paymentStatus,
+  itemCount: order.items.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.quantity || 0)),
+    0,
+  ),
+  total: order.orderStatus === "CANCELLED" ? 0 : order.total,
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+});
+
+export const calculateRestaurantBillSubtotal = (
+  orders: RestaurantOrder[] = [],
+) => {
+  return orders.reduce(
+    (sum, order) =>
+      order.orderStatus === "CANCELLED"
+        ? sum
+        : sum + Math.max(0, Number(order.total || 0)),
+    0,
+  );
+};
+
 export const calculateRestaurantOrderTotal = (
   items: RestaurantOrderItem[] = [],
 ) => {
@@ -1079,6 +1296,8 @@ export const normaliseRestaurantOrder = (
     restaurantId: order.restaurantId || restaurantId,
     branchId: order.branchId,
     tableId: order.tableId,
+    billSessionId: order.billSessionId,
+    guestSessionId: order.guestSessionId,
     orderSource:
       order.orderSource || (order.restaurantId ? "customer" : "local-demo"),
     tableNumber: String(order.tableNumber || ""),
@@ -1092,6 +1311,107 @@ export const normaliseRestaurantOrder = (
     paymentMethod: normalisePaymentMethod(order.paymentMethod),
     createdAt: order.createdAt || timestamp,
     updatedAt: order.updatedAt || order.createdAt || timestamp,
+  };
+};
+
+const normaliseBillTableChangeLog = (
+  value: Partial<RestaurantBillTableChangeLog>,
+): RestaurantBillTableChangeLog => ({
+  id: String(value.id || createId("table_change")),
+  auditLogId: value.auditLogId,
+  fromBranchId: value.fromBranchId,
+  fromTableId: value.fromTableId,
+  fromTableNumber: value.fromTableNumber,
+  toBranchId: value.toBranchId,
+  toTableId: value.toTableId,
+  toTableNumber: String(value.toTableNumber || ""),
+  changedByUserId: value.changedByUserId,
+  changedByUsername: value.changedByUsername,
+  changedByRole: value.changedByRole,
+  reason: String(value.reason || ""),
+  changedAt: value.changedAt || nowIso(),
+});
+
+export const normaliseRestaurantBillSession = (
+  billSession: RawRestaurantBillSession,
+  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+): RestaurantBillSessionDetail => {
+  const timestamp = nowIso();
+  const orders = Array.isArray(billSession.orders)
+    ? billSession.orders.map(order => normaliseRestaurantOrder(order, restaurantId))
+    : [];
+  const orderIds = Array.isArray(billSession.orderIds)
+    ? billSession.orderIds.map(id => String(id)).filter(Boolean)
+    : orders.map(order => order.id);
+  const subtotal = Number.isFinite(Number(billSession.subtotal))
+    ? Math.max(0, Number(billSession.subtotal))
+    : calculateRestaurantBillSubtotal(orders);
+  const discountTotal = Math.max(0, Number(billSession.discountTotal || 0));
+  const serviceFeeTotal = Math.max(0, Number(billSession.serviceFeeTotal || 0));
+  const total = Number.isFinite(Number(billSession.total ?? billSession.billTotal))
+    ? Math.max(0, Number(billSession.total ?? billSession.billTotal))
+    : Math.max(0, subtotal - discountTotal + serviceFeeTotal);
+  const id = String(billSession.id || billSession.billSessionId || createId("bill"));
+  const orderSummaries = Array.isArray(billSession.orderSummaries)
+    ? billSession.orderSummaries
+    : orders.map(createBillOrderSummary);
+  const tableChangeLogs = Array.isArray(billSession.tableChangeLogs)
+    ? billSession.tableChangeLogs.map(normaliseBillTableChangeLog)
+    : [];
+
+  const status = normaliseBillSessionStatus(billSession.status);
+  const openedAt = billSession.openedAt || billSession.createdAt || timestamp;
+  const paymentMethod = normalisePaymentMethod(billSession.paymentMethod);
+  const summary: RestaurantBillSummary = {
+    billSessionId: id,
+    restaurantId: billSession.restaurantId || restaurantId,
+    branchId: billSession.branchId,
+    tableId: billSession.tableId,
+    tableNumber: String(billSession.tableNumber || ""),
+    status,
+    orderCount: Number.isFinite(Number(billSession.orderCount))
+      ? Math.max(0, Number(billSession.orderCount))
+      : orderIds.length,
+    orders: orderSummaries,
+    subtotal,
+    discountTotal,
+    serviceFeeTotal,
+    total,
+    paymentMethod,
+    openedAt,
+    paymentRequestedAt: billSession.paymentRequestedAt,
+    paidAt: billSession.paidAt,
+    closedAt: billSession.closedAt,
+  };
+
+  return {
+    id,
+    billSessionId: id,
+    restaurantId: billSession.restaurantId || restaurantId,
+    branchId: billSession.branchId,
+    tableId: billSession.tableId,
+    tableNumber: String(billSession.tableNumber || ""),
+    guestSessionId: billSession.guestSessionId,
+    status,
+    orderIds,
+    orderCount: summary.orderCount,
+    subtotal,
+    discountTotal,
+    serviceFeeTotal,
+    total,
+    billTotal: total,
+    paymentMethod,
+    note: String(billSession.note || ""),
+    tableChangeLogs,
+    summary,
+    openedAt,
+    paymentRequestedAt: billSession.paymentRequestedAt,
+    paidAt: billSession.paidAt,
+    closedAt: billSession.closedAt,
+    createdAt: billSession.createdAt || timestamp,
+    updatedAt: billSession.updatedAt || billSession.createdAt || timestamp,
+    orders,
+    orderSummaries,
   };
 };
 
@@ -1159,6 +1479,178 @@ export const saveOrders = async (
   );
 };
 
+export const loadBillSessions = async (
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail[]> => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const scopedBillSessions = await readArray<RawRestaurantBillSession>(
+    scopedKeys.billSessions,
+  );
+  const orders = await loadOrders(scopedKeys.restaurantId);
+  const normalised = scopedBillSessions.map(billSession => {
+    const billOrders = orders.filter(order =>
+      order.billSessionId === (billSession.id || billSession.billSessionId),
+    );
+    return normaliseRestaurantBillSession(
+      {
+        ...billSession,
+        orders: billSession.orders || billOrders,
+      },
+      scopedKeys.restaurantId,
+    );
+  });
+
+  return normalised.filter(
+    billSession => billSession.restaurantId === scopedKeys.restaurantId,
+  );
+};
+
+export const saveBillSessions = async (
+  billSessions: RestaurantBillSessionDetail[],
+  restaurantId?: string,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  await writeArray(
+    scopedKeys.billSessions,
+    billSessions.map(billSession => {
+      const normalised = normaliseRestaurantBillSession(
+        {
+          ...billSession,
+          restaurantId: scopedKeys.restaurantId,
+        },
+        scopedKeys.restaurantId,
+      );
+      const {orders, orderSummaries, billSessionId, billTotal, summary, ...stored} = normalised;
+      return stored;
+    }),
+  );
+};
+
+const recalculateLocalBillSession = (
+  billSession: RestaurantBillSessionDetail,
+  orders: RestaurantOrder[],
+): RestaurantBillSessionDetail => {
+  const billOrders = orders.filter(order => order.billSessionId === billSession.id);
+  const subtotal = calculateRestaurantBillSubtotal(billOrders);
+  const total = Math.max(
+    0,
+    subtotal - Number(billSession.discountTotal || 0) + Number(billSession.serviceFeeTotal || 0),
+  );
+  const updatedAt = nowIso();
+  return normaliseRestaurantBillSession(
+    {
+      ...billSession,
+      billSessionId: billSession.id,
+      orderIds: billOrders.map(order => order.id),
+      orderCount: billOrders.length,
+      subtotal,
+      total,
+      orders: billOrders,
+      orderSummaries: billOrders.map(createBillOrderSummary),
+      updatedAt,
+    },
+    billSession.restaurantId,
+  );
+};
+
+export const loadCurrentBillSession = async (
+  query: {billSessionId?: string; guestSessionId?: string} = {},
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail | null> => {
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const [billSessions, orders] = await Promise.all([
+    loadBillSessions(scopedRestaurantId),
+    loadOrders(scopedRestaurantId),
+  ]);
+  const billSession = query.billSessionId
+    ? billSessions.find(item => item.id === query.billSessionId)
+    : billSessions
+        .filter(
+          item =>
+            query.guestSessionId &&
+            item.guestSessionId === query.guestSessionId &&
+            !isFinalBillSessionStatus(item.status),
+        )
+        .sort((left, right) =>
+          String(right.updatedAt || right.createdAt).localeCompare(
+            String(left.updatedAt || left.createdAt),
+          ),
+        )[0];
+
+  if (!billSession) {
+    return null;
+  }
+
+  return recalculateLocalBillSession(billSession, orders);
+};
+
+const resolveLocalBillSessionForOrder = async (
+  payload: Omit<
+    RestaurantOrder,
+    "id" | "orderStatus" | "paymentStatus" | "createdAt" | "updatedAt"
+  > & {
+    paymentStatus?: RestaurantPaymentStatus;
+    paymentMethod?: RestaurantPaymentMethod;
+  },
+  restaurantId: string,
+): Promise<RestaurantBillSessionDetail | null> => {
+  const shouldUseBillSession = Boolean(
+    payload.billSessionId || payload.guestSessionId || payload.orderSource === "customer",
+  );
+
+  if (!shouldUseBillSession) {
+    return null;
+  }
+
+  const currentBillSessions = await loadBillSessions(restaurantId);
+  const timestamp = nowIso();
+  const existing = payload.billSessionId
+    ? currentBillSessions.find(
+        billSession => billSession.id === payload.billSessionId,
+      )
+    : undefined;
+
+  if (payload.billSessionId && !existing) {
+    throw new Error("Không tìm thấy hóa đơn bàn hiện tại. Vui lòng gọi nhân viên hoặc quét lại QR.");
+  }
+
+  if (existing) {
+    if (isFinalBillSessionStatus(existing.status)) {
+      throw new Error("Hóa đơn này đã đóng/thanh toán, không thể gọi thêm món.");
+    }
+    return existing;
+  }
+
+  const tableNumber = String(payload.tableNumber || "").trim();
+  if (!tableNumber) {
+    throw new Error("Vui lòng chọn bàn trước khi gửi đơn.");
+  }
+
+  const billSession = normaliseRestaurantBillSession(
+    {
+      id: createId("bill"),
+      restaurantId,
+      branchId: payload.branchId,
+      tableId: payload.tableId,
+      tableNumber,
+      guestSessionId: payload.guestSessionId,
+      status: "OPEN",
+      orderIds: [],
+      orderCount: 0,
+      subtotal: 0,
+      discountTotal: 0,
+      serviceFeeTotal: 0,
+      total: 0,
+      openedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    restaurantId,
+  );
+  await saveBillSessions([billSession, ...currentBillSessions], restaurantId);
+  return billSession;
+};
+
 export const createRestaurantOrder = async (
   payload: Omit<
     RestaurantOrder,
@@ -1172,8 +1664,14 @@ export const createRestaurantOrder = async (
   const current = await loadOrders(restaurantId);
   const timestamp = nowIso();
   const orderItems = Array.isArray(payload.items) ? payload.items : [];
+  const billSession = await resolveLocalBillSessionForOrder(payload, restaurantId);
   const order: RestaurantOrder = {
     ...payload,
+    branchId: billSession?.branchId || payload.branchId,
+    tableId: billSession?.tableId || payload.tableId,
+    tableNumber: billSession?.tableNumber || payload.tableNumber,
+    billSessionId: billSession?.id || payload.billSessionId,
+    guestSessionId: billSession?.guestSessionId || payload.guestSessionId,
     items: orderItems,
     total: calculateRestaurantOrderTotal(orderItems),
     restaurantId,
@@ -1186,7 +1684,247 @@ export const createRestaurantOrder = async (
   };
   const nextOrders = [order, ...current];
   await saveOrders(nextOrders, restaurantId);
+
+  if (billSession) {
+    const billSessions = await loadBillSessions(restaurantId);
+    const nextBillSessions = billSessions.map(item =>
+      item.id === billSession.id
+        ? recalculateLocalBillSession(item, nextOrders)
+        : item,
+    );
+    await saveBillSessions(nextBillSessions, restaurantId);
+  }
+
   return nextOrders;
+};
+
+export const updateRestaurantBillSessionTable = async (
+  billSessionId: string,
+  payload: {
+    tableId?: string;
+    tableNumber: string;
+    branchId?: string;
+    reason?: string;
+    changedByUsername?: string;
+    changedByRole?: string;
+  },
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail> => {
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const [billSessions, orders] = await Promise.all([
+    loadBillSessions(scopedRestaurantId),
+    loadOrders(scopedRestaurantId),
+  ]);
+  const billSession = billSessions.find(item => item.id === billSessionId);
+
+  if (!billSession) {
+    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+  }
+  if (isFinalBillSessionStatus(billSession.status)) {
+    throw new Error("Hóa đơn đã thanh toán/đóng/hủy nên không thể đổi bàn.");
+  }
+
+  const targetTableId = String(payload.tableId || "").trim();
+  const targetTableNumber = String(payload.tableNumber || "").trim();
+  if (!targetTableNumber) {
+    throw new Error("Vui lòng chọn bàn đích trước khi chuyển bill.");
+  }
+  if (billSession.branchId && payload.branchId && payload.branchId !== billSession.branchId) {
+    throw new Error("Chỉ được chuyển bill sang bàn trong cùng chi nhánh để QR khách không bị lẫn phiên.");
+  }
+
+  const occupiedBill = billSessions.find(
+    item =>
+      item.id !== billSession.id &&
+      !isFinalBillSessionStatus(item.status) &&
+      targetTableId &&
+      item.tableId === targetTableId,
+  );
+  if (occupiedBill) {
+    throw new Error("Bàn đích đang có hóa đơn mở. Vui lòng đóng bill đó hoặc xử lý gộp bill trước.");
+  }
+
+  const timestamp = nowIso();
+  const changeLog: RestaurantBillTableChangeLog = {
+    id: createId("table_change"),
+    fromBranchId: billSession.branchId,
+    fromTableId: billSession.tableId,
+    fromTableNumber: billSession.tableNumber,
+    toBranchId: payload.branchId,
+    toTableId: targetTableId || undefined,
+    toTableNumber: targetTableNumber,
+    changedByUsername: payload.changedByUsername,
+    changedByRole: payload.changedByRole,
+    reason: String(payload.reason || ""),
+    changedAt: timestamp,
+  };
+
+  const nextOrders = orders.map(order =>
+    order.billSessionId === billSession.id
+      ? {
+          ...order,
+          branchId: payload.branchId || order.branchId,
+          tableId: targetTableId || order.tableId,
+          tableNumber: targetTableNumber,
+          updatedAt: timestamp,
+        }
+      : order,
+  );
+  await saveOrders(nextOrders, scopedRestaurantId);
+
+  const nextBillSessions = billSessions.map(item => {
+    if (item.id !== billSession.id) {
+      return item;
+    }
+    return recalculateLocalBillSession(
+      {
+        ...item,
+        branchId: payload.branchId || item.branchId,
+        tableId: targetTableId || item.tableId,
+        tableNumber: targetTableNumber,
+        tableChangeLogs: [
+          changeLog,
+          ...(Array.isArray(item.tableChangeLogs) ? item.tableChangeLogs : []),
+        ].slice(0, 50),
+        updatedAt: timestamp,
+      },
+      nextOrders,
+    );
+  });
+  await saveBillSessions(nextBillSessions, scopedRestaurantId);
+
+  const updated = nextBillSessions.find(item => item.id === billSession.id);
+  if (!updated) {
+    throw new Error("Không thể cập nhật hóa đơn sau khi đổi bàn.");
+  }
+  return updated;
+};
+
+
+export const updateRestaurantBillSessionPayment = async (
+  billSessionId: string,
+  payload: RestaurantBillPaymentPayload = {},
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail> => {
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const [billSessions, orders] = await Promise.all([
+    loadBillSessions(scopedRestaurantId),
+    loadOrders(scopedRestaurantId),
+  ]);
+  const billSession = billSessions.find(item => item.id === billSessionId);
+
+  if (!billSession) {
+    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+  }
+  if (billSession.status === "CLOSED" || billSession.status === "CANCELLED") {
+    throw new Error("Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.");
+  }
+
+  const timestamp = nowIso();
+  const nextPaymentStatus: RestaurantBillPaymentStatus =
+    payload.status === "PAID" || payload.paymentStatus === "PAID"
+      ? "PAID"
+      : "PAYMENT_REQUESTED";
+  const nextPaymentMethod = normalisePaymentMethod(payload.paymentMethod || billSession.paymentMethod);
+  const discountTotal = Number.isFinite(Number(payload.discountTotal))
+    ? Math.max(0, Number(payload.discountTotal))
+    : billSession.discountTotal;
+  const serviceFeeTotal = Number.isFinite(Number(payload.serviceFeeTotal))
+    ? Math.max(0, Number(payload.serviceFeeTotal))
+    : billSession.serviceFeeTotal;
+
+  const nextOrders = nextPaymentStatus === "PAID"
+    ? orders.map(order =>
+        order.billSessionId === billSession.id && order.orderStatus !== "CANCELLED"
+          ? {
+              ...order,
+              paymentStatus: "PAID" as RestaurantPaymentStatus,
+              paymentMethod: nextPaymentMethod,
+              updatedAt: timestamp,
+            }
+          : order,
+      )
+    : orders;
+
+  if (nextPaymentStatus === "PAID") {
+    await saveOrders(nextOrders, scopedRestaurantId);
+  }
+
+  const nextBillSessions = billSessions.map(item => {
+    if (item.id !== billSession.id) {
+      return item;
+    }
+
+    return recalculateLocalBillSession(
+      {
+        ...item,
+        status: nextPaymentStatus,
+        paymentMethod: nextPaymentStatus === "PAID" ? nextPaymentMethod : item.paymentMethod,
+        discountTotal,
+        serviceFeeTotal,
+        note: payload.note !== undefined ? String(payload.note || "") : item.note,
+        paymentRequestedAt: item.paymentRequestedAt || timestamp,
+        paidAt: nextPaymentStatus === "PAID" ? item.paidAt || timestamp : item.paidAt,
+        updatedAt: timestamp,
+      },
+      nextOrders,
+    );
+  });
+  await saveBillSessions(nextBillSessions, scopedRestaurantId);
+
+  const updated = nextBillSessions.find(item => item.id === billSession.id);
+  if (!updated) {
+    throw new Error("Không thể cập nhật thanh toán hóa đơn.");
+  }
+  return updated;
+};
+
+export const closeRestaurantBillSession = async (
+  billSessionId: string,
+  payload: RestaurantBillClosePayload = {},
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail> => {
+  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
+  const [billSessions, orders] = await Promise.all([
+    loadBillSessions(scopedRestaurantId),
+    loadOrders(scopedRestaurantId),
+  ]);
+  const billSession = billSessions.find(item => item.id === billSessionId);
+
+  if (!billSession) {
+    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+  }
+  if (billSession.status === "CANCELLED") {
+    throw new Error("Hóa đơn đã hủy nên không thể đóng.");
+  }
+  if (billSession.status !== "PAID" && billSession.status !== "CLOSED") {
+    throw new Error("Chỉ đóng hóa đơn sau khi đã đánh dấu thanh toán.");
+  }
+
+  const timestamp = nowIso();
+  const nextBillSessions = billSessions.map(item => {
+    if (item.id !== billSession.id) {
+      return item;
+    }
+
+    return recalculateLocalBillSession(
+      {
+        ...item,
+        status: "CLOSED",
+        note: payload.note !== undefined ? String(payload.note || "") : item.note,
+        closedAt: item.closedAt || timestamp,
+        updatedAt: timestamp,
+      },
+      orders,
+    );
+  });
+  await saveBillSessions(nextBillSessions, scopedRestaurantId);
+
+  const updated = nextBillSessions.find(item => item.id === billSession.id);
+  if (!updated) {
+    throw new Error("Không thể đóng hóa đơn.");
+  }
+  return updated;
 };
 
 export const updateRestaurantOrderStatus = async (
@@ -1214,6 +1952,22 @@ export const updateRestaurantOrderStatus = async (
     };
   });
   await saveOrders(nextOrders, scopedRestaurantId);
+  const billSessions = await loadBillSessions(scopedRestaurantId);
+  const touchedBillIds = new Set(
+    nextOrders
+      .filter(order => order.id === orderId && order.billSessionId)
+      .map(order => String(order.billSessionId)),
+  );
+  if (touchedBillIds.size > 0) {
+    await saveBillSessions(
+      billSessions.map(billSession =>
+        touchedBillIds.has(billSession.id)
+          ? recalculateLocalBillSession(billSession, nextOrders)
+          : billSession,
+      ),
+      scopedRestaurantId,
+    );
+  }
   return nextOrders;
 };
 
@@ -1238,6 +1992,22 @@ export const updateRestaurantOrderPaymentStatus = async (
   );
 
   await saveOrders(nextOrders, scopedRestaurantId);
+  const billSessions = await loadBillSessions(scopedRestaurantId);
+  const touchedBillIds = new Set(
+    nextOrders
+      .filter(order => order.id === orderId && order.billSessionId)
+      .map(order => String(order.billSessionId)),
+  );
+  if (touchedBillIds.size > 0) {
+    await saveBillSessions(
+      billSessions.map(billSession =>
+        touchedBillIds.has(billSession.id)
+          ? recalculateLocalBillSession(billSession, nextOrders)
+          : billSession,
+      ),
+      scopedRestaurantId,
+    );
+  }
   return nextOrders;
 };
 
@@ -1256,6 +2026,11 @@ export const loadCurrentCart = async (
     branchId: undefined,
     tableId: undefined,
     tableNumber: "",
+    guestSessionId: undefined,
+    billSessionId: undefined,
+    lockedTableId: undefined,
+    lockedTableNumber: undefined,
+    billStatus: undefined,
     note: "",
     items: [],
   });
@@ -1278,6 +2053,13 @@ export const loadCurrentCart = async (
     branchId: parsed.value.branchId,
     tableId: parsed.value.tableId,
     tableNumber: parsed.value.tableNumber || "",
+    guestSessionId: parsed.value.guestSessionId,
+    billSessionId: parsed.value.billSessionId,
+    lockedTableId: parsed.value.lockedTableId,
+    lockedTableNumber: parsed.value.lockedTableNumber,
+    billStatus: parsed.value.billStatus
+      ? normaliseBillSessionStatus(parsed.value.billStatus)
+      : undefined,
     note: parsed.value.note || "",
     items,
   };
@@ -1295,6 +2077,13 @@ export const saveCurrentCart = async (
       branchId: cart.branchId,
       tableId: cart.tableId,
       tableNumber: cart.tableNumber || "",
+      guestSessionId: cart.guestSessionId,
+      billSessionId: cart.billSessionId,
+      lockedTableId: cart.lockedTableId,
+      lockedTableNumber: cart.lockedTableNumber,
+      billStatus: cart.billStatus
+        ? normaliseBillSessionStatus(cart.billStatus)
+        : undefined,
       note: cart.note || "",
       items: Array.isArray(cart.items) ? cart.items : [],
     }),

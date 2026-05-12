@@ -22,6 +22,9 @@ const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1
 const ORDER_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'COMPLETED', 'CANCELLED'];
 const PAYMENT_STATUSES = ['UNPAID', 'PAID'];
 const PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'MOCK'];
+const BILL_SESSION_STATUSES = ['OPEN', 'PAYMENT_REQUESTED', 'PAID', 'CLOSED', 'CANCELLED'];
+const CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES = ['OPEN', 'PAYMENT_REQUESTED'];
+const FINAL_BILL_SESSION_STATUSES = ['PAID', 'CLOSED', 'CANCELLED'];
 const ITEM_STATUSES = ['SELLING', 'HIDDEN', 'OUT_OF_STOCK'];
 const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'LOCKED', 'HIDDEN'];
 const BRANCH_STATUSES = ['ACTIVE', 'LOCKED', 'HIDDEN'];
@@ -58,6 +61,8 @@ const loadDb = () => {
     categories: Array.isArray(db.categories) ? db.categories : [],
     items: Array.isArray(db.items) ? db.items : [],
     orders: Array.isArray(db.orders) ? db.orders : [],
+    billSessions: Array.isArray(db.billSessions) ? db.billSessions : [],
+    auditLogs: Array.isArray(db.auditLogs) ? db.auditLogs : [],
     carts: db.carts && typeof db.carts === 'object' ? db.carts : {},
     adminUsers: Array.isArray(db.adminUsers) ? db.adminUsers : [],
     imageUploads: Array.isArray(db.imageUploads) ? db.imageUploads : [],
@@ -416,7 +421,15 @@ const filterOrdersForUser = (orders, user, restaurantId) => {
   return orders.filter(order => !order.branchId || allowed.includes(order.branchId));
 };
 
-const audit = (action, {user, restaurantId, branchId, targetId} = {}) => {
+const filterBillSessionsForUser = (billSessions, user, restaurantId) => {
+  if (!isBranchRestricted(user, restaurantId)) {
+    return billSessions;
+  }
+  const allowed = getUserBranchIds(user, restaurantId);
+  return billSessions.filter(billSession => !billSession.branchId || allowed.includes(billSession.branchId));
+};
+
+const audit = (action, {user, restaurantId, branchId, targetId, details} = {}) => {
   if (process.env.SCOREMENU_AUDIT_LOG === '0') {
     return;
   }
@@ -430,9 +443,23 @@ const audit = (action, {user, restaurantId, branchId, targetId} = {}) => {
       restaurantId,
       branchId,
       targetId,
+      details,
     }),
   );
 };
+
+const createAuditLogEntry = (action, {user, restaurantId, branchId, targetId, details} = {}) => ({
+  id: createId('audit'),
+  at: nowIso(),
+  action,
+  userId: user?.id,
+  username: user?.username,
+  role: user?.role,
+  restaurantId,
+  branchId,
+  targetId,
+  details: details && typeof details === 'object' ? details : undefined,
+});
 
 const sortByOrderAndName = (a, b) => {
   const orderDelta = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
@@ -452,6 +479,554 @@ const getRestaurantOrders = (db, restaurantId, branchId) =>
   db.orders
     .filter(order => order.restaurantId === restaurantId && (!branchId || order.branchId === branchId))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+const normalizeBillSessionStatus = status => {
+  const normalized = cleanString(status).toUpperCase();
+  return BILL_SESSION_STATUSES.includes(normalized) ? normalized : 'OPEN';
+};
+
+const canCustomerAddOrderToBillSession = status =>
+  CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES.includes(normalizeBillSessionStatus(status));
+
+const isFinalBillSessionStatus = status =>
+  FINAL_BILL_SESSION_STATUSES.includes(normalizeBillSessionStatus(status));
+
+const getBillSessionOrders = (db, billSession) => {
+  if (!billSession?.id) {
+    return [];
+  }
+  const orderIds = Array.isArray(billSession.orderIds) ? billSession.orderIds : [];
+  return db.orders
+    .filter(order =>
+      order.restaurantId === billSession.restaurantId &&
+      (order.billSessionId === billSession.id || orderIds.includes(order.id)),
+    )
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+};
+
+const calculateBillSessionSubtotal = orders =>
+  orders.reduce(
+    (sum, order) => order.orderStatus === 'CANCELLED' ? sum : sum + Number(order.total || 0),
+    0,
+  );
+
+const createBillOrderSummary = (order, index) => ({
+  orderId: order.id,
+  orderNumber: index + 1,
+  orderStatus: order.orderStatus,
+  paymentStatus: order.paymentStatus,
+  itemCount: Array.isArray(order.items)
+    ? order.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0)
+    : 0,
+  total: order.orderStatus === 'CANCELLED' ? 0 : Number(order.total || 0),
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+});
+
+const normalizeBillSessionPayload = (db, restaurantId, payload = {}, existing) => {
+  const tableId = cleanString(payload.tableId ?? existing?.tableId);
+  const branchId = cleanString(payload.branchId ?? existing?.branchId);
+  const table = tableId ? findTable(db, restaurantId, tableId) : null;
+
+  if (branchId && !ensureBranch(db, restaurantId, branchId)) {
+    throw new Error('Chi nhánh không thuộc nhà hàng hiện tại.');
+  }
+  if (tableId && !table) {
+    throw new Error('Bàn không thuộc nhà hàng hiện tại.');
+  }
+  if (table && branchId && table.branchId && table.branchId !== branchId) {
+    throw new Error('Bàn không thuộc chi nhánh hiện tại.');
+  }
+
+  const timestamp = nowIso();
+  const orderIds = Array.isArray(payload.orderIds || existing?.orderIds)
+    ? (payload.orderIds || existing.orderIds).map(cleanString).filter(Boolean)
+    : [];
+  const subtotal = Math.max(0, Number(payload.subtotal ?? existing?.subtotal ?? 0));
+  const discountTotal = Math.max(0, Number(payload.discountTotal ?? existing?.discountTotal ?? 0));
+  const serviceFeeTotal = Math.max(0, Number(payload.serviceFeeTotal ?? existing?.serviceFeeTotal ?? 0));
+
+  return {
+    id: cleanString(payload.id) || existing?.id || createId('bill'),
+    restaurantId,
+    branchId: branchId || table?.branchId || undefined,
+    tableId: tableId || undefined,
+    tableNumber: cleanString(payload.tableNumber || table?.tableNumber || existing?.tableNumber),
+    guestSessionId: cleanString(payload.guestSessionId || existing?.guestSessionId) || undefined,
+    status: normalizeBillSessionStatus(payload.status || existing?.status),
+    orderIds,
+    orderCount: orderIds.length,
+    subtotal,
+    discountTotal,
+    serviceFeeTotal,
+    total: Math.max(0, subtotal - discountTotal + serviceFeeTotal),
+    paymentMethod: PAYMENT_METHODS.includes(payload.paymentMethod || existing?.paymentMethod)
+      ? (payload.paymentMethod || existing.paymentMethod)
+      : undefined,
+    note: cleanString(payload.note ?? existing?.note),
+    tableChangeLogs: Array.isArray(payload.tableChangeLogs)
+      ? payload.tableChangeLogs
+      : Array.isArray(existing?.tableChangeLogs)
+        ? existing.tableChangeLogs
+        : [],
+    openedAt: existing?.openedAt || cleanString(payload.openedAt) || timestamp,
+    paymentRequestedAt: cleanString(payload.paymentRequestedAt || existing?.paymentRequestedAt) || undefined,
+    paidAt: cleanString(payload.paidAt || existing?.paidAt) || undefined,
+    closedAt: cleanString(payload.closedAt || existing?.closedAt) || undefined,
+    createdAt: existing?.createdAt || cleanString(payload.createdAt) || timestamp,
+    updatedAt: timestamp,
+  };
+};
+
+const recalculateBillSessionTotals = (db, billSession) => {
+  const orders = getBillSessionOrders(db, billSession);
+  const subtotal = calculateBillSessionSubtotal(orders);
+  billSession.orderIds = orders.map(order => order.id);
+  billSession.orderCount = orders.length;
+  billSession.subtotal = subtotal;
+  billSession.total = Math.max(
+    0,
+    subtotal - Number(billSession.discountTotal || 0) + Number(billSession.serviceFeeTotal || 0),
+  );
+  billSession.updatedAt = nowIso();
+  return billSession;
+};
+
+
+const createBillTableChangeLog = ({billSession, table, user, reason, auditLogId}) => ({
+  id: createId('table_change'),
+  auditLogId,
+  fromBranchId: billSession.branchId,
+  fromTableId: billSession.tableId,
+  fromTableNumber: billSession.tableNumber,
+  toBranchId: table.branchId,
+  toTableId: table.id,
+  toTableNumber: table.tableNumber,
+  changedByUserId: user?.id,
+  changedByUsername: user?.username,
+  changedByRole: user?.role,
+  reason: cleanString(reason),
+  changedAt: nowIso(),
+});
+
+const findOpenBillSessionByTable = (db, restaurantId, tableId, excludeBillSessionId) => {
+  const targetTableId = cleanString(tableId);
+  if (!targetTableId) {
+    return null;
+  }
+  return db.billSessions.find(
+    billSession =>
+      billSession.restaurantId === restaurantId &&
+      billSession.id !== excludeBillSessionId &&
+      billSession.tableId === targetTableId &&
+      canCustomerAddOrderToBillSession(billSession.status),
+  );
+};
+
+const transferBillSessionToTable = (db, restaurantId, billSession, table, {user, reason} = {}) => {
+  if (!billSession) {
+    throw new Error('Không tìm thấy hóa đơn bàn.');
+  }
+  if (!table || table.restaurantId !== restaurantId) {
+    throw new Error('Bàn đích không thuộc nhà hàng hiện tại.');
+  }
+  if (isFinalBillSessionStatus(billSession.status)) {
+    throw new Error('Hóa đơn đã thanh toán/đóng/hủy nên không thể đổi bàn.');
+  }
+  if (table.status === 'HIDDEN') {
+    throw new Error('Không thể chuyển bill sang bàn đang ẩn.');
+  }
+  if (billSession.branchId && table.branchId !== billSession.branchId) {
+    throw new Error('Chỉ được chuyển bill sang bàn trong cùng chi nhánh để QR khách không bị lẫn phiên.');
+  }
+  const occupiedBill = findOpenBillSessionByTable(db, restaurantId, table.id, billSession.id);
+  if (occupiedBill) {
+    throw new Error('Bàn đích đang có hóa đơn mở. Vui lòng đóng bill đó hoặc xử lý gộp bill trước.');
+  }
+
+  const previous = {
+    branchId: billSession.branchId,
+    tableId: billSession.tableId,
+    tableNumber: billSession.tableNumber,
+  };
+  const auditLog = createAuditLogEntry('bill.table.change', {
+    user,
+    restaurantId,
+    branchId: table.branchId || billSession.branchId,
+    targetId: billSession.id,
+    details: {
+      fromBranchId: previous.branchId,
+      fromTableId: previous.tableId,
+      fromTableNumber: previous.tableNumber,
+      toBranchId: table.branchId,
+      toTableId: table.id,
+      toTableNumber: table.tableNumber,
+      reason: cleanString(reason),
+    },
+  });
+  if (!Array.isArray(db.auditLogs)) {
+    db.auditLogs = [];
+  }
+  db.auditLogs.unshift(auditLog);
+  db.auditLogs = db.auditLogs.slice(0, 500);
+
+  const tableChangeLog = createBillTableChangeLog({
+    billSession,
+    table,
+    user,
+    reason,
+    auditLogId: auditLog.id,
+  });
+  billSession.branchId = table.branchId;
+  billSession.tableId = table.id;
+  billSession.tableNumber = table.tableNumber;
+  billSession.tableChangeLogs = [
+    tableChangeLog,
+    ...(Array.isArray(billSession.tableChangeLogs) ? billSession.tableChangeLogs : []),
+  ].slice(0, 50);
+  billSession.updatedAt = nowIso();
+
+  const billOrderIds = new Set(getBillSessionOrders(db, billSession).map(order => order.id));
+  db.orders.forEach(order => {
+    if (order.restaurantId === restaurantId && (order.billSessionId === billSession.id || billOrderIds.has(order.id))) {
+      order.branchId = table.branchId;
+      order.tableId = table.id;
+      order.tableNumber = table.tableNumber;
+      order.updatedAt = nowIso();
+    }
+  });
+
+  db.tables.forEach(existingTable => {
+    if (existingTable.restaurantId !== restaurantId) {
+      return;
+    }
+    if (
+      previous.tableId &&
+      existingTable.id === previous.tableId &&
+      existingTable.status === 'OCCUPIED' &&
+      !findOpenBillSessionByTable(db, restaurantId, existingTable.id, billSession.id)
+    ) {
+      existingTable.status = 'AVAILABLE';
+      existingTable.updatedAt = nowIso();
+    }
+    if (existingTable.id === table.id && existingTable.status === 'AVAILABLE') {
+      existingTable.status = 'OCCUPIED';
+      existingTable.updatedAt = nowIso();
+    }
+  });
+
+  audit('bill.table.change', {
+    user,
+    restaurantId,
+    branchId: table.branchId || billSession.branchId,
+    targetId: billSession.id,
+    details: auditLog.details,
+  });
+
+  return recalculateBillSessionTotals(db, billSession);
+};
+
+const normalizeBillPaymentStatus = body => {
+  const explicitStatus = cleanString(body.status || body.billStatus).toUpperCase();
+  if (explicitStatus === 'PAID' || body.paymentStatus === 'PAID') {
+    return 'PAID';
+  }
+  return 'PAYMENT_REQUESTED';
+};
+
+const appendAuditLog = (db, action, {user, restaurantId, branchId, targetId, details} = {}) => {
+  const auditLog = createAuditLogEntry(action, {user, restaurantId, branchId, targetId, details});
+  if (!Array.isArray(db.auditLogs)) {
+    db.auditLogs = [];
+  }
+  db.auditLogs.unshift(auditLog);
+  db.auditLogs = db.auditLogs.slice(0, 500);
+  audit(action, {user, restaurantId, branchId, targetId, details});
+  return auditLog;
+};
+
+const updateBillSessionPayment = (db, restaurantId, billSession, body = {}, {user} = {}) => {
+  if (!billSession) {
+    throw new Error('Không tìm thấy hóa đơn bàn.');
+  }
+  if (billSession.status === 'CLOSED' || billSession.status === 'CANCELLED') {
+    throw new Error('Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.');
+  }
+
+  const nextPaymentStatus = normalizeBillPaymentStatus(body);
+  if (billSession.status === 'PAID' && nextPaymentStatus !== 'PAID') {
+    throw new Error('Hóa đơn đã thanh toán, không thể chuyển về yêu cầu thanh toán.');
+  }
+
+  const timestamp = nowIso();
+  const previousStatus = billSession.status;
+  const discountTotal = Number.isFinite(Number(body.discountTotal))
+    ? Math.max(0, Number(body.discountTotal))
+    : Math.max(0, Number(billSession.discountTotal || 0));
+  const serviceFeeTotal = Number.isFinite(Number(body.serviceFeeTotal))
+    ? Math.max(0, Number(body.serviceFeeTotal))
+    : Math.max(0, Number(billSession.serviceFeeTotal || 0));
+
+  billSession.discountTotal = discountTotal;
+  billSession.serviceFeeTotal = serviceFeeTotal;
+  if (body.note !== undefined) {
+    billSession.note = cleanString(body.note);
+  }
+  billSession.paymentRequestedAt = billSession.paymentRequestedAt || timestamp;
+
+  if (nextPaymentStatus === 'PAID') {
+    const paymentMethod = normalizePaymentMethod(body.paymentMethod || billSession.paymentMethod || 'MOCK');
+    billSession.status = 'PAID';
+    billSession.paymentMethod = paymentMethod;
+    billSession.paidAt = billSession.paidAt || timestamp;
+
+    db.orders.forEach(order => {
+      if (
+        order.restaurantId === restaurantId &&
+        order.billSessionId === billSession.id &&
+        order.orderStatus !== 'CANCELLED'
+      ) {
+        order.paymentStatus = 'PAID';
+        order.paymentMethod = paymentMethod;
+        order.updatedAt = timestamp;
+      }
+    });
+  } else {
+    billSession.status = 'PAYMENT_REQUESTED';
+  }
+
+  billSession.updatedAt = timestamp;
+  const updated = recalculateBillSessionTotals(db, billSession);
+
+  appendAuditLog(db, nextPaymentStatus === 'PAID' ? 'bill.payment.paid' : 'bill.payment.requested', {
+    user,
+    restaurantId,
+    branchId: updated.branchId,
+    targetId: updated.id,
+    details: {
+      previousStatus,
+      nextStatus: updated.status,
+      paymentMethod: updated.paymentMethod,
+      subtotal: updated.subtotal,
+      discountTotal: updated.discountTotal,
+      serviceFeeTotal: updated.serviceFeeTotal,
+      total: updated.total,
+    },
+  });
+
+  return updated;
+};
+
+const closeBillSession = (db, restaurantId, billSession, body = {}, {user} = {}) => {
+  if (!billSession) {
+    throw new Error('Không tìm thấy hóa đơn bàn.');
+  }
+  if (billSession.status === 'CANCELLED') {
+    throw new Error('Hóa đơn đã hủy nên không thể đóng.');
+  }
+  if (billSession.status !== 'PAID' && billSession.status !== 'CLOSED') {
+    throw new Error('Chỉ đóng hóa đơn sau khi đã đánh dấu thanh toán.');
+  }
+
+  const timestamp = nowIso();
+  const previousStatus = billSession.status;
+  billSession.status = 'CLOSED';
+  billSession.closedAt = billSession.closedAt || timestamp;
+  billSession.updatedAt = timestamp;
+  if (body.note !== undefined) {
+    billSession.note = cleanString(body.note);
+  }
+
+  const updated = recalculateBillSessionTotals(db, billSession);
+
+  if (updated.tableId) {
+    db.tables.forEach(table => {
+      if (
+        table.restaurantId === restaurantId &&
+        table.id === updated.tableId &&
+        table.status === 'OCCUPIED' &&
+        !findOpenBillSessionByTable(db, restaurantId, table.id, updated.id)
+      ) {
+        table.status = 'AVAILABLE';
+        table.updatedAt = timestamp;
+      }
+    });
+  }
+
+  appendAuditLog(db, 'bill.close', {
+    user,
+    restaurantId,
+    branchId: updated.branchId,
+    targetId: updated.id,
+    details: {
+      previousStatus,
+      nextStatus: updated.status,
+      subtotal: updated.subtotal,
+      discountTotal: updated.discountTotal,
+      serviceFeeTotal: updated.serviceFeeTotal,
+      total: updated.total,
+    },
+  });
+
+  return updated;
+};
+
+const BILL_SESSION_MODEL = Object.freeze({
+  statuses: BILL_SESSION_STATUSES,
+  customerOrderableStatuses: CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES,
+  finalStatuses: FINAL_BILL_SESSION_STATUSES,
+  normalizeStatus: normalizeBillSessionStatus,
+  canCustomerAddOrder: canCustomerAddOrderToBillSession,
+  isFinalStatus: isFinalBillSessionStatus,
+  getOrders: getBillSessionOrders,
+  calculateSubtotal: calculateBillSessionSubtotal,
+  createOrderSummary: createBillOrderSummary,
+  normalizePayload: normalizeBillSessionPayload,
+  recalculateTotals: recalculateBillSessionTotals,
+  updatePayment: updateBillSessionPayment,
+  close: closeBillSession,
+});
+
+const asPublicBillSession = (db, billSession) => {
+  const normalized = recalculateBillSessionTotals(db, billSession);
+  const orders = getBillSessionOrders(db, normalized);
+  const orderSummaries = orders.map(createBillOrderSummary);
+  const summary = {
+    billSessionId: normalized.id,
+    restaurantId: normalized.restaurantId,
+    branchId: normalized.branchId,
+    tableId: normalized.tableId,
+    tableNumber: normalized.tableNumber,
+    status: normalized.status,
+    orderCount: normalized.orderCount,
+    orders: orderSummaries,
+    subtotal: normalized.subtotal,
+    discountTotal: normalized.discountTotal,
+    serviceFeeTotal: normalized.serviceFeeTotal,
+    total: normalized.total,
+    paymentMethod: normalized.paymentMethod,
+    openedAt: normalized.openedAt,
+    paymentRequestedAt: normalized.paymentRequestedAt,
+    paidAt: normalized.paidAt,
+    closedAt: normalized.closedAt,
+  };
+  return {
+    ...normalized,
+    billSessionId: normalized.id,
+    billTotal: normalized.total,
+    orders,
+    orderSummaries,
+    summary,
+  };
+};
+
+const getRestaurantBillSessions = (db, restaurantId, branchId) =>
+  db.billSessions
+    .filter(billSession =>
+      billSession.restaurantId === restaurantId && (!branchId || billSession.branchId === branchId),
+    )
+    .map(billSession => asPublicBillSession(db, billSession))
+    .sort((a, b) =>
+      String(b.updatedAt || b.openedAt || b.createdAt).localeCompare(
+        String(a.updatedAt || a.openedAt || a.createdAt),
+      ),
+    );
+
+const getRestaurantBillSessionById = (db, restaurantId, billSessionId) => {
+  const billSession = db.billSessions.find(
+    item => item.id === billSessionId && item.restaurantId === restaurantId,
+  );
+  return billSession ? asPublicBillSession(db, billSession) : null;
+};
+
+const ensureBillSessionMatchesPublicScope = (scope, billSession) => {
+  if (!billSession || billSession.restaurantId !== scope.context.restaurantId) {
+    throw new Error('BillSession không tồn tại trong nhà hàng của QR hiện tại.');
+  }
+  if (scope.context.branchId && billSession.branchId !== scope.context.branchId) {
+    throw new Error('BillSession không thuộc chi nhánh của QR hiện tại.');
+  }
+  return billSession;
+};
+
+const findPublicBillSessionById = (db, scope, billSessionId) => {
+  const cleanId = cleanString(billSessionId);
+  if (!cleanId) {
+    return null;
+  }
+  const billSession = db.billSessions.find(
+    item => item.id === cleanId && item.restaurantId === scope.context.restaurantId,
+  );
+  return billSession ? ensureBillSessionMatchesPublicScope(scope, billSession) : null;
+};
+
+const findCurrentPublicBillSession = (db, scope, {billSessionId, guestSessionId} = {}) => {
+  const byId = findPublicBillSessionById(db, scope, billSessionId);
+  if (byId) {
+    return byId;
+  }
+
+  const cleanGuestSessionId = cleanString(guestSessionId);
+  if (!cleanGuestSessionId) {
+    return null;
+  }
+
+  return db.billSessions
+    .filter(billSession =>
+      billSession.restaurantId === scope.context.restaurantId &&
+      (!scope.context.branchId || billSession.branchId === scope.context.branchId) &&
+      billSession.guestSessionId === cleanGuestSessionId &&
+      canCustomerAddOrderToBillSession(billSession.status),
+    )
+    .sort((a, b) => String(b.updatedAt || b.openedAt).localeCompare(String(a.updatedAt || a.openedAt)))[0] || null;
+};
+
+const createPublicBillSessionForOrder = (db, scope, table, body = {}) => {
+  const billSession = normalizeBillSessionPayload(db, scope.context.restaurantId, {
+    restaurantId: scope.context.restaurantId,
+    branchId: table.branchId || scope.context.branchId,
+    tableId: table.id,
+    tableNumber: table.tableNumber,
+    guestSessionId: cleanString(body.guestSessionId),
+    status: 'OPEN',
+    note: cleanString(body.billNote),
+  });
+  db.billSessions.unshift(billSession);
+  return billSession;
+};
+
+const resolvePublicOrderBillSession = (db, scope, body = {}) => {
+  const requestedBillSessionId = cleanString(body.billSessionId);
+
+  if (requestedBillSessionId) {
+    const billSession = findPublicBillSessionById(db, scope, requestedBillSessionId);
+    if (!billSession) {
+      throw new Error('BillSession không tồn tại hoặc không thuộc QR hiện tại.');
+    }
+    if (!canCustomerAddOrderToBillSession(billSession.status)) {
+      throw new Error('Hóa đơn bàn này đã thanh toán/đóng, không thể gọi thêm món.');
+    }
+    return {billSession, created: false};
+  }
+
+  const table = resolvePublicOrderTable(db, scope, body);
+  const billSession = createPublicBillSessionForOrder(db, scope, table, body);
+  return {billSession, created: true};
+};
+
+const createPublicOrderResponse = (db, billSession, order) => {
+  const bill = asPublicBillSession(db, billSession);
+  return {
+    billSessionId: bill.id,
+    tableId: bill.tableId,
+    tableNumber: bill.tableNumber,
+    order,
+    billTotal: bill.total,
+    billSession: bill,
+    orders: bill.orders,
+  };
+};
+
 
 const cartKey = ({restaurantId, branchId, tableId}) =>
   [restaurantId || 'no_restaurant', branchId || 'no_branch', tableId || 'no_table'].join(':');
@@ -755,6 +1330,10 @@ const normalizePaymentMethod = method => {
 const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
   const branchId = cleanString(payload.branchId ?? existing?.branchId);
   const tableId = cleanString(payload.tableId ?? existing?.tableId);
+  const billSessionId = cleanString(payload.billSessionId ?? existing?.billSessionId);
+  const billSession = billSessionId
+    ? db.billSessions.find(item => item.id === billSessionId && item.restaurantId === restaurantId)
+    : null;
   const table = tableId ? findTable(db, restaurantId, tableId) : null;
 
   if (branchId && !ensureBranch(db, restaurantId, branchId)) {
@@ -765,6 +1344,9 @@ const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
   }
   if (table && branchId && table.branchId && table.branchId !== branchId) {
     throw new Error('Bàn không thuộc chi nhánh hiện tại.');
+  }
+  if (billSessionId && !billSession) {
+    throw new Error('BillSession không thuộc nhà hàng hiện tại hoặc không tồn tại.');
   }
 
   const items = normalizeOrderItems(db, restaurantId, payload.items ?? existing?.items);
@@ -783,10 +1365,12 @@ const normalizeOrderPayload = (db, restaurantId, payload, existing) => {
   return {
     id: cleanString(payload.id) || existing?.id || createId('order'),
     restaurantId,
-    branchId: branchId || table?.branchId || undefined,
-    tableId: tableId || undefined,
+    branchId: branchId || billSession?.branchId || table?.branchId || undefined,
+    tableId: tableId || billSession?.tableId || undefined,
+    billSessionId: billSessionId || undefined,
+    guestSessionId: cleanString(payload.guestSessionId || existing?.guestSessionId || billSession?.guestSessionId) || undefined,
     orderSource: payload.orderSource || existing?.orderSource || 'customer',
-    tableNumber: cleanString(payload.tableNumber || table?.tableNumber || existing?.tableNumber),
+    tableNumber: cleanString(payload.tableNumber || billSession?.tableNumber || table?.tableNumber || existing?.tableNumber),
     items,
     note: cleanString(payload.note ?? existing?.note),
     total,
@@ -1435,6 +2019,140 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
   return false;
 };
 
+
+const routeBills = async (req, res, db, restaurantId, parts, query, user) => {
+  if (parts.length === 3 && req.method === 'GET') {
+    const requestedBranchId = cleanString(query.get('branchId'));
+    if (!requireBranchAccess(res, user, restaurantId, requestedBranchId)) {
+      return true;
+    }
+    const billSessions = getRestaurantBillSessions(db, restaurantId, requestedBranchId);
+    saveDb(db);
+    ok(res, filterBillSessionsForUser(billSessions, user, restaurantId));
+    return true;
+  }
+
+  if (parts.length === 4 && req.method === 'GET') {
+    const billSession = getRestaurantBillSessionById(db, restaurantId, parts[3]);
+    if (!billSession) {
+      fail(res, 404, 'Không tìm thấy hóa đơn bàn.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, billSession.branchId)) {
+      return true;
+    }
+    saveDb(db);
+    ok(res, billSession);
+    return true;
+  }
+
+  if (parts.length === 5 && parts[4] === 'payment' && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền cập nhật thanh toán hóa đơn.')) {
+      return true;
+    }
+    const billSession = db.billSessions.find(
+      item => item.id === parts[3] && item.restaurantId === restaurantId,
+    );
+    if (!billSession) {
+      fail(res, 404, 'Không tìm thấy hóa đơn bàn.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, billSession.branchId)) {
+      return true;
+    }
+
+    const body = await parseBody(req);
+    try {
+      const updated = updateBillSessionPayment(db, restaurantId, billSession, body, {user});
+      saveDb(db);
+      ok(res, asPublicBillSession(db, updated));
+    } catch (error) {
+      const message = error.message || 'Không thể cập nhật thanh toán hóa đơn.';
+      fail(res, message.includes('đã') ? 409 : 400, message);
+    }
+    return true;
+  }
+
+  if (parts.length === 5 && parts[4] === 'close' && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền đóng hóa đơn.')) {
+      return true;
+    }
+    const billSession = db.billSessions.find(
+      item => item.id === parts[3] && item.restaurantId === restaurantId,
+    );
+    if (!billSession) {
+      fail(res, 404, 'Không tìm thấy hóa đơn bàn.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, billSession.branchId)) {
+      return true;
+    }
+
+    const body = await parseBody(req);
+    try {
+      const updated = closeBillSession(db, restaurantId, billSession, body, {user});
+      saveDb(db);
+      ok(res, asPublicBillSession(db, updated));
+    } catch (error) {
+      const message = error.message || 'Không thể đóng hóa đơn.';
+      fail(res, message.includes('Chỉ đóng') || message.includes('đã') ? 409 : 400, message);
+    }
+    return true;
+  }
+
+  if (parts.length === 5 && parts[4] === 'table' && req.method === 'PATCH') {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER', 'STAFF'], 'Tài khoản không có quyền đổi bàn cho hóa đơn.')) {
+      return true;
+    }
+    const billSession = db.billSessions.find(
+      item => item.id === parts[3] && item.restaurantId === restaurantId,
+    );
+    if (!billSession) {
+      fail(res, 404, 'Không tìm thấy hóa đơn bàn.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, billSession.branchId)) {
+      return true;
+    }
+
+    const body = await parseBody(req);
+    const requestedTableId = cleanString(body.tableId);
+    const requestedTableNumber = normalizeKey(body.tableNumber);
+    const requestedBranchId = cleanString(body.branchId || billSession.branchId);
+    const targetTable = requestedTableId
+      ? findTable(db, restaurantId, requestedTableId)
+      : db.tables.find(
+          table =>
+            table.restaurantId === restaurantId &&
+            (!requestedBranchId || table.branchId === requestedBranchId) &&
+            normalizeKey(table.tableNumber) === requestedTableNumber,
+        );
+
+    if (!targetTable) {
+      fail(res, 404, 'Không tìm thấy bàn đích trong nhà hàng hiện tại.');
+      return true;
+    }
+    if (!requireBranchAccess(res, user, restaurantId, targetTable.branchId)) {
+      return true;
+    }
+
+    try {
+      const updated = transferBillSessionToTable(db, restaurantId, billSession, targetTable, {
+        user,
+        reason: body.reason,
+      });
+      saveDb(db);
+      ok(res, asPublicBillSession(db, updated));
+    } catch (error) {
+      const message = error.message || 'Không thể đổi bàn cho hóa đơn.';
+      fail(res, message.includes('đang có hóa đơn mở') ? 409 : 400, message);
+    }
+    return true;
+  }
+
+  return false;
+};
+
 const routeOrders = async (req, res, db, restaurantId, parts, query, user) => {
   if (parts.length === 3 && req.method === 'GET') {
     const requestedBranchId = cleanString(query.get('branchId'));
@@ -1495,6 +2213,14 @@ const routeOrders = async (req, res, db, restaurantId, parts, query, user) => {
     }
     order.orderStatus = nextStatus;
     order.updatedAt = nowIso();
+    if (order.billSessionId) {
+      const billSession = db.billSessions.find(
+        item => item.id === order.billSessionId && item.restaurantId === restaurantId,
+      );
+      if (billSession) {
+        recalculateBillSessionTotals(db, billSession);
+      }
+    }
     saveDb(db);
     audit('order.status.update', {user, restaurantId, branchId: order.branchId, targetId: order.id});
     ok(res, filterOrdersForUser(getRestaurantOrders(db, restaurantId, order.branchId), user, restaurantId));
@@ -1607,7 +2333,7 @@ const routeQrToken = (req, res, db, parts) => {
   return true;
 };
 
-const routePublicMenu = async (req, res, db, parts) => {
+const routePublicMenu = async (req, res, db, parts, query) => {
   if (parts.length < 3) {
     return false;
   }
@@ -1646,29 +2372,59 @@ const routePublicMenu = async (req, res, db, parts) => {
   if (parts.length === 4 && parts[3] === 'orders' && req.method === 'POST') {
     const body = await parseBody(req);
     try {
-      const table = resolvePublicOrderTable(db, scope, body);
+      const {billSession, created: createdBillSession} = resolvePublicOrderBillSession(db, scope, body);
       const order = normalizeOrderPayload(db, scope.context.restaurantId, {
         ...body,
         restaurantId: scope.context.restaurantId,
-        branchId: scope.context.branchId,
-        tableId: table.id,
-        tableNumber: table.tableNumber,
+        branchId: billSession.branchId || scope.context.branchId,
+        tableId: billSession.tableId,
+        tableNumber: billSession.tableNumber,
+        billSessionId: billSession.id,
+        guestSessionId: cleanString(body.guestSessionId) || billSession.guestSessionId,
         orderSource: 'customer',
       });
       db.orders.unshift(order);
+      recalculateBillSessionTotals(db, billSession);
       delete db.carts[cartKey(scope.context)];
       delete db.carts[cartKey(order)];
       saveDb(db);
+      audit(createdBillSession ? 'bill.open.public' : 'bill.order.add.public', {
+        restaurantId: scope.context.restaurantId,
+        branchId: order.branchId,
+        tableId: billSession.tableId,
+        tableNumber: billSession.tableNumber,
+        targetId: billSession.id,
+      });
       audit('order.create.public', {
         restaurantId: scope.context.restaurantId,
         branchId: order.branchId,
-        tableId: table.id,
-        tableNumber: table.tableNumber,
+        tableId: billSession.tableId,
+        tableNumber: billSession.tableNumber,
         targetId: order.id,
       });
-      created(res, [order]);
+      created(res, createPublicOrderResponse(db, billSession, order));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
+    }
+    return true;
+  }
+
+  if (parts.length === 5 && parts[3] === 'bills' && req.method === 'GET') {
+    try {
+      const requestedId = parts[4] === 'current' ? cleanString(query?.get('billSessionId')) : parts[4];
+      const billSession = findCurrentPublicBillSession(db, scope, {
+        billSessionId: requestedId,
+        guestSessionId: query?.get('guestSessionId'),
+      });
+      if (!billSession) {
+        fail(res, 404, 'Không tìm thấy hóa đơn đang mở cho phiên khách này.');
+        return true;
+      }
+      const bill = asPublicBillSession(db, billSession);
+      saveDb(db);
+      ok(res, bill);
+    } catch (error) {
+      fail(res, 400, error.message || 'Không thể tải hóa đơn hiện tại.');
     }
     return true;
   }
@@ -1738,6 +2494,9 @@ const routeRestaurantScoped = async (req, res, db, parts, query) => {
   if (parts[2] === 'menu' && parts[3] === 'items') {
     return routeItems(req, res, db, restaurantId, parts, access.user);
   }
+  if (parts[2] === 'bills') {
+    return routeBills(req, res, db, restaurantId, parts, query, access.user);
+  }
   if (parts[2] === 'orders') {
     return routeOrders(req, res, db, restaurantId, parts, query, access.user);
   }
@@ -1772,6 +2531,9 @@ const handleRequest = async (req, res) => {
         categories: db.categories.length,
         items: db.items.length,
         orders: db.orders.length,
+        billSessions: db.billSessions.length,
+        auditLogs: db.auditLogs.length,
+        billSessionStatuses: BILL_SESSION_MODEL.statuses,
       });
       return;
     }
@@ -1800,7 +2562,7 @@ const handleRequest = async (req, res) => {
       return;
     }
 
-    if (parts[0] === 'public' && parts[1] === 'menu' && (await routePublicMenu(req, res, db, parts))) {
+    if (parts[0] === 'public' && parts[1] === 'menu' && (await routePublicMenu(req, res, db, parts, query))) {
       return;
     }
 

@@ -11,6 +11,10 @@ import type {
   RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantCurrentBillSessionQuery,
+  RestaurantBillSessionClosePayload,
+  RestaurantBillSessionPaymentPayload,
+  RestaurantBillSessionTableTransferPayload,
   RestaurantPublicMenuPayload,
   RestaurantBranch,
   RestaurantTable,
@@ -18,11 +22,16 @@ import type {
   RestaurantWorkspace,
   RestaurantWorkspacePayload,
 } from './RestaurantMenuRepository';
-import {normaliseRestaurantOrder} from 'services/restaurantMenuStorage';
+import {
+  normaliseRestaurantBillSession,
+  normaliseRestaurantOrder,
+} from 'services/restaurantMenuStorage';
 import {devModuleLog, devModuleWarn} from 'utils/devLogger';
 import type {
   MenuCategory,
+  RawRestaurantBillSession,
   RawRestaurantOrder,
+  RestaurantBillSessionDetail,
   RestaurantCartState,
   RestaurantMenuItem,
   RestaurantOrder,
@@ -85,6 +94,16 @@ type ApiPublicMenuPayload = Partial<RestaurantPublicMenuPayload> & {
   context?: RestaurantMenuContext;
   categories?: MenuCategory[];
   items?: RestaurantMenuItem[];
+};
+
+type ApiPublicOrderResponse = RawRestaurantOrder[] | {
+  billSessionId?: string;
+  tableId?: string;
+  tableNumber?: string;
+  order?: RawRestaurantOrder;
+  orders?: RawRestaurantOrder[];
+  billTotal?: number;
+  billSession?: RawRestaurantBillSession;
 };
 
 const DEFAULT_API_TIMEOUT_MS = 15000;
@@ -507,6 +526,22 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       : [];
   }
 
+
+  private getOrdersFromOrderResponse(
+    response: ApiPublicOrderResponse,
+  ): RawRestaurantOrder[] {
+    if (Array.isArray(response)) {
+      return response;
+    }
+    if (Array.isArray(response?.orders)) {
+      return response.orders;
+    }
+    if (response?.order) {
+      return [response.order];
+    }
+    return [];
+  }
+
   listRestaurants(): Promise<RestaurantWorkspace[]> {
     return this.request<RestaurantWorkspace[]>('/restaurants');
   }
@@ -804,12 +839,30 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       : normalised;
   }
 
+  async getBillSessions(): Promise<RestaurantBillSessionDetail[]> {
+    const context = await this.getActiveContext();
+    const branchQuery = context.branchId
+      ? `?branchId=${encodeURIComponent(context.branchId)}`
+      : '';
+    const billSessions = await this.request<RawRestaurantBillSession[]>(
+      await this.restaurantPath(`/bills${branchQuery}`),
+    );
+    const normalised = Array.isArray(billSessions)
+      ? billSessions.map(billSession =>
+          normaliseRestaurantBillSession(billSession, context.restaurantId),
+        )
+      : [];
+    return context.branchId
+      ? normalised.filter(billSession => billSession.branchId === context.branchId)
+      : normalised;
+  }
+
   async createOrder(
     payload: RestaurantOrderPayload,
   ): Promise<RestaurantOrder[]> {
     const context = await this.getActiveContext();
     if (this.isCustomerTableContext(context)) {
-      const orders = await this.request<RawRestaurantOrder[]>(
+      const response = await this.request<ApiPublicOrderResponse>(
         await this.publicTablePath('/orders'),
         {
           method: 'POST',
@@ -817,6 +870,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
             items: payload.items,
             tableId: payload.tableId,
             tableNumber: payload.tableNumber,
+            billSessionId: payload.billSessionId,
+            guestSessionId: payload.guestSessionId,
             note: payload.note,
             paymentMethod: payload.paymentMethod,
             paymentStatus: payload.paymentStatus,
@@ -824,7 +879,10 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
           retryCount: 0,
         },
       );
-      const normalised = this.normaliseOrders(orders, context.restaurantId);
+      const normalised = this.normaliseOrders(
+        this.getOrdersFromOrderResponse(response),
+        context.restaurantId,
+      );
       return context.branchId
         ? normalised.filter(order => order.branchId === context.branchId)
         : normalised;
@@ -847,6 +905,81 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     return context.branchId
       ? normalised.filter(order => order.branchId === context.branchId)
       : normalised;
+  }
+
+  async getCurrentBillSession(
+    query: RestaurantCurrentBillSessionQuery = {},
+  ): Promise<RestaurantBillSessionDetail | null> {
+    const context = await this.getActiveContext();
+    if (!this.isCustomerTableContext(context)) {
+      return null;
+    }
+
+    const suffix = query.billSessionId
+      ? `/bills/${encodeURIComponent(query.billSessionId)}`
+      : `/bills/current${
+          query.guestSessionId
+            ? `?guestSessionId=${encodeURIComponent(query.guestSessionId)}`
+            : ''
+        }`;
+
+    try {
+      const billSession = await this.request<RawRestaurantBillSession>(
+        await this.publicTablePath(suffix),
+      );
+      return normaliseRestaurantBillSession(billSession, context.restaurantId);
+    } catch (error) {
+      const apiError = error as Partial<RestaurantMenuApiError>;
+      if (apiError.status === 404 || apiError.code === 'NOT_FOUND') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async updateBillSessionTable(
+    billSessionId: string,
+    payload: RestaurantBillSessionTableTransferPayload,
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    const billSession = await this.request<RawRestaurantBillSession>(
+      await this.restaurantPath(`/bills/${encodeURIComponent(billSessionId)}/table`),
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+    return normaliseRestaurantBillSession(billSession, context.restaurantId);
+  }
+
+  async updateBillSessionPayment(
+    billSessionId: string,
+    payload: RestaurantBillSessionPaymentPayload,
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    const billSession = await this.request<RawRestaurantBillSession>(
+      await this.restaurantPath(`/bills/${encodeURIComponent(billSessionId)}/payment`),
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+    return normaliseRestaurantBillSession(billSession, context.restaurantId);
+  }
+
+  async closeBillSession(
+    billSessionId: string,
+    payload: RestaurantBillSessionClosePayload = {},
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    const billSession = await this.request<RawRestaurantBillSession>(
+      await this.restaurantPath(`/bills/${encodeURIComponent(billSessionId)}/close`),
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
+    return normaliseRestaurantBillSession(billSession, context.restaurantId);
   }
 
   async updateOrderStatus(

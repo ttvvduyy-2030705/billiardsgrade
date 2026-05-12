@@ -1,4 +1,5 @@
 import {
+  closeRestaurantBillSession,
   deleteMenuCategory,
   deleteMenuItem,
   deleteRestaurantTable,
@@ -7,8 +8,11 @@ import {
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
+  loadBillSessions,
   loadRestaurantBranches,
   loadRestaurantTables,
+  updateRestaurantBillSessionPayment,
+  updateRestaurantBillSessionTable,
   updateRestaurantOrderPaymentStatus,
   updateRestaurantOrderStatus,
   uploadRestaurantMenuImage,
@@ -31,6 +35,8 @@ import type {
   RestaurantMenuItem,
   RestaurantMenuItemStatus,
   RestaurantOrder,
+  RestaurantBillSessionDetail,
+  RestaurantBillSessionStatus,
   RestaurantBranch,
   RestaurantOrderStatus,
   RestaurantPaymentMethod,
@@ -40,6 +46,7 @@ import type {
 import type {RestaurantAdminSession} from './restaurantAdminAuthService';
 
 export type AdminOrderStatus = RestaurantOrderStatus;
+export type AdminBillSessionStatus = RestaurantBillSessionStatus;
 export type AdminRestaurantTable = RestaurantTable;
 export type AdminRestaurantBranch = RestaurantBranch;
 export type AdminRestaurantTableForm = RestaurantTablePayload & {id?: string};
@@ -52,6 +59,26 @@ export type AdminBranchQrForm = {
   status?: RestaurantBranch['status'];
 };
 
+export type AdminBillTableTransferForm = {
+  billSessionId: string;
+  tableId: string;
+  reason?: string;
+};
+
+export type AdminBillPaymentForm = {
+  billSessionId: string;
+  status: "PAYMENT_REQUESTED" | "PAID";
+  paymentMethod?: AdminPaymentMethod;
+  discountTotal?: number;
+  serviceFeeTotal?: number;
+  note?: string;
+};
+
+export type AdminBillCloseForm = {
+  billSessionId: string;
+  note?: string;
+};
+
 export type AdminPaymentStatus = 'UNPAID' | 'PAID';
 export type AdminPaymentMethod = RestaurantPaymentMethod;
 export type AdminOrderFilter = AdminOrderStatus | 'ALL' | AdminPaymentStatus;
@@ -60,6 +87,14 @@ export type AdminOrder = RestaurantOrder & {
   /** UI alias only. Canonical processing state is orderStatus. */
   status: AdminOrderStatus;
   paymentStatus: AdminPaymentStatus;
+};
+
+export type AdminBillSession = Omit<RestaurantBillSessionDetail, 'orders' | 'status'> & {
+  status: AdminBillSessionStatus;
+  orders: AdminOrder[];
+  latestOrderStatus?: AdminOrderStatus;
+  latestOrderId?: string;
+  latestOrderUpdatedAt?: string;
 };
 
 export type AdminMenuItemForm = {
@@ -118,6 +153,14 @@ export const ADMIN_PAYMENT_METHOD_LABELS: Record<AdminPaymentMethod, string> = {
   CASH: 'Tiền mặt',
   BANK_TRANSFER: 'Chuyển khoản',
   MOCK: 'Test/mock',
+};
+
+export const ADMIN_BILL_SESSION_STATUS_LABELS: Record<AdminBillSessionStatus, string> = {
+  OPEN: 'Đang mở',
+  PAYMENT_REQUESTED: 'Yêu cầu thanh toán',
+  PAID: 'Đã thanh toán',
+  CLOSED: 'Đã đóng',
+  CANCELLED: 'Đã huỷ',
 };
 
 export const ADMIN_PAYMENT_METHODS: AdminPaymentMethod[] = [
@@ -237,6 +280,23 @@ const filterOrdersByScope = (orders: RestaurantOrder[], scope: AdminScope) => {
   return scope.branchId
     ? orders.filter(order => order.branchId === scope.branchId)
     : orders;
+};
+
+const filterBillSessionsByScope = (
+  billSessions: RestaurantBillSessionDetail[],
+  scope: AdminScope,
+) => {
+  if (scope.allowedBranchIds.length > 0) {
+    return billSessions.filter(billSession =>
+      billSession.branchId
+        ? scope.allowedBranchIds.includes(billSession.branchId)
+        : false,
+    );
+  }
+
+  return scope.branchId
+    ? billSessions.filter(billSession => billSession.branchId === scope.branchId)
+    : billSessions;
 };
 
 const filterTablesByScope = (tables: RestaurantTable[], scope: AdminScope) => {
@@ -413,18 +473,76 @@ const sortAdminOrders = (orders: AdminOrder[]) =>
 export const mapToAdminOrders = (orders: RestaurantOrder[]) =>
   sortAdminOrders(orders.map(toAdminOrder));
 
+const sortBillChildOrders = (orders: AdminOrder[]) =>
+  [...orders].sort((a, b) =>
+    String(a.createdAt || '').localeCompare(String(b.createdAt || '')),
+  );
+
+const toAdminBillSession = (billSession: RestaurantBillSessionDetail): AdminBillSession => {
+  const childOrders = sortBillChildOrders(
+    (billSession.orders || []).map(toAdminOrder),
+  );
+  const latestOrder = [...childOrders].sort((a, b) =>
+    String(b.createdAt || b.updatedAt || '').localeCompare(
+      String(a.createdAt || a.updatedAt || ''),
+    ),
+  )[0];
+
+  return {
+    ...billSession,
+    status: billSession.status || 'OPEN',
+    orders: childOrders,
+    orderCount: Number(billSession.orderCount || childOrders.length),
+    latestOrderStatus: latestOrder?.status,
+    latestOrderId: latestOrder?.id,
+    latestOrderUpdatedAt: latestOrder?.updatedAt || latestOrder?.createdAt,
+  };
+};
+
+const sortAdminBillSessions = (billSessions: AdminBillSession[]) =>
+  [...billSessions].sort((a, b) =>
+    String(b.updatedAt || b.openedAt || b.createdAt || '').localeCompare(
+      String(a.updatedAt || a.openedAt || a.createdAt || ''),
+    ),
+  );
+
+export const mapToAdminBillSessions = (billSessions: RestaurantBillSessionDetail[]) =>
+  sortAdminBillSessions(billSessions.map(toAdminBillSession));
+
 export const loadAdminOrders = async () => {
   const scope = await ensureAdminScope();
   const orders = await loadOrders();
   return mapToAdminOrders(filterOrdersByScope(orders, scope));
 };
 
+export const loadAdminBillSessions = async () => {
+  const scope = await ensureAdminScope();
+  const billSessions = await loadBillSessions();
+  return mapToAdminBillSessions(filterBillSessionsByScope(billSessions, scope));
+};
+
+export const loadAdminOrderDashboard = async () => {
+  const scope = await ensureAdminScope();
+  const [orders, billSessions] = await Promise.all([
+    loadOrders(),
+    loadBillSessions(),
+  ]);
+
+  return {
+    orders: mapToAdminOrders(filterOrdersByScope(orders, scope)),
+    billSessions: mapToAdminBillSessions(
+      filterBillSessionsByScope(billSessions, scope),
+    ),
+  };
+};
+
 export const loadRestaurantAdminData = async () => {
   const scope = await ensureAdminScope();
-  const [categories, menuItems, orders, tables] = await Promise.all([
+  const [categories, menuItems, orders, billSessions, tables] = await Promise.all([
     loadMenuCategories(),
     loadMenuItems(),
     loadOrders(),
+    loadBillSessions(),
     loadRestaurantTables(scope.restaurantId),
   ]);
 
@@ -432,6 +550,9 @@ export const loadRestaurantAdminData = async () => {
     categories,
     menuItems,
     orders: mapToAdminOrders(filterOrdersByScope(orders, scope)),
+    billSessions: mapToAdminBillSessions(
+      filterBillSessionsByScope(billSessions, scope),
+    ),
     tables: filterTablesByScope(tables, scope),
   };
 };
@@ -619,6 +740,98 @@ export const updateAdminOrderPaymentStatus = async (
   );
 
   return mapToAdminOrders(filterOrdersByScope(nextOrders, scope));
+};
+
+
+const getBillSessionInScope = async (
+  billSessionId: string,
+  scope: AdminScope,
+) => {
+  const billSessions = filterBillSessionsByScope(await loadBillSessions(), scope);
+  const billSession = billSessions.find(item => item.id === billSessionId);
+
+  if (!billSession) {
+    throw new Error('Hóa đơn không thuộc nhà hàng/chi nhánh mà tài khoản hiện tại được cấp quyền.');
+  }
+
+  return billSession;
+};
+
+export const updateAdminBillSessionPayment = async (
+  input: AdminBillPaymentForm,
+): Promise<AdminBillSession> => {
+  const scope = await ensureAdminScope();
+  const billSession = await getBillSessionInScope(input.billSessionId, scope);
+
+  if (['CLOSED', 'CANCELLED'].includes(billSession.status)) {
+    throw new Error('Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.');
+  }
+  if (billSession.status === 'PAID' && input.status !== 'PAID') {
+    throw new Error('Hóa đơn đã thanh toán, không thể chuyển về yêu cầu thanh toán.');
+  }
+
+  const updated = await updateRestaurantBillSessionPayment(billSession.id, {
+    status: input.status,
+    paymentMethod: input.paymentMethod,
+    discountTotal: input.discountTotal,
+    serviceFeeTotal: input.serviceFeeTotal,
+    note: input.note,
+  });
+
+  return toAdminBillSession(updated);
+};
+
+export const closeAdminBillSession = async (
+  input: AdminBillCloseForm,
+): Promise<AdminBillSession> => {
+  const scope = await ensureAdminScope();
+  const billSession = await getBillSessionInScope(input.billSessionId, scope);
+
+  if (billSession.status !== 'PAID' && billSession.status !== 'CLOSED') {
+    throw new Error('Chỉ đóng hóa đơn sau khi đã đánh dấu thanh toán.');
+  }
+
+  const updated = await closeRestaurantBillSession(billSession.id, {
+    note: input.note,
+  });
+
+  return toAdminBillSession(updated);
+};
+
+export const transferAdminBillSessionTable = async (
+  input: AdminBillTableTransferForm,
+): Promise<AdminBillSession> => {
+  const scope = await ensureAdminScope();
+  const billSession = await getBillSessionInScope(input.billSessionId, scope);
+  if (['PAID', 'CLOSED', 'CANCELLED'].includes(billSession.status)) {
+    throw new Error('Hóa đơn đã thanh toán/đóng/hủy nên không thể đổi bàn.');
+  }
+
+  const tables = filterTablesByScope(
+    await loadRestaurantTables(scope.restaurantId),
+    scope,
+  );
+  const targetTable = tables.find(table => table.id === input.tableId);
+  if (!targetTable) {
+    throw new Error('Bàn đích không thuộc phạm vi chi nhánh được cấp quyền.');
+  }
+  if (targetTable.status === 'HIDDEN') {
+    throw new Error('Không thể chuyển bill sang bàn đang ẩn.');
+  }
+  if (targetTable.id === billSession.tableId) {
+    throw new Error('Bill đang ở bàn này rồi.');
+  }
+
+  const updated = await updateRestaurantBillSessionTable(billSession.id, {
+    tableId: targetTable.id,
+    tableNumber: targetTable.tableNumber,
+    branchId: targetTable.branchId,
+    reason: input.reason,
+    changedByUsername: scope.session.username,
+    changedByRole: scope.session.role,
+  });
+
+  return toAdminBillSession(updated);
 };
 
 export const getCategoryLabel = (

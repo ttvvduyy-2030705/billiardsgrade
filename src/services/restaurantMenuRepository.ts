@@ -17,6 +17,10 @@ import type {
   RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantCurrentBillSessionQuery,
+  RestaurantBillSessionClosePayload,
+  RestaurantBillSessionPaymentPayload,
+  RestaurantBillSessionTableTransferPayload,
   RestaurantPublicMenuPayload,
   RestaurantQrResolveContext,
   RestaurantTable,
@@ -27,6 +31,7 @@ import type {
 } from 'repositories/RestaurantMenuRepository';
 import type {
   MenuCategory,
+  RestaurantBillSessionDetail,
   RestaurantCartState,
   RestaurantMenuItem,
   RestaurantOrder,
@@ -48,6 +53,10 @@ export type {
   RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantCurrentBillSessionQuery,
+  RestaurantBillSessionClosePayload,
+  RestaurantBillSessionPaymentPayload,
+  RestaurantBillSessionTableTransferPayload,
   RestaurantPublicMenuPayload,
   RestaurantQrResolveContext,
   RestaurantTable,
@@ -58,6 +67,8 @@ export type {
 } from 'repositories/RestaurantMenuRepository';
 export type {
   MenuCategory,
+  RestaurantBillSessionDetail,
+  RestaurantBillSessionStatus,
   RestaurantAdminAccount,
   RestaurantCartItem,
   RestaurantCartState,
@@ -317,10 +328,41 @@ export const loadOrders = (): Promise<RestaurantOrder[]> => {
   return activeRepository.getOrders();
 };
 
+export const loadBillSessions = (): Promise<RestaurantBillSessionDetail[]> => {
+  return activeRepository.getBillSessions();
+};
+
 export const createRestaurantOrder = (
   payload: RestaurantOrderPayload,
 ): Promise<RestaurantOrder[]> => {
   return activeRepository.createOrder(payload);
+};
+
+export const loadCurrentBillSession = (
+  query?: RestaurantCurrentBillSessionQuery,
+): Promise<RestaurantBillSessionDetail | null> => {
+  return activeRepository.getCurrentBillSession(query);
+};
+
+export const updateRestaurantBillSessionTable = (
+  billSessionId: string,
+  payload: RestaurantBillSessionTableTransferPayload,
+): Promise<RestaurantBillSessionDetail> => {
+  return activeRepository.updateBillSessionTable(billSessionId, payload);
+};
+
+export const updateRestaurantBillSessionPayment = (
+  billSessionId: string,
+  payload: RestaurantBillSessionPaymentPayload,
+): Promise<RestaurantBillSessionDetail> => {
+  return activeRepository.updateBillSessionPayment(billSessionId, payload);
+};
+
+export const closeRestaurantBillSession = (
+  billSessionId: string,
+  payload?: RestaurantBillSessionClosePayload,
+): Promise<RestaurantBillSessionDetail> => {
+  return activeRepository.closeBillSession(billSessionId, payload);
 };
 
 export const updateRestaurantOrderStatus = (

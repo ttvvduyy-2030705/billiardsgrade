@@ -39,6 +39,9 @@ export type RestaurantCartSubmitResult =
       order: RestaurantOrder | null;
       orderId: string;
       tableNumber: string;
+      billSessionId?: string;
+      lockedTableNumber?: string;
+      billStatus?: RestaurantCartState["billStatus"];
     }
   | {
       ok: false;
@@ -83,6 +86,42 @@ const getCustomerQrTokenFromContext = (context?: RestaurantMenuContext | null) =
 
 const isPublicCustomerTableUsable = (table?: RestaurantTable | null) => {
   return Boolean(table) && table?.status !== "LOCKED" && table?.status !== "HIDDEN";
+};
+
+const getCustomerSessionModule = () => import("./CustomerMenuSessionStore");
+
+const getCustomerBillSessionSnapshot = async () => {
+  try {
+    const customerSession = await getCustomerSessionModule();
+    return customerSession.getCustomerMenuSessionSnapshot();
+  } catch (error) {
+    devWarn("[RestaurantCartStore] read customer bill session failed", error);
+    return null;
+  }
+};
+
+const ensureCustomerGuestSessionForCart = async () => {
+  try {
+    const customerSession = await getCustomerSessionModule();
+    return customerSession.ensureCustomerGuestSessionId();
+  } catch (error) {
+    devWarn("[RestaurantCartStore] ensure guest session failed", error);
+    return undefined;
+  }
+};
+
+const syncCustomerBillSessionAfterOrder = async (order: RestaurantOrder | null) => {
+  if (!order) {
+    return undefined;
+  }
+
+  try {
+    const customerSession = await getCustomerSessionModule();
+    return await customerSession.syncCustomerBillSessionFromOrder(order);
+  } catch (error) {
+    devWarn("[RestaurantCartStore] sync bill session after order failed", error);
+    return undefined;
+  }
 };
 
 const resolveCustomerTableForOrder = async ({
@@ -260,7 +299,10 @@ const normalizeCartState = (
   cart: RestaurantCartState,
 ): RestaurantCartState => ({
   ...cart,
-  tableNumber: String(cart.tableNumber || ""),
+  tableNumber: String(cart.lockedTableNumber || cart.tableNumber || ""),
+  lockedTableNumber: cart.lockedTableNumber
+    ? String(cart.lockedTableNumber)
+    : undefined,
   note: String(cart.note || ""),
   items: Array.isArray(cart.items)
     ? cart.items.filter((item) => item.itemId && item.quantity > 0)
@@ -559,12 +601,29 @@ export const useRestaurantCartStore = () => {
 
       const activeCart = normalizeCartState(storeState.cart);
       const context = await getActiveRestaurantContext().catch(() => null);
+      const customerBillSession = await getCustomerBillSessionSnapshot();
+      const guestSessionId =
+        activeCart.guestSessionId ||
+        customerBillSession?.guestSessionId ||
+        (await ensureCustomerGuestSessionForCart());
+      const billSessionId =
+        activeCart.billSessionId || customerBillSession?.billSessionId;
+      const lockedTableNumber =
+        activeCart.lockedTableNumber || customerBillSession?.lockedTableNumber;
+      const lockedTableId =
+        activeCart.lockedTableId || customerBillSession?.lockedTableId;
       const scopedCart = {
         ...activeCart,
         restaurantId: activeCart.restaurantId || context?.restaurantId,
         branchId: activeCart.branchId || context?.branchId,
-        tableId: activeCart.tableId || context?.tableId,
-        tableNumber: activeCart.tableNumber || context?.tableNumber || "",
+        tableId: lockedTableId || activeCart.tableId || context?.tableId,
+        tableNumber:
+          lockedTableNumber || activeCart.tableNumber || context?.tableNumber || "",
+        guestSessionId,
+        billSessionId,
+        lockedTableId,
+        lockedTableNumber,
+        billStatus: activeCart.billStatus || customerBillSession?.billStatus,
       };
       const tableValidation = validateRestaurantTableNumber(scopedCart.tableNumber);
       const tableNumber = tableValidation.value;
@@ -620,16 +679,27 @@ export const useRestaurantCartStore = () => {
         };
       }
 
-      const tableResolution = await resolveCustomerTableForOrder({
-        context,
-        tableNumber,
-      });
+      const tableResolution: Awaited<ReturnType<typeof resolveCustomerTableForOrder>> =
+        scopedCart.billSessionId
+          ? {
+              ok: true,
+              tableId: scopedCart.lockedTableId || scopedCart.tableId,
+              tableNumber: scopedCart.lockedTableNumber || tableNumber,
+            }
+          : await resolveCustomerTableForOrder({
+              context,
+              tableNumber,
+            });
 
       if (!tableResolution.ok) {
+        const resolutionMessage =
+          "message" in tableResolution
+            ? tableResolution.message
+            : "Số bàn không hợp lệ. Vui lòng kiểm tra lại.";
         return {
           ok: false,
           reason: "TABLE_INVALID",
-          message: tableResolution.message,
+          message: resolutionMessage,
         };
       }
 
@@ -671,20 +741,54 @@ export const useRestaurantCartStore = () => {
           tableId: submittedTableId,
           orderSource: "customer",
           tableNumber: submittedTableNumber,
+          billSessionId: scopedCart.billSessionId,
+          guestSessionId: scopedCart.guestSessionId,
           note: scopedCart.note.trim(),
           items: orderItems,
           total,
         });
         const createdOrder = nextOrders[0] || null;
+        const syncedCustomerSession =
+          await syncCustomerBillSessionAfterOrder(createdOrder);
+        const nextBillSessionId =
+          createdOrder?.billSessionId ||
+          syncedCustomerSession?.billSessionId ||
+          scopedCart.billSessionId;
+        const nextLockedTableId =
+          createdOrder?.tableId || syncedCustomerSession?.lockedTableId || submittedTableId;
+        const nextLockedTableNumber =
+          syncedCustomerSession?.lockedTableNumber ||
+          createdOrder?.tableNumber ||
+          submittedTableNumber;
+        const nextGuestSessionId =
+          createdOrder?.guestSessionId ||
+          syncedCustomerSession?.guestSessionId ||
+          scopedCart.guestSessionId;
+        const emptyLockedCart = normalizeCartState({
+          ...createEmptyRestaurantCart(),
+          restaurantId: scopedCart.restaurantId,
+          branchId: scopedCart.branchId,
+          tableId: nextLockedTableId,
+          tableNumber: nextLockedTableNumber,
+          guestSessionId: nextGuestSessionId,
+          billSessionId: nextBillSessionId,
+          lockedTableId: nextLockedTableId,
+          lockedTableNumber: nextLockedTableNumber,
+          billStatus: syncedCustomerSession?.billStatus || "OPEN",
+        });
 
         await clearCurrentCart();
-        replaceCartState(createEmptyRestaurantCart(), { persist: false });
+        await saveCurrentCart(emptyLockedCart);
+        replaceCartState(emptyLockedCart, { persist: false });
 
         return {
           ok: true,
           order: createdOrder,
           orderId: String(createdOrder?.id || ""),
-          tableNumber: submittedTableNumber,
+          tableNumber: nextLockedTableNumber || submittedTableNumber,
+          billSessionId: nextBillSessionId,
+          lockedTableNumber: nextLockedTableNumber,
+          billStatus: emptyLockedCart.billStatus,
         };
       } catch (error) {
         reportCartStoreError("submit failed", error);

@@ -3,6 +3,11 @@ import type {
   RestaurantCartState,
   RestaurantMenuItem,
   RestaurantMenuItemStatus,
+  RestaurantBillSession,
+  RestaurantBillSessionDetail,
+  RestaurantBillClosePayload,
+  RestaurantBillPaymentPayload,
+  RestaurantBillSessionStatus,
   RestaurantOrder,
   RestaurantOrderStatus,
   RestaurantPaymentMethod,
@@ -90,8 +95,44 @@ export type RestaurantOrderPayload = Omit<
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
+  /** Optional until Batch 17 creates/locks the session server-side. */
+  billSessionId?: string;
+  guestSessionId?: string;
   orderSource?: 'admin' | 'customer' | 'local-demo';
   paymentStatus?: RestaurantPaymentStatus;
+};
+
+export type RestaurantBillSessionPayload = Omit<
+  RestaurantBillSession,
+  | 'id'
+  | 'status'
+  | 'orderIds'
+  | 'orderCount'
+  | 'subtotal'
+  | 'total'
+  | 'openedAt'
+  | 'createdAt'
+  | 'updatedAt'
+> & {
+  status?: RestaurantBillSessionStatus;
+  orderIds?: string[];
+};
+
+export type RestaurantCurrentBillSessionQuery = {
+  billSessionId?: string;
+  guestSessionId?: string;
+};
+
+export type RestaurantBillSessionPaymentPayload = RestaurantBillPaymentPayload;
+export type RestaurantBillSessionClosePayload = RestaurantBillClosePayload;
+
+export type RestaurantBillSessionTableTransferPayload = {
+  tableId?: string;
+  tableNumber: string;
+  branchId?: string;
+  reason?: string;
+  changedByUsername?: string;
+  changedByRole?: string;
 };
 
 export type DeleteCategoryOptions = {
@@ -214,7 +255,23 @@ export interface RestaurantMenuRepository {
   ): Promise<RestaurantMenuImageUploadResult>;
 
   getOrders(): Promise<RestaurantOrder[]>;
+  getBillSessions(): Promise<RestaurantBillSessionDetail[]>;
   createOrder(payload: RestaurantOrderPayload): Promise<RestaurantOrder[]>;
+  getCurrentBillSession(
+    query?: RestaurantCurrentBillSessionQuery,
+  ): Promise<RestaurantBillSessionDetail | null>;
+  updateBillSessionTable(
+    billSessionId: string,
+    payload: RestaurantBillSessionTableTransferPayload,
+  ): Promise<RestaurantBillSessionDetail>;
+  updateBillSessionPayment(
+    billSessionId: string,
+    payload: RestaurantBillSessionPaymentPayload,
+  ): Promise<RestaurantBillSessionDetail>;
+  closeBillSession(
+    billSessionId: string,
+    payload?: RestaurantBillSessionClosePayload,
+  ): Promise<RestaurantBillSessionDetail>;
   updateOrderStatus(
     orderId: string,
     status: RestaurantOrderStatus,
@@ -229,6 +286,25 @@ export interface RestaurantMenuRepository {
   saveCurrentCart(cart: RestaurantCartState): Promise<void>;
   clearCurrentCart(): Promise<void>;
 }
+
+export type {
+  BillClosePayload,
+  BillOrderSummary,
+  BillPaymentPayload,
+  BillPaymentStatus,
+  BillSession,
+  BillSessionStatus,
+  RestaurantBillClosePayload,
+  RestaurantBillOrderSummary,
+  RestaurantBillPaymentPayload,
+  RestaurantBillPaymentStatus,
+  RestaurantBillSession,
+  RestaurantBillSessionDetail,
+  RestaurantBillSessionStatus,
+  RestaurantBillSummary,
+  RestaurantTableBill,
+  TableBill,
+} from 'services/restaurantMenuStorage';
 
 export type {
   RestaurantBranch,

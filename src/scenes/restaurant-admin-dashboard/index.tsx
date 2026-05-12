@@ -17,22 +17,29 @@ import {
   logScoreMenuError,
 } from 'utils/scoremenuErrors';
 import {
+  AdminBillSession,
+  AdminBillSessionStatus,
   AdminOrder,
   AdminOrderFilter,
   AdminOrderStatus,
   AdminPaymentMethod,
   AdminPaymentStatus,
   AdminRestaurantTable,
+  closeAdminBillSession,
   deleteAdminMenuCategory,
   deleteAdminMenuItem,
   deleteAdminTable,
-  loadAdminOrders,
+  loadAdminBillSessions,
+  loadAdminOrderDashboard,
+  loadAdminTables,
   loadRestaurantAdminData,
   saveAdminMenuCategory,
   saveAdminMenuItem,
   uploadAdminMenuImage,
   saveAdminBranchQr,
   saveAdminTable,
+  transferAdminBillSessionTable,
+  updateAdminBillSessionPayment,
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
 } from 'services/restaurantAdminStore';
@@ -150,6 +157,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     typeof isFocused === 'function' ? isFocused() : true,
   );
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [billSessions, setBillSessions] = useState<AdminBillSession[]>([]);
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [tables, setTables] = useState<AdminRestaurantTable[]>([]);
@@ -300,6 +308,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
   const resetSensitiveData = useCallback(() => {
     setOrders([]);
+    setBillSessions([]);
     setMenuItems([]);
     setCategories([]);
     setTables([]);
@@ -362,15 +371,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       }
 
       try {
-        const nextOrders = await loadAdminOrders();
+        const next = await loadAdminOrderDashboard();
 
         if (!isMountedRef.current || loggingOutRef.current) {
           return;
         }
 
-        applyOrdersSnapshot(nextOrders, {
+        applyOrdersSnapshot(next.orders, {
           announceNew: options.announceNew ?? true,
         });
+        setBillSessions(next.billSessions);
         setOrderSyncStatus('online');
         if (!options.silent) {
           setAuthErrorMessage('');
@@ -442,6 +452,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       setMenuItems(next.menuItems);
       setCategories(next.categories);
       setTables(next.tables || []);
+      setBillSessions(next.billSessions || []);
     } catch (error) {
       logScoreMenuError(
         {
@@ -658,6 +669,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setTables(next.tables || []);
     setMenuItems(next.menuItems);
     setCategories(next.categories);
+    setBillSessions(next.billSessions || []);
     applyOrdersSnapshot(next.orders, {announceNew: false});
   };
 
@@ -700,6 +712,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     setAuthErrorMessage('');
     try {
       const nextOrders = await updateAdminOrderStatus(orderId, status);
+      const nextBillSessions = await loadAdminBillSessions();
+      setBillSessions(nextBillSessions);
       applyOrdersSnapshot(nextOrders, {announceNew: false});
     } catch (error) {
       logScoreMenuError(
@@ -739,6 +753,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         status,
         method,
       );
+      const nextBillSessions = await loadAdminBillSessions();
+      setBillSessions(nextBillSessions);
       applyOrdersSnapshot(nextOrders, {announceNew: false});
     } catch (error) {
       logScoreMenuError(
@@ -761,6 +777,127 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         getScoreMenuErrorMessage(
           error,
           'Không thể cập nhật thanh toán. Vui lòng thử lại.',
+        ),
+      );
+    }
+  };
+
+  const reloadBillDashboardAfterBillMutation = async () => {
+    const [nextDashboard, nextTables] = await Promise.all([
+      loadAdminOrderDashboard(),
+      loadAdminTables(),
+    ]);
+    setTables(nextTables);
+    setBillSessions(nextDashboard.billSessions);
+    applyOrdersSnapshot(nextDashboard.orders, {announceNew: false});
+  };
+
+  const onUpdateBillPayment = async (
+    billSessionId: string,
+    status: AdminBillSessionStatus,
+    paymentMethod?: AdminPaymentMethod,
+  ) => {
+    setAuthErrorMessage('');
+    try {
+      await updateAdminBillSessionPayment({
+        billSessionId,
+        status: status === 'PAID' ? 'PAID' : 'PAYMENT_REQUESTED',
+        paymentMethod,
+      });
+      await reloadBillDashboardAfterBillMutation();
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'BILL',
+          action: 'admin update bill payment failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+          extra: {billSessionId, status, paymentMethod},
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể cập nhật thanh toán hóa đơn. Vui lòng thử lại.',
+        ),
+      );
+    }
+  };
+
+  const onCloseBill = async (billSessionId: string) => {
+    setAuthErrorMessage('');
+    try {
+      await closeAdminBillSession({
+        billSessionId,
+        note: 'Nhân viên đóng hóa đơn từ dashboard',
+      });
+      await reloadBillDashboardAfterBillMutation();
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'BILL',
+          action: 'admin close bill failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+          extra: {billSessionId},
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể đóng hóa đơn. Vui lòng thử lại.',
+        ),
+      );
+    }
+  };
+
+  const onTransferBillTable = async (billSessionId: string, tableId: string) => {
+    setAuthErrorMessage('');
+    try {
+      await transferAdminBillSessionTable({
+        billSessionId,
+        tableId,
+        reason: 'Nhân viên đổi bàn từ dashboard',
+      });
+      const [nextDashboard, nextTables] = await Promise.all([
+        loadAdminOrderDashboard(),
+        loadAdminTables(),
+      ]);
+      setTables(nextTables);
+      setBillSessions(nextDashboard.billSessions);
+      applyOrdersSnapshot(nextDashboard.orders, {announceNew: false});
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'BILL',
+          action: 'admin transfer bill table failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+          extra: {billSessionId, tableId},
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể đổi bàn cho hóa đơn. Vui lòng thử lại.',
         ),
       );
     }
@@ -1170,11 +1307,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
               {activeTab === 'orders' ? (
                 <AdminOrdersScreen
                   orders={orders}
+                  billSessions={billSessions}
+                  tables={tables}
                   filter={orderFilter}
                   onChangeFilter={setOrderFilter}
                   styles={styles}
                   onChangeStatus={onChangeOrderStatus}
                   onChangePaymentStatus={onChangePaymentStatus}
+                  onUpdateBillPayment={onUpdateBillPayment}
+                  onCloseBill={onCloseBill}
+                  onTransferBillTable={onTransferBillTable}
                   onRefreshOrders={() =>
                     void refreshOrdersOnly({silent: false, announceNew: false})
                   }

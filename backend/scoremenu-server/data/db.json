@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": "scoremenu_backend_schema_v1_batch12",
+    "schemaVersion": "scoremenu_backend_schema_v1_batch22",
     "generatedAt": "2026-05-09T00:00:00.000Z"
   },
   "restaurants": [
@@ -242,5 +242,7 @@
       "createdAt": "2026-05-09T00:00:00.000Z",
       "updatedAt": "2026-05-09T00:00:00.000Z"
     }
-  ]
+  ],
+  "billSessions": [],
+  "auditLogs": []
 }

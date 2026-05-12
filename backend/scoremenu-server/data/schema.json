@@ -1,46 +1,181 @@
 {
-  "schemaVersion": "scoremenu_backend_schema_v1_batch12",
+  "schemaVersion": "scoremenu_backend_schema_v1_batch22",
   "engine": "json-file-mvp",
   "tables": {
     "restaurants": {
       "primaryKey": "id",
-      "required": ["id", "name", "createdAt", "updatedAt"],
-      "indexes": ["ownerId", "status"]
+      "required": [
+        "id",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "ownerId",
+        "status"
+      ]
     },
     "branches": {
       "primaryKey": "id",
-      "required": ["id", "restaurantId", "name", "createdAt", "updatedAt"],
-      "indexes": ["restaurantId"]
+      "required": [
+        "id",
+        "restaurantId",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId"
+      ]
     },
     "tables": {
       "primaryKey": "id",
-      "required": ["id", "restaurantId", "tableNumber", "qrCodeToken", "createdAt", "updatedAt"],
-      "indexes": ["restaurantId", "branchId", "qrCodeToken"]
+      "required": [
+        "id",
+        "restaurantId",
+        "tableNumber",
+        "qrCodeToken",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId",
+        "branchId",
+        "qrCodeToken"
+      ]
     },
     "categories": {
       "primaryKey": "id",
-      "required": ["id", "restaurantId", "name", "createdAt", "updatedAt"],
-      "indexes": ["restaurantId", "sortOrder"]
+      "required": [
+        "id",
+        "restaurantId",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId",
+        "sortOrder"
+      ]
     },
     "items": {
       "primaryKey": "id",
-      "required": ["id", "restaurantId", "categoryId", "name", "price", "createdAt", "updatedAt"],
-      "indexes": ["restaurantId", "categoryId", "status"]
+      "required": [
+        "id",
+        "restaurantId",
+        "categoryId",
+        "name",
+        "price",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId",
+        "categoryId",
+        "status"
+      ]
     },
     "orders": {
       "primaryKey": "id",
-      "required": ["id", "restaurantId", "tableNumber", "items", "total", "orderStatus", "paymentStatus", "createdAt", "updatedAt"],
-      "indexes": ["restaurantId", "branchId", "tableId", "orderStatus", "paymentStatus", "createdAt"]
+      "required": [
+        "id",
+        "restaurantId",
+        "tableNumber",
+        "items",
+        "total",
+        "orderStatus",
+        "paymentStatus",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId",
+        "branchId",
+        "tableId",
+        "billSessionId",
+        "guestSessionId",
+        "orderStatus",
+        "paymentStatus",
+        "createdAt"
+      ]
     },
     "adminUsers": {
       "primaryKey": "id",
-      "required": ["id", "username", "password", "role", "restaurantIds", "activeRestaurantId", "createdAt", "updatedAt"],
-      "indexes": ["username", "role", "restaurantIds"]
+      "required": [
+        "id",
+        "username",
+        "password",
+        "role",
+        "restaurantIds",
+        "activeRestaurantId",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "username",
+        "role",
+        "restaurantIds"
+      ]
     },
     "carts": {
       "primaryKey": "scopeKey",
-      "required": ["restaurantId", "tableNumber", "items"],
-      "indexes": ["restaurantId", "branchId", "tableId"]
+      "required": [
+        "restaurantId",
+        "tableNumber",
+        "items"
+      ],
+      "indexes": [
+        "restaurantId",
+        "branchId",
+        "tableId"
+      ]
+    },
+    "billSessions": {
+      "primaryKey": "id",
+      "required": [
+        "id",
+        "restaurantId",
+        "tableNumber",
+        "status",
+        "orderIds",
+        "subtotal",
+        "total",
+        "openedAt",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "restaurantId",
+        "branchId",
+        "tableId",
+        "guestSessionId",
+        "status",
+        "openedAt",
+        "updatedAt",
+        "tableChangeLogs",
+        "paymentMethod",
+        "paymentRequestedAt",
+        "paidAt",
+        "closedAt"
+      ]
+    },
+    "auditLogs": {
+      "primaryKey": "id",
+      "required": [
+        "id",
+        "at",
+        "action",
+        "restaurantId",
+        "targetId"
+      ],
+      "indexes": [
+        "action",
+        "restaurantId",
+        "branchId",
+        "targetId",
+        "userId",
+        "at"
+      ]
     }
   },
   "foreignKeys": [
@@ -52,6 +187,12 @@
     "items.categoryId -> categories.id",
     "orders.restaurantId -> restaurants.id",
     "orders.branchId -> branches.id",
-    "orders.tableId -> tables.id"
+    "orders.tableId -> tables.id",
+    "billSessions.restaurantId -> restaurants.id",
+    "billSessions.branchId -> branches.id",
+    "billSessions.tableId -> tables.id",
+    "orders.billSessionId -> billSessions.id",
+    "auditLogs.restaurantId -> restaurants.id",
+    "auditLogs.branchId -> branches.id"
   ]
 }

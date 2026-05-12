@@ -28,7 +28,7 @@ const createSeedAdmin = ({id, username, password, role, restaurantIds, activeRes
 
 const createSeedDatabase = () => ({
   meta: {
-    schemaVersion: 'scoremenu_backend_schema_v1_batch13',
+    schemaVersion: 'scoremenu_backend_schema_v1_batch22',
     generatedAt: now,
   },
   restaurants: [
@@ -247,6 +247,8 @@ const createSeedDatabase = () => ({
     },
   ],
   orders: [],
+  billSessions: [],
+  auditLogs: [],
   carts: {},
   imageUploads: [],
   adminUsers: [

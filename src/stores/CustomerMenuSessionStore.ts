@@ -4,25 +4,54 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   bootstrapRestaurantMenuRepository,
   clearCurrentCart,
+  loadCurrentBillSession,
   resolveRestaurantMenuQrToken,
   setActiveRestaurantContext,
 } from '../services/restaurantMenuRepository';
-import type {RestaurantMenuContext} from '../services/restaurantMenuRepository';
+import type {
+  RestaurantBillSessionDetail,
+  RestaurantBillSessionStatus,
+  RestaurantMenuContext,
+  RestaurantOrder,
+} from '../services/restaurantMenuRepository';
 import {devWarn} from '../utils/devLogger';
 import {resetRestaurantCartStore} from './RestaurantCartStore';
 import {resetRestaurantMenuStore} from './RestaurantMenuStore';
 
 const CUSTOMER_SESSION_STORAGE_KEY = 'scoremenu_customer_menu_session_v1';
+const CUSTOMER_GUEST_SESSION_STORAGE_KEY = 'scoremenu_customer_guest_session_id_v1';
 
-type CustomerMenuSessionSnapshot = {
+const ACTIVE_CUSTOMER_BILL_STATUSES: RestaurantBillSessionStatus[] = [
+  'OPEN',
+  'PAYMENT_REQUESTED',
+];
+
+const FINAL_CUSTOMER_BILL_STATUSES: RestaurantBillSessionStatus[] = [
+  'PAID',
+  'CLOSED',
+  'CANCELLED',
+];
+
+type CustomerBillSessionFields = {
+  guestSessionId?: string;
+  billSessionId?: string;
+  lockedTableId?: string;
+  lockedTableNumber?: string;
+  billStatus?: RestaurantBillSessionStatus;
+  billTotal?: number;
+  billUpdatedAt?: string;
+};
+
+type CustomerMenuSessionSnapshot = CustomerBillSessionFields & {
   context: RestaurantMenuContext | null;
   loading: boolean;
   hydrated: boolean;
   errorMessage: string;
+  noticeMessage: string;
   sessionVersion: number;
 };
 
-type PersistedCustomerMenuSession = {
+type PersistedCustomerMenuSession = CustomerBillSessionFields & {
   context: RestaurantMenuContext;
   savedAt: string;
 };
@@ -36,6 +65,7 @@ const storeState: CustomerMenuSessionSnapshot & {
   loading: false,
   hydrated: false,
   errorMessage: '',
+  noticeMessage: '',
   sessionVersion: 0,
   requestId: 0,
 };
@@ -45,7 +75,15 @@ const getSnapshot = (): CustomerMenuSessionSnapshot => ({
   loading: storeState.loading,
   hydrated: storeState.hydrated,
   errorMessage: storeState.errorMessage,
+  noticeMessage: storeState.noticeMessage,
   sessionVersion: storeState.sessionVersion,
+  guestSessionId: storeState.guestSessionId,
+  billSessionId: storeState.billSessionId,
+  lockedTableId: storeState.lockedTableId,
+  lockedTableNumber: storeState.lockedTableNumber,
+  billStatus: storeState.billStatus,
+  billTotal: storeState.billTotal,
+  billUpdatedAt: storeState.billUpdatedAt,
 });
 
 const emitChange = () => {
@@ -73,9 +111,105 @@ const getContextQrToken = (context?: RestaurantMenuContext | null) => {
   );
 };
 
-const persistCustomerSession = async (context: RestaurantMenuContext) => {
+const normaliseBillStatus = (
+  status?: RestaurantBillSessionStatus | string,
+): RestaurantBillSessionStatus | undefined => {
+  const value = String(status || '').trim().toUpperCase();
+  if (
+    value === 'OPEN' ||
+    value === 'PAYMENT_REQUESTED' ||
+    value === 'PAID' ||
+    value === 'CLOSED' ||
+    value === 'CANCELLED'
+  ) {
+    return value as RestaurantBillSessionStatus;
+  }
+
+  return undefined;
+};
+
+const isActiveCustomerBillStatus = (
+  status?: RestaurantBillSessionStatus | string,
+) => {
+  const normalised = normaliseBillStatus(status);
+  return normalised ? ACTIVE_CUSTOMER_BILL_STATUSES.includes(normalised) : false;
+};
+
+const isFinalCustomerBillStatus = (
+  status?: RestaurantBillSessionStatus | string,
+) => {
+  const normalised = normaliseBillStatus(status);
+  return normalised ? FINAL_CUSTOMER_BILL_STATUSES.includes(normalised) : false;
+};
+
+const getBillFieldsFromState = (): CustomerBillSessionFields => ({
+  guestSessionId: storeState.guestSessionId,
+  billSessionId: storeState.billSessionId,
+  lockedTableId: storeState.lockedTableId,
+  lockedTableNumber: storeState.lockedTableNumber,
+  billStatus: storeState.billStatus,
+  billTotal: storeState.billTotal,
+  billUpdatedAt: storeState.billUpdatedAt,
+});
+
+const hasOpenBillInState = () =>
+  Boolean(storeState.billSessionId && isActiveCustomerBillStatus(storeState.billStatus));
+
+const sameRestaurantBranch = (
+  left?: RestaurantMenuContext | null,
+  right?: RestaurantMenuContext | null,
+) => {
+  return Boolean(
+    left?.restaurantId &&
+      right?.restaurantId &&
+      left.restaurantId === right.restaurantId &&
+      (left.branchId || '') === (right.branchId || ''),
+  );
+};
+
+const createGuestSessionId = () =>
+  `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+export const ensureCustomerGuestSessionId = async () => {
+  if (storeState.guestSessionId) {
+    return storeState.guestSessionId;
+  }
+
+  try {
+    const stored = normalizeQrToken(
+      await AsyncStorage.getItem(CUSTOMER_GUEST_SESSION_STORAGE_KEY),
+    );
+    if (stored) {
+      storeState.guestSessionId = stored;
+      return stored;
+    }
+  } catch (error) {
+    devWarn('[CustomerMenuSession] read guest session failed', error);
+  }
+
+  const guestSessionId = createGuestSessionId();
+  storeState.guestSessionId = guestSessionId;
+  try {
+    await AsyncStorage.setItem(CUSTOMER_GUEST_SESSION_STORAGE_KEY, guestSessionId);
+  } catch (error) {
+    devWarn('[CustomerMenuSession] persist guest session failed', error);
+  }
+  return guestSessionId;
+};
+
+const persistCustomerSession = async (
+  context: RestaurantMenuContext,
+  fields: CustomerBillSessionFields = getBillFieldsFromState(),
+) => {
   const payload: PersistedCustomerMenuSession = {
     context,
+    guestSessionId: fields.guestSessionId,
+    billSessionId: fields.billSessionId,
+    lockedTableId: fields.lockedTableId,
+    lockedTableNumber: fields.lockedTableNumber,
+    billStatus: normaliseBillStatus(fields.billStatus),
+    billTotal: fields.billTotal,
+    billUpdatedAt: fields.billUpdatedAt,
     savedAt: new Date().toISOString(),
   };
 
@@ -103,7 +237,11 @@ const readPersistedCustomerSession = async () => {
       return null;
     }
 
-    return parsed.context;
+    return {
+      ...parsed,
+      context: parsed.context,
+      billStatus: normaliseBillStatus(parsed.billStatus),
+    } as PersistedCustomerMenuSession;
   } catch (error) {
     devWarn('[CustomerMenuSession] read persisted failed', error);
     await AsyncStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY).catch(() => undefined);
@@ -111,9 +249,70 @@ const readPersistedCustomerSession = async () => {
   }
 };
 
+const applyBillFieldsToState = (
+  fields: CustomerBillSessionFields = {},
+  options: {clearMissing?: boolean} = {},
+) => {
+  if (options.clearMissing || fields.guestSessionId !== undefined) {
+    storeState.guestSessionId = fields.guestSessionId;
+  }
+  if (options.clearMissing || fields.billSessionId !== undefined) {
+    storeState.billSessionId = fields.billSessionId;
+  }
+  if (options.clearMissing || fields.lockedTableId !== undefined) {
+    storeState.lockedTableId = fields.lockedTableId;
+  }
+  if (options.clearMissing || fields.lockedTableNumber !== undefined) {
+    storeState.lockedTableNumber = fields.lockedTableNumber;
+  }
+  if (options.clearMissing || fields.billStatus !== undefined) {
+    storeState.billStatus = normaliseBillStatus(fields.billStatus);
+  }
+  if (options.clearMissing || fields.billTotal !== undefined) {
+    storeState.billTotal = fields.billTotal;
+  }
+  if (options.clearMissing || fields.billUpdatedAt !== undefined) {
+    storeState.billUpdatedAt = fields.billUpdatedAt;
+  }
+};
+
+const clearBillFieldsFromState = (options: {keepGuestSession?: boolean} = {}) => {
+  const guestSessionId = options.keepGuestSession ? storeState.guestSessionId : undefined;
+  applyBillFieldsToState(
+    {
+      guestSessionId,
+      billSessionId: undefined,
+      lockedTableId: undefined,
+      lockedTableNumber: undefined,
+      billStatus: undefined,
+      billTotal: undefined,
+      billUpdatedAt: undefined,
+    },
+    {clearMissing: true},
+  );
+};
+
+const billFieldsFromBillSession = (
+  billSession: RestaurantBillSessionDetail,
+): CustomerBillSessionFields => ({
+  guestSessionId: billSession.guestSessionId || storeState.guestSessionId,
+  billSessionId: billSession.billSessionId || billSession.id,
+  lockedTableId: billSession.tableId,
+  lockedTableNumber: billSession.tableNumber,
+  billStatus: billSession.status,
+  billTotal: billSession.billTotal ?? billSession.total,
+  billUpdatedAt: billSession.updatedAt,
+});
+
 const applyCustomerSessionContext = async (
   context: RestaurantMenuContext,
-  options: {persist?: boolean; resetScopedStores?: boolean} = {},
+  options: {
+    persist?: boolean;
+    resetScopedStores?: boolean;
+    billFields?: CustomerBillSessionFields;
+    clearBillFields?: boolean;
+    noticeMessage?: string;
+  } = {},
 ) => {
   const nextContext = await setActiveRestaurantContext({
     ...context,
@@ -123,7 +322,14 @@ const applyCustomerSessionContext = async (
   storeState.context = nextContext;
   storeState.hydrated = true;
   storeState.errorMessage = '';
+  storeState.noticeMessage = options.noticeMessage || '';
   storeState.sessionVersion += 1;
+
+  if (options.clearBillFields) {
+    clearBillFieldsFromState({keepGuestSession: true});
+  } else if (options.billFields) {
+    applyBillFieldsToState(options.billFields);
+  }
 
   if (options.resetScopedStores) {
     resetRestaurantMenuStore();
@@ -138,6 +344,51 @@ const applyCustomerSessionContext = async (
   return getSnapshot();
 };
 
+const refreshActiveBillSessionForCurrentContext = async () => {
+  if (!storeState.context?.restaurantId) {
+    return getSnapshot();
+  }
+
+  const guestSessionId = await ensureCustomerGuestSessionId();
+  const billSession = await loadCurrentBillSession({
+    billSessionId: storeState.billSessionId,
+    guestSessionId,
+  });
+
+  if (!billSession) {
+    if (storeState.billSessionId) {
+      clearBillFieldsFromState({keepGuestSession: true});
+      storeState.noticeMessage = 'Không tìm thấy hóa đơn mở trước đó, phiên gọi món đã được làm mới.';
+      storeState.sessionVersion += 1;
+      await persistCustomerSession(storeState.context);
+      emitChange();
+    }
+    return getSnapshot();
+  }
+
+  const billMatchesContext =
+    billSession.restaurantId === storeState.context.restaurantId &&
+    (!storeState.context.branchId || billSession.branchId === storeState.context.branchId);
+
+  if (!billMatchesContext) {
+    clearBillFieldsFromState({keepGuestSession: true});
+    storeState.noticeMessage = 'Hóa đơn cũ thuộc chi nhánh khác nên không được dùng cho QR hiện tại.';
+    storeState.sessionVersion += 1;
+    await persistCustomerSession(storeState.context);
+    emitChange();
+    return getSnapshot();
+  }
+
+  applyBillFieldsToState(billFieldsFromBillSession(billSession));
+  storeState.noticeMessage = isFinalCustomerBillStatus(billSession.status)
+    ? 'Hóa đơn trước đã đóng/thanh toán, app sẽ không gọi thêm vào bill cũ.'
+    : '';
+  storeState.sessionVersion += 1;
+  await persistCustomerSession(storeState.context);
+  emitChange();
+  return getSnapshot();
+};
+
 const restoreCustomerMenuSessionSnapshot = async () => {
   const requestId = storeState.requestId + 1;
   storeState.requestId = requestId;
@@ -145,8 +396,10 @@ const restoreCustomerMenuSessionSnapshot = async () => {
 
   try {
     await bootstrapRestaurantMenuRepository();
-    const persistedContext =
-      storeState.context || (await readPersistedCustomerSession());
+    const persisted = storeState.context
+      ? null
+      : await readPersistedCustomerSession();
+    const persistedContext = storeState.context || persisted?.context;
 
     if (requestId !== storeState.requestId) {
       return getSnapshot();
@@ -162,10 +415,19 @@ const restoreCustomerMenuSessionSnapshot = async () => {
       return getSnapshot();
     }
 
-    return await applyCustomerSessionContext(persistedContext, {
+    const snapshot = await applyCustomerSessionContext(persistedContext, {
       persist: true,
       resetScopedStores: false,
+      billFields: persisted ? persisted : getBillFieldsFromState(),
     });
+
+    if (requestId === storeState.requestId) {
+      await refreshActiveBillSessionForCurrentContext().catch(error => {
+        devWarn('[CustomerMenuSession] restore active bill failed', error);
+      });
+    }
+
+    return getSnapshot();
   } catch (error) {
     devWarn('[CustomerMenuSession] restore failed', error);
 
@@ -203,6 +465,9 @@ const enterCustomerMenuQrSession = async (qrToken: string) => {
 
   try {
     await bootstrapRestaurantMenuRepository();
+    const persisted = storeState.context
+      ? null
+      : await readPersistedCustomerSession();
     const resolvedContext = await resolveRestaurantMenuQrToken(cleanToken);
 
     if (requestId !== storeState.requestId) {
@@ -221,27 +486,44 @@ const enterCustomerMenuQrSession = async (qrToken: string) => {
     const currentContext = storeState.context;
     const nextMenuQrToken =
       resolvedContext.menuQrToken || resolvedContext.qrCodeToken || cleanToken;
+    const nextContext: RestaurantMenuContext = {
+      ...resolvedContext,
+      qrCodeToken: resolvedContext.qrCodeToken || cleanToken,
+      menuQrToken: nextMenuQrToken,
+      qrTokenScope:
+        resolvedContext.qrTokenScope ||
+        (resolvedContext.tableId ? 'TABLE' : 'BRANCH_MENU'),
+      source: 'customer',
+    };
+    const persistedBillBelongsToNextContext =
+      Boolean(
+        persisted?.billSessionId &&
+          sameRestaurantBranch(persisted.context, nextContext),
+      );
+
+    if (persistedBillBelongsToNextContext && !storeState.billSessionId) {
+      applyBillFieldsToState(persisted || {});
+    }
+
     const contextChanged =
       !currentContext ||
       currentContext.restaurantId !== resolvedContext.restaurantId ||
       currentContext.branchId !== resolvedContext.branchId ||
       getContextQrToken(currentContext) !== nextMenuQrToken;
+    const qrMovedToAnotherRestaurantOrBranch =
+      Boolean(currentContext) && !sameRestaurantBranch(currentContext, nextContext);
+    const shouldResetOpenBill =
+      contextChanged && qrMovedToAnotherRestaurantOrBranch && hasOpenBillInState();
+    const noticeMessage = shouldResetOpenBill
+      ? 'Bạn vừa quét QR chi nhánh khác. Hóa đơn đang mở trước đó đã được tách khỏi phiên khách này để tránh lẫn bàn/bill.'
+      : '';
 
-    const snapshot = await applyCustomerSessionContext(
-      {
-        ...resolvedContext,
-        qrCodeToken: resolvedContext.qrCodeToken || cleanToken,
-        menuQrToken: nextMenuQrToken,
-        qrTokenScope:
-          resolvedContext.qrTokenScope ||
-          (resolvedContext.tableId ? 'TABLE' : 'BRANCH_MENU'),
-        source: 'customer',
-      },
-      {
-        persist: true,
-        resetScopedStores: contextChanged,
-      },
-    );
+    const snapshot = await applyCustomerSessionContext(nextContext, {
+      persist: true,
+      resetScopedStores: contextChanged,
+      clearBillFields: shouldResetOpenBill,
+      noticeMessage,
+    });
 
     if (contextChanged) {
       try {
@@ -252,6 +534,15 @@ const enterCustomerMenuQrSession = async (qrToken: string) => {
           error,
         );
       }
+    }
+
+    if (
+      !shouldResetOpenBill &&
+      (sameRestaurantBranch(currentContext, nextContext) || persistedBillBelongsToNextContext)
+    ) {
+      await refreshActiveBillSessionForCurrentContext().catch(error => {
+        devWarn('[CustomerMenuSession] refresh bill after QR failed', error);
+      });
     }
 
     return snapshot;
@@ -276,12 +567,91 @@ const enterCustomerMenuQrSession = async (qrToken: string) => {
   }
 };
 
+export const getCustomerMenuSessionSnapshot = () => getSnapshot();
+
 export const getCustomerMenuSessionContext = async () => {
   if (storeState.context?.restaurantId) {
     return storeState.context;
   }
 
-  return readPersistedCustomerSession();
+  const persisted = await readPersistedCustomerSession();
+  return persisted?.context || null;
+};
+
+export const restoreActiveBillSession = async () => {
+  if (!storeState.context?.restaurantId) {
+    await restoreCustomerMenuSessionSnapshot();
+  }
+  return refreshActiveBillSessionForCurrentContext();
+};
+
+export const setCustomerBillSession = async (
+  fields: CustomerBillSessionFields,
+) => {
+  await ensureCustomerGuestSessionId();
+  applyBillFieldsToState({
+    ...fields,
+    guestSessionId: fields.guestSessionId || storeState.guestSessionId,
+  });
+  storeState.sessionVersion += 1;
+  if (storeState.context) {
+    await persistCustomerSession(storeState.context);
+  }
+  emitChange();
+  return getSnapshot();
+};
+
+export const syncCustomerBillSessionFromOrder = async (
+  order: Pick<RestaurantOrder, 'billSessionId' | 'guestSessionId' | 'tableId' | 'tableNumber' | 'restaurantId' | 'branchId'> | null | undefined,
+) => {
+  const guestSessionId = order?.guestSessionId || (await ensureCustomerGuestSessionId());
+
+  if (!order?.billSessionId) {
+    applyBillFieldsToState({guestSessionId});
+    if (storeState.context) {
+      await persistCustomerSession(storeState.context);
+    }
+    emitChange();
+    return getSnapshot();
+  }
+
+  if (
+    storeState.context?.restaurantId &&
+    order.restaurantId === storeState.context.restaurantId &&
+    (!storeState.context.branchId || order.branchId === storeState.context.branchId)
+  ) {
+    const billSession = await loadCurrentBillSession({
+      billSessionId: order.billSessionId,
+      guestSessionId,
+    }).catch(error => {
+      devWarn('[CustomerMenuSession] fetch bill after order failed', error);
+      return null;
+    });
+
+    if (billSession) {
+      return setCustomerBillSession(billFieldsFromBillSession(billSession));
+    }
+  }
+
+  return setCustomerBillSession({
+    guestSessionId,
+    billSessionId: order.billSessionId,
+    lockedTableId: order.tableId,
+    lockedTableNumber: order.tableNumber,
+    billStatus: 'OPEN',
+    billUpdatedAt: new Date().toISOString(),
+  });
+};
+
+export const clearCustomerBillSession = async () => {
+  clearBillFieldsFromState({keepGuestSession: true});
+  storeState.noticeMessage = '';
+  storeState.sessionVersion += 1;
+  if (storeState.context) {
+    await persistCustomerSession(storeState.context);
+  }
+  emitChange();
+  return getSnapshot();
 };
 
 export const restoreCustomerMenuSession = restoreCustomerMenuSessionSnapshot;
@@ -292,6 +662,8 @@ export const clearCustomerMenuSession = async () => {
   storeState.loading = false;
   storeState.hydrated = false;
   storeState.errorMessage = '';
+  storeState.noticeMessage = '';
+  clearBillFieldsFromState({keepGuestSession: false});
   storeState.sessionVersion += 1;
   storeState.requestId += 1;
   await AsyncStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY).catch(() => undefined);
@@ -324,21 +696,40 @@ export const useCustomerMenuSessionStore = () => {
     [],
   );
 
+  const restoreBillSession = useCallback(
+    () => restoreActiveBillSession(),
+    [],
+  );
+
   const enterMenuQr = useCallback(
     (qrToken: string) => enterCustomerMenuQrSession(qrToken),
     [],
   );
 
   const clearSession = useCallback(() => clearCustomerMenuSession(), []);
+  const clearBillSession = useCallback(() => clearCustomerBillSession(), []);
 
   return {
     context: snapshot.context,
     loading: snapshot.loading,
     hydrated: snapshot.hydrated,
     errorMessage: snapshot.errorMessage,
+    noticeMessage: snapshot.noticeMessage,
     sessionVersion: snapshot.sessionVersion,
+    guestSessionId: snapshot.guestSessionId,
+    billSessionId: snapshot.billSessionId,
+    lockedTableId: snapshot.lockedTableId,
+    lockedTableNumber: snapshot.lockedTableNumber,
+    billStatus: snapshot.billStatus,
+    billTotal: snapshot.billTotal,
+    billUpdatedAt: snapshot.billUpdatedAt,
+    hasOpenBillSession: Boolean(
+      snapshot.billSessionId && isActiveCustomerBillStatus(snapshot.billStatus),
+    ),
     restoreCustomerMenuSession: restoreSession,
+    restoreActiveBillSession: restoreBillSession,
     enterCustomerMenuQr: enterMenuQr,
     clearCustomerMenuSession: clearSession,
+    clearCustomerBillSession: clearBillSession,
   };
 };

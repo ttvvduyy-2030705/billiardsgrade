@@ -9,6 +9,10 @@ import type {
   RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantCurrentBillSessionQuery,
+  RestaurantBillSessionClosePayload,
+  RestaurantBillSessionPaymentPayload,
+  RestaurantBillSessionTableTransferPayload,
   RestaurantPublicMenuPayload,
   RestaurantBranch,
   RestaurantTable,
@@ -18,6 +22,7 @@ import type {
 } from './RestaurantMenuRepository';
 import type {
   MenuCategory,
+  RestaurantBillSessionDetail,
   RestaurantCartState,
   RestaurantMenuItem,
   RestaurantOrder,
@@ -27,15 +32,20 @@ import type {
 } from 'services/restaurantMenuStorage';
 import {
   clearCurrentCart,
+  closeRestaurantBillSession,
   createRestaurantOrder,
   deleteMenuCategory,
   deleteMenuItem,
   loadCurrentCart,
+  loadCurrentBillSession,
+  loadBillSessions,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
   registerRestaurantAdmin,
   saveCurrentCart,
+  updateRestaurantBillSessionPayment,
+  updateRestaurantBillSessionTable,
   updateRestaurantOrderPaymentStatus,
   updateRestaurantOrderStatus,
   upsertMenuCategory,
@@ -299,6 +309,15 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
       : orders;
   }
 
+  async getBillSessions(): Promise<RestaurantBillSessionDetail[]> {
+    const context = await this.getActiveContext();
+    const billSessions = await loadBillSessions(context.restaurantId);
+
+    return context.branchId
+      ? billSessions.filter(billSession => billSession.branchId === context.branchId)
+      : billSessions;
+  }
+
   async createOrder(
     payload: RestaurantOrderPayload,
   ): Promise<RestaurantOrder[]> {
@@ -314,6 +333,59 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     return context.branchId
       ? orders.filter(order => order.branchId === context.branchId)
       : orders;
+  }
+
+  async getCurrentBillSession(
+    query: RestaurantCurrentBillSessionQuery = {},
+  ): Promise<RestaurantBillSessionDetail | null> {
+    const context = await this.getActiveContext();
+    const billSession = await loadCurrentBillSession(query, context.restaurantId);
+
+    if (!billSession) {
+      return null;
+    }
+
+    if (context.branchId && billSession.branchId !== context.branchId) {
+      return null;
+    }
+
+    return billSession;
+  }
+
+  async updateBillSessionTable(
+    billSessionId: string,
+    payload: RestaurantBillSessionTableTransferPayload,
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    return updateRestaurantBillSessionTable(
+      billSessionId,
+      payload,
+      context.restaurantId,
+    );
+  }
+
+  async updateBillSessionPayment(
+    billSessionId: string,
+    payload: RestaurantBillSessionPaymentPayload,
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    return updateRestaurantBillSessionPayment(
+      billSessionId,
+      payload,
+      context.restaurantId,
+    );
+  }
+
+  async closeBillSession(
+    billSessionId: string,
+    payload: RestaurantBillSessionClosePayload = {},
+  ): Promise<RestaurantBillSessionDetail> {
+    const context = await this.getActiveContext();
+    return closeRestaurantBillSession(
+      billSessionId,
+      payload,
+      context.restaurantId,
+    );
   }
 
   async updateOrderStatus(
