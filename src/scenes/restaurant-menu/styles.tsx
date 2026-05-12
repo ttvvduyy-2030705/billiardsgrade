@@ -171,6 +171,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       borderColor: 'rgba(0, 201, 94, 0.32)',
       padding: spacing.sm,
       zIndex: 4,
+      rowGap: spacing.xs,
     },
     noticeText: {
       color: '#D8FFF5',
@@ -180,6 +181,20 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     errorNotice: {
       backgroundColor: 'rgba(255, 40, 40, 0.13)',
       borderColor: 'rgba(255, 40, 40, 0.38)',
+    },
+    noticeRetryButton: {
+      alignSelf: 'flex-start',
+      borderRadius: radius.md,
+      borderWidth: border.thin,
+      borderColor: 'rgba(255,255,255,0.34)',
+      backgroundColor: 'rgba(255,255,255,0.10)',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    noticeRetryText: {
+      color: '#FFFFFF',
+      fontSize: font.caption,
+      fontWeight: '900',
     },
     customerShell: {
       flex: 1,
@@ -770,6 +785,81 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       alignSelf: 'stretch',
       marginTop: spacing.sm,
       rowGap: spacing.sm,
+    },
+    cartScopeCard: {
+      width: '100%',
+      borderRadius: radius.lg,
+      borderWidth: border.thin,
+      borderColor: 'rgba(255,255,255,0.12)',
+      backgroundColor: 'rgba(255,255,255,0.055)',
+      padding: spacing.sm,
+    },
+    cartScopeLabel: {
+      color: 'rgba(255,255,255,0.52)',
+      fontSize: font.small,
+      fontWeight: '900',
+      letterSpacing: 0.6,
+    },
+    cartScopeTitle: {
+      color: '#FFFFFF',
+      fontSize: font.bodyLarge,
+      fontWeight: '900',
+      marginTop: spacing.xxs,
+    },
+    cartScopeSubTitle: {
+      color: 'rgba(255,255,255,0.66)',
+      fontSize: font.small,
+      fontWeight: '800',
+      marginTop: spacing.xxs,
+    },
+    tablePickerSection: {
+      width: '100%',
+      borderRadius: radius.lg,
+      borderWidth: border.thin,
+      borderColor: 'rgba(255,255,255,0.10)',
+      backgroundColor: 'rgba(255,255,255,0.04)',
+      padding: spacing.sm,
+    },
+    tablePickerTitle: {
+      color: 'rgba(255,255,255,0.68)',
+      fontSize: font.small,
+      fontWeight: '900',
+      marginBottom: spacing.xs,
+    },
+    tablePickerHint: {
+      color: 'rgba(255,255,255,0.56)',
+      fontSize: font.small,
+      fontWeight: '800',
+      marginLeft: spacing.xs,
+    },
+    tableChipRow: {
+      columnGap: spacing.xs,
+      paddingRight: spacing.md,
+    },
+    tableChip: {
+      minHeight: control.minTouch - spacing.xs,
+      borderRadius: radius.pill,
+      borderWidth: border.thin,
+      borderColor: 'rgba(255,255,255,0.16)',
+      backgroundColor: '#15151A',
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tableChipActive: {
+      borderColor: '#FF4C4C',
+      backgroundColor: 'rgba(201,29,36,0.24)',
+    },
+    tableChipDisabled: {
+      opacity: 0.35,
+    },
+    tableChipText: {
+      color: 'rgba(255,255,255,0.78)',
+      fontSize: font.body,
+      fontWeight: '900',
+    },
+    tableChipTextActive: {
+      color: '#FFFFFF',
     },
     inputWrap: {
       width: '100%',

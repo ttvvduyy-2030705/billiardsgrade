@@ -12,7 +12,6 @@ import images from 'assets';
 import Image from 'components/Image';
 import View from 'components/View';
 import {screens} from 'scenes/screens';
-import {RESTAURANT_MENU_ENV_CONFIG} from 'config/restaurantMenu';
 import {
   getRestaurantAdminSession,
   loginRestaurantAdmin,
@@ -142,26 +141,13 @@ const RestaurantAdminLoginScreen = (props: Props) => {
   const [submitting, setSubmitting] = useState(false);
 
   const openCustomerMenu = useCallback(() => {
-    const customerToken = String(
-      RESTAURANT_MENU_ENV_CONFIG.defaultTableToken || '',
-    ).trim();
-    const params = customerToken
-      ? {
-          qrToken: customerToken,
-          tableToken: customerToken,
-          tableQrToken: customerToken,
-        }
-      : undefined;
-
-    // The admin login screen can be the only route after logout reset. Calling
-    // navigation.goBack() in that state triggers "GO_BACK was not handled".
-    // Return to the customer menu explicitly and pass the QR token again so the
-    // menu is resolved from customer QR context, not from the last admin context.
+    // Batch 2: do not jump straight into a default restaurant menu from admin.
+    // Return to the QR scanner landing so the next customer menu is always
+    // selected by scanned/chosen restaurant or branch QR.
     if (typeof reset === 'function') {
       reset(0, [
         {
-          name: screens.restaurantMenu,
-          params,
+          name: screens.restaurantQrScanner,
         },
       ]);
       return;
@@ -169,13 +155,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
     if (typeof replace === 'function') {
       replace({
-        name: screens.restaurantMenu,
-        params,
+        name: screens.restaurantQrScanner,
       });
       return;
     }
 
-    navigate(screens.restaurantMenu, params);
+    navigate(screens.restaurantQrScanner);
   }, [navigate, replace, reset]);
 
   const routeToDashboard = useCallback(
@@ -495,7 +480,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
       <View style={styles.topRow}>
         <Pressable onPress={openCustomerMenu} style={styles.backButton}>
-          <RNText style={styles.backText}>‹ Về menu khách</RNText>
+          <RNText style={styles.backText}>‹ Về quét QR menu</RNText>
         </Pressable>
         <Image
           source={images.logoSmall}

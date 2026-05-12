@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   loadMenuCategories,
   loadMenuItems,
+  loadPublicMenuByQrToken,
 } from '../services/restaurantMenuRepository';
 import type {
   MenuCategory,
@@ -71,6 +72,23 @@ const selectValidCategory = (
   return categories[0]?.id || '';
 };
 
+
+const applyMenuData = (
+  categories: MenuCategory[],
+  items: RestaurantMenuItem[],
+) => {
+  storeState.categories = categories;
+  storeState.items = items;
+  storeState.selectedCategoryId = selectValidCategory(
+    storeState.selectedCategoryId,
+    categories,
+  );
+  storeState.hydrated = true;
+  storeState.errorMessage = '';
+  storeState.refreshVersion += 1;
+  emitChange();
+};
+
 export const resetRestaurantMenuStore = () => {
   storeState.categories = [];
   storeState.items = [];
@@ -129,16 +147,7 @@ export const useRestaurantMenuStore = () => {
         };
       }
 
-      storeState.categories = nextCategories;
-      storeState.items = nextItems;
-      storeState.selectedCategoryId = selectValidCategory(
-        storeState.selectedCategoryId,
-        nextCategories,
-      );
-      storeState.hydrated = true;
-      storeState.errorMessage = '';
-      storeState.refreshVersion += 1;
-      emitChange();
+      applyMenuData(nextCategories, nextItems);
 
       return {categories: nextCategories, items: nextItems};
     } catch (error) {
@@ -162,12 +171,55 @@ export const useRestaurantMenuStore = () => {
     }
   }, []);
 
+
+  const refreshPublicMenuData = useCallback(async (qrToken: string) => {
+    const requestId = storeState.refreshRequestId + 1;
+    storeState.refreshRequestId = requestId;
+    setLoading(true);
+
+    try {
+      const publicMenu = await loadPublicMenuByQrToken(qrToken);
+      const nextCategories = publicMenu.categories;
+      const nextItems = publicMenu.items;
+
+      if (requestId !== storeState.refreshRequestId) {
+        return {
+          categories: storeState.categories,
+          items: storeState.items,
+        };
+      }
+
+      applyMenuData(nextCategories, nextItems);
+      return {categories: nextCategories, items: nextItems};
+    } catch (error) {
+      void error;
+
+      if (requestId === storeState.refreshRequestId) {
+        storeState.errorMessage =
+          'Không thể tải menu từ QR. Vui lòng quét lại mã QR của quán/chi nhánh.';
+        storeState.hydrated = true;
+        storeState.refreshVersion += 1;
+        emitChange();
+      }
+
+      return {
+        categories: storeState.categories,
+        items: storeState.items,
+      };
+    } finally {
+      if (requestId === storeState.refreshRequestId) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   return {
     categories: snapshot.categories,
     items: snapshot.items,
     selectedCategoryId: snapshot.selectedCategoryId,
     setSelectedCategoryId,
     refreshMenuData,
+    refreshPublicMenuData,
     loading: snapshot.loading,
     hydrated: snapshot.hydrated,
     errorMessage: snapshot.errorMessage,

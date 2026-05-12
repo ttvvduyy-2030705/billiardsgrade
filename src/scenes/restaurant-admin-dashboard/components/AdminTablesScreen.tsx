@@ -1,12 +1,20 @@
-import React, {memo, useMemo, useState} from 'react';
+import React, {memo, useEffect, useMemo, useState} from 'react';
 import {Alert, Pressable, TextInput, View as RNView} from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 
 import RNText from './AdminText';
 import type {
   RestaurantBranch,
+  RestaurantBranchStatus,
   RestaurantTable,
   RestaurantTableStatus,
 } from 'services/restaurantMenuRepository';
+
+type BranchQrFormState = {
+  branchId: string;
+  menuQrToken: string;
+  status: RestaurantBranchStatus;
+};
 
 type TableFormState = {
   id: string | null;
@@ -31,6 +39,14 @@ type Props = {
     status?: RestaurantTableStatus;
   }) => Promise<RestaurantTable>;
   onDeleteTable: (tableId: string) => Promise<RestaurantTable[]>;
+  onSaveBranchQr: (input: {
+    id: string;
+    restaurantId: string;
+    name: string;
+    address?: string;
+    menuQrToken?: string;
+    status?: RestaurantBranchStatus;
+  }) => Promise<RestaurantBranch>;
   onReloadTables: () => Promise<void>;
 };
 
@@ -40,13 +56,33 @@ const STATUS_OPTIONS: Array<{value: RestaurantTableStatus; label: string}> = [
   {value: 'AVAILABLE', label: 'Đang dùng'},
   {value: 'OCCUPIED', label: 'Có khách'},
   {value: 'LOCKED', label: 'Khóa đặt'},
-  {value: 'HIDDEN', label: 'Ẩn QR'},
+  {value: 'HIDDEN', label: 'Ẩn bàn'},
+];
+
+const BRANCH_STATUS_OPTIONS: Array<{value: RestaurantBranchStatus; label: string; hint: string}> = [
+  {value: 'ACTIVE', label: 'Đang mở', hint: 'Khách quét QR vào menu được'},
+  {value: 'LOCKED', label: 'Khóa menu', hint: 'QR không mở menu/nhận đơn'},
+  {value: 'HIDDEN', label: 'Ẩn QR', hint: 'Không dùng QR này cho khách'},
 ];
 
 const getStatusLabel = (status?: RestaurantTableStatus) => {
   return (
     STATUS_OPTIONS.find(option => option.value === status)?.label ||
     'Đang dùng'
+  );
+};
+
+const getBranchStatusLabel = (status?: RestaurantBranchStatus) => {
+  return (
+    BRANCH_STATUS_OPTIONS.find(option => option.value === status)?.label ||
+    'Đang mở'
+  );
+};
+
+const getBranchStatusHint = (status?: RestaurantBranchStatus) => {
+  return (
+    BRANCH_STATUS_OPTIONS.find(option => option.value === status)?.hint ||
+    'Khách quét QR vào menu được'
   );
 };
 
@@ -65,6 +101,14 @@ const createDraftToken = (tableNumber: string) => {
   return `qr_${suffix}_${Math.random().toString(36).slice(2, 7)}`;
 };
 
+const createBranchDraftToken = (branch?: RestaurantBranch) => {
+  const branchKey = normaliseToken(branch?.name || branch?.id || 'chi_nhanh');
+  const restaurantKey = normaliseToken(branch?.restaurantId || 'restaurant');
+  return `qr_${restaurantKey}_${branchKey}_menu`;
+};
+
+const getQrPrintValue = (token: string) => `scoremenu://menu?qrToken=${encodeURIComponent(token)}`;
+
 const emptyForm = (branchId?: string): TableFormState => ({
   id: null,
   tableNumber: '',
@@ -81,6 +125,7 @@ const AdminTablesScreen = ({
   styles,
   onSaveTable,
   onDeleteTable,
+  onSaveBranchQr,
   onReloadTables,
 }: Props) => {
   const [form, setForm] = useState<TableFormState>(() =>
@@ -88,7 +133,14 @@ const AdminTablesScreen = ({
   );
   const [filter, setFilter] = useState<TableFilter>('ACTIVE_BRANCH');
   const [saving, setSaving] = useState(false);
+  const [savingBranchQr, setSavingBranchQr] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [branchQrMessage, setBranchQrMessage] = useState('');
+  const [branchQrForm, setBranchQrForm] = useState<BranchQrFormState>(() => ({
+    branchId: activeBranchId || branches[0]?.id || '',
+    menuQrToken: branches.find(branch => branch.id === activeBranchId)?.menuQrToken || branches[0]?.menuQrToken || '',
+    status: branches.find(branch => branch.id === activeBranchId)?.status || branches[0]?.status || 'ACTIVE',
+  }));
 
   const visibleTables = useMemo(() => {
     const scopedTables =
@@ -107,6 +159,99 @@ const AdminTablesScreen = ({
       return acc;
     }, {});
   }, [branches]);
+
+  const selectedBranch = useMemo(() => {
+    return (
+      branches.find(branch => branch.id === branchQrForm.branchId) ||
+      branches.find(branch => branch.id === activeBranchId) ||
+      branches[0]
+    );
+  }, [activeBranchId, branchQrForm.branchId, branches]);
+
+  const selectedBranchMenuQrToken = (
+    branchQrForm.menuQrToken || selectedBranch?.menuQrToken || createBranchDraftToken(selectedBranch)
+  ).trim();
+  const selectedBranchQrPrintValue = getQrPrintValue(selectedBranchMenuQrToken);
+
+  useEffect(() => {
+    const nextBranch =
+      branches.find(branch => branch.id === activeBranchId) ||
+      branches.find(branch => branch.id === branchQrForm.branchId) ||
+      branches[0];
+
+    if (!nextBranch) {
+      return;
+    }
+
+    setBranchQrForm(current => {
+      if (
+        current.branchId === nextBranch.id &&
+        current.menuQrToken === (nextBranch.menuQrToken || '') &&
+        current.status === (nextBranch.status || 'ACTIVE')
+      ) {
+        return current;
+      }
+
+      return {
+        branchId: nextBranch.id,
+        menuQrToken: nextBranch.menuQrToken || createBranchDraftToken(nextBranch),
+        status: nextBranch.status || 'ACTIVE',
+      };
+    });
+  }, [activeBranchId, branchQrForm.branchId, branches]);
+
+  const patchBranchQrForm = (next: Partial<BranchQrFormState>) => {
+    setBranchQrMessage('');
+    setBranchQrForm(current => ({...current, ...next}));
+  };
+
+  const selectBranchForQr = (branch: RestaurantBranch) => {
+    setBranchQrMessage('');
+    setBranchQrForm({
+      branchId: branch.id,
+      menuQrToken: branch.menuQrToken || createBranchDraftToken(branch),
+      status: branch.status || 'ACTIVE',
+    });
+  };
+
+  const handleSaveBranchQr = async () => {
+    const targetBranch = selectedBranch;
+    const menuQrToken = normaliseToken(selectedBranchMenuQrToken);
+
+    if (!targetBranch) {
+      setBranchQrMessage('Chưa có chi nhánh để lưu QR menu.');
+      return;
+    }
+
+    if (!menuQrToken) {
+      setBranchQrMessage('Vui lòng nhập QR token cho chi nhánh.');
+      return;
+    }
+
+    setSavingBranchQr(true);
+    setBranchQrMessage('');
+
+    try {
+      await onSaveBranchQr({
+        id: targetBranch.id,
+        restaurantId: targetBranch.restaurantId,
+        name: targetBranch.name,
+        address: targetBranch.address,
+        menuQrToken,
+        status: branchQrForm.status,
+      });
+      setBranchQrMessage('Đã lưu QR menu chi nhánh. Khách quét QR này sẽ vào đúng menu chi nhánh.');
+      await onReloadTables();
+    } catch (error) {
+      setBranchQrMessage(
+        error instanceof Error
+          ? error.message
+          : 'Không thể lưu QR menu chi nhánh. Vui lòng thử lại.',
+      );
+    } finally {
+      setSavingBranchQr(false);
+    }
+  };
 
   const resetForm = () => {
     setForm(emptyForm(activeBranchId));
@@ -222,8 +367,8 @@ const AdminTablesScreen = ({
         <RNView style={styles.sectionTitleBlock}>
           <RNText style={styles.sectionTitle}>Quản lý bàn / QR</RNText>
           <RNText style={styles.sectionHint}>
-            Tạo bàn, gắn chi nhánh, khóa/ẩn QR khi cần. Khách quét QR chỉ vào
-            đúng bàn và nhà hàng hiện tại.
+            Quản lý QR menu của chi nhánh và danh sách bàn. Khách quét QR chi
+            nhánh để vào menu, sau đó nhập/chọn số bàn trong giỏ hàng.
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>
@@ -238,9 +383,136 @@ const AdminTablesScreen = ({
         </RNView>
       </RNView>
 
+      <RNView style={styles.branchQrPanel}>
+        <RNView style={styles.branchQrHeaderRow}>
+          <RNView style={styles.sectionTitleBlock}>
+            <RNText style={styles.branchQrEyebrow}>QR menu quán / chi nhánh</RNText>
+            <RNText style={styles.branchQrTitle}>
+              {selectedBranch?.name || 'Chưa có chi nhánh'}
+            </RNText>
+            <RNText style={styles.branchQrHint}>
+              QR này dùng để mở menu của chi nhánh. Số bàn sẽ được khách nhập
+              hoặc chọn trong giỏ hàng và được hệ thống kiểm tra trước khi tạo đơn.
+            </RNText>
+          </RNView>
+          <RNView style={styles.branchQrStatusPill}>
+            <RNText style={styles.branchQrStatusText}>
+              {getBranchStatusLabel(branchQrForm.status)}
+            </RNText>
+          </RNView>
+        </RNView>
+
+        <RNText style={styles.inputLabel}>Chọn chi nhánh để lấy QR menu</RNText>
+        <RNView style={styles.categoryPickerWrap}>
+          {branches.map(branch => {
+            const active = selectedBranch?.id === branch.id;
+            return (
+              <Pressable
+                key={branch.id}
+                onPress={() => selectBranchForQr(branch)}
+                style={[
+                  styles.categoryPickChip,
+                  active ? styles.categoryPickChipActive : null,
+                ]}>
+                <RNText
+                  style={[
+                    styles.categoryPickText,
+                    active ? styles.categoryPickTextActive : null,
+                  ]}>
+                  {branch.name}
+                </RNText>
+              </Pressable>
+            );
+          })}
+        </RNView>
+
+        {selectedBranch ? (
+          <RNView style={styles.branchQrColumns}>
+            <RNView style={styles.branchQrPreviewCard}>
+              <RNText style={styles.branchQrPreviewTitle}>Ảnh QR để in/dán</RNText>
+              <RNView style={styles.branchQrCodeBox}>
+                <QRCode value={selectedBranchQrPrintValue} size={148} />
+              </RNView>
+              <RNText selectable style={styles.qrTokenValue}>
+                {selectedBranchMenuQrToken}
+              </RNText>
+              <RNText selectable style={styles.branchQrPrintUrl}>
+                {selectedBranchQrPrintValue}
+              </RNText>
+            </RNView>
+
+            <RNView style={styles.branchQrFormCard}>
+              <RNText style={styles.inputLabel}>QR token chi nhánh</RNText>
+              <TextInput
+                value={branchQrForm.menuQrToken}
+                onChangeText={value =>
+                  patchBranchQrForm({menuQrToken: normaliseToken(value)})
+                }
+                placeholder="qr_haidilao_main_menu"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.adminInput}
+                allowFontScaling={false}
+              />
+
+              <RNText style={styles.inputLabel}>Trạng thái QR chi nhánh</RNText>
+              <RNView style={styles.categoryPickerWrap}>
+                {BRANCH_STATUS_OPTIONS.map(option => {
+                  const active = branchQrForm.status === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => patchBranchQrForm({status: option.value})}
+                      style={[
+                        styles.categoryPickChip,
+                        active ? styles.categoryPickChipActive : null,
+                      ]}>
+                      <RNText
+                        style={[
+                          styles.categoryPickText,
+                          active ? styles.categoryPickTextActive : null,
+                        ]}>
+                        {option.label}
+                      </RNText>
+                    </Pressable>
+                  );
+                })}
+              </RNView>
+
+              <RNText style={styles.branchQrStatusHint}>
+                {getBranchStatusHint(branchQrForm.status)}
+              </RNText>
+
+              {branchQrMessage ? (
+                <RNText style={styles.formError}>{branchQrMessage}</RNText>
+              ) : null}
+
+              <RNView style={styles.branchQrActions}>
+                <Pressable
+                  disabled={savingBranchQr}
+                  onPress={() => void handleSaveBranchQr()}
+                  style={[
+                    styles.saveButton,
+                    savingBranchQr ? styles.disabledButton : null,
+                  ]}>
+                  <RNText style={styles.saveButtonText}>
+                    {savingBranchQr ? 'Đang lưu QR...' : 'Lưu QR chi nhánh'}
+                  </RNText>
+                </Pressable>
+              </RNView>
+            </RNView>
+          </RNView>
+        ) : (
+          <RNText style={styles.workspaceEmptyText}>
+            Chưa có chi nhánh để tạo QR menu.
+          </RNText>
+        )}
+      </RNView>
+
       <RNView style={styles.tableManagerPanel}>
         <RNText style={styles.inputLabel}>
-          {form.id ? 'Sửa bàn / QR' : 'Thêm bàn mới'}
+          {form.id ? 'Sửa bàn' : 'Thêm bàn mới'}
         </RNText>
         <RNView style={styles.tableFormGrid}>
           <RNView style={styles.tableFormColumn}>
@@ -256,11 +528,11 @@ const AdminTablesScreen = ({
           </RNView>
 
           <RNView style={styles.tableFormColumn}>
-            <RNText style={styles.inputLabel}>QR token</RNText>
+            <RNText style={styles.inputLabel}>QR bàn tùy chọn</RNText>
             <TextInput
               value={form.qrCodeToken}
               onChangeText={value => patchForm({qrCodeToken: normaliseToken(value)})}
-              placeholder="Tự tạo nếu để trống"
+              placeholder="Tự tạo nếu để trống - không bắt buộc cho QR chi nhánh"
               placeholderTextColor="rgba(255,255,255,0.35)"
               autoCapitalize="none"
               style={styles.adminInput}
@@ -372,7 +644,7 @@ const AdminTablesScreen = ({
           <RNText style={styles.emptyIcon}>▦</RNText>
           <RNText style={styles.emptyText}>Chưa có bàn/QR</RNText>
           <RNText style={styles.emptySubText}>
-            Tạo bàn đầu tiên để in QR và cho khách gọi món đúng ngữ cảnh.
+            Tạo bàn đầu tiên để khách chọn/nhập đúng số bàn khi gửi đơn.
           </RNText>
         </RNView>
       ) : (
@@ -381,7 +653,7 @@ const AdminTablesScreen = ({
             <RNView key={table.id} style={styles.tableCard}>
               <RNView style={styles.orderHeader}>
                 <RNView style={styles.orderTitleBlock}>
-                  <RNText style={styles.orderCode}>Bàn / QR</RNText>
+                  <RNText style={styles.orderCode}>Bàn trong chi nhánh</RNText>
                   <RNText style={styles.orderTable}>{table.tableNumber}</RNText>
                   <RNText style={styles.orderTime}>
                     {branchNameById[table.branchId || ''] || 'Chưa gắn chi nhánh'}
@@ -397,7 +669,7 @@ const AdminTablesScreen = ({
               </RNView>
 
               <RNView style={styles.qrTokenBox}>
-                <RNText style={styles.qrTokenLabel}>QR token</RNText>
+                <RNText style={styles.qrTokenLabel}>QR bàn tùy chọn</RNText>
                 <RNText selectable style={styles.qrTokenValue}>
                   {table.qrCodeToken}
                 </RNText>

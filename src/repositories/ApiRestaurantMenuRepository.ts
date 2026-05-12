@@ -7,8 +7,11 @@ import type {
   RestaurantMenuCategoryPayload,
   RestaurantMenuContext,
   RestaurantMenuItemPayload,
+  RestaurantMenuImageUploadPayload,
+  RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantPublicMenuPayload,
   RestaurantBranch,
   RestaurantTable,
   RestaurantTablePayload,
@@ -16,6 +19,7 @@ import type {
   RestaurantWorkspacePayload,
 } from './RestaurantMenuRepository';
 import {normaliseRestaurantOrder} from 'services/restaurantMenuStorage';
+import {devModuleLog, devModuleWarn} from 'utils/devLogger';
 import type {
   MenuCategory,
   RawRestaurantOrder,
@@ -77,7 +81,7 @@ type ApiRequestInit = {
   retryCount?: number;
 };
 
-type PublicMenuPayload = {
+type ApiPublicMenuPayload = Partial<RestaurantPublicMenuPayload> & {
   context?: RestaurantMenuContext;
   categories?: MenuCategory[];
   items?: RestaurantMenuItem[];
@@ -150,6 +154,25 @@ const parseResponseBody = async (response: Response) => {
   }
 };
 
+const getResponseRequestId = (response: Response, body?: {text: string; json: unknown}) => {
+  const headerRequestId =
+    response.headers?.get?.('x-request-id') ||
+    response.headers?.get?.('x-correlation-id') ||
+    '';
+
+  if (headerRequestId) {
+    return headerRequestId;
+  }
+
+  if (body?.json && typeof body.json === 'object') {
+    const payload = body.json as Record<string, unknown>;
+    const requestId = payload.requestId || payload.traceId || payload.correlationId;
+    return typeof requestId === 'string' ? requestId : '';
+  }
+
+  return '';
+};
+
 const extractApiMessage = (body: {text: string; json: unknown}) => {
   if (body.json && typeof body.json === 'object') {
     const payload = body.json as Record<string, unknown>;
@@ -188,7 +211,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   private activeContext: RestaurantMenuContext;
   private publicMenuCache: {
     token: string;
-    payload: PublicMenuPayload;
+    payload: RestaurantPublicMenuPayload;
   } | null = null;
 
   constructor(config: ApiRestaurantMenuRepositoryConfig) {
@@ -221,54 +244,109 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   async setActiveContext(
     context: Partial<RestaurantMenuContext>,
   ): Promise<RestaurantMenuContext> {
-    const previousToken = this.activeContext.qrCodeToken;
+    const previousToken = this.getCustomerMenuToken(this.activeContext);
     this.activeContext = {
       ...this.activeContext,
       ...context,
       restaurantId: context.restaurantId || this.activeContext.restaurantId,
     };
-    if (previousToken !== this.activeContext.qrCodeToken) {
+    if (previousToken !== this.getCustomerMenuToken(this.activeContext)) {
       this.publicMenuCache = null;
     }
     return this.getActiveContext();
   }
 
+  private getCustomerMenuToken(context: Partial<RestaurantMenuContext>) {
+    if (context.qrTokenScope === 'TABLE' && context.qrCodeToken) {
+      return String(context.qrCodeToken).trim();
+    }
+
+    return String(context.menuQrToken || context.qrCodeToken || '').trim();
+  }
+
   private isCustomerTableContext(context: RestaurantMenuContext) {
-    return context.source === 'customer' && Boolean(context.qrCodeToken);
+    return context.source === 'customer' && Boolean(this.getCustomerMenuToken(context));
+  }
+
+  private normalisePublicMenuPayload(
+    token: string,
+    payload: ApiPublicMenuPayload,
+  ): RestaurantPublicMenuPayload {
+    const context = payload.context || this.activeContext;
+    const nextContext: RestaurantPublicMenuPayload['context'] = {
+      ...context,
+      restaurantId: context.restaurantId || this.activeContext.restaurantId,
+      qrCodeToken: context.qrCodeToken || context.menuQrToken || token,
+      menuQrToken: context.menuQrToken || context.qrCodeToken || token,
+      qrTokenScope:
+        context.qrTokenScope || (context.tableId ? 'TABLE' : 'BRANCH_MENU'),
+      source: 'customer',
+    };
+
+    return {
+      qrToken: token,
+      context: nextContext,
+      categories: Array.isArray(payload.categories) ? payload.categories : [],
+      items: Array.isArray(payload.items)
+        ? payload.items.filter(item => item.status !== 'HIDDEN')
+        : [],
+      receivedAt: payload.receivedAt || new Date().toISOString(),
+    };
+  }
+
+  async getPublicTablesByQrToken(token: string): Promise<RestaurantTable[]> {
+    const cleanToken = String(token || '').trim();
+    if (!cleanToken) {
+      throw new RestaurantMenuApiError({
+        code: 'VALIDATION_ERROR',
+        message: 'Thiếu QR menu để tải danh sách bàn.',
+      });
+    }
+
+    return this.request<RestaurantTable[]>(
+      `/public/menu/${encodeURIComponent(cleanToken)}/tables`,
+    );
+  }
+
+  async getPublicMenuByQrToken(
+    token: string,
+  ): Promise<RestaurantPublicMenuPayload> {
+    const cleanToken = String(token || '').trim();
+    if (!cleanToken) {
+      throw new RestaurantMenuApiError({
+        code: 'VALIDATION_ERROR',
+        message: 'Thiếu QR menu để tải menu khách.',
+      });
+    }
+
+    if (this.publicMenuCache?.token === cleanToken) {
+      return this.publicMenuCache.payload;
+    }
+
+    const payload = await this.request<ApiPublicMenuPayload>(
+      `/public/menu/${encodeURIComponent(cleanToken)}`,
+    );
+    const publicMenu = this.normalisePublicMenuPayload(cleanToken, payload);
+
+    this.activeContext = {
+      ...this.activeContext,
+      ...publicMenu.context,
+      source: 'customer',
+    };
+    this.publicMenuCache = {token: cleanToken, payload: publicMenu};
+    return publicMenu;
   }
 
   private async getPublicMenu(
     context: RestaurantMenuContext,
-  ): Promise<PublicMenuPayload> {
-    const token = String(context.qrCodeToken || '').trim();
-    if (!token) {
-      throw new RestaurantMenuApiError({
-        code: 'VALIDATION_ERROR',
-        message: 'Thiếu QR bàn để tải menu khách.',
-      });
-    }
-
-    if (this.publicMenuCache?.token === token) {
-      return this.publicMenuCache.payload;
-    }
-
-    const payload = await this.request<PublicMenuPayload>(
-      `/public/menu/${encodeURIComponent(token)}`,
-    );
-    if (payload.context) {
-      this.activeContext = {
-        ...this.activeContext,
-        ...payload.context,
-        source: 'customer',
-      };
-    }
-    this.publicMenuCache = {token, payload};
-    return payload;
+  ): Promise<RestaurantPublicMenuPayload> {
+    const token = this.getCustomerMenuToken(context);
+    return this.getPublicMenuByQrToken(token);
   }
 
   private async publicTablePath(suffix: string) {
     const context = await this.getActiveContext();
-    const token = String(context.qrCodeToken || '').trim();
+    const token = this.getCustomerMenuToken(context);
     if (!this.isCustomerTableContext(context) || !token) {
       return '';
     }
@@ -283,7 +361,7 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     if (!this.baseUrl) {
       throw new RestaurantMenuApiError({
         code: 'VALIDATION_ERROR',
-        message: 'Restaurant Menu API baseUrl is not configured.',
+        message: 'API mode đang bật nhưng chưa cấu hình baseUrl. Vui lòng chọn local hoặc nhập apiBaseUrl cho dev-api/staging/prod.',
       });
     }
 
@@ -297,9 +375,13 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       ? setTimeout(() => controller.abort(), timeoutMs)
       : undefined;
 
+    const method = init.method || 'GET';
+    const startedAt = Date.now();
+
     try {
+      devModuleLog('API', 'request:start', {method, path});
       const response = await fetch(`${this.baseUrl}${path}`, {
-        method: init.method || 'GET',
+        method,
         body: init.body,
         signal: controller?.signal,
         headers: {
@@ -313,19 +395,43 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       if (!response.ok) {
         const body = await parseResponseBody(response);
         const rawMessage = extractApiMessage(body);
-        throw new RestaurantMenuApiError({
+        const requestId = getResponseRequestId(response, body);
+        const apiError = new RestaurantMenuApiError({
           code: statusToErrorCode(response.status),
           status: response.status,
           message: toReadableApiMessage(response.status, rawMessage),
           details: body.json || body.text,
         });
+        devModuleWarn('API', 'request:error', {
+          method,
+          path,
+          status: response.status,
+          code: apiError.code,
+          requestId,
+          durationMs: Date.now() - startedAt,
+        });
+        throw apiError;
       }
 
       if (response.status === 204) {
+        devModuleLog('API', 'request:success', {
+          method,
+          path,
+          status: response.status,
+          requestId: getResponseRequestId(response),
+          durationMs: Date.now() - startedAt,
+        });
         return undefined as T;
       }
 
       const body = await parseResponseBody(response);
+      devModuleLog('API', 'request:success', {
+        method,
+        path,
+        status: response.status,
+        requestId: getResponseRequestId(response, body),
+        durationMs: Date.now() - startedAt,
+      });
       return (body.json !== undefined ? body.json : undefined) as T;
     } catch (error) {
       if (error instanceof RestaurantMenuApiError) {
@@ -334,13 +440,20 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
 
       const errorName = error instanceof Error ? error.name : '';
       const timedOut = errorName === 'AbortError';
-      throw new RestaurantMenuApiError({
+      const apiError = new RestaurantMenuApiError({
         code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
           ? 'Kết nối API menu quá lâu. Vui lòng thử lại.'
           : 'Không thể kết nối API menu. Kiểm tra mạng hoặc backend.',
         details: error,
       });
+      devModuleWarn('API', timedOut ? 'request:timeout' : 'request:network-error', {
+        method,
+        path,
+        code: apiError.code,
+        durationMs: Date.now() - startedAt,
+      });
+      throw apiError;
     } finally {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -519,12 +632,33 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     );
   }
 
-  async resolveTableToken(
+  async resolveMenuQrToken(
     token: string,
   ): Promise<RestaurantMenuContext | null> {
-    return this.request<RestaurantMenuContext | null>(
-      `/menu/table-tokens/${encodeURIComponent(token)}`,
+    const cleanToken = String(token || '').trim();
+    if (!cleanToken) {
+      return null;
+    }
+
+    const context = await this.request<RestaurantMenuContext | null>(
+      `/menu/qr-tokens/${encodeURIComponent(cleanToken)}`,
     );
+
+    if (!context) {
+      return null;
+    }
+
+    return {
+      ...context,
+      source: 'customer',
+      qrCodeToken: context.qrCodeToken || context.menuQrToken || cleanToken,
+      menuQrToken: context.menuQrToken || context.qrCodeToken || cleanToken,
+      qrTokenScope: context.qrTokenScope || (context.tableId ? 'TABLE' : 'BRANCH_MENU'),
+    };
+  }
+
+  resolveTableToken(token: string): Promise<RestaurantMenuContext | null> {
+    return this.resolveMenuQrToken(token);
   }
 
   async getCategories(): Promise<MenuCategory[]> {
@@ -637,6 +771,25 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     );
   }
 
+  async uploadMenuItemImage(
+    payload: RestaurantMenuImageUploadPayload,
+  ): Promise<RestaurantMenuImageUploadResult> {
+    const context = await this.getActiveContext();
+    return this.request<RestaurantMenuImageUploadResult>(
+      await this.restaurantPath('/menu/images'),
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ...payload,
+          restaurantId: context.restaurantId,
+          dishId: payload.dishId || payload.itemId,
+          mimeType: payload.mimeType || 'image/jpeg',
+        }),
+        retryCount: 0,
+      },
+    );
+  }
+
   async getOrders(): Promise<RestaurantOrder[]> {
     const context = await this.getActiveContext();
     const branchQuery = context.branchId
@@ -662,6 +815,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
           method: 'POST',
           body: JSON.stringify({
             items: payload.items,
+            tableId: payload.tableId,
+            tableNumber: payload.tableNumber,
             note: payload.note,
             paymentMethod: payload.paymentMethod,
             paymentStatus: payload.paymentStatus,
@@ -761,8 +916,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
           ...cart,
           restaurantId: context.restaurantId,
           branchId: context.branchId,
-          tableId: context.tableId,
-          tableNumber: context.tableNumber,
+          tableId: cart.tableId || context.tableId,
+          tableNumber: cart.tableNumber || context.tableNumber,
         }),
       });
       return;

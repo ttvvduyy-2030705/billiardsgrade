@@ -3,6 +3,7 @@ import {Pressable, View as RNView} from 'react-native';
 import RNText from './AdminText';
 
 import {
+  ADMIN_ORDER_PRIMARY_ACTION_LABELS,
   ADMIN_ORDER_STATUS_FLOW,
   ADMIN_ORDER_STATUS_LABELS,
   ADMIN_PAYMENT_METHOD_LABELS,
@@ -12,6 +13,7 @@ import {
   AdminOrderStatus,
   AdminPaymentMethod,
   AdminPaymentStatus,
+  getAdminOrderNextStatus,
   isAdminOrderStatusTransitionAllowed,
 } from 'services/restaurantAdminStore';
 
@@ -52,6 +54,10 @@ const OrderCard = ({
   onChangeStatus,
   onChangePaymentStatus,
 }: Props) => {
+  const nextStatus = getAdminOrderNextStatus(order);
+  const canMarkPaid = order.status !== 'CANCELLED';
+  const sourceLabel = order.orderSource === 'customer' ? 'Khách QR' : order.orderSource || 'Admin';
+
   return (
     <RNView style={styles.orderCard}>
       <RNView style={styles.orderHeader}>
@@ -64,6 +70,10 @@ const OrderCard = ({
           </RNText>
           <RNText style={styles.orderTime}>
             {formatDateTime(order.createdAt)}
+          </RNText>
+          <RNText style={styles.orderMetaLine} numberOfLines={1}>
+            {sourceLabel}
+            {order.branchId ? ` · ${order.branchId}` : ''}
           </RNText>
         </RNView>
         <RNView style={styles.orderBadgeColumn}>
@@ -100,6 +110,26 @@ const OrderCard = ({
         <RNText style={styles.totalLabel}>Tổng tiền</RNText>
         <RNText style={styles.totalValue}>{formatCurrency(order.total)}</RNText>
       </RNView>
+
+      {nextStatus ? (
+        <Pressable
+          onPress={() => onChangeStatus(order.id, nextStatus)}
+          style={styles.primaryOrderActionButton}
+          accessibilityRole="button">
+          <RNText style={styles.primaryOrderActionText}>
+            {ADMIN_ORDER_PRIMARY_ACTION_LABELS[order.status] ||
+              ADMIN_ORDER_STATUS_LABELS[nextStatus]}
+          </RNText>
+        </Pressable>
+      ) : (
+        <RNView style={styles.orderTerminalNotice}>
+          <RNText style={styles.orderTerminalNoticeText}>
+            {order.status === 'COMPLETED'
+              ? 'Đơn đã hoàn thành, không thể chuyển ngược.'
+              : 'Đơn đã huỷ, chỉ còn xem lại thông tin.'}
+          </RNText>
+        </RNView>
+      )}
 
       <RNText style={styles.actionLabel}>Trạng thái đơn</RNText>
       <RNView style={styles.actionChipWrap}>
@@ -139,6 +169,7 @@ const OrderCard = ({
           return (
             <Pressable
               key={status}
+              disabled={status === 'PAID' && !canMarkPaid}
               onPress={() =>
                 onChangePaymentStatus(
                   order.id,
@@ -149,11 +180,17 @@ const OrderCard = ({
               style={[
                 styles.actionChip,
                 active ? styles.paymentChipActive : null,
+                status === 'PAID' && !canMarkPaid
+                  ? styles.actionChipDisabled
+                  : null,
               ]}>
               <RNText
                 style={[
                   styles.actionChipText,
                   active ? styles.actionChipTextActive : null,
+                  status === 'PAID' && !canMarkPaid
+                    ? styles.actionChipTextDisabled
+                    : null,
                 ]}>
                 {ADMIN_PAYMENT_STATUS_LABELS[status]}
               </RNText>

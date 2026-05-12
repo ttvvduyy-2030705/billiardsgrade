@@ -123,6 +123,11 @@ const getWrappedPlayback = () =>
   withWrapper(screens.playback, require('./playback').default);
 const getWrappedConfigs = () =>
   withWrapper(screens.configs, require('./configs').default);
+const getWrappedRestaurantQrScanner = () =>
+  withWrapper(
+    screens.restaurantQrScanner,
+    require('./restaurant-qr-scanner').default,
+  );
 const getWrappedRestaurantMenu = () =>
   withWrapper(screens.restaurantMenu, require('./restaurant-menu').default);
 const getWrappedRestaurantCart = () =>
@@ -241,6 +246,12 @@ const StackScreens = () => {
           name={screens.configs}
           getComponent={getWrappedConfigs}
           options={buildOptions(screens.configs, true)}
+        />
+
+        <Stack.Screen
+          name={screens.restaurantQrScanner}
+          getComponent={getWrappedRestaurantQrScanner}
+          options={buildCustomTitleOptions('Quét QR menu', true)}
         />
 
         <Stack.Screen

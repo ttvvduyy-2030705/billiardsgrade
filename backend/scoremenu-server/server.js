@@ -13,6 +13,10 @@ const SCHEMA_FILE = path.join(__dirname, 'data', 'schema.json');
 const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD === '1';
 const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret_change_me';
 const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24);
+const UPLOAD_DIR = process.env.SCOREMENU_UPLOAD_DIR || path.join(__dirname, 'data', 'uploads');
+const PUBLIC_UPLOAD_PREFIX = '/uploads/menu-images';
+const MAX_BODY_BYTES = Number(process.env.SCOREMENU_MAX_BODY_BYTES || 1024 * 1024 * 12);
+const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1024 * 6);
 
 
 const ORDER_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'COMPLETED', 'CANCELLED'];
@@ -20,6 +24,7 @@ const PAYMENT_STATUSES = ['UNPAID', 'PAID'];
 const PAYMENT_METHODS = ['CASH', 'BANK_TRANSFER', 'MOCK'];
 const ITEM_STATUSES = ['SELLING', 'HIDDEN', 'OUT_OF_STOCK'];
 const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'LOCKED', 'HIDDEN'];
+const BRANCH_STATUSES = ['ACTIVE', 'LOCKED', 'HIDDEN'];
 
 const nowIso = () => new Date().toISOString();
 const createId = prefix => `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -55,6 +60,7 @@ const loadDb = () => {
     orders: Array.isArray(db.orders) ? db.orders : [],
     carts: db.carts && typeof db.carts === 'object' ? db.carts : {},
     adminUsers: Array.isArray(db.adminUsers) ? db.adminUsers : [],
+    imageUploads: Array.isArray(db.imageUploads) ? db.imageUploads : [],
   };
 };
 
@@ -67,7 +73,7 @@ const parseBody = req =>
     let raw = '';
     req.on('data', chunk => {
       raw += chunk;
-      if (raw.length > 1024 * 1024 * 5) {
+      if (raw.length > MAX_BODY_BYTES) {
         req.destroy();
       }
     });
@@ -103,6 +109,105 @@ const getPathParts = url => {
 
 const cleanString = value => String(value || '').trim();
 const normalizeKey = value => cleanString(value).toLowerCase();
+
+const IMAGE_MIME_TO_EXTENSION = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+const getImageExtensionFromMime = mimeType => IMAGE_MIME_TO_EXTENSION[mimeType] || 'jpg';
+
+const getImageMimeFromExtension = filePath => {
+  const ext = path.extname(filePath).toLowerCase().replace('.', '');
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  return 'image/jpeg';
+};
+
+const createSafeStorageName = value =>
+  cleanString(value || 'menu_image')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 72) || 'menu_image';
+
+const getRequestBaseUrl = req => {
+  const host = req.headers.host || `${HOST}:${PORT}`;
+  const proto = req.headers['x-forwarded-proto'] || 'http';
+  return `${proto}://${host}`;
+};
+
+const isSafeUploadPath = filePath => {
+  const resolved = path.resolve(filePath);
+  const root = path.resolve(UPLOAD_DIR);
+  return resolved === root || resolved.startsWith(`${root}${path.sep}`);
+};
+
+const sendStaticUploadFile = (req, res, pathname) => {
+  if (!pathname.startsWith(`${PUBLIC_UPLOAD_PREFIX}/`)) {
+    return false;
+  }
+
+  const relative = pathname
+    .slice(PUBLIC_UPLOAD_PREFIX.length + 1)
+    .split('/')
+    .map(decodeURIComponent)
+    .filter(Boolean);
+  const filePath = path.join(UPLOAD_DIR, ...relative);
+
+  if (!isSafeUploadPath(filePath) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    fail(res, 404, 'Không tìm thấy ảnh món.');
+    return true;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': getImageMimeFromExtension(filePath),
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Access-Control-Allow-Origin': '*',
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return true;
+  }
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+};
+
+const parseImageUploadPayload = body => {
+  const dataUri = cleanString(body.dataUri || body.dataUrl || body.imageData);
+  let mimeType = cleanString(body.mimeType || body.type || 'image/jpeg').toLowerCase();
+  let base64 = cleanString(body.base64 || '');
+
+  const dataSource = dataUri || base64;
+  const match = dataSource.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (match) {
+    mimeType = match[1].toLowerCase();
+    base64 = match[2];
+  }
+
+  if (!IMAGE_MIME_TO_EXTENSION[mimeType]) {
+    throw new Error('Định dạng ảnh chưa hỗ trợ. Chỉ dùng JPG, PNG, WEBP hoặc GIF.');
+  }
+
+  base64 = base64.replace(/\s/g, '');
+  if (!base64) {
+    throw new Error('Thiếu dữ liệu ảnh base64 để upload.');
+  }
+
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.length) {
+    throw new Error('Dữ liệu ảnh không hợp lệ.');
+  }
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw new Error(`Ảnh quá lớn. Giới hạn hiện tại là ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB.`);
+  }
+
+  return {buffer, mimeType};
+};
+
 
 const hashPassword = (password, salt) =>
   crypto.createHash('sha256').update(`${salt || ''}:${String(password || '')}`).digest('hex');
@@ -366,6 +471,21 @@ const findBranch = (db, restaurantId, branchId) =>
 const findTable = (db, restaurantId, tableId) =>
   db.tables.find(table => table.id === tableId && table.restaurantId === restaurantId);
 
+const normalizeTableNumberKey = value => cleanString(value).toLowerCase();
+
+const findTableByBranchAndNumber = (db, restaurantId, branchId, tableNumber) => {
+  const tableNumberKey = normalizeTableNumberKey(tableNumber);
+  if (!tableNumberKey) {
+    return null;
+  }
+
+  return db.tables.find(table => {
+    const sameRestaurant = table.restaurantId === restaurantId;
+    const sameBranch = branchId ? table.branchId === branchId : true;
+    return sameRestaurant && sameBranch && normalizeTableNumberKey(table.tableNumber) === tableNumberKey;
+  }) || null;
+};
+
 const findTableByQrToken = (db, token) => {
   const cleanToken = cleanString(token);
   if (!cleanToken) {
@@ -374,11 +494,82 @@ const findTableByQrToken = (db, token) => {
   return db.tables.find(table => table.qrCodeToken === cleanToken) || null;
 };
 
+const inferBranchMenuQrToken = branch => {
+  const explicitToken = cleanString(branch?.menuQrToken);
+  if (explicitToken) {
+    return explicitToken;
+  }
+  const defaults = {
+    aplus_hanoi_main: 'qr_aplus_main_menu',
+    aplus_hanoi_vip: 'qr_aplus_vip_menu',
+    haidilao_demo_main: 'qr_haidilao_main_menu',
+    haidilao_demo_2: 'qr_haidilao_2_menu',
+  };
+  if (branch?.id && defaults[branch.id]) {
+    return defaults[branch.id];
+  }
+  const restaurantKey = normalizeKey(branch?.restaurantId || 'restaurant').replace(/[^a-z0-9]+/g, '_');
+  const branchKey = normalizeKey(branch?.name || branch?.id || 'main').replace(/[^a-z0-9]+/g, '_');
+  return `qr_${restaurantKey}_${branchKey}_menu`;
+};
+
+const findBranchByMenuQrToken = (db, token) => {
+  const cleanToken = cleanString(token);
+  if (!cleanToken) {
+    return null;
+  }
+  return db.branches.find(branch => inferBranchMenuQrToken(branch) === cleanToken) || null;
+};
+
+const branchMenuQrTokenExists = (db, token, exceptBranchId = '') => {
+  const cleanToken = cleanString(token);
+  if (!cleanToken) {
+    return false;
+  }
+  return db.branches.some(branch =>
+    branch.id !== exceptBranchId && inferBranchMenuQrToken(branch) === cleanToken,
+  );
+};
+
+const cleanBranchStatus = status =>
+  BRANCH_STATUSES.includes(status) ? status : 'ACTIVE';
+
 const isPublicTableUsable = table =>
   Boolean(table) && table.status !== 'LOCKED' && table.status !== 'HIDDEN';
 
-const getPublicTableScope = (db, token) => {
-  const table = findTableByQrToken(db, token);
+const isPublicBranchUsable = branch =>
+  Boolean(branch) && branch.status !== 'LOCKED' && branch.status !== 'HIDDEN';
+
+const getPublicMenuScope = (db, token) => {
+  const cleanToken = cleanString(token);
+  const branchFromQr = findBranchByMenuQrToken(db, cleanToken);
+
+  if (branchFromQr) {
+    if (!isPublicBranchUsable(branchFromQr)) {
+      return null;
+    }
+
+    const restaurant = db.restaurants.find(item => item.id === branchFromQr.restaurantId);
+    return {
+      restaurant,
+      branch: branchFromQr,
+      table: null,
+      context: {
+        restaurantId: branchFromQr.restaurantId,
+        restaurantName: restaurant?.name,
+        branchId: branchFromQr.id,
+        branchName: branchFromQr.name,
+        tableId: undefined,
+        tableNumber: undefined,
+        qrCodeToken: cleanToken,
+        menuQrToken: inferBranchMenuQrToken(branchFromQr),
+        qrTokenScope: 'BRANCH_MENU',
+        source: 'customer',
+      },
+    };
+  }
+
+  const table = findTableByQrToken(db, cleanToken);
 
   if (!isPublicTableUsable(table)) {
     return null;
@@ -401,9 +592,55 @@ const getPublicTableScope = (db, token) => {
       tableId: table.id,
       tableNumber: table.tableNumber,
       qrCodeToken: table.qrCodeToken,
+      menuQrToken: inferBranchMenuQrToken(branch) || table.qrCodeToken,
+      qrTokenScope: 'TABLE',
       source: 'customer',
     },
   };
+};
+
+const resolvePublicOrderTable = (db, scope, body = {}) => {
+  if (!scope?.context?.restaurantId || !scope.context.branchId) {
+    throw new Error('QR menu chưa xác định được chi nhánh. Vui lòng quét lại QR của quán.');
+  }
+
+  const bodyTableId = cleanString(body.tableId || body.table_id);
+  const bodyTableNumber = cleanString(body.tableNumber || body.tableCode || body.number);
+
+  if (scope.table) {
+    if (!isPublicTableUsable(scope.table)) {
+      throw new Error('Bàn này đang bị khóa hoặc không nhận đơn.');
+    }
+
+    if (bodyTableNumber && normalizeTableNumberKey(bodyTableNumber) !== normalizeTableNumberKey(scope.table.tableNumber)) {
+      throw new Error('Số bàn không khớp với QR đã quét. Vui lòng kiểm tra lại.');
+    }
+
+    return scope.table;
+  }
+
+  if (!bodyTableId && !bodyTableNumber) {
+    throw new Error('Vui lòng nhập hoặc chọn số bàn trước khi gửi đơn.');
+  }
+
+  const table = bodyTableId
+    ? findTable(db, scope.context.restaurantId, bodyTableId)
+    : findTableByBranchAndNumber(
+        db,
+        scope.context.restaurantId,
+        scope.context.branchId,
+        bodyTableNumber,
+      );
+
+  if (!table || table.branchId !== scope.context.branchId) {
+    throw new Error('Số bàn không tồn tại trong chi nhánh này. Vui lòng kiểm tra lại.');
+  }
+
+  if (!isPublicTableUsable(table)) {
+    throw new Error('Bàn này đang bị khóa hoặc không nhận đơn. Vui lòng gọi nhân viên.');
+  }
+
+  return table;
 };
 
 const ensureBranch = (db, restaurantId, branchId) => {
@@ -709,6 +946,7 @@ const routeRestaurants = async (req, res, db, parts) => {
       restaurantId: restaurant.id,
       name: 'Chi nhánh chính',
       address: '',
+      menuQrToken: cleanString(body.menuQrToken),
       status: 'ACTIVE',
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -748,12 +986,23 @@ const routeBranches = async (req, res, db, restaurantId, parts, user) => {
       return true;
     }
     const timestamp = nowIso();
+    const branchId = cleanString(body.id) || createId('branch');
+    const menuQrToken = cleanString(body.menuQrToken) || inferBranchMenuQrToken({
+      id: branchId,
+      restaurantId,
+      name,
+    });
+    if (branchMenuQrTokenExists(db, menuQrToken)) {
+      fail(res, 409, 'Mã QR menu chi nhánh này đã được dùng.');
+      return true;
+    }
     const branch = {
-      id: cleanString(body.id) || createId('branch'),
+      id: branchId,
       restaurantId,
       name,
       address: cleanString(body.address),
-      status: body.status || 'ACTIVE',
+      menuQrToken,
+      status: cleanBranchStatus(body.status),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -782,10 +1031,16 @@ const routeBranches = async (req, res, db, restaurantId, parts, user) => {
       fail(res, 400, 'Vui lòng nhập tên chi nhánh.');
       return true;
     }
+    const menuQrToken = cleanString(body.menuQrToken ?? branch.menuQrToken) || inferBranchMenuQrToken(branch);
+    if (branchMenuQrTokenExists(db, menuQrToken, branch.id)) {
+      fail(res, 409, 'Mã QR menu chi nhánh này đã được dùng.');
+      return true;
+    }
     Object.assign(branch, {
       name,
       address: cleanString(body.address ?? branch.address),
-      status: body.status || branch.status || 'ACTIVE',
+      menuQrToken,
+      status: body.status ? cleanBranchStatus(body.status) : branch.status || 'ACTIVE',
       updatedAt: nowIso(),
     });
     saveDb(db);
@@ -1050,6 +1305,63 @@ const routeCategories = async (req, res, db, restaurantId, parts, user) => {
   return false;
 };
 
+const routeMenuImages = async (req, res, db, restaurantId, parts, user) => {
+  if (parts.length !== 4 || req.method !== 'POST') {
+    return false;
+  }
+  if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền upload ảnh món.')) {
+    return true;
+  }
+
+  const body = await parseBody(req);
+  const dishId = createSafeStorageName(body.dishId || body.itemId || 'new_dish');
+
+  try {
+    const {buffer, mimeType} = parseImageUploadPayload(body);
+    const restaurantDirName = createSafeStorageName(restaurantId);
+    const restaurantUploadDir = path.join(UPLOAD_DIR, restaurantDirName);
+    fs.mkdirSync(restaurantUploadDir, {recursive: true});
+
+    const extension = getImageExtensionFromMime(mimeType);
+    const fileName = `${dishId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${extension}`;
+    const filePath = path.join(restaurantUploadDir, fileName);
+
+    if (!isSafeUploadPath(filePath)) {
+      fail(res, 400, 'Đường dẫn lưu ảnh không hợp lệ.');
+      return true;
+    }
+
+    fs.writeFileSync(filePath, buffer);
+
+    const storagePath = `menu-images/${restaurantDirName}/${fileName}`;
+    const publicPath = `${PUBLIC_UPLOAD_PREFIX}/${restaurantDirName}/${fileName}`;
+    const publicUrl = `${getRequestBaseUrl(req)}${publicPath}`;
+    const createdAt = nowIso();
+    const metadata = {
+      id: createId('image'),
+      restaurantId,
+      dishId: cleanString(body.dishId || body.itemId),
+      storagePath,
+      publicUrl,
+      imageUrl: publicUrl,
+      mimeType,
+      size: buffer.length,
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    db.imageUploads = Array.isArray(db.imageUploads) ? db.imageUploads : [];
+    db.imageUploads.unshift(metadata);
+    saveDb(db);
+    audit('menu.image.upload', {user, restaurantId, targetId: metadata.id, dishId: metadata.dishId, size: metadata.size});
+    created(res, {ok: true, ...metadata});
+  } catch (error) {
+    fail(res, 400, error.message || 'Không thể upload ảnh món.');
+  }
+
+  return true;
+};
+
 const routeItems = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 4 && req.method === 'GET') {
     ok(res, getRestaurantItems(db, restaurantId));
@@ -1207,6 +1519,10 @@ const routeOrders = async (req, res, db, restaurantId, parts, query, user) => {
       fail(res, 400, 'Trạng thái thanh toán không hợp lệ.');
       return true;
     }
+    if (order.orderStatus === 'CANCELLED' && paymentStatus === 'PAID') {
+      fail(res, 409, 'Đơn đã huỷ không thể đánh dấu đã thanh toán.');
+      return true;
+    }
     order.paymentStatus = paymentStatus;
     order.paymentMethod = normalizePaymentMethod(body.paymentMethod || order.paymentMethod);
     order.updatedAt = nowIso();
@@ -1278,11 +1594,11 @@ const routeCart = async (req, res, db, restaurantId, parts, user) => {
   return false;
 };
 
-const routeTableToken = (req, res, db, parts) => {
+const routeQrToken = (req, res, db, parts) => {
   if (req.method !== 'GET' || parts.length !== 3) {
     return false;
   }
-  const scope = getPublicTableScope(db, parts[2]);
+  const scope = getPublicMenuScope(db, parts[2]);
   if (!scope) {
     ok(res, null);
     return true;
@@ -1297,36 +1613,59 @@ const routePublicMenu = async (req, res, db, parts) => {
   }
 
   const token = parts[2];
-  const scope = getPublicTableScope(db, token);
+  const scope = getPublicMenuScope(db, token);
   if (!scope) {
-    fail(res, 404, 'QR bàn không tồn tại hoặc đang bị khóa.');
+    fail(res, 404, 'QR menu không tồn tại hoặc đang bị khóa.');
     return true;
   }
 
   if (parts.length === 3 && req.method === 'GET') {
     ok(res, {
       context: scope.context,
-      categories: getRestaurantCategories(db, scope.table.restaurantId),
-      items: getRestaurantItems(db, scope.table.restaurantId).filter(item => item.status !== 'HIDDEN'),
+      categories: getRestaurantCategories(db, scope.context.restaurantId),
+      items: getRestaurantItems(db, scope.context.restaurantId).filter(item => item.status !== 'HIDDEN'),
     });
+    return true;
+  }
+
+  if (parts.length === 4 && parts[3] === 'tables' && req.method === 'GET') {
+    const tables = db.tables
+      .filter(table =>
+        table.restaurantId === scope.context.restaurantId &&
+        (!scope.context.branchId || table.branchId === scope.context.branchId) &&
+        table.status !== 'HIDDEN',
+      )
+      .map(table => ({
+        ...table,
+        qrCodeToken: undefined,
+      }));
+    ok(res, tables);
     return true;
   }
 
   if (parts.length === 4 && parts[3] === 'orders' && req.method === 'POST') {
     const body = await parseBody(req);
     try {
-      const order = normalizeOrderPayload(db, scope.table.restaurantId, {
+      const table = resolvePublicOrderTable(db, scope, body);
+      const order = normalizeOrderPayload(db, scope.context.restaurantId, {
         ...body,
-        restaurantId: scope.table.restaurantId,
-        branchId: scope.table.branchId,
-        tableId: scope.table.id,
-        tableNumber: scope.table.tableNumber,
+        restaurantId: scope.context.restaurantId,
+        branchId: scope.context.branchId,
+        tableId: table.id,
+        tableNumber: table.tableNumber,
         orderSource: 'customer',
       });
       db.orders.unshift(order);
+      delete db.carts[cartKey(scope.context)];
       delete db.carts[cartKey(order)];
       saveDb(db);
-      audit('order.create.public', {restaurantId: scope.table.restaurantId, branchId: order.branchId, targetId: order.id});
+      audit('order.create.public', {
+        restaurantId: scope.context.restaurantId,
+        branchId: order.branchId,
+        tableId: table.id,
+        tableNumber: table.tableNumber,
+        targetId: order.id,
+      });
       created(res, [order]);
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
@@ -1345,10 +1684,10 @@ const routePublicMenu = async (req, res, db, parts) => {
     if (req.method === 'PATCH') {
       const body = await parseBody(req);
       const cart = {
-        restaurantId: scope.table.restaurantId,
-        branchId: scope.table.branchId,
-        tableId: scope.table.id,
-        tableNumber: scope.table.tableNumber,
+        restaurantId: scope.context.restaurantId,
+        branchId: scope.context.branchId,
+        tableId: scope.context.tableId,
+        tableNumber: scope.context.tableNumber || cleanString(body.tableNumber),
         note: cleanString(body.note),
         items: Array.isArray(body.items)
           ? body.items
@@ -1393,6 +1732,9 @@ const routeRestaurantScoped = async (req, res, db, parts, query) => {
   if (parts[2] === 'menu' && parts[3] === 'categories') {
     return routeCategories(req, res, db, restaurantId, parts, access.user);
   }
+  if (parts[2] === 'menu' && parts[3] === 'images') {
+    return routeMenuImages(req, res, db, restaurantId, parts, access.user);
+  }
   if (parts[2] === 'menu' && parts[3] === 'items') {
     return routeItems(req, res, db, restaurantId, parts, access.user);
   }
@@ -1413,6 +1755,9 @@ const handleRequest = async (req, res) => {
   }
 
   const {parts, query, pathname} = getPathParts(req.url);
+  if ((req.method === 'GET' || req.method === 'HEAD') && sendStaticUploadFile(req, res, pathname)) {
+    return;
+  }
   const db = loadDb();
 
   try {
@@ -1451,7 +1796,7 @@ const handleRequest = async (req, res) => {
       return;
     }
 
-    if (parts[0] === 'menu' && parts[1] === 'table-tokens' && routeTableToken(req, res, db, parts)) {
+    if (parts[0] === 'menu' && ['qr-tokens', 'table-tokens'].includes(parts[1]) && routeQrToken(req, res, db, parts)) {
       return;
     }
 
@@ -1471,6 +1816,7 @@ const handleRequest = async (req, res) => {
 };
 
 ensureDataFile();
+fs.mkdirSync(UPLOAD_DIR, {recursive: true});
 
 const server = http.createServer(handleRequest);
 server.listen(PORT, HOST, () => {

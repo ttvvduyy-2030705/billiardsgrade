@@ -9,6 +9,12 @@ export const DEFAULT_TABLE_ID = 'local_demo_table_01';
 export const HAIDILAO_LOCAL_TABLE_ID = 'haidilao_local_table_01';
 export const DEFAULT_TABLE_QR_TOKEN = 'qr_local_main_01';
 export const HAIDILAO_LOCAL_TABLE_QR_TOKEN = 'qr_haidilao_local_01';
+// Batch 1 preferred naming: QR of restaurant/branch menu.
+// Batch 4 will persist these as branch/menu tokens. For now we define the
+// constants so the rest of the app stops treating QR as admin-owned or
+// strictly table-owned.
+export const DEFAULT_BRANCH_MENU_QR_TOKEN = 'qr_aplus_main_menu';
+export const HAIDILAO_LOCAL_BRANCH_MENU_QR_TOKEN = 'qr_haidilao_main_menu';
 export const DEFAULT_RESTAURANT_OWNER_ID = 'local_admin';
 
 const WORKSPACE_STORAGE_KEYS = {
@@ -26,11 +32,16 @@ export type RestaurantWorkspace = {
   updatedAt: string;
 };
 
+export type RestaurantBranchStatus = 'ACTIVE' | 'LOCKED' | 'HIDDEN';
+
 export type RestaurantBranch = {
   id: string;
   restaurantId: string;
   name: string;
   address?: string;
+  /** Batch 4: QR menu của quán/chi nhánh. Không bắt buộc gắn với bàn. */
+  menuQrToken?: string;
+  status?: RestaurantBranchStatus;
   createdAt: string;
   updatedAt: string;
 };
@@ -48,6 +59,8 @@ export type RestaurantTable = {
   updatedAt: string;
 };
 
+export type RestaurantQrTokenScope = 'BRANCH_MENU' | 'TABLE';
+
 export type RestaurantMenuContext = {
   restaurantId: string;
   restaurantName?: string;
@@ -56,6 +69,14 @@ export type RestaurantMenuContext = {
   tableId?: string;
   tableNumber?: string;
   qrCodeToken?: string;
+  /**
+   * Preferred customer menu token for Batch 1+ architecture.
+   * It may point to a branch/menu QR now, while qrCodeToken remains for
+   * backwards-compatible table QR demos.
+   */
+  menuQrToken?: string;
+  /** Shows whether the scanned QR identifies a branch menu or a specific table. */
+  qrTokenScope?: RestaurantQrTokenScope;
   source?: 'admin' | 'customer' | 'local-demo';
   role?: 'OWNER' | 'MANAGER' | 'STAFF';
   allowedRestaurantIds?: string[];
@@ -72,6 +93,8 @@ export type RestaurantBranchPayload = {
   restaurantId?: string;
   name: string;
   address?: string;
+  menuQrToken?: string;
+  status?: RestaurantBranchStatus;
 };
 
 export type RestaurantTablePayload = {
@@ -164,17 +187,58 @@ const cleanWorkspace = (
   };
 };
 
+const BRANCH_STATUSES: RestaurantBranchStatus[] = ['ACTIVE', 'LOCKED', 'HIDDEN'];
+
+const cleanBranchStatus = (status?: string): RestaurantBranchStatus => {
+  return BRANCH_STATUSES.includes(status as RestaurantBranchStatus)
+    ? (status as RestaurantBranchStatus)
+    : 'ACTIVE';
+};
+
+const inferBranchMenuQrToken = (branch: Partial<RestaurantBranch>) => {
+  const explicitToken = String(branch.menuQrToken || '').trim();
+
+  if (explicitToken) {
+    return explicitToken;
+  }
+
+  if (branch.id === DEFAULT_BRANCH_ID) {
+    return DEFAULT_BRANCH_MENU_QR_TOKEN;
+  }
+
+  if (branch.id === HAIDILAO_LOCAL_BRANCH_ID) {
+    return HAIDILAO_LOCAL_BRANCH_MENU_QR_TOKEN;
+  }
+
+  const restaurantKey = normalise(branch.restaurantId || DEFAULT_RESTAURANT_ID)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const branchKey = normalise(branch.name || branch.id || 'main')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return `qr_${restaurantKey}_${branchKey}_menu`;
+};
+
 const cleanBranch = (branch: Partial<RestaurantBranch>): RestaurantBranch => {
   const timestamp = nowIso();
   const cleanName = (branch.name || '').trim() || 'Chi nhánh chính';
-
-  return {
+  const baseBranch = {
     id: branch.id || createId('branch'),
     restaurantId: branch.restaurantId || DEFAULT_RESTAURANT_ID,
     name: cleanName,
     address: branch.address?.trim() || undefined,
+    status: cleanBranchStatus(branch.status),
     createdAt: branch.createdAt || timestamp,
     updatedAt: branch.updatedAt || timestamp,
+  };
+
+  return {
+    ...baseBranch,
+    menuQrToken: inferBranchMenuQrToken({
+      ...baseBranch,
+      menuQrToken: branch.menuQrToken,
+    }),
   };
 };
 
@@ -221,6 +285,8 @@ const getDefaultRestaurantBranch = (): RestaurantBranch => {
     restaurantId: DEFAULT_RESTAURANT_ID,
     name: 'Chi nhánh APlus chính',
     address: 'Bàn demo trong app',
+    menuQrToken: DEFAULT_BRANCH_MENU_QR_TOKEN,
+    status: 'ACTIVE',
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -234,6 +300,8 @@ const getHaidilaoRestaurantBranch = (): RestaurantBranch => {
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
     name: 'Chi nhánh Haidilao demo',
     address: 'Khu lẩu demo',
+    menuQrToken: HAIDILAO_LOCAL_BRANCH_MENU_QR_TOKEN,
+    status: 'ACTIVE',
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -397,7 +465,7 @@ export const createRestaurantWorkspace = async (
   );
   if (!hasBranch) {
     await writeArray(WORKSPACE_STORAGE_KEYS.branches, [
-      cleanBranch({restaurantId: nextWorkspace.id, name: 'Chi nhánh chính'}),
+      cleanBranch({restaurantId: nextWorkspace.id, name: 'Chi nhánh chính', status: 'ACTIVE'}),
       ...branches,
     ]);
   }
@@ -487,6 +555,12 @@ export const loadActiveRestaurantContext =
       tableId: table?.id,
       tableNumber: table?.tableNumber || parsed.value?.tableNumber,
       qrCodeToken: table?.qrCodeToken || parsed.value?.qrCodeToken,
+      menuQrToken:
+        parsed.value?.menuQrToken ||
+        parsed.value?.qrCodeToken ||
+        (!table ? branch?.menuQrToken : undefined),
+      qrTokenScope:
+        parsed.value?.qrTokenScope || (table ? 'TABLE' : branch ? 'BRANCH_MENU' : undefined),
       source: parsed.value?.source || 'local-demo',
       role: parsed.value?.role,
       allowedRestaurantIds: parsed.value?.allowedRestaurantIds,
@@ -541,6 +615,14 @@ export const saveActiveRestaurantContext = async (
     tableId: table?.id,
     tableNumber: table?.tableNumber || (tableIdWasProvided ? context.tableNumber : current.tableNumber),
     qrCodeToken: table?.qrCodeToken || (tableIdWasProvided ? context.qrCodeToken : current.qrCodeToken),
+    menuQrToken:
+      context.menuQrToken ||
+      context.qrCodeToken ||
+      (tableIdWasProvided ? undefined : current.menuQrToken || current.qrCodeToken),
+    qrTokenScope:
+      context.qrTokenScope ||
+      (table ? 'TABLE' : undefined) ||
+      (tableIdWasProvided ? undefined : current.qrTokenScope),
     source: context.source || current.source || 'local-demo',
     role: context.role || current.role,
     allowedRestaurantIds:
@@ -569,6 +651,8 @@ export const resetActiveRestaurantContext = async (
     tableId: undefined,
     tableNumber: undefined,
     qrCodeToken: undefined,
+    menuQrToken: undefined,
+    qrTokenScope: undefined,
     source,
     role: undefined,
     allowedRestaurantIds: undefined,
@@ -619,11 +703,27 @@ export const createRestaurantBranch = async (
     throw new Error('Chi nhánh này đã tồn tại trong nhà hàng hiện tại.');
   }
 
+  const duplicateQr = current.some(
+    branch =>
+      cleanStringLike(branch.menuQrToken) ===
+      cleanStringLike(payload.menuQrToken || inferBranchMenuQrToken({
+        id: payload.id,
+        restaurantId,
+        name,
+      })),
+  );
+
+  if (duplicateQr) {
+    throw new Error('Mã QR menu chi nhánh này đã được dùng.');
+  }
+
   const nextBranch = cleanBranch({
     id: payload.id,
     restaurantId,
     name,
     address: payload.address,
+    menuQrToken: payload.menuQrToken,
+    status: payload.status,
   });
   await writeArray(WORKSPACE_STORAGE_KEYS.branches, [nextBranch, ...current]);
   return nextBranch;
@@ -662,6 +762,17 @@ export const updateRestaurantBranch = async (
     throw new Error('Chi nhánh này đã tồn tại trong nhà hàng hiện tại.');
   }
 
+  const requestedQrToken = cleanStringLike(payload.menuQrToken ?? existedBranch.menuQrToken);
+  const duplicateQr = current.some(
+    branch =>
+      branch.id !== branchId &&
+      cleanStringLike(branch.menuQrToken) === requestedQrToken,
+  );
+
+  if (duplicateQr) {
+    throw new Error('Mã QR menu chi nhánh này đã được dùng.');
+  }
+
   const timestamp = nowIso();
   const next = current.map(branch =>
     branch.id === branchId
@@ -670,6 +781,8 @@ export const updateRestaurantBranch = async (
           restaurantId,
           name: cleanName,
           address: payload.address ?? branch.address,
+          menuQrToken: payload.menuQrToken ?? branch.menuQrToken,
+          status: payload.status ?? branch.status,
           updatedAt: timestamp,
         })
       : cleanBranch(branch),
@@ -858,6 +971,48 @@ export const deleteRestaurantTable = async (tableId: string) => {
 
 const cleanStringLike = (value?: string) => String(value || '').trim();
 
+export const resolveRestaurantMenuQrToken = async (qrToken: string) => {
+  const cleanToken = qrToken.trim();
+
+  if (!cleanToken) {
+    return null;
+  }
+
+  await ensureDefaultWorkspaceScaffolding();
+
+  const [workspaces, branches] = await Promise.all([
+    loadRestaurantWorkspaces(),
+    readArray<RestaurantBranch>(WORKSPACE_STORAGE_KEYS.branches),
+  ]);
+
+  const branch = branches
+    .map(cleanBranch)
+    .find(item => item.menuQrToken === cleanToken);
+
+  if (branch) {
+    if (branch.status === 'LOCKED' || branch.status === 'HIDDEN') {
+      return null;
+    }
+
+    const workspace = workspaces.find(item => item.id === branch.restaurantId);
+
+    return {
+      restaurantId: branch.restaurantId,
+      restaurantName: workspace?.name,
+      branchId: branch.id,
+      branchName: branch.name,
+      tableId: undefined,
+      tableNumber: undefined,
+      qrCodeToken: cleanToken,
+      menuQrToken: cleanToken,
+      qrTokenScope: 'BRANCH_MENU' as const,
+      source: 'customer' as const,
+    };
+  }
+
+  return resolveRestaurantTableToken(cleanToken);
+};
+
 export const resolveRestaurantTableToken = async (qrCodeToken: string) => {
   const cleanToken = qrCodeToken.trim();
 
@@ -893,6 +1048,8 @@ export const resolveRestaurantTableToken = async (qrCodeToken: string) => {
     tableId: table.id,
     tableNumber: table.tableNumber,
     qrCodeToken: table.qrCodeToken,
+    menuQrToken: table.qrCodeToken,
+    qrTokenScope: 'TABLE' as const,
     source: 'customer' as const,
   };
 };

@@ -12,6 +12,7 @@ const screens: Screens = {
   history: 'history',
   playback: 'playback',
   configs: 'configs',
+  restaurantQrScanner: 'restaurantQrScanner',
   restaurantMenu: 'restaurantMenu',
   restaurantCart: 'restaurantCart',
   restaurantAdminLogin: 'restaurantAdminLogin',

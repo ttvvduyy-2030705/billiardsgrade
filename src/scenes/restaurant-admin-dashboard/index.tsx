@@ -12,6 +12,11 @@ import Image from 'components/Image';
 import {screens} from 'scenes/screens';
 import {devWarn} from 'utils/devLogger';
 import {
+  clearAdminSessionIfUnauthorized,
+  getScoreMenuErrorMessage,
+  logScoreMenuError,
+} from 'utils/scoremenuErrors';
+import {
   AdminOrder,
   AdminOrderFilter,
   AdminOrderStatus,
@@ -25,6 +30,8 @@ import {
   loadRestaurantAdminData,
   saveAdminMenuCategory,
   saveAdminMenuItem,
+  uploadAdminMenuImage,
+  saveAdminBranchQr,
   saveAdminTable,
   updateAdminOrderPaymentStatus,
   updateAdminOrderStatus,
@@ -121,6 +128,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const navigate = props.navigate;
   const replace = props.replace;
   const reset = props.reset;
+  const isFocused = props.isFocused;
+  const addListener = props.addListener;
   const singlePageMode = props.adminPageMode === 'single';
   const initialAdminTab = props.initialAdminTab || 'orders';
   const headerTitle = singlePageMode
@@ -134,6 +143,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const latestOrderIdsRef = useRef<Set<string>>(new Set());
   const orderPollingInFlightRef = useRef(false);
   const loggingOutRef = useRef(false);
+  const isMountedRef = useRef(false);
+  const screenFocusedRef = useRef(true);
+  const sessionUsernameRef = useRef('');
+  const [screenFocused, setScreenFocused] = useState(() =>
+    typeof isFocused === 'function' ? isFocused() : true,
+  );
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -161,6 +176,51 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     switchRestaurant,
     switchBranch,
   } = useRestaurantContextStore();
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    screenFocusedRef.current =
+      typeof isFocused === 'function' ? isFocused() : true;
+
+    return () => {
+      isMountedRef.current = false;
+      screenFocusedRef.current = false;
+      orderPollingInFlightRef.current = false;
+    };
+  }, [isFocused]);
+
+  useEffect(() => {
+    sessionUsernameRef.current = sessionUsername;
+  }, [sessionUsername]);
+
+  useEffect(() => {
+    const setFocusedState = (focused: boolean) => {
+      screenFocusedRef.current = focused;
+      setScreenFocused(focused);
+
+      if (!focused) {
+        setOrderSyncStatus('paused');
+      }
+    };
+
+    setFocusedState(typeof isFocused === 'function' ? isFocused() : true);
+
+    if (typeof addListener !== 'function') {
+      return undefined;
+    }
+
+    const unsubscribeFocus = addListener('focus', () => setFocusedState(true));
+    const unsubscribeBlur = addListener('blur', () => setFocusedState(false));
+
+    return () => {
+      if (typeof unsubscribeFocus === 'function') {
+        unsubscribeFocus();
+      }
+      if (typeof unsubscribeBlur === 'function') {
+        unsubscribeBlur();
+      }
+    };
+  }, [addListener, isFocused]);
 
   const setActiveTab = useCallback((nextTab: AdminDashboardTab) => {
     adminDashboardActiveTabSession = nextTab;
@@ -191,11 +251,27 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       nextOrders: AdminOrder[],
       options: {announceNew?: boolean} = {},
     ) => {
+      if (!isMountedRef.current || loggingOutRef.current) {
+        return;
+      }
+
+      const uniqueOrders = Array.from(
+        nextOrders.reduce((map, order) => {
+          if (order?.id) {
+            map.set(order.id, order);
+          }
+          return map;
+        }, new Map<string, AdminOrder>()),
+      )
+        .map(([, order]) => order)
+        .sort((a, b) =>
+          String(b.createdAt || '').localeCompare(String(a.createdAt || '')),
+        );
       const previousIds = latestOrderIdsRef.current;
-      const nextIds = new Set(nextOrders.map(order => order.id));
+      const nextIds = new Set(uniqueOrders.map(order => order.id));
 
       if (options.announceNew && previousIds.size > 0) {
-        const newOrders = nextOrders.filter(order => !previousIds.has(order.id));
+        const newOrders = uniqueOrders.filter(order => !previousIds.has(order.id));
         if (newOrders.length > 0) {
           setNewOrderNotice(
             `${newOrders.length} đơn mới vừa vào khu quản trị`,
@@ -204,7 +280,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       }
 
       latestOrderIdsRef.current = nextIds;
-      setOrders(nextOrders);
+      setOrders(uniqueOrders);
       setLastOrderSyncAt(formatSyncTime());
     },
     [formatSyncTime],
@@ -269,7 +345,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
   const refreshOrdersOnly = useCallback(
     async (options: {silent?: boolean; announceNew?: boolean} = {}) => {
-      if (orderPollingInFlightRef.current) {
+      if (
+        orderPollingInFlightRef.current ||
+        loggingOutRef.current ||
+        !isMountedRef.current ||
+        !sessionUsernameRef.current
+      ) {
         return;
       }
 
@@ -282,6 +363,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
       try {
         const nextOrders = await loadAdminOrders();
+
+        if (!isMountedRef.current || loggingOutRef.current) {
+          return;
+        }
+
         applyOrdersSnapshot(nextOrders, {
           announceNew: options.announceNew ?? true,
         });
@@ -290,18 +376,38 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           setAuthErrorMessage('');
         }
       } catch (error) {
-        devWarn('[RestaurantAdminDashboard] refresh orders failed', error);
+        if (!isMountedRef.current || loggingOutRef.current) {
+          return;
+        }
+
+        logScoreMenuError(
+          {
+            module: 'ADMIN',
+            action: 'refresh orders failed',
+            restaurantId: context?.restaurantId,
+            branchId: context?.branchId,
+          },
+          error,
+        );
         setOrderSyncStatus('error');
+        if (await clearAdminSessionIfUnauthorized(error)) {
+          resetSensitiveData();
+          redirectToLogin();
+          return;
+        }
         if (!options.silent) {
           setAuthErrorMessage(
-            error instanceof Error
-              ? error.message
-              : 'Không thể tải đơn hàng mới. Vui lòng thử lại.',
+            getScoreMenuErrorMessage(
+              error,
+              'Không thể tải đơn hàng mới. Vui lòng thử lại.',
+            ),
           );
         }
       } finally {
-        orderPollingInFlightRef.current = false;
-        if (!options.silent) {
+        if (!loggingOutRef.current) {
+          orderPollingInFlightRef.current = false;
+        }
+        if (!options.silent && isMountedRef.current && !loggingOutRef.current) {
           setRefreshing(false);
         }
       }
@@ -337,8 +443,26 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       setCategories(next.categories);
       setTables(next.tables || []);
     } catch (error) {
-      devWarn('[RestaurantAdminDashboard] load data failed', error);
-      setAuthErrorMessage('Không thể tải dữ liệu quản trị. Vui lòng thử lại.');
+      logScoreMenuError(
+        {
+          module: 'ADMIN',
+          action: 'load admin dashboard data failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể tải dữ liệu quản trị. Vui lòng thử lại.',
+        ),
+      );
     } finally {
       setRefreshing(false);
     }
@@ -406,28 +530,56 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, [authChecking, loadData, sessionUsername]);
 
   useEffect(() => {
-    if (authChecking || !sessionUsername || contextSwitching) {
+    const shouldPollOrders =
+      singlePageMode &&
+      activeTab === 'orders' &&
+      screenFocused &&
+      !authChecking &&
+      Boolean(sessionUsername) &&
+      !contextSwitching &&
+      !loggingOutRef.current;
+
+    if (!shouldPollOrders) {
+      if (!authChecking && sessionUsername) {
+        setOrderSyncStatus('paused');
+      }
       return undefined;
     }
 
-    if (activeTab !== 'orders') {
-      setOrderSyncStatus('paused');
-      return undefined;
-    }
+    let cancelled = false;
+    const pollOrders = () => {
+      if (
+        cancelled ||
+        loggingOutRef.current ||
+        !screenFocusedRef.current ||
+        !sessionUsernameRef.current
+      ) {
+        return;
+      }
 
-    const interval = setInterval(() => {
       void refreshOrdersOnly({silent: true, announceNew: true});
-    }, ADMIN_ORDER_POLL_INTERVAL_MS);
+    };
+
+    pollOrders();
+    const interval = setInterval(pollOrders, ADMIN_ORDER_POLL_INTERVAL_MS);
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
+      if (isMountedRef.current && !loggingOutRef.current) {
+        setOrderSyncStatus(current =>
+          current === 'syncing' || current === 'online' ? 'paused' : current,
+        );
+      }
     };
   }, [
     activeTab,
     authChecking,
     contextSwitching,
     refreshOrdersOnly,
+    screenFocused,
     sessionUsername,
+    singlePageMode,
   ]);
 
   const logout = async () => {
@@ -447,7 +599,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       devWarn('[RestaurantAdminDashboard] logout failed', error);
     } finally {
       resetSensitiveData();
-      resetRestaurantContextStore();
+      resetRestaurantContextStore({resetScopedStores: false});
       requestAnimationFrame(redirectToLogin);
     }
   };
@@ -468,6 +620,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
     return nextItems;
+  };
+
+  const onUploadMenuImage = async (
+    input: Parameters<typeof uploadAdminMenuImage>[0],
+  ) => {
+    return uploadAdminMenuImage(input);
   };
 
   const onSaveMenuCategory = async (
@@ -527,12 +685,46 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return nextTables;
   };
 
+  const onSaveBranchQr = async (input: Parameters<typeof saveAdminBranchQr>[0]) => {
+    const nextBranch = await saveAdminBranchQr(input);
+    await hydrateRestaurantContext({source: 'admin'});
+    adminDashboardActiveTabSession = 'tables';
+    setActiveTabState('tables');
+    return nextBranch;
+  };
+
   const onChangeOrderStatus = async (
     orderId: string,
     status: AdminOrderStatus,
   ) => {
-    const nextOrders = await updateAdminOrderStatus(orderId, status);
-    applyOrdersSnapshot(nextOrders, {announceNew: false});
+    setAuthErrorMessage('');
+    try {
+      const nextOrders = await updateAdminOrderStatus(orderId, status);
+      applyOrdersSnapshot(nextOrders, {announceNew: false});
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'ORDER',
+          action: 'admin update order status failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+          orderId,
+          extra: {status},
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể đổi trạng thái đơn. Vui lòng thử lại.',
+        ),
+      );
+    }
   };
 
   const onChangePaymentStatus = async (
@@ -540,12 +732,38 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     status: AdminPaymentStatus,
     method?: AdminPaymentMethod,
   ) => {
-    const nextOrders = await updateAdminOrderPaymentStatus(
-      orderId,
-      status,
-      method,
-    );
-    applyOrdersSnapshot(nextOrders, {announceNew: false});
+    setAuthErrorMessage('');
+    try {
+      const nextOrders = await updateAdminOrderPaymentStatus(
+        orderId,
+        status,
+        method,
+      );
+      applyOrdersSnapshot(nextOrders, {announceNew: false});
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'ORDER',
+          action: 'admin update order payment failed',
+          restaurantId: context?.restaurantId,
+          branchId: context?.branchId,
+          orderId,
+          extra: {status, method},
+        },
+        error,
+      );
+      if (await clearAdminSessionIfUnauthorized(error)) {
+        resetSensitiveData();
+        redirectToLogin();
+        return;
+      }
+      setAuthErrorMessage(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể cập nhật thanh toán. Vui lòng thử lại.',
+        ),
+      );
+    }
   };
 
   const handleSwitchRestaurant = async (restaurantId: string) => {
@@ -560,11 +778,15 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       await switchRestaurant(restaurantId);
       await loadData();
     } catch (error) {
-      devWarn('[RestaurantAdminDashboard] switch restaurant failed', error);
+      logScoreMenuError(
+        {module: 'ADMIN', action: 'switch restaurant failed', restaurantId},
+        error,
+      );
       setAuthErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Không thể chuyển nhà hàng. Vui lòng thử lại.',
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể chuyển nhà hàng. Vui lòng thử lại.',
+        ),
       );
     } finally {
       setContextSwitching(false);
@@ -583,11 +805,20 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       await switchBranch(branchId);
       await loadData();
     } catch (error) {
-      devWarn('[RestaurantAdminDashboard] switch branch failed', error);
+      logScoreMenuError(
+        {
+          module: 'ADMIN',
+          action: 'switch branch failed',
+          restaurantId: context?.restaurantId,
+          branchId,
+        },
+        error,
+      );
       setAuthErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Không thể chuyển chi nhánh. Vui lòng thử lại.',
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể chuyển chi nhánh. Vui lòng thử lại.',
+        ),
       );
     } finally {
       setContextSwitching(false);
@@ -960,6 +1191,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
                   styles={styles}
                   onSaveTable={onSaveTable}
                   onDeleteTable={onDeleteTable}
+                  onSaveBranchQr={onSaveBranchQr}
                   onReloadTables={reloadTables}
                 />
               ) : (
@@ -968,6 +1200,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
                   categories={categories}
                   styles={styles}
                   onSaveItem={onSaveMenuItem}
+                  onUploadImage={onUploadMenuImage}
                   onSaveCategory={onSaveMenuCategory}
                   onDeleteItem={onDeleteMenuItem}
                   onDeleteCategory={onDeleteMenuCategory}

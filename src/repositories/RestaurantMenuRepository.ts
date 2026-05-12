@@ -11,7 +11,9 @@ import type {
 import type {
   RestaurantBranch,
   RestaurantBranchPayload,
+  RestaurantBranchStatus,
   RestaurantMenuContext,
+  RestaurantQrTokenScope,
   RestaurantTable,
   RestaurantTablePayload,
   RestaurantTableStatus,
@@ -38,6 +40,47 @@ export type RestaurantMenuItemPayload = {
   imageUrl?: string;
   status?: RestaurantMenuItemStatus;
   available?: boolean;
+};
+
+export type RestaurantMenuImageUploadPayload = {
+  itemId?: string;
+  dishId?: string;
+  uri?: string;
+  base64?: string;
+  dataUri?: string;
+  fileName?: string;
+  mimeType?: string;
+};
+
+export type RestaurantMenuImageUploadResult = {
+  ok: boolean;
+  restaurantId?: string;
+  dishId?: string;
+  imageUrl: string;
+  publicUrl?: string;
+  storagePath?: string;
+  mimeType?: string;
+  size?: number;
+  createdAt?: string;
+};
+
+
+export type RestaurantCustomerQrTokenScope = RestaurantQrTokenScope;
+
+export type RestaurantQrResolveContext = RestaurantMenuContext & {
+  /** Preferred Batch 1+ token name. QR can identify a branch menu first. */
+  menuQrToken?: string;
+  /** TABLE is still supported as a compatibility mode. */
+  qrTokenScope?: RestaurantCustomerQrTokenScope;
+};
+
+
+export type RestaurantPublicMenuPayload = {
+  qrToken: string;
+  context: RestaurantQrResolveContext;
+  categories: MenuCategory[];
+  items: RestaurantMenuItem[];
+  receivedAt?: string;
 };
 
 export type RestaurantOrderPayload = Omit<
@@ -120,7 +163,31 @@ export interface RestaurantMenuRepository {
     payload: Partial<RestaurantTablePayload>,
   ): Promise<RestaurantTable>;
   deleteTable(tableId: string): Promise<RestaurantTable[]>;
-  resolveTableToken(token: string): Promise<RestaurantMenuContext | null>;
+
+  /**
+   * Public customer menu loader for Batch 5+. QR identifies the
+   * restaurant/branch menu first; table information is collected later in cart.
+   */
+  getPublicMenuByQrToken(token: string): Promise<RestaurantPublicMenuPayload>;
+
+  /**
+   * Public table choices for Batch 6+. QR identifies the branch/menu,
+   * then customer selects/enters a table that must belong to that branch.
+   */
+  getPublicTablesByQrToken(token: string): Promise<RestaurantTable[]>;
+
+  /**
+   * Preferred Batch 1+ resolver. The QR should be understood as a
+   * restaurant/branch menu QR first. Existing table QR tokens may still resolve
+   * to a table-scoped context for backward compatibility.
+   */
+  resolveMenuQrToken(token: string): Promise<RestaurantQrResolveContext | null>;
+
+  /**
+   * @deprecated Use resolveMenuQrToken. Kept so the old table-QR demo keeps
+   * working until Batch 4 migrates seed/API to branch/menu QR tokens.
+   */
+  resolveTableToken(token: string): Promise<RestaurantQrResolveContext | null>;
 
   getCategories(): Promise<MenuCategory[]>;
   createCategory(
@@ -142,6 +209,9 @@ export interface RestaurantMenuRepository {
     payload: RestaurantMenuItemPayload,
   ): Promise<RestaurantMenuItem[]>;
   deleteItem(id: string): Promise<RestaurantMenuItem[]>;
+  uploadMenuItemImage(
+    payload: RestaurantMenuImageUploadPayload,
+  ): Promise<RestaurantMenuImageUploadResult>;
 
   getOrders(): Promise<RestaurantOrder[]>;
   createOrder(payload: RestaurantOrderPayload): Promise<RestaurantOrder[]>;
@@ -163,7 +233,9 @@ export interface RestaurantMenuRepository {
 export type {
   RestaurantBranch,
   RestaurantBranchPayload,
+  RestaurantBranchStatus,
   RestaurantMenuContext,
+  RestaurantQrTokenScope,
   RestaurantTable,
   RestaurantTablePayload,
   RestaurantTableStatus,

@@ -1,4 +1,7 @@
-import {RESTAURANT_MENU_ENV_CONFIG} from 'config/restaurantMenu';
+import {
+  RESTAURANT_MENU_ENV_CONFIG,
+  getRestaurantMenuEnvironmentLabel,
+} from 'config/restaurantMenu';
 import {ApiRestaurantMenuRepository} from 'repositories/ApiRestaurantMenuRepository';
 import {LocalRestaurantMenuRepository} from 'repositories/LocalRestaurantMenuRepository';
 import type {
@@ -10,8 +13,12 @@ import type {
   RestaurantMenuCategoryPayload,
   RestaurantMenuContext,
   RestaurantMenuItemPayload,
+  RestaurantMenuImageUploadPayload,
+  RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantPublicMenuPayload,
+  RestaurantQrResolveContext,
   RestaurantTable,
   RestaurantTablePayload,
   RestaurantTableStatus,
@@ -37,8 +44,12 @@ export type {
   RestaurantMenuCategoryPayload,
   RestaurantMenuContext,
   RestaurantMenuItemPayload,
+  RestaurantMenuImageUploadPayload,
+  RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantPublicMenuPayload,
+  RestaurantQrResolveContext,
   RestaurantTable,
   RestaurantTablePayload,
   RestaurantTableStatus,
@@ -92,6 +103,9 @@ export type ConfigureRestaurantMenuRepositoryOptions = {
 
 export const getRestaurantMenuRepository = () => activeRepository;
 export const getRestaurantMenuRepositoryMode = () => activeRepositoryMode;
+export const getRestaurantMenuEnvironment = () => RESTAURANT_MENU_ENV_CONFIG;
+export const getRestaurantMenuEnvironmentStatusLabel = () =>
+  getRestaurantMenuEnvironmentLabel(RESTAURANT_MENU_ENV_CONFIG);
 
 export const setRestaurantMenuRepository = (
   repository: RestaurantMenuRepository | null | undefined,
@@ -108,12 +122,10 @@ export const configureRestaurantMenuRepository = (
   if (mode === 'api') {
     const baseUrl = options.baseUrl || RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl;
 
-    if (!baseUrl) {
-      activeRepository = localRepository;
-      activeRepositoryMode = 'local';
-      return activeRepository;
-    }
-
+    // Batch 9: never silently fall back to local data when API mode is selected.
+    // If baseUrl is missing, the API repository will surface a clear
+    // configuration error on the first request. This prevents real-device tests
+    // from looking successful while actually reading AsyncStorage/local seed.
     activeRepository = new ApiRestaurantMenuRepository({
       baseUrl,
       defaultRestaurantId:
@@ -224,10 +236,30 @@ export const deleteRestaurantTable = (
   return activeRepository.deleteTable(tableId);
 };
 
+export const resolveRestaurantMenuQrToken = (
+  token: string,
+): Promise<RestaurantQrResolveContext | null> => {
+  return activeRepository.resolveMenuQrToken(token);
+};
+
+/** @deprecated Use resolveRestaurantMenuQrToken for Batch 1+ QR architecture. */
 export const resolveRestaurantTableToken = (
   token: string,
-): Promise<RestaurantMenuContext | null> => {
+): Promise<RestaurantQrResolveContext | null> => {
   return activeRepository.resolveTableToken(token);
+};
+
+
+export const loadPublicMenuByQrToken = (
+  token: string,
+): Promise<RestaurantPublicMenuPayload> => {
+  return activeRepository.getPublicMenuByQrToken(token);
+};
+
+export const loadPublicTablesByQrToken = (
+  token: string,
+): Promise<RestaurantTable[]> => {
+  return activeRepository.getPublicTablesByQrToken(token);
 };
 
 export const loadMenuCategories = (): Promise<MenuCategory[]> => {
@@ -273,6 +305,12 @@ export const updateMenuItem = (
 
 export const deleteMenuItem = (id: string): Promise<RestaurantMenuItem[]> => {
   return activeRepository.deleteItem(id);
+};
+
+export const uploadRestaurantMenuImage = (
+  payload: RestaurantMenuImageUploadPayload,
+): Promise<RestaurantMenuImageUploadResult> => {
+  return activeRepository.uploadMenuItemImage(payload);
 };
 
 export const loadOrders = (): Promise<RestaurantOrder[]> => {

@@ -277,9 +277,11 @@ export const registerRestaurantAdminAccount = async (
 export const updateRestaurantAdminSessionContext = async ({
   restaurantId,
   restaurantName,
+  branchId,
 }: {
   restaurantId?: string;
   restaurantName?: string;
+  branchId?: string;
 }) => {
   const current = await getRestaurantAdminSession();
 
@@ -291,6 +293,7 @@ export const updateRestaurantAdminSessionContext = async ({
     ...current,
     activeRestaurantId: restaurantId || current.activeRestaurantId,
     activeRestaurantName: restaurantName || current.activeRestaurantName,
+    activeBranchId: branchId || current.activeBranchId,
   };
   await saveAdminSession(next);
   return next;

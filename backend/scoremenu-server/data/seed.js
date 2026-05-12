@@ -28,7 +28,7 @@ const createSeedAdmin = ({id, username, password, role, restaurantIds, activeRes
 
 const createSeedDatabase = () => ({
   meta: {
-    schemaVersion: 'scoremenu_backend_schema_v1_batch12',
+    schemaVersion: 'scoremenu_backend_schema_v1_batch13',
     generatedAt: now,
   },
   restaurants: [
@@ -57,6 +57,7 @@ const createSeedDatabase = () => ({
       restaurantId: 'aplus_billiards_hanoi',
       name: 'Chi nhánh Cầu Giấy',
       address: 'Cầu Giấy, Hà Nội',
+      menuQrToken: 'qr_aplus_main_menu',
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
@@ -66,6 +67,7 @@ const createSeedDatabase = () => ({
       restaurantId: 'aplus_billiards_hanoi',
       name: 'Chi nhánh VIP Long Biên',
       address: 'Long Biên, Hà Nội',
+      menuQrToken: 'qr_aplus_vip_menu',
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
@@ -75,6 +77,7 @@ const createSeedDatabase = () => ({
       restaurantId: 'haidilao_demo',
       name: 'Chi nhánh demo chính',
       address: 'Trung tâm thương mại demo',
+      menuQrToken: 'qr_haidilao_main_menu',
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
@@ -84,6 +87,7 @@ const createSeedDatabase = () => ({
       restaurantId: 'haidilao_demo',
       name: 'Chi nhánh demo 2',
       address: 'Khu đô thị demo',
+      menuQrToken: 'qr_haidilao_2_menu',
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
@@ -244,6 +248,7 @@ const createSeedDatabase = () => ({
   ],
   orders: [],
   carts: {},
+  imageUploads: [],
   adminUsers: [
     createSeedAdmin({
       id: 'admin_aplus_owner',

@@ -7,7 +7,7 @@ import {
   loadRestaurantBranches,
   loadRestaurantTables,
   loadRestaurantWorkspaces,
-  resolveRestaurantTableToken,
+  resolveRestaurantMenuQrToken,
   setActiveRestaurantContext,
 } from '../services/restaurantMenuRepository';
 import type {
@@ -31,6 +31,7 @@ type RestaurantContextSnapshot = {
   branches: RestaurantBranch[];
   tables: RestaurantTable[];
   allowedRestaurantIds: string[];
+  allowedBranchIds: string[];
   loading: boolean;
   hydrated: boolean;
   errorMessage: string;
@@ -53,6 +54,7 @@ const storeState: RestaurantContextSnapshot & {
   branches: [],
   tables: [],
   allowedRestaurantIds: [],
+  allowedBranchIds: [],
   loading: false,
   hydrated: false,
   errorMessage: '',
@@ -121,12 +123,77 @@ const resolveAllowedRestaurantIds = (
   return restaurants.map(restaurant => restaurant.id);
 };
 
+const resolveAllowedBranchIds = (
+  session: RestaurantAdminSession | null | undefined,
+  branches: RestaurantBranch[],
+) => {
+  const sessionBranchIds = normaliseIdList([
+    ...(session?.branchIds || []),
+    session?.activeBranchId,
+  ]);
+
+  if (sessionBranchIds.length === 0) {
+    return [] as string[];
+  }
+
+  const branchIdsInRestaurant = new Set(branches.map(branch => branch.id));
+  return sessionBranchIds.filter(branchId => branchIdsInRestaurant.has(branchId));
+};
+
+const pickAllowedBranchId = ({
+  currentBranchId,
+  branches,
+  allowedBranchIds,
+}: {
+  currentBranchId?: string;
+  branches: RestaurantBranch[];
+  allowedBranchIds: string[];
+}) => {
+  if (allowedBranchIds.length > 0) {
+    if (currentBranchId && allowedBranchIds.includes(currentBranchId)) {
+      return currentBranchId;
+    }
+    return allowedBranchIds[0];
+  }
+
+  if (currentBranchId && branches.some(branch => branch.id === currentBranchId)) {
+    return currentBranchId;
+  }
+
+  return branches[0]?.id;
+};
+
+const filterBranchesByScope = (
+  branches: RestaurantBranch[],
+  allowedBranchIds: string[],
+) => {
+  if (allowedBranchIds.length === 0) {
+    return branches;
+  }
+  return branches.filter(branch => allowedBranchIds.includes(branch.id));
+};
+
+const filterTablesByScope = (
+  tables: RestaurantTable[],
+  allowedBranchIds: string[],
+  branchId?: string,
+) => {
+  if (allowedBranchIds.length > 0) {
+    return tables.filter(table =>
+      table.branchId ? allowedBranchIds.includes(table.branchId) : false,
+    );
+  }
+
+  return branchId ? tables.filter(table => table.branchId === branchId) : tables;
+};
+
 const applySnapshot = ({
   context,
   restaurants,
   branches,
   tables,
   allowedRestaurantIds,
+  allowedBranchIds = [],
   permissionMessage = '',
   errorMessage = '',
 }: {
@@ -135,6 +202,7 @@ const applySnapshot = ({
   branches: RestaurantBranch[];
   tables: RestaurantTable[];
   allowedRestaurantIds: string[];
+  allowedBranchIds?: string[];
   permissionMessage?: string;
   errorMessage?: string;
 }) => {
@@ -143,6 +211,7 @@ const applySnapshot = ({
   storeState.branches = branches;
   storeState.tables = tables;
   storeState.allowedRestaurantIds = allowedRestaurantIds;
+  storeState.allowedBranchIds = allowedBranchIds;
   storeState.permissionMessage = permissionMessage;
   storeState.errorMessage = errorMessage;
   storeState.hydrated = true;
@@ -200,14 +269,39 @@ const hydrateRestaurantContextSnapshot = async (
       });
     }
 
-    const [branches, tables] = await Promise.all([
+    const [allBranches, allTables] = await Promise.all([
       loadRestaurantBranches(context.restaurantId),
       loadRestaurantTables(context.restaurantId),
     ]);
+    const allowedBranchIds = resolveAllowedBranchIds(session, allBranches);
+    const nextBranchId = pickAllowedBranchId({
+      currentBranchId: context.branchId,
+      branches: allBranches,
+      allowedBranchIds,
+    });
+
+    if (session && nextBranchId !== context.branchId) {
+      context = await setActiveRestaurantContext({
+        restaurantId: context.restaurantId,
+        branchId: nextBranchId,
+        tableId: undefined,
+        tableNumber: undefined,
+        qrCodeToken: undefined,
+        menuQrToken: undefined,
+        source: options.source || 'admin',
+        role: session.role,
+        allowedRestaurantIds,
+      });
+      permissionMessage = permissionMessage ||
+        'Đã chuyển về chi nhánh mà tài khoản hiện tại có quyền.';
+    }
 
     if (requestId !== storeState.requestId) {
       return getSnapshot();
     }
+
+    const branches = filterBranchesByScope(allBranches, allowedBranchIds);
+    const tables = filterTablesByScope(allTables, allowedBranchIds, context.branchId);
 
     applySnapshot({
       context,
@@ -215,6 +309,7 @@ const hydrateRestaurantContextSnapshot = async (
       branches,
       tables,
       allowedRestaurantIds,
+      allowedBranchIds,
       permissionMessage,
     });
 
@@ -261,13 +356,22 @@ const switchRestaurantContext = async (restaurantId: string) => {
     devWarn('[RestaurantContext] clear old cart before restaurant switch failed', error);
   }
 
+  const allBranches = await loadRestaurantBranches(cleanRestaurantId);
+  const allowedBranchIds = resolveAllowedBranchIds(session, allBranches);
+  const nextBranchId = pickAllowedBranchId({
+    currentBranchId: session?.activeBranchId,
+    branches: allBranches,
+    allowedBranchIds,
+  });
+
   resetScopedStores();
   const context = await setActiveRestaurantContext({
     restaurantId: cleanRestaurantId,
-    branchId: undefined,
+    branchId: nextBranchId,
     tableId: undefined,
     tableNumber: undefined,
     qrCodeToken: undefined,
+    menuQrToken: undefined,
     source: 'admin',
     role: session?.role,
     allowedRestaurantIds,
@@ -279,13 +383,13 @@ const switchRestaurantContext = async (restaurantId: string) => {
     devWarn('[RestaurantContext] clear new cart after restaurant switch failed', error);
   }
 
-  const [branches, tables] = await Promise.all([
-    loadRestaurantBranches(context.restaurantId),
-    loadRestaurantTables(context.restaurantId),
-  ]);
+  const allTables = await loadRestaurantTables(context.restaurantId);
+  const branches = filterBranchesByScope(allBranches, allowedBranchIds);
+  const tables = filterTablesByScope(allTables, allowedBranchIds, context.branchId);
   await updateRestaurantAdminSessionContext({
     restaurantId: context.restaurantId,
     restaurantName: context.restaurantName,
+    branchId: context.branchId,
   });
 
   applySnapshot({
@@ -294,6 +398,7 @@ const switchRestaurantContext = async (restaurantId: string) => {
     branches,
     tables,
     allowedRestaurantIds,
+    allowedBranchIds,
   });
 
   return getSnapshot();
@@ -307,11 +412,20 @@ const switchBranchContext = async (branchId: string) => {
     throw new Error('Thiếu restaurantId trước khi chuyển chi nhánh.');
   }
 
-  const branches = await loadRestaurantBranches(currentContext.restaurantId);
-  const targetBranch = branches.find(branch => branch.id === cleanBranchId);
+  const session = await getRestaurantAdminSession();
+  const allBranches = await loadRestaurantBranches(currentContext.restaurantId);
+  const allowedBranchIds = resolveAllowedBranchIds(session, allBranches);
+  const targetBranch = allBranches.find(branch => branch.id === cleanBranchId);
 
   if (!targetBranch) {
     const message = 'Chi nhánh không thuộc nhà hàng hiện tại.';
+    storeState.permissionMessage = message;
+    emitChange();
+    throw new Error(message);
+  }
+
+  if (allowedBranchIds.length > 0 && !allowedBranchIds.includes(targetBranch.id)) {
+    const message = 'Tài khoản hiện tại không có quyền truy cập chi nhánh này.';
     storeState.permissionMessage = message;
     emitChange();
     throw new Error(message);
@@ -330,11 +444,19 @@ const switchBranchContext = async (branchId: string) => {
     tableId: undefined,
     tableNumber: undefined,
     qrCodeToken: undefined,
-    source: currentContext.source || 'admin',
+    menuQrToken: undefined,
+    source: 'admin',
     role: currentContext.role,
     allowedRestaurantIds: currentContext.allowedRestaurantIds,
   });
-  const tables = await loadRestaurantTables(context.restaurantId);
+  const allTables = await loadRestaurantTables(context.restaurantId);
+  const branches = filterBranchesByScope(allBranches, allowedBranchIds);
+  const tables = filterTablesByScope(allTables, allowedBranchIds, context.branchId);
+  await updateRestaurantAdminSessionContext({
+    restaurantId: context.restaurantId,
+    restaurantName: context.restaurantName,
+    branchId: context.branchId,
+  });
 
   applySnapshot({
     context,
@@ -342,19 +464,20 @@ const switchBranchContext = async (branchId: string) => {
     branches,
     tables,
     allowedRestaurantIds: storeState.allowedRestaurantIds,
+    allowedBranchIds,
   });
 
   return getSnapshot();
 };
 
-const enterCustomerTableContext = async (qrToken: string) => {
+const enterCustomerMenuQrContext = async (qrToken: string) => {
   const cleanToken = String(qrToken || '').trim();
   const requestId = storeState.requestId + 1;
   storeState.requestId = requestId;
   setLoading(true);
 
   if (!cleanToken) {
-    storeState.errorMessage = 'Thiếu mã QR bàn. Vui lòng quét lại QR trên bàn.';
+    storeState.errorMessage = 'Thiếu mã QR menu. Vui lòng quét lại QR của quán/chi nhánh.';
     storeState.hydrated = true;
     storeState.contextVersion += 1;
     emitChange();
@@ -364,15 +487,15 @@ const enterCustomerTableContext = async (qrToken: string) => {
 
   try {
     await bootstrapRestaurantMenuRepository();
-    const resolvedContext = await resolveRestaurantTableToken(cleanToken);
+    const resolvedContext = await resolveRestaurantMenuQrToken(cleanToken);
 
     if (requestId !== storeState.requestId) {
       return getSnapshot();
     }
 
-    if (!resolvedContext?.restaurantId || !resolvedContext.tableId) {
+    if (!resolvedContext?.restaurantId) {
       storeState.errorMessage =
-        'QR bàn không hợp lệ, đã bị khóa hoặc không còn tồn tại.';
+        'QR menu không hợp lệ, đã bị khóa hoặc không còn tồn tại.';
       storeState.hydrated = true;
       storeState.contextVersion += 1;
       emitChange();
@@ -385,6 +508,7 @@ const enterCustomerTableContext = async (qrToken: string) => {
       currentContext.restaurantId !== resolvedContext.restaurantId ||
       currentContext.branchId !== resolvedContext.branchId ||
       currentContext.tableId !== resolvedContext.tableId ||
+      currentContext.menuQrToken !== (resolvedContext.menuQrToken || resolvedContext.qrCodeToken || cleanToken) ||
       currentContext.qrCodeToken !== resolvedContext.qrCodeToken;
 
     if (contextChanged) {
@@ -399,6 +523,8 @@ const enterCustomerTableContext = async (qrToken: string) => {
     const context = await setActiveRestaurantContext({
       ...resolvedContext,
       qrCodeToken: resolvedContext.qrCodeToken || cleanToken,
+      menuQrToken: resolvedContext.menuQrToken || resolvedContext.qrCodeToken || cleanToken,
+      qrTokenScope: resolvedContext.qrTokenScope || (resolvedContext.tableId ? 'TABLE' : 'BRANCH_MENU'),
       source: 'customer',
     });
 
@@ -433,6 +559,7 @@ const enterCustomerTableContext = async (qrToken: string) => {
               branchId: context.branchId,
               tableNumber: context.tableNumber || '',
               qrCodeToken: context.qrCodeToken || cleanToken,
+              status: 'AVAILABLE' as const,
               createdAt: '',
               updatedAt: '',
             },
@@ -451,7 +578,7 @@ const enterCustomerTableContext = async (qrToken: string) => {
       storeState.errorMessage =
         error instanceof Error && error.message
           ? error.message
-          : 'Không thể mở menu từ QR. Vui lòng thử lại.';
+          : 'Không thể mở menu từ QR quán/chi nhánh. Vui lòng thử lại.';
       storeState.hydrated = true;
       storeState.contextVersion += 1;
       emitChange();
@@ -465,19 +592,26 @@ const enterCustomerTableContext = async (qrToken: string) => {
   }
 };
 
-export const resetRestaurantContextStore = () => {
+export const resetRestaurantContextStore = (
+  options: {resetScopedStores?: boolean} = {},
+) => {
   storeState.context = null;
   storeState.restaurants = [];
   storeState.branches = [];
   storeState.tables = [];
   storeState.allowedRestaurantIds = [];
+  storeState.allowedBranchIds = [];
   storeState.loading = false;
   storeState.hydrated = false;
   storeState.errorMessage = '';
   storeState.permissionMessage = '';
   storeState.contextVersion += 1;
   storeState.requestId += 1;
-  resetScopedStores();
+
+  if (options.resetScopedStores !== false) {
+    resetScopedStores();
+  }
+
   emitChange();
 };
 
@@ -515,8 +649,13 @@ export const useRestaurantContextStore = () => {
     [],
   );
 
+  const enterCustomerMenuQr = useCallback(
+    (qrToken: string) => enterCustomerMenuQrContext(qrToken),
+    [],
+  );
+
   const enterCustomerTable = useCallback(
-    (qrToken: string) => enterCustomerTableContext(qrToken),
+    (qrToken: string) => enterCustomerMenuQrContext(qrToken),
     [],
   );
 
@@ -526,12 +665,14 @@ export const useRestaurantContextStore = () => {
     branches: snapshot.branches,
     tables: snapshot.tables,
     allowedRestaurantIds: snapshot.allowedRestaurantIds,
+    allowedBranchIds: snapshot.allowedBranchIds,
     loading: snapshot.loading,
     hydrated: snapshot.hydrated,
     errorMessage: snapshot.errorMessage,
     permissionMessage: snapshot.permissionMessage,
     contextVersion: snapshot.contextVersion,
     hydrateRestaurantContext,
+    enterCustomerMenuQr,
     enterCustomerTable,
     switchRestaurant,
     switchBranch,

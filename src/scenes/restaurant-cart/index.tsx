@@ -23,12 +23,16 @@ import View from 'components/View';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {Navigation} from 'types/navigation';
-import type {RestaurantMenuItem} from 'services/restaurantMenuRepository';
+import {devModuleWarn} from 'utils/devLogger';
+import {getScoreMenuErrorMessage, logScoreMenuError} from 'utils/scoremenuErrors';
+import {loadPublicTablesByQrToken} from 'services/restaurantMenuRepository';
+import type {RestaurantMenuItem, RestaurantTable} from 'services/restaurantMenuRepository';
 import {
   normalizeRestaurantTableNumber,
   useRestaurantCartStore,
 } from '../../stores/RestaurantCartStore';
 import {useRestaurantMenuStore} from '../../stores/RestaurantMenuStore';
+import {useCustomerMenuSessionStore} from '../../stores/CustomerMenuSessionStore';
 import createStyles from './styles';
 
 type Props = Navigation;
@@ -71,14 +75,23 @@ const RestaurantCartScreen = (props: Props) => {
     submitCurrentCartOrder,
   } = useRestaurantCartStore();
   const {items, refreshMenuData} = useRestaurantMenuStore();
+  const {context: customerContext} = useCustomerMenuSessionStore();
 
   const [tableNumber, setTableNumber] = useState('');
   const [note, setNote] = useState('');
   const [tableError, setTableError] = useState('');
   const [cartError, setCartError] = useState('');
   const [message, setMessage] = useState('');
+  const [branchTables, setBranchTables] = useState<RestaurantTable[]>([]);
+  const [branchTablesLoading, setBranchTablesLoading] = useState(false);
   const tableNumberRef = useRef('');
   const noteRef = useRef('');
+
+  const customerMenuQrToken = useMemo(() => {
+    return String(
+      customerContext?.menuQrToken || customerContext?.qrCodeToken || '',
+    ).trim();
+  }, [customerContext?.menuQrToken, customerContext?.qrCodeToken]);
 
   const syncInputsFromCart = useCallback(() => {
     const activeCart = getActiveCart();
@@ -91,14 +104,37 @@ const RestaurantCartScreen = (props: Props) => {
   }, [getActiveCart]);
 
   const refreshData = useCallback(async () => {
-    const [, menuResult] = await Promise.all([
-      hydrateCartFromStorage(),
-      refreshMenuData(),
-    ]);
+    try {
+      const [, menuResult] = await Promise.all([
+        hydrateCartFromStorage(),
+        refreshMenuData(),
+      ]);
 
-    updateMenuItemSnapshot(menuResult.items);
-    syncInputsFromCart();
+      updateMenuItemSnapshot(menuResult.items);
+      syncInputsFromCart();
+      setCartError('');
+    } catch (error) {
+      logScoreMenuError(
+        {
+          module: 'CART',
+          action: 'load cart screen failed',
+          qrToken: customerMenuQrToken,
+          restaurantId: customerContext?.restaurantId,
+          branchId: customerContext?.branchId,
+        },
+        error,
+      );
+      setCartError(
+        getScoreMenuErrorMessage(
+          error,
+          'Không thể tải giỏ hàng. Vui lòng thử lại.',
+        ),
+      );
+    }
   }, [
+    customerContext?.branchId,
+    customerContext?.restaurantId,
+    customerMenuQrToken,
     hydrateCartFromStorage,
     refreshMenuData,
     syncInputsFromCart,
@@ -115,6 +151,57 @@ const RestaurantCartScreen = (props: Props) => {
       return () => {};
     }, [refreshData]),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!customerMenuQrToken || !customerContext?.branchId) {
+      setBranchTables([]);
+      setBranchTablesLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setBranchTablesLoading(true);
+    loadPublicTablesByQrToken(customerMenuQrToken)
+      .then(tables => {
+        if (cancelled) {
+          return;
+        }
+        setBranchTables(
+          tables.filter(
+            table =>
+              table.branchId === customerContext.branchId &&
+              table.status !== 'HIDDEN',
+          ),
+        );
+      })
+      .catch(error => {
+        logScoreMenuError(
+          {
+            module: 'CART',
+            action: 'load branch tables failed',
+            qrToken: customerMenuQrToken,
+            restaurantId: customerContext?.restaurantId,
+            branchId: customerContext?.branchId,
+          },
+          error,
+        );
+        if (!cancelled) {
+          setBranchTables([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBranchTablesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerContext?.branchId, customerMenuQrToken]);
 
   const menuItemById = useMemo(() => {
     return items.reduce<Record<string, RestaurantMenuItem>>((result, item) => {
@@ -169,6 +256,17 @@ const RestaurantCartScreen = (props: Props) => {
       setTableError('');
     }
   }, []);
+
+  const selectTable = useCallback(
+    (nextTableNumber: string) => {
+      handleTableChange(nextTableNumber);
+      commitCartFields({
+        tableNumber: normalizeTableInput(nextTableNumber),
+        note: noteRef.current,
+      });
+    },
+    [commitCartFields, handleTableChange],
+  );
 
   const handleNoteChange = useCallback((value: string) => {
     noteRef.current = value;
@@ -228,9 +326,7 @@ const RestaurantCartScreen = (props: Props) => {
         });
       }
     } catch (error) {
-      if (__DEV__) {
-        console.warn('[RestaurantCartScreen] native table input failed', error);
-      }
+      devModuleWarn('CART', 'native table input failed', error);
     }
   }, [commitCartFields, handleTableChange, showNativeCartInput]);
 
@@ -252,9 +348,7 @@ const RestaurantCartScreen = (props: Props) => {
         });
       }
     } catch (error) {
-      if (__DEV__) {
-        console.warn('[RestaurantCartScreen] native note input failed', error);
-      }
+      devModuleWarn('CART', 'native note input failed', error);
     }
   }, [commitCartFields, handleNoteChange, showNativeCartInput]);
 
@@ -408,6 +502,60 @@ const RestaurantCartScreen = (props: Props) => {
           </RNView>
 
           <RNView style={styles.infoSection}>
+            <RNView style={styles.cartScopeCard}>
+              <RNText style={styles.cartScopeLabel}>MENU ĐANG GỌI</RNText>
+              <RNText numberOfLines={1} style={styles.cartScopeTitle}>
+                {customerContext?.restaurantName || 'Nhà hàng từ QR'}
+              </RNText>
+              <RNText numberOfLines={1} style={styles.cartScopeSubTitle}>
+                {customerContext?.branchName || 'Chi nhánh từ QR'}
+              </RNText>
+            </RNView>
+
+            {branchTables.length > 0 ? (
+              <RNView style={styles.tablePickerSection}>
+                <RNText style={styles.tablePickerTitle}>Chọn nhanh bàn trong chi nhánh</RNText>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyboardShouldPersistTaps="always"
+                  contentContainerStyle={styles.tableChipRow}>
+                  {branchTables.map(table => {
+                    const selected =
+                      normalizeTableInput(table.tableNumber).toLowerCase() ===
+                      normalizeTableInput(tableNumber).toLowerCase();
+                    const disabled = cartSubmitting || table.status === 'LOCKED';
+
+                    return (
+                      <Pressable
+                        key={table.id}
+                        disabled={disabled}
+                        onPress={() => selectTable(table.tableNumber)}
+                        style={[
+                          styles.tableChip,
+                          selected ? styles.tableChipActive : null,
+                          disabled ? styles.tableChipDisabled : null,
+                        ]}>
+                        <RNText
+                          style={[
+                            styles.tableChipText,
+                            selected ? styles.tableChipTextActive : null,
+                          ]}>
+                          {table.tableNumber}
+                        </RNText>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </RNView>
+            ) : branchTablesLoading ? (
+              <RNText style={styles.tablePickerHint}>Đang tải danh sách bàn...</RNText>
+            ) : (
+              <RNText style={styles.tablePickerHint}>
+                Nhập số bàn được nhân viên/biển bàn cung cấp.
+              </RNText>
+            )}
+
             {Platform.OS === 'android' ? (
               <Pressable
                 disabled={cartSubmitting}

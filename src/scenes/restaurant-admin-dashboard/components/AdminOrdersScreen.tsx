@@ -5,11 +5,13 @@ import RNText from './AdminText';
 import {
   ADMIN_ORDER_FILTERS,
   ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_ORDER_STATUS_SHORT_LABELS,
   AdminOrder,
   AdminOrderFilter,
   AdminOrderStatus,
   AdminPaymentMethod,
   AdminPaymentStatus,
+  getAdminOrderSummary,
 } from 'services/restaurantAdminStore';
 
 import OrderCard from './OrderCard';
@@ -69,24 +71,30 @@ const AdminOrdersScreen = ({
     return orders.filter(order => order.status === filter);
   }, [filter, orders]);
 
-  const newCount = orders.filter(order => order.status === 'NEW').length;
-  const preparingCount = orders.filter(
-    order => order.status === 'PREPARING',
-  ).length;
-  const unpaidCount = orders.filter(
-    order => order.paymentStatus === 'UNPAID',
-  ).length;
+  const summary = useMemo(() => getAdminOrderSummary(orders), [orders]);
+  const statusCounts = useMemo(
+    () => ({
+      NEW: summary.newOrders,
+      ACCEPTED: summary.acceptedOrders,
+      PREPARING: summary.preparingOrders,
+      COMPLETED: summary.completedOrders,
+      CANCELLED: summary.cancelledOrders,
+    }),
+    [summary],
+  );
+  const formatCurrency = (value: number) =>
+    `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 
   const syncLabel = (() => {
     switch (orderSyncStatus) {
       case 'syncing':
         return 'Đang đồng bộ đơn...';
       case 'online':
-        return 'Tự cập nhật mỗi 3 giây';
+        return 'Tự cập nhật mỗi 3 giây khi đang mở trang';
       case 'error':
         return 'Mất kết nối đơn hàng';
       case 'paused':
-        return 'Tạm dừng khi rời tab đơn';
+        return 'Tạm dừng khi rời trang đơn';
       case 'idle':
       default:
         return 'Sẵn sàng đồng bộ';
@@ -97,21 +105,61 @@ const AdminOrdersScreen = ({
     <RNView>
       <RNView style={styles.kpiRow}>
         <RNView style={styles.kpiCard}>
-          <RNText style={styles.kpiValue}>{orders.length}</RNText>
+          <RNText style={styles.kpiValue}>{summary.totalOrders}</RNText>
           <RNText style={styles.kpiLabel}>Tổng đơn</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
-          <RNText style={styles.kpiValue}>{newCount}</RNText>
+          <RNText style={styles.kpiValue}>{summary.newOrders}</RNText>
           <RNText style={styles.kpiLabel}>Đơn mới</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
-          <RNText style={styles.kpiValue}>{preparingCount}</RNText>
+          <RNText style={styles.kpiValue}>{summary.preparingOrders}</RNText>
           <RNText style={styles.kpiLabel}>Đang làm</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
-          <RNText style={styles.kpiValue}>{unpaidCount}</RNText>
+          <RNText style={styles.kpiValue}>{summary.unpaidOrders}</RNText>
           <RNText style={styles.kpiLabel}>Chưa thanh toán</RNText>
         </RNView>
+        <RNView style={styles.kpiCard}>
+          <RNText style={styles.kpiValue} numberOfLines={1}>
+            {formatCurrency(summary.paidRevenue)}
+          </RNText>
+          <RNText style={styles.kpiLabel}>Đã thu</RNText>
+        </RNView>
+      </RNView>
+
+      <RNView style={styles.orderFlowBoard}>
+        {(['NEW', 'ACCEPTED', 'PREPARING', 'COMPLETED', 'CANCELLED'] as AdminOrderStatus[]).map(
+          status => {
+            const active = filter === status;
+            return (
+              <Pressable
+                key={status}
+                onPress={() => onChangeFilter(status)}
+                style={[
+                  styles.orderFlowStage,
+                  active ? styles.orderFlowStageActive : null,
+                ]}
+                accessibilityRole="button">
+                <RNText style={styles.orderFlowStageCount}>
+                  {statusCounts[status] || 0}
+                </RNText>
+                <RNText style={styles.orderFlowStageLabel} numberOfLines={1}>
+                  {ADMIN_ORDER_STATUS_SHORT_LABELS[status]}
+                </RNText>
+              </Pressable>
+            );
+          },
+        )}
+      </RNView>
+
+      <RNView style={styles.paymentSummaryRow}>
+        <RNText style={styles.paymentSummaryText}>
+          Đã thanh toán: {summary.paidOrders} đơn · {formatCurrency(summary.paidRevenue)}
+        </RNText>
+        <RNText style={styles.paymentSummaryText}>
+          Chưa thanh toán: {summary.unpaidOrders} đơn · {formatCurrency(summary.unpaidRevenue)}
+        </RNText>
       </RNView>
 
       <RNView style={styles.sectionHeader}>

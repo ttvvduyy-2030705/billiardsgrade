@@ -44,12 +44,30 @@ type MenuItemFormInput = {
   available?: boolean;
 };
 
+type MenuItemImageUploadInput = {
+  itemId?: string;
+  dishId?: string;
+  uri?: string;
+  base64?: string;
+  dataUri?: string;
+  fileName?: string;
+  mimeType?: string;
+};
+
+type MenuItemImageUploadResult = {
+  imageUrl?: string;
+  publicUrl?: string;
+};
+
 type Props = {
   menuItems: RestaurantMenuItem[];
   categories: MenuCategory[];
   styles: any;
   onSaveItem: (input: MenuItemFormInput) => Promise<RestaurantMenuItem[]>;
   onDeleteItem: (itemId: string) => Promise<RestaurantMenuItem[]>;
+  onUploadImage?: (
+    input: MenuItemImageUploadInput,
+  ) => Promise<MenuItemImageUploadResult>;
   onSaveCategory: (
     input: Partial<MenuCategory> & {name: string},
   ) => Promise<{ok: boolean; message: string; categories: MenuCategory[]}>;
@@ -222,6 +240,7 @@ const AdminMenuManagementScreen = ({
   styles,
   onSaveItem,
   onDeleteItem,
+  onUploadImage,
   onSaveCategory,
   onDeleteCategory,
 }: Props) => {
@@ -257,6 +276,7 @@ const AdminMenuManagementScreen = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [imagePicking, setImagePicking] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const imagePickRequestIdRef = useRef(0);
   const [listError, setListError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -554,6 +574,40 @@ const AdminMenuManagementScreen = ({
       setImagePreviewUrl(instantPreviewUri || pickedUri);
       setImagePreviewRevision(revision => revision + 1);
       updateDraft({imageUrl: pickedUri}, {syncImagePreview: false});
+
+      if (onUploadImage) {
+        try {
+          setImageUploading(true);
+          const uploadResult = await onUploadImage({
+            uri: pickedUri,
+            base64: pickedAsset?.base64,
+            dataUri: instantPreviewUri,
+            itemId: selectedItemId || 'new_dish',
+            dishId: selectedItemId || 'new_dish',
+            mimeType: pickedAsset?.type || 'image/jpeg',
+            fileName: pickedAsset?.fileName,
+          });
+          const serverImageUrl = getMenuItemImageValue({
+            imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
+          });
+
+          if (serverImageUrl) {
+            if (imagePickRequestIdRef.current === requestId) {
+              updateDraft(
+                {imageUrl: serverImageUrl},
+                {syncImagePreview: false},
+              );
+            }
+            return;
+          }
+        } catch (uploadError) {
+          devWarn('[AdminMenuImage] server upload failed', uploadError);
+          setError('Không thể upload ảnh lên server. Vui lòng kiểm tra backend/API rồi thử lại.');
+          return;
+        } finally {
+          setImageUploading(false);
+        }
+      }
 
       const persistedUri = await persistRestaurantMenuImage({
         uri: pickedUri,
@@ -1234,20 +1288,21 @@ const AdminMenuManagementScreen = ({
                   : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Ảnh được lưu vào field imageUrl. Admin và menu khách cùng đọc
-                field này.
+                API mode sẽ upload ảnh lên server/storage và lưu URL vào imageUrl. Local mode vẫn lưu ảnh trong máy để demo.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
                   onPress={pickMenuImage}
                   style={styles.imagePickerButton}
-                  disabled={saving || imagePicking}>
+                  disabled={saving || imagePicking || imageUploading}>
                   <RNText style={styles.imagePickerButtonText}>
-                    {imagePicking
-                      ? 'Đang mở...'
-                      : formPreviewImageUrl
-                        ? 'Đổi ảnh'
-                        : 'Chọn ảnh từ máy'}
+                    {imageUploading
+                      ? 'Đang tải ảnh...'
+                      : imagePicking
+                        ? 'Đang mở...'
+                        : formPreviewImageUrl
+                          ? 'Đổi ảnh'
+                          : 'Chọn ảnh từ máy'}
                   </RNText>
                 </Pressable>
                 {formPreviewImageUrl ? (
@@ -1257,7 +1312,7 @@ const AdminMenuManagementScreen = ({
                       updateDraft({imageUrl: ''});
                     }}
                     style={styles.imageRemoveButton}
-                    disabled={saving || imagePicking}>
+                    disabled={saving || imagePicking || imageUploading}>
                     <RNText style={styles.imageRemoveButtonText}>
                       Xoá ảnh
                     </RNText>

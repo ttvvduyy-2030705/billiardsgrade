@@ -1,30 +1,173 @@
 export type RestaurantMenuRepositoryMode = 'local' | 'api';
+export type RestaurantMenuEnvironmentName = 'local' | 'dev-api' | 'staging' | 'prod';
 
 export type RestaurantMenuEnvironmentConfig = {
+  /** Human-readable environment key used for diagnostics and test notes. */
+  name: RestaurantMenuEnvironmentName;
   mode: RestaurantMenuRepositoryMode;
   apiBaseUrl: string;
   apiTimeoutMs: number;
   apiRetryCount: number;
   defaultRestaurantId?: string;
   /**
-   * Development helper for opening the customer menu from the Home button.
-   * In production this value should come from a QR/deep link route param.
+   * Preferred customer entry token for Batch 1+ architecture.
+   * This token represents a restaurant/branch menu QR first. Table QR tokens
+   * can still be supported later as an optional shortcut.
+   */
+  defaultMenuQrToken?: string;
+  /**
+   * @deprecated Batch 1 keeps this only for old demo/table-QR compatibility.
+   * New customer menu entry should use defaultMenuQrToken and scanner/deep-link
+   * params instead of a hard-coded default.
    */
   defaultTableToken?: string;
 };
 
-/**
- * Batch 10-12 switch point. Keep local as the safe default for current MVP builds.
- * Batch 12 backend runs at http://localhost:4012. On Android emulator use
- * http://10.0.2.2:4012, or the LAN IP of your server machine for real devices.
- * Switch mode to 'api' in batch 13 testing when you want app screens to read the server.
- */
-export const RESTAURANT_MENU_ENV_CONFIG: RestaurantMenuEnvironmentConfig = {
-  mode: 'local',
-  apiBaseUrl: '', // Example for Android emulator: 'http://10.0.2.2:4012'
-  apiTimeoutMs: 15000,
-  apiRetryCount: 1,
-  defaultRestaurantId: 'haidilao_local_demo', // API seed example: 'haidilao_demo'
-  // Local demo tokens: 'qr_haidilao_local_01' or 'qr_local_main_01'. API seed examples: 'qr_haidilao_main_01', 'qr_aplus_main_01'
-  defaultTableToken: 'qr_haidilao_local_01',
+type RuntimeRestaurantMenuConfig = Partial<RestaurantMenuEnvironmentConfig> & {
+  envName?: RestaurantMenuEnvironmentName;
+};
+
+const DEFAULT_RESTAURANT_MENU_ENV_NAME: RestaurantMenuEnvironmentName = 'local';
+
+const getGlobalConfig = (): RuntimeRestaurantMenuConfig => {
+  const globalConfig = (globalThis as unknown as {
+    __SCOREMENU_CONFIG__?: RuntimeRestaurantMenuConfig;
+    __SCOREMENU_MENU_ENV__?: RestaurantMenuEnvironmentName;
+    process?: {env?: Record<string, string | undefined>};
+  });
+  const env = globalConfig.process?.env || {};
+  const envName =
+    globalConfig.__SCOREMENU_MENU_ENV__ ||
+    (env.SCOREMENU_MENU_ENV as RestaurantMenuEnvironmentName | undefined) ||
+    (env.SCOREMENU_ENV as RestaurantMenuEnvironmentName | undefined);
+
+  return {
+    ...(globalConfig.__SCOREMENU_CONFIG__ || {}),
+    ...(envName ? {envName} : {}),
+    ...(env.SCOREMENU_API_BASE_URL ? {apiBaseUrl: env.SCOREMENU_API_BASE_URL} : {}),
+    ...(env.SCOREMENU_DEFAULT_RESTAURANT_ID
+      ? {defaultRestaurantId: env.SCOREMENU_DEFAULT_RESTAURANT_ID}
+      : {}),
+    ...(env.SCOREMENU_DEFAULT_MENU_QR_TOKEN
+      ? {defaultMenuQrToken: env.SCOREMENU_DEFAULT_MENU_QR_TOKEN}
+      : {}),
+    ...(env.SCOREMENU_API_TIMEOUT_MS
+      ? {apiTimeoutMs: Number(env.SCOREMENU_API_TIMEOUT_MS)}
+      : {}),
+    ...(env.SCOREMENU_API_RETRY_COUNT
+      ? {apiRetryCount: Number(env.SCOREMENU_API_RETRY_COUNT)}
+      : {}),
+  };
+};
+
+export const RESTAURANT_MENU_ENV_PRESETS: Record<
+  RestaurantMenuEnvironmentName,
+  RestaurantMenuEnvironmentConfig
+> = {
+  local: {
+    name: 'local',
+    mode: 'local',
+    apiBaseUrl: '',
+    apiTimeoutMs: 15000,
+    apiRetryCount: 1,
+    defaultRestaurantId: 'haidilao_local_demo',
+    defaultMenuQrToken: 'qr_haidilao_main_menu',
+    defaultTableToken: 'qr_haidilao_local_01',
+  },
+  'dev-api': {
+    name: 'dev-api',
+    mode: 'api',
+    // Android emulator reaches the host machine at 10.0.2.2.
+    // For a real phone, override this with the backend LAN IP, for example
+    // http://192.168.1.10:4012.
+    apiBaseUrl: 'http://10.0.2.2:4012',
+    apiTimeoutMs: 15000,
+    apiRetryCount: 1,
+    defaultRestaurantId: 'haidilao_demo',
+    defaultMenuQrToken: 'qr_haidilao_main_menu',
+    defaultTableToken: 'qr_haidilao_main_01',
+  },
+  staging: {
+    name: 'staging',
+    mode: 'api',
+    apiBaseUrl: '',
+    apiTimeoutMs: 15000,
+    apiRetryCount: 1,
+    defaultRestaurantId: 'haidilao_demo',
+    defaultMenuQrToken: 'qr_haidilao_main_menu',
+    defaultTableToken: 'qr_haidilao_main_01',
+  },
+  prod: {
+    name: 'prod',
+    mode: 'api',
+    apiBaseUrl: '',
+    apiTimeoutMs: 15000,
+    apiRetryCount: 0,
+    defaultRestaurantId: undefined,
+    defaultMenuQrToken: undefined,
+    defaultTableToken: undefined,
+  },
+};
+
+const normalizeEnvName = (value?: string): RestaurantMenuEnvironmentName => {
+  if (
+    value === 'local' ||
+    value === 'dev-api' ||
+    value === 'staging' ||
+    value === 'prod'
+  ) {
+    return value;
+  }
+
+  return DEFAULT_RESTAURANT_MENU_ENV_NAME;
+};
+
+const sanitizeNumber = (value: unknown, fallback: number) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
+};
+
+export const getRestaurantMenuEnvironmentConfig = (
+  runtimeOverride: RuntimeRestaurantMenuConfig = getGlobalConfig(),
+): RestaurantMenuEnvironmentConfig => {
+  const envName = normalizeEnvName(runtimeOverride.envName || runtimeOverride.name);
+  const preset = RESTAURANT_MENU_ENV_PRESETS[envName];
+
+  return {
+    ...preset,
+    ...runtimeOverride,
+    name: envName,
+    mode: runtimeOverride.mode || preset.mode,
+    apiBaseUrl:
+      typeof runtimeOverride.apiBaseUrl === 'string'
+        ? runtimeOverride.apiBaseUrl.trim().replace(/\/$/, '')
+        : preset.apiBaseUrl,
+    apiTimeoutMs: sanitizeNumber(runtimeOverride.apiTimeoutMs, preset.apiTimeoutMs),
+    apiRetryCount: sanitizeNumber(runtimeOverride.apiRetryCount, preset.apiRetryCount),
+  };
+};
+
+export const RESTAURANT_MENU_ENV_CONFIG =
+  getRestaurantMenuEnvironmentConfig();
+
+export const isRestaurantMenuApiMode = (
+  config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
+) => config.mode === 'api';
+
+export const getRestaurantMenuEnvironmentLabel = (
+  config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
+) => {
+  if (config.mode === 'api') {
+    return `${config.name} · API${config.apiBaseUrl ? ` · ${config.apiBaseUrl}` : ' · thiếu baseUrl'}`;
+  }
+
+  return `${config.name} · local demo`;
+};
+
+export const getDefaultCustomerMenuQrToken = () => {
+  return (
+    RESTAURANT_MENU_ENV_CONFIG.defaultMenuQrToken ||
+    RESTAURANT_MENU_ENV_CONFIG.defaultTableToken ||
+    ''
+  ).trim();
 };

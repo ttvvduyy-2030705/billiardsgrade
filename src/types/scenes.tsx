@@ -10,6 +10,7 @@ export type Screens = {
   history: string;
   playback: string;
   configs: string;
+  restaurantQrScanner: string;
   restaurantMenu: string;
   restaurantCart: string;
   restaurantAdminLogin: string;

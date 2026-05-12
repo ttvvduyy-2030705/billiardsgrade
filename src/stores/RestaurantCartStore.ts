@@ -5,13 +5,21 @@ import {
   createRestaurantOrder,
   getActiveRestaurantContext,
   loadCurrentCart,
+  loadPublicTablesByQrToken,
   saveCurrentCart,
 } from "../services/restaurantMenuRepository";
-import { devWarn } from "../utils/devLogger";
+import { devModuleWarn, devWarn } from "../utils/devLogger";
+import {
+  getScoreMenuErrorMessage,
+  logScoreMenuError,
+  shouldKeepCartOnSubmitError,
+} from "../utils/scoremenuErrors";
 import type {
   RestaurantCartState,
+  RestaurantMenuContext,
   RestaurantMenuItem,
   RestaurantOrder,
+  RestaurantTable,
 } from "../services/restaurantMenuRepository";
 
 export type RestaurantCartFieldType = "table" | "note";
@@ -57,6 +65,104 @@ type SubmitCartOptions = {
 
 const MAX_TABLE_NUMBER_LENGTH = 32;
 const UNSAFE_TABLE_NUMBER_PATTERN = /[<>()[\]{}"'`|\\]/;
+
+const normalizeTableCompareKey = (value: string) =>
+  normalizeRestaurantTableNumber(value).toLowerCase();
+
+const getCustomerQrTokenFromContext = (context?: RestaurantMenuContext | null) => {
+  if (!context) {
+    return "";
+  }
+
+  if (context.qrTokenScope === "TABLE" && context.qrCodeToken) {
+    return String(context.qrCodeToken).trim();
+  }
+
+  return String(context.menuQrToken || context.qrCodeToken || "").trim();
+};
+
+const isPublicCustomerTableUsable = (table?: RestaurantTable | null) => {
+  return Boolean(table) && table?.status !== "LOCKED" && table?.status !== "HIDDEN";
+};
+
+const resolveCustomerTableForOrder = async ({
+  context,
+  tableNumber,
+}: {
+  context?: RestaurantMenuContext | null;
+  tableNumber: string;
+}): Promise<
+  | {ok: true; tableId?: string; tableNumber: string}
+  | {ok: false; message: string}
+> => {
+  const normalizedTableNumber = normalizeRestaurantTableNumber(tableNumber);
+
+  if (!context || context.source !== "customer") {
+    return {ok: true, tableNumber: normalizedTableNumber};
+  }
+
+  if (!context.branchId) {
+    return {
+      ok: false,
+      message: "Không xác định được chi nhánh. Vui lòng quét lại QR menu của quán.",
+    };
+  }
+
+  if (context.qrTokenScope === "TABLE" && context.tableId) {
+    if (
+      context.tableNumber &&
+      normalizeTableCompareKey(context.tableNumber) !==
+        normalizeTableCompareKey(normalizedTableNumber)
+    ) {
+      return {
+        ok: false,
+        message: "Số bàn không khớp với QR đã quét. Vui lòng kiểm tra lại.",
+      };
+    }
+
+    return {
+      ok: true,
+      tableId: context.tableId,
+      tableNumber: context.tableNumber || normalizedTableNumber,
+    };
+  }
+
+  const qrToken = getCustomerQrTokenFromContext(context);
+  if (!qrToken) {
+    return {
+      ok: false,
+      message: "Không xác định được QR menu. Vui lòng quét lại QR của quán.",
+    };
+  }
+
+  const tables = await loadPublicTablesByQrToken(qrToken);
+  const matchedTable = tables.find(
+    table =>
+      table.branchId === context.branchId &&
+      normalizeTableCompareKey(table.tableNumber) ===
+        normalizeTableCompareKey(normalizedTableNumber),
+  );
+
+  if (!matchedTable) {
+    return {
+      ok: false,
+      message: "Số bàn không tồn tại trong chi nhánh này. Vui lòng chọn/nhập lại.",
+    };
+  }
+
+  if (!isPublicCustomerTableUsable(matchedTable)) {
+    return {
+      ok: false,
+      message: "Bàn này đang bị khóa hoặc không nhận đơn. Vui lòng gọi nhân viên.",
+    };
+  }
+
+  return {
+    ok: true,
+    tableId: matchedTable.id,
+    tableNumber: matchedTable.tableNumber,
+  };
+};
 
 export const normalizeRestaurantTableNumber = (value: string) => {
   return String(value || "")
@@ -162,7 +268,7 @@ const normalizeCartState = (
 });
 
 const reportCartStoreError = (label: string, error: unknown) => {
-  devWarn(`[RestaurantCartStore] ${label}`, error);
+  devModuleWarn('CART', label, error);
 };
 
 const persistCartState = async (cart: RestaurantCartState) => {
@@ -498,21 +604,37 @@ export const useRestaurantCartStore = () => {
         };
       }
 
-      const requiresQrTableScope =
+      const requiresCustomerQrScope =
         context?.source === "customer" &&
-        Boolean(context.qrCodeToken || context.tableId || context.branchId);
+        Boolean(context.menuQrToken || context.qrCodeToken || context.branchId);
 
       if (
         !scopedCart.restaurantId ||
-        (requiresQrTableScope && (!scopedCart.branchId || !scopedCart.tableId))
+        (requiresCustomerQrScope && !scopedCart.branchId)
       ) {
         return {
           ok: false,
           reason: "CONTEXT_REQUIRED",
           message:
-            "Không xác định được nhà hàng/chi nhánh/bàn. Vui lòng quét lại mã QR trên bàn.",
+            "Không xác định được nhà hàng/chi nhánh. Vui lòng quét lại QR menu của quán.",
         };
       }
+
+      const tableResolution = await resolveCustomerTableForOrder({
+        context,
+        tableNumber,
+      });
+
+      if (!tableResolution.ok) {
+        return {
+          ok: false,
+          reason: "TABLE_INVALID",
+          message: tableResolution.message,
+        };
+      }
+
+      const submittedTableId = tableResolution.tableId || scopedCart.tableId;
+      const submittedTableNumber = tableResolution.tableNumber || tableNumber;
 
       const invalidRows = rows.filter(
         (row) => row.item.status !== "SELLING" || row.item.available === false,
@@ -546,9 +668,9 @@ export const useRestaurantCartStore = () => {
         const nextOrders = await createRestaurantOrder({
           restaurantId: scopedCart.restaurantId,
           branchId: scopedCart.branchId,
-          tableId: scopedCart.tableId,
+          tableId: submittedTableId,
           orderSource: "customer",
-          tableNumber,
+          tableNumber: submittedTableNumber,
           note: scopedCart.note.trim(),
           items: orderItems,
           total,
@@ -562,14 +684,30 @@ export const useRestaurantCartStore = () => {
           ok: true,
           order: createdOrder,
           orderId: String(createdOrder?.id || ""),
-          tableNumber,
+          tableNumber: submittedTableNumber,
         };
       } catch (error) {
         reportCartStoreError("submit failed", error);
+        logScoreMenuError(
+          {
+            module: 'ORDER',
+            action: 'submit customer order failed',
+            restaurantId: scopedCart.restaurantId,
+            branchId: scopedCart.branchId,
+            tableId: submittedTableId,
+            tableNumber: submittedTableNumber,
+            extra: {
+              itemCount: orderItems.length,
+              total,
+              keepCart: shouldKeepCartOnSubmitError(error),
+            },
+          },
+          error,
+        );
         return {
           ok: false,
           reason: "SUBMIT_FAILED",
-          message: "Không thể gửi đơn. Giỏ hàng vẫn được giữ nguyên.",
+          message: `${getScoreMenuErrorMessage(error, "Không thể gửi đơn.")} Giỏ hàng vẫn được giữ nguyên, bạn có thể thử lại.`,
         };
       } finally {
         setCartSubmittingState(false);

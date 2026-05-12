@@ -34,11 +34,12 @@ import View from "components/View";
 import useScreenSystemUI from "theme/systemUI";
 import useDesignSystem from "theme/useDesignSystem";
 import { screens } from "scenes/screens";
-import { RESTAURANT_MENU_ENV_CONFIG } from "config/restaurantMenu";
 import { devWarn } from "utils/devLogger";
+import {getScoreMenuErrorMessage, logScoreMenuError} from "utils/scoremenuErrors";
 import { Navigation } from "types/navigation";
 
 import { getRestaurantAdminSession } from "services/restaurantAdminAuthService";
+import { loadPublicTablesByQrToken } from "services/restaurantMenuRepository";
 import {
   getMenuItemImageValue,
   resolveRestaurantMenuImage,
@@ -48,20 +49,22 @@ import {
   useRestaurantCartStore,
 } from "../../stores/RestaurantCartStore";
 import { useRestaurantMenuStore } from "../../stores/RestaurantMenuStore";
-import { useRestaurantContextStore } from "../../stores/RestaurantContextStore";
+import { useCustomerMenuSessionStore } from "../../stores/CustomerMenuSessionStore";
 
 import type {
   MenuCategory,
   RestaurantCartItem,
   RestaurantCartState,
   RestaurantMenuItem,
+  RestaurantTable,
 } from "services/restaurantMenuRepository";
 
 import createStyles from "./styles";
 
 type Props = Navigation & {
-  /** QR/deep-link token of the physical table. */
+  /** QR/deep-link token of restaurant/branch menu. */
   qrToken?: string;
+  menuQrToken?: string;
   tableToken?: string;
   tableQrToken?: string;
 };
@@ -96,6 +99,10 @@ type RestaurantCartOverlayProps = {
   cartError: string;
   submitting: boolean;
   tableLocked: boolean;
+  branchTables: RestaurantTable[];
+  branchTablesLoading: boolean;
+  restaurantName?: string;
+  branchName?: string;
   styles: ReturnType<typeof createStyles>;
   onClose: (draft: CartFieldDraft) => void;
   onSubmit: (draft: CartFieldDraft) => void;
@@ -264,6 +271,10 @@ const RestaurantCartOverlay = memo(
     cartError,
     submitting,
     tableLocked,
+    branchTables,
+    branchTablesLoading,
+    restaurantName,
+    branchName,
     styles,
     onClose,
     onSubmit,
@@ -276,6 +287,7 @@ const RestaurantCartOverlay = memo(
     const tableNumberRef = useRef("");
     const noteRef = useRef("");
     const wasVisibleRef = useRef(false);
+    const visibleTables = branchTables.filter(table => table.status !== "HIDDEN");
 
     useEffect(() => {
       if (visible && !wasVisibleRef.current) {
@@ -526,6 +538,63 @@ const RestaurantCartOverlay = memo(
               </RNView>
 
               <RNView style={styles.cartInfoSection}>
+                <RNView style={styles.cartScopeCard}>
+                  <RNText style={styles.cartScopeLabel}>MENU ĐANG GỌI</RNText>
+                  <RNText numberOfLines={1} style={styles.cartScopeTitle}>
+                    {restaurantName || "Nhà hàng từ QR"}
+                  </RNText>
+                  <RNText numberOfLines={1} style={styles.cartScopeSubTitle}>
+                    {branchName || "Chi nhánh từ QR"}
+                  </RNText>
+                </RNView>
+
+                {visibleTables.length > 0 ? (
+                  <RNView style={styles.tablePickerSection}>
+                    <RNText style={styles.tablePickerTitle}>Chọn nhanh bàn trong chi nhánh</RNText>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="always"
+                      contentContainerStyle={styles.tableChipRow}
+                    >
+                      {visibleTables.map(table => {
+                        const selected =
+                          normalizeTableInput(table.tableNumber).toLowerCase() ===
+                          normalizeTableInput(tableNumber).toLowerCase();
+                        const disabled = submitting || table.status === "LOCKED";
+
+                        return (
+                          <Pressable
+                            key={table.id}
+                            disabled={disabled}
+                            onPress={() => handleTableChange(table.tableNumber)}
+                            style={[
+                              styles.tableChip,
+                              selected ? styles.tableChipActive : null,
+                              disabled ? styles.tableChipDisabled : null,
+                            ]}
+                          >
+                            <RNText
+                              style={[
+                                styles.tableChipText,
+                                selected ? styles.tableChipTextActive : null,
+                              ]}
+                            >
+                              {table.tableNumber}
+                            </RNText>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </RNView>
+                ) : branchTablesLoading ? (
+                  <RNText style={styles.tablePickerHint}>Đang tải danh sách bàn...</RNText>
+                ) : (
+                  <RNText style={styles.tablePickerHint}>
+                    Nhập số bàn được nhân viên/biển bàn cung cấp.
+                  </RNText>
+                )}
+
                 {Platform.OS === "android" ? (
                   <Pressable
                     disabled={submitting || tableLocked}
@@ -694,12 +763,14 @@ const RestaurantMenuScreen = (props: Props) => {
     selectedCategoryId,
     setSelectedCategoryId,
     refreshMenuData,
+    refreshPublicMenuData,
   } = useRestaurantMenuStore();
   const {
     context: restaurantContext,
-    hydrateRestaurantContext,
-    enterCustomerTable,
-  } = useRestaurantContextStore();
+    errorMessage: customerSessionError,
+    restoreCustomerMenuSession,
+    enterCustomerMenuQr,
+  } = useCustomerMenuSessionStore();
   const {
     cart,
     cartModalVisible,
@@ -719,16 +790,27 @@ const RestaurantMenuScreen = (props: Props) => {
   const [tableError, setTableError] = useState("");
   const [cartError, setCartError] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [branchTables, setBranchTables] = useState<RestaurantTable[]>([]);
+  const [branchTablesLoading, setBranchTablesLoading] = useState(false);
 
   const routeQrToken = useMemo(() => {
     return (
       props.qrToken ||
+      props.menuQrToken ||
       props.tableToken ||
       props.tableQrToken ||
-      RESTAURANT_MENU_ENV_CONFIG.defaultTableToken ||
       ""
     ).trim();
-  }, [props.qrToken, props.tableQrToken, props.tableToken]);
+  }, [props.menuQrToken, props.qrToken, props.tableQrToken, props.tableToken]);
+
+  const customerMenuQrToken = useMemo(() => {
+    return (
+      routeQrToken ||
+      restaurantContext?.menuQrToken ||
+      restaurantContext?.qrCodeToken ||
+      ""
+    ).trim();
+  }, [restaurantContext?.menuQrToken, restaurantContext?.qrCodeToken, routeQrToken]);
 
   const showMessage = useCallback((text: string) => {
     setMessage(text);
@@ -742,33 +824,76 @@ const RestaurantMenuScreen = (props: Props) => {
 
   const refreshData = useCallback(
     async (source = "manual") => {
-      void source;
+      try {
+        const contextSnapshot = routeQrToken
+          ? await enterCustomerMenuQr(routeQrToken)
+          : await restoreCustomerMenuSession();
 
-      const contextSnapshot = routeQrToken
-        ? await enterCustomerTable(routeQrToken)
-        : await hydrateRestaurantContext({source: "customer"});
+        if (!contextSnapshot.context) {
+          showError(
+            contextSnapshot.errorMessage ||
+              customerSessionError ||
+              "Không xác định được menu nhà hàng. Vui lòng quét lại QR của quán/chi nhánh.",
+          );
+          logScoreMenuError(
+            {
+              module: 'QR',
+              action: `customer menu context missing:${source}`,
+              qrToken: routeQrToken,
+              extra: {customerSessionError: contextSnapshot.errorMessage || customerSessionError},
+            },
+            new Error(contextSnapshot.errorMessage || customerSessionError || 'missing customer menu context'),
+          );
+          return;
+        }
 
-      if (!contextSnapshot.context) {
-        showError(
-          contextSnapshot.errorMessage ||
-            "Không xác định được menu nhà hàng. Vui lòng quét lại QR trên bàn.",
+        const context = contextSnapshot.context;
+        const publicMenuQrToken = (
+          routeQrToken ||
+          context.menuQrToken ||
+          context.qrCodeToken ||
+          ""
+        ).trim();
+        const shouldLoadPublicMenu =
+          context.source === "customer" && publicMenuQrToken.length > 0;
+
+        const [, menuResult] = await Promise.all([
+          hydrateCartFromStorage(),
+          shouldLoadPublicMenu
+            ? refreshPublicMenuData(publicMenuQrToken)
+            : refreshMenuData(),
+        ]);
+
+        updateMenuItemSnapshot(menuResult.items);
+      } catch (error) {
+        logScoreMenuError(
+          {
+            module: 'MENU',
+            action: `load customer menu failed:${source}`,
+            qrToken: routeQrToken,
+            restaurantId: restaurantContext?.restaurantId,
+            branchId: restaurantContext?.branchId,
+          },
+          error,
         );
-        return;
+        showError(
+          getScoreMenuErrorMessage(
+            error,
+            "Không thể tải menu. Vui lòng kiểm tra QR hoặc thử lại.",
+          ),
+        );
       }
-
-      const [, menuResult] = await Promise.all([
-        hydrateCartFromStorage(),
-        refreshMenuData(),
-      ]);
-
-      updateMenuItemSnapshot(menuResult.items);
     },
     [
       hydrateCartFromStorage,
-      enterCustomerTable,
-      hydrateRestaurantContext,
+      customerSessionError,
+      enterCustomerMenuQr,
       refreshMenuData,
+      refreshPublicMenuData,
+      restoreCustomerMenuSession,
       routeQrToken,
+      restaurantContext?.restaurantId,
+      restaurantContext?.branchId,
       showError,
       updateMenuItemSnapshot,
     ],
@@ -784,6 +909,58 @@ const RestaurantMenuScreen = (props: Props) => {
       return () => {};
     }, [refreshData]),
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!customerMenuQrToken || !restaurantContext?.branchId) {
+      setBranchTables([]);
+      setBranchTablesLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setBranchTablesLoading(true);
+    loadPublicTablesByQrToken(customerMenuQrToken)
+      .then(tables => {
+        if (cancelled) {
+          return;
+        }
+
+        setBranchTables(
+          tables.filter(
+            table =>
+              table.branchId === restaurantContext.branchId &&
+              table.status !== "HIDDEN",
+          ),
+        );
+      })
+      .catch(error => {
+        logScoreMenuError(
+          {
+            module: 'QR',
+            action: 'load public tables failed',
+            qrToken: customerMenuQrToken,
+            restaurantId: restaurantContext?.restaurantId,
+            branchId: restaurantContext?.branchId,
+          },
+          error,
+        );
+        if (!cancelled) {
+          setBranchTables([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBranchTablesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerMenuQrToken, restaurantContext?.branchId]);
 
   useEffect(() => {
     updateMenuItemSnapshot(items);
@@ -982,6 +1159,14 @@ const RestaurantMenuScreen = (props: Props) => {
     return (
       <View style={[styles.notice, errorMessage ? styles.errorNotice : null]}>
         <RNText style={styles.noticeText}>{errorMessage || message}</RNText>
+        {errorMessage ? (
+          <Pressable
+            onPress={() => void refreshData('retry')}
+            style={styles.noticeRetryButton}
+          >
+            <RNText style={styles.noticeRetryText}>Thử lại</RNText>
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -1242,6 +1427,10 @@ const RestaurantMenuScreen = (props: Props) => {
         cartError={cartError}
         submitting={cartSubmitting}
         tableLocked={tableLocked}
+        branchTables={branchTables}
+        branchTablesLoading={branchTablesLoading}
+        restaurantName={restaurantContext?.restaurantName}
+        branchName={restaurantContext?.branchName}
         styles={styles}
         onClose={closeCart}
         onSubmit={onSubmitOrder}

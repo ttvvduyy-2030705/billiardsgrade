@@ -5,8 +5,11 @@ import type {
   RestaurantMenuCategoryPayload,
   RestaurantMenuContext,
   RestaurantMenuItemPayload,
+  RestaurantMenuImageUploadPayload,
+  RestaurantMenuImageUploadResult,
   RestaurantMenuRepository,
   RestaurantOrderPayload,
+  RestaurantPublicMenuPayload,
   RestaurantBranch,
   RestaurantTable,
   RestaurantTablePayload,
@@ -49,6 +52,7 @@ import {
   loadRestaurantBranches,
   loadRestaurantTables,
   loadRestaurantWorkspaces,
+  resolveRestaurantMenuQrToken,
   resolveRestaurantTableToken,
   saveActiveRestaurantContext,
   updateRestaurantBranch,
@@ -138,8 +142,65 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     return deleteRestaurantTable(tableId);
   }
 
+
+  async getPublicTablesByQrToken(token: string): Promise<RestaurantTable[]> {
+    const cleanToken = String(token || '').trim();
+    const context = await resolveRestaurantMenuQrToken(cleanToken);
+
+    if (!context?.restaurantId) {
+      throw new Error('QR menu không hợp lệ hoặc đã bị khoá.');
+    }
+
+    const tables = await loadRestaurantTables(context.restaurantId);
+    return tables.filter(table => {
+      const sameBranch = context.branchId
+        ? table.branchId === context.branchId
+        : true;
+      return sameBranch && table.status !== 'HIDDEN';
+    });
+  }
+
+  async getPublicMenuByQrToken(
+    token: string,
+  ): Promise<RestaurantPublicMenuPayload> {
+    const cleanToken = String(token || '').trim();
+    const context = await resolveRestaurantMenuQrToken(cleanToken);
+
+    if (!context?.restaurantId) {
+      throw new Error('QR menu không hợp lệ hoặc đã bị khoá.');
+    }
+
+    await saveActiveRestaurantContext({
+      ...context,
+      source: 'customer',
+    });
+
+    const [categories, items] = await Promise.all([
+      loadMenuCategories(context.restaurantId),
+      loadMenuItems(context.restaurantId),
+    ]);
+
+    return {
+      qrToken: cleanToken,
+      context: {
+        ...context,
+        qrCodeToken: context.qrCodeToken || context.menuQrToken || cleanToken,
+        menuQrToken: context.menuQrToken || context.qrCodeToken || cleanToken,
+        source: 'customer',
+      },
+      categories,
+      items: items.filter(item => item.status !== 'HIDDEN'),
+      receivedAt: new Date().toISOString(),
+    };
+  }
+
+  resolveMenuQrToken(token: string): Promise<RestaurantMenuContext | null> {
+    // Batch 4: resolve branch/menu QR first; old table QR keeps working.
+    return resolveRestaurantMenuQrToken(token);
+  }
+
   resolveTableToken(token: string): Promise<RestaurantMenuContext | null> {
-    return resolveRestaurantTableToken(token);
+    return this.resolveMenuQrToken(token);
   }
 
   async getCategories(): Promise<MenuCategory[]> {
@@ -210,6 +271,23 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
   async deleteItem(id: string): Promise<RestaurantMenuItem[]> {
     const context = await this.getActiveContext();
     return deleteMenuItem(id, context.restaurantId);
+  }
+
+  async uploadMenuItemImage(
+    payload: RestaurantMenuImageUploadPayload,
+  ): Promise<RestaurantMenuImageUploadResult> {
+    const context = await this.getActiveContext();
+    const imageUrl = String(payload.dataUri || payload.uri || '').trim();
+    return {
+      ok: Boolean(imageUrl),
+      restaurantId: context.restaurantId,
+      dishId: payload.dishId || payload.itemId,
+      imageUrl,
+      publicUrl: imageUrl,
+      storagePath: imageUrl,
+      mimeType: payload.mimeType,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   async getOrders(): Promise<RestaurantOrder[]> {

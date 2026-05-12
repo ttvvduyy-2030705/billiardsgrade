@@ -4,7 +4,6 @@ import {LanguageContext} from 'context/language';
 import i18n from 'i18n';
 
 import {screens} from 'scenes/screens';
-import {RESTAURANT_MENU_ENV_CONFIG} from 'config/restaurantMenu';
 
 import {Navigation} from 'types/navigation';
 
@@ -26,16 +25,7 @@ const HomeViewModel = (props: Props) => {
   }, [props]);
 
   const onPressMenu = useCallback(() => {
-    const qrToken = RESTAURANT_MENU_ENV_CONFIG.defaultTableToken?.trim();
-
-    props.navigate(
-      screens.restaurantMenu,
-      qrToken
-        ? {
-            qrToken,
-          }
-        : undefined,
-    );
+    props.navigate(screens.restaurantQrScanner);
   }, [props]);
 
   const helloText = useMemo(() => {
