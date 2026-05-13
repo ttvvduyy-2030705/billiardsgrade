@@ -148,9 +148,12 @@ export type RestaurantAdminCredentialResult = {
   userId?: string;
   role?: 'OWNER' | 'MANAGER' | 'STAFF';
   restaurantId?: string;
+  restaurantName?: string;
   restaurantIds?: string[];
   branchIds?: string[];
   activeBranchId?: string;
+  activeBranchName?: string;
+  menuQrToken?: string;
 };
 
 export type CategoryMutationResult = {
@@ -185,9 +188,14 @@ export interface RestaurantMenuRepository {
   registerAdminAccount(
     username: string,
     password: string,
+    restaurantName?: string,
   ): Promise<RestaurantAdminCredentialResult>;
   createRestaurant(
     payload: RestaurantWorkspacePayload,
+  ): Promise<RestaurantWorkspace>;
+  updateRestaurant(
+    restaurantId: string,
+    payload: Partial<RestaurantWorkspacePayload>,
   ): Promise<RestaurantWorkspace>;
   listBranches(restaurantId?: string): Promise<RestaurantBranch[]>;
   createBranch(payload: RestaurantBranchPayload): Promise<RestaurantBranch>;

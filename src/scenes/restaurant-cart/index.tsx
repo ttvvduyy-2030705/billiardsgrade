@@ -229,6 +229,30 @@ const RestaurantCartScreen = (props: Props) => {
     }, {});
   }, [items]);
 
+
+  const sortedBranchTables = useMemo(() => {
+    const getIndex = (tableNumber: string) => {
+      const normalized = normalizeTableInput(tableNumber)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+      const match = normalized.match(/^ban\s*0*(\d+)$/);
+      return match?.[1] ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+    };
+
+    return [...branchTables].sort((a, b) => {
+      const indexDelta = getIndex(a.tableNumber) - getIndex(b.tableNumber);
+      if (indexDelta !== 0) {
+        return indexDelta;
+      }
+      return String(a.tableNumber || '').localeCompare(
+        String(b.tableNumber || ''),
+        'vi',
+      );
+    });
+  }, [branchTables]);
+
   const cartRows = useMemo(() => {
     return cart.items
       .map(cartItem => {
@@ -643,14 +667,10 @@ const RestaurantCartScreen = (props: Props) => {
                 {branchTables.length > 0 ? (
                   <RNView style={styles.tablePickerSection}>
                     <RNText style={styles.tablePickerTitle}>
-                      Chọn nhanh bàn trong chi nhánh
+                      Chọn bàn
                     </RNText>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      keyboardShouldPersistTaps="always"
-                      contentContainerStyle={styles.tableChipRow}>
-                      {branchTables.map(table => {
+                    <RNView style={styles.tableChipRow}>
+                      {sortedBranchTables.map(table => {
                         const selected =
                           normalizeTableInput(
                             table.tableNumber,
@@ -679,7 +699,7 @@ const RestaurantCartScreen = (props: Props) => {
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
+                    </RNView>
                   </RNView>
                 ) : branchTablesLoading ? (
                   <RNText style={styles.tablePickerHint}>
@@ -707,7 +727,7 @@ const RestaurantCartScreen = (props: Props) => {
                         styles.cartDisplayValue,
                         !tableNumber ? styles.cartDisplayPlaceholder : null,
                       ]}>
-                      {tableNumber || 'VD: Bàn 08, VIP1, A12'}
+                      {tableNumber || 'Chọn Bàn 1, Bàn 2,...'}
                     </RNText>
                   </Pressable>
                 ) : (
@@ -722,7 +742,7 @@ const RestaurantCartScreen = (props: Props) => {
                       editable={!cartSubmitting}
                       onChangeText={handleTableChange}
                       onBlur={commitInputs}
-                      placeholder="VD: Bàn 08, VIP1, A12"
+                      placeholder="Chọn Bàn 1, Bàn 2,..."
                       placeholderTextColor="rgba(255,255,255,0.42)"
                       keyboardType="default"
                       returnKeyType="next"

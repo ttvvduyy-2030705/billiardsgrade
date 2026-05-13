@@ -111,6 +111,21 @@ const DEFAULT_API_TIMEOUT_MS = 15000;
 const DEFAULT_API_RETRY_COUNT = 1;
 const ADMIN_SESSION_STORAGE_KEY = 'restaurant_admin_session_v1';
 
+const LEGACY_DEMO_RESTAURANT_IDS = new Set([
+  'aplus_billiards_hanoi',
+  'aplus_hanoi',
+  'haidilao_demo',
+  'haidilao_local_demo',
+  'local_restaurant',
+  'legacy_removed_restaurant',
+]);
+
+const isLegacyDemoRestaurantId = (restaurantId?: string | null) => {
+  const id = String(restaurantId || '').trim();
+  return Boolean(id) && (LEGACY_DEMO_RESTAURANT_IDS.has(id) || /^aplus_|^haidilao_|^seed_|^sample_/i.test(id));
+};
+
+
 const wait = (ms: number) =>
   new Promise(resolve => {
     setTimeout(resolve, ms);
@@ -548,8 +563,11 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     return [];
   }
 
-  listRestaurants(): Promise<RestaurantWorkspace[]> {
-    return this.request<RestaurantWorkspace[]>('/restaurants');
+  async listRestaurants(): Promise<RestaurantWorkspace[]> {
+    const restaurants = await this.request<RestaurantWorkspace[]>('/restaurants');
+    return Array.isArray(restaurants)
+      ? restaurants.filter(restaurant => !isLegacyDemoRestaurantId(restaurant.id))
+      : [];
   }
 
   async verifyAdminCredentials(
@@ -569,7 +587,12 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
   ): Promise<RestaurantAdminCredentialResult> {
     return this.request<RestaurantAdminCredentialResult>('/auth/admin/register', {
       method: 'POST',
-      body: JSON.stringify({username, password}),
+      body: JSON.stringify({
+        username,
+        password,
+        forcePrivateWorkspace: true,
+        cleanAdminWorkspace: true,
+      }),
       retryCount: 0,
     });
   }
@@ -581,6 +604,19 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  }
+
+  updateRestaurant(
+    restaurantId: string,
+    payload: Partial<RestaurantWorkspacePayload>,
+  ): Promise<RestaurantWorkspace> {
+    return this.request<RestaurantWorkspace>(
+      `/restaurants/${encodeURIComponent(restaurantId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   async listBranches(restaurantId?: string): Promise<RestaurantBranch[]> {

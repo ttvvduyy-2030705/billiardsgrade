@@ -44,6 +44,39 @@ type HydrateOptions = {
   source?: RestaurantMenuContext['source'];
 };
 
+
+const LEGACY_DEMO_RESTAURANT_IDS = new Set([
+  'aplus_billiards_hanoi',
+  'aplus_hanoi',
+  'haidilao_demo',
+  'haidilao_local_demo',
+  'local_restaurant',
+  'legacy_removed_restaurant',
+]);
+
+const LEGACY_DEMO_BRANCH_IDS = new Set([
+  'aplus_hanoi_main',
+  'aplus_hanoi_vip',
+  'haidilao_demo_main',
+  'haidilao_demo_2',
+  'haidilao_local_main_branch',
+  'local_main_branch',
+  'legacy_removed_branch',
+]);
+
+const isLegacyDemoRestaurantId = (restaurantId?: string | null) => {
+  const id = String(restaurantId || '').trim();
+  return Boolean(id) && (LEGACY_DEMO_RESTAURANT_IDS.has(id) || /^aplus_|^haidilao_|^seed_|^sample_/i.test(id));
+};
+
+const isLegacyDemoBranchId = (branchId?: string | null) => {
+  const id = String(branchId || '').trim();
+  return Boolean(id) && (LEGACY_DEMO_BRANCH_IDS.has(id) || /^aplus_|^haidilao_|^seed_|^sample_/i.test(id));
+};
+
+const filterAdminRestaurants = (restaurants: RestaurantWorkspace[]) =>
+  restaurants.filter(restaurant => !isLegacyDemoRestaurantId(restaurant.id));
+
 const listeners = new Set<() => void>();
 
 const storeState: RestaurantContextSnapshot & {
@@ -69,6 +102,7 @@ const getSnapshot = (): RestaurantContextSnapshot => ({
   branches: storeState.branches,
   tables: storeState.tables,
   allowedRestaurantIds: storeState.allowedRestaurantIds,
+  allowedBranchIds: storeState.allowedBranchIds,
   loading: storeState.loading,
   hydrated: storeState.hydrated,
   errorMessage: storeState.errorMessage,
@@ -97,30 +131,22 @@ const resolveAllowedRestaurantIds = (
   session: RestaurantAdminSession | null | undefined,
   restaurants: RestaurantWorkspace[],
 ) => {
+  const safeRestaurants = filterAdminRestaurants(restaurants);
+
   if (!session) {
-    return restaurants.map(restaurant => restaurant.id);
+    return safeRestaurants.map(restaurant => restaurant.id);
   }
 
   const sessionRestaurantIds = normaliseIdList([
     ...(session.restaurantIds || []),
     session.activeRestaurantId,
-  ]);
+  ]).filter(id => !isLegacyDemoRestaurantId(id));
 
   if (sessionRestaurantIds.length > 0) {
     return sessionRestaurantIds;
   }
 
-  if (session.provider === 'api') {
-    return restaurants.map(restaurant => restaurant.id);
-  }
-
-  if (session.role === 'OWNER') {
-    // Local accounts without explicit restaurantIds can still manage all
-    // workspaces, but seeded accounts such as haidilao/staff stay isolated.
-    return restaurants.map(restaurant => restaurant.id);
-  }
-
-  return restaurants.map(restaurant => restaurant.id);
+  return safeRestaurants.map(restaurant => restaurant.id);
 };
 
 const resolveAllowedBranchIds = (
@@ -137,7 +163,9 @@ const resolveAllowedBranchIds = (
   }
 
   const branchIdsInRestaurant = new Set(branches.map(branch => branch.id));
-  return sessionBranchIds.filter(branchId => branchIdsInRestaurant.has(branchId));
+  return sessionBranchIds
+    .filter(branchId => !isLegacyDemoBranchId(branchId))
+    .filter(branchId => branchIdsInRestaurant.has(branchId));
 };
 
 const pickAllowedBranchId = ({
@@ -224,6 +252,11 @@ const resetScopedStores = () => {
   resetRestaurantCartStore();
 };
 
+const isUnauthorizedContextError = (error: unknown) => {
+  const candidate = error as {code?: string; status?: number};
+  return candidate?.code === 'UNAUTHORIZED' || candidate?.status === 401;
+};
+
 const hydrateRestaurantContextSnapshot = async (
   options: HydrateOptions = {},
 ) => {
@@ -237,27 +270,84 @@ const hydrateRestaurantContextSnapshot = async (
       options.session === undefined
         ? await getRestaurantAdminSession()
         : options.session;
-    const restaurants = await loadRestaurantWorkspaces();
+
+    if (!session && (options.source || 'admin') === 'admin') {
+      const error = new Error('Phiên đăng nhập chưa hợp lệ. Vui lòng đăng nhập lại.') as Error & {
+        code?: string;
+        status?: number;
+      };
+      error.code = 'UNAUTHORIZED';
+      error.status = 401;
+      throw error;
+    }
+
+    const allRestaurants = await loadRestaurantWorkspaces();
+    const restaurants = session ? filterAdminRestaurants(allRestaurants) : allRestaurants;
     const allowedRestaurantIds = resolveAllowedRestaurantIds(session, restaurants);
-    let context = await getActiveRestaurantContext();
+    const sessionActiveRestaurantId =
+      session?.activeRestaurantId &&
+      !isLegacyDemoRestaurantId(session.activeRestaurantId) &&
+      allowedRestaurantIds.includes(session.activeRestaurantId)
+        ? session.activeRestaurantId
+        : undefined;
+    const fallbackRestaurantId =
+      sessionActiveRestaurantId ||
+      allowedRestaurantIds[0] ||
+      (!session ? restaurants[0]?.id : undefined);
+
+    if (session && !fallbackRestaurantId) {
+      throw new Error('Tài khoản Admin chưa có quán riêng sạch. Vui lòng đăng xuất, deploy backend mới rồi đăng ký lại.');
+    }
+    let context: RestaurantMenuContext;
     let permissionMessage = '';
 
-    if (
-      session &&
-      allowedRestaurantIds.length > 0 &&
-      allowedRestaurantIds.indexOf(context.restaurantId) < 0
-    ) {
-      const fallbackRestaurantId = allowedRestaurantIds[0];
+    try {
+      context = await getActiveRestaurantContext();
+    } catch (_error) {
+      if (!fallbackRestaurantId) {
+        throw _error;
+      }
       context = await setActiveRestaurantContext({
         restaurantId: fallbackRestaurantId,
-        branchId: undefined,
+        branchId: session?.activeBranchId,
         tableId: undefined,
+        tableNumber: undefined,
+        qrCodeToken: undefined,
+        menuQrToken: undefined,
         source: options.source || 'admin',
-        role: session.role,
+        role: session?.role,
         allowedRestaurantIds,
       });
       resetScopedStores();
-      permissionMessage = 'Đã chuyển về nhà hàng mà tài khoản hiện tại có quyền.';
+    }
+
+    const sessionRestaurantId = sessionActiveRestaurantId;
+    const mustUseSessionRestaurant =
+      Boolean(sessionRestaurantId) && context.restaurantId !== sessionRestaurantId;
+    const contextIsOutsideSession =
+      session &&
+      (isLegacyDemoRestaurantId(context.restaurantId) ||
+        (allowedRestaurantIds.length > 0 &&
+          allowedRestaurantIds.indexOf(context.restaurantId) < 0));
+
+    if (mustUseSessionRestaurant || contextIsOutsideSession) {
+      const nextRestaurantId = sessionRestaurantId || fallbackRestaurantId;
+      if (!nextRestaurantId) {
+        throw new Error('Tài khoản Admin chưa có quán riêng. Vui lòng đăng nhập lại.');
+      }
+      context = await setActiveRestaurantContext({
+        restaurantId: nextRestaurantId,
+        branchId: session?.activeBranchId,
+        tableId: undefined,
+        tableNumber: undefined,
+        qrCodeToken: undefined,
+        menuQrToken: undefined,
+        source: options.source || 'admin',
+        role: session?.role,
+        allowedRestaurantIds,
+      });
+      resetScopedStores();
+      permissionMessage = 'Đã chuyển về đúng dữ liệu của tài khoản hiện tại.';
     } else if (session) {
       context = await setActiveRestaurantContext({
         restaurantId: context.restaurantId,
@@ -317,12 +407,19 @@ const hydrateRestaurantContextSnapshot = async (
   } catch (error) {
     devWarn('[RestaurantContext] hydrate failed', error);
 
+    const unauthorized = isUnauthorizedContextError(error);
+
     if (requestId === storeState.requestId) {
-      storeState.errorMessage =
-        'Không thể tải ngữ cảnh nhà hàng/chi nhánh. Vui lòng thử lại.';
+      storeState.errorMessage = unauthorized
+        ? 'Phiên đăng nhập chưa hợp lệ. Vui lòng đăng nhập lại.'
+        : 'Không thể tải ngữ cảnh nhà hàng/chi nhánh. Vui lòng thử lại.';
       storeState.hydrated = true;
       storeState.contextVersion += 1;
       emitChange();
+    }
+
+    if (unauthorized) {
+      throw error;
     }
 
     return getSnapshot();
@@ -340,7 +437,15 @@ const switchRestaurantContext = async (restaurantId: string) => {
   }
 
   const session = await getRestaurantAdminSession();
-  const restaurants = await loadRestaurantWorkspaces();
+  if (isLegacyDemoRestaurantId(cleanRestaurantId)) {
+    const message = 'Không thể chuyển sang quán demo/test. Hãy đăng nhập bằng tài khoản admin có workspace riêng.';
+    storeState.permissionMessage = message;
+    emitChange();
+    throw new Error(message);
+  }
+
+  const allRestaurants = await loadRestaurantWorkspaces();
+  const restaurants = session ? filterAdminRestaurants(allRestaurants) : allRestaurants;
   const allowedRestaurantIds = resolveAllowedRestaurantIds(session, restaurants);
 
   if (allowedRestaurantIds.indexOf(cleanRestaurantId) < 0) {

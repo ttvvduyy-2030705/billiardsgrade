@@ -282,7 +282,7 @@ const StackScreens = () => {
         <Stack.Screen
           name={screens.restaurantAdminTables}
           getComponent={getWrappedRestaurantAdminTables}
-          options={buildCustomTitleOptions('Bàn / QR', true)}
+          options={buildCustomTitleOptions('QR', true)}
         />
       </Stack.Navigator>
     </SubscriptionProvider>

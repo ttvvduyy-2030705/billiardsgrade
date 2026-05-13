@@ -18,7 +18,7 @@ const tabs: Array<{
 }> = [
   {id: 'orders', label: 'Đơn hàng', icon: 'Đ', hint: 'Tiếp nhận & xử lý'},
   {id: 'menu', label: 'Quản lý món', icon: 'M', hint: 'Sản phẩm & giá'},
-  {id: 'tables', label: 'Bàn / QR', icon: 'Q', hint: 'Bàn ăn & mã quét'},
+  {id: 'tables', label: 'QR', icon: 'Q', hint: 'QR menu'},
 ];
 
 const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {

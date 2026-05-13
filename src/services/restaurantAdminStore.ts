@@ -5,6 +5,7 @@ import {
   deleteRestaurantTable,
   getActiveRestaurantContext,
   updateRestaurantBranch,
+  updateRestaurantWorkspace,
   loadMenuCategories,
   loadMenuItems,
   loadOrders,
@@ -29,6 +30,7 @@ import {
   updateRestaurantAdminSessionContext,
 } from './restaurantAdminAuthService';
 import {getMenuItemImageValue} from './restaurantMenuImage';
+import {sanitizeRestaurantScopedRuntimeData} from './restaurantMenuStorage';
 
 import type {
   MenuCategory,
@@ -193,6 +195,36 @@ const ADMIN_ORDER_STATUS_TRANSITIONS: Record<
   CANCELLED: ['CANCELLED'],
 };
 
+
+const LEGACY_DEMO_RESTAURANT_IDS = new Set([
+  'aplus_billiards_hanoi',
+  'aplus_hanoi',
+  'haidilao_demo',
+  'haidilao_local_demo',
+  'local_restaurant',
+  'legacy_removed_restaurant',
+]);
+
+const LEGACY_DEMO_BRANCH_IDS = new Set([
+  'aplus_hanoi_main',
+  'aplus_hanoi_vip',
+  'haidilao_demo_main',
+  'haidilao_demo_2',
+  'haidilao_local_main_branch',
+  'local_main_branch',
+  'legacy_removed_branch',
+]);
+
+const isLegacyDemoRestaurantId = (restaurantId?: string | null) => {
+  const id = String(restaurantId || '').trim();
+  return Boolean(id) && (LEGACY_DEMO_RESTAURANT_IDS.has(id) || /^aplus_|^haidilao_|^seed_|^sample_/i.test(id));
+};
+
+const isLegacyDemoBranchId = (branchId?: string | null) => {
+  const id = String(branchId || '').trim();
+  return Boolean(id) && (LEGACY_DEMO_BRANCH_IDS.has(id) || /^aplus_|^haidilao_|^seed_|^sample_/i.test(id));
+};
+
 const normaliseIdList = (ids?: Array<string | undefined>) =>
   (ids || []).map(id => String(id || '').trim()).filter(Boolean);
 
@@ -208,10 +240,12 @@ const getSessionRestaurantIds = (session: RestaurantAdminSession) =>
   normaliseIdList([
     ...(session.restaurantIds || []),
     session.activeRestaurantId,
-  ]);
+  ]).filter(id => !isLegacyDemoRestaurantId(id));
 
 const getSessionBranchIds = (session: RestaurantAdminSession) =>
-  normaliseIdList([...(session.branchIds || []), session.activeBranchId]);
+  normaliseIdList([...(session.branchIds || []), session.activeBranchId]).filter(
+    id => !isLegacyDemoBranchId(id),
+  );
 
 const ensureAdminScope = async (): Promise<AdminScope> => {
   const session = await getRestaurantAdminSession();
@@ -220,21 +254,40 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
     throw new Error('Phiên Admin đã hết hạn. Vui lòng đăng nhập lại.');
   }
 
-  const currentContext = await getActiveRestaurantContext();
+  let currentContext = await getActiveRestaurantContext().catch(() => null);
   const allowedRestaurantIds = getSessionRestaurantIds(
     session as RestaurantAdminSession,
   );
-  let restaurantId = currentContext.restaurantId;
+  const sessionRestaurantId =
+    session?.activeRestaurantId &&
+    allowedRestaurantIds.includes(session.activeRestaurantId)
+      ? session.activeRestaurantId
+      : undefined;
+  let restaurantId =
+    sessionRestaurantId ||
+    (currentContext?.restaurantId &&
+    !isLegacyDemoRestaurantId(currentContext.restaurantId) &&
+    allowedRestaurantIds.includes(currentContext.restaurantId)
+      ? currentContext.restaurantId
+      : undefined) ||
+    allowedRestaurantIds[0];
 
-  if (
-    allowedRestaurantIds.length > 0 &&
-    !allowedRestaurantIds.includes(restaurantId)
-  ) {
-    restaurantId =
-      session?.activeRestaurantId &&
-      allowedRestaurantIds.includes(session.activeRestaurantId)
-        ? session.activeRestaurantId
-        : allowedRestaurantIds[0];
+  if (!restaurantId || isLegacyDemoRestaurantId(restaurantId)) {
+    throw new Error('Tài khoản Admin chưa có quán riêng sạch. Vui lòng đăng xuất rồi đăng nhập/đăng ký lại.');
+  }
+
+  if (!currentContext || currentContext.restaurantId !== restaurantId) {
+    currentContext = await setActiveRestaurantContext({
+      restaurantId,
+      branchId: session?.activeBranchId,
+      tableId: undefined,
+      tableNumber: undefined,
+      qrCodeToken: undefined,
+      menuQrToken: undefined,
+      source: 'admin',
+      role: session?.role,
+      allowedRestaurantIds,
+    });
   }
 
   const branches = await loadRestaurantBranches(restaurantId);
@@ -277,6 +330,10 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
     });
   }
 
+  if (getRestaurantMenuRepositoryMode() !== 'api') {
+    await sanitizeRestaurantScopedRuntimeData(restaurantId);
+  }
+
   await updateRestaurantAdminSessionContext({
     restaurantId,
     branchId,
@@ -291,24 +348,41 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
   };
 };
 
+const belongsToRestaurant = (
+  record: {restaurantId?: string},
+  scope: AdminScope,
+) => String(record.restaurantId || '') === scope.restaurantId;
+
+const filterCategoriesByScope = (categories: MenuCategory[], scope: AdminScope) =>
+  categories.filter(category => belongsToRestaurant(category, scope));
+
+const filterMenuItemsByScope = (items: RestaurantMenuItem[], scope: AdminScope) =>
+  items.filter(item => belongsToRestaurant(item, scope));
+
 const filterOrdersByScope = (orders: RestaurantOrder[], scope: AdminScope) => {
+  const scopedOrders = orders.filter(order => belongsToRestaurant(order, scope));
+
   if (scope.allowedBranchIds.length > 0) {
-    return orders.filter(order =>
+    return scopedOrders.filter(order =>
       order.branchId ? scope.allowedBranchIds.includes(order.branchId) : false,
     );
   }
 
   return scope.branchId
-    ? orders.filter(order => order.branchId === scope.branchId)
-    : orders;
+    ? scopedOrders.filter(order => order.branchId === scope.branchId)
+    : scopedOrders;
 };
 
 const filterBillSessionsByScope = (
   billSessions: RestaurantBillSessionDetail[],
   scope: AdminScope,
 ) => {
+  const scopedBillSessions = billSessions.filter(billSession =>
+    belongsToRestaurant(billSession, scope),
+  );
+
   if (scope.allowedBranchIds.length > 0) {
-    return billSessions.filter(billSession =>
+    return scopedBillSessions.filter(billSession =>
       billSession.branchId
         ? scope.allowedBranchIds.includes(billSession.branchId)
         : false,
@@ -316,22 +390,24 @@ const filterBillSessionsByScope = (
   }
 
   return scope.branchId
-    ? billSessions.filter(
+    ? scopedBillSessions.filter(
         billSession => billSession.branchId === scope.branchId,
       )
-    : billSessions;
+    : scopedBillSessions;
 };
 
 const filterTablesByScope = (tables: RestaurantTable[], scope: AdminScope) => {
+  const scopedTables = tables.filter(table => belongsToRestaurant(table, scope));
+
   if (scope.allowedBranchIds.length > 0) {
-    return tables.filter(table =>
+    return scopedTables.filter(table =>
       table.branchId ? scope.allowedBranchIds.includes(table.branchId) : false,
     );
   }
 
   return scope.branchId
-    ? tables.filter(table => table.branchId === scope.branchId)
-    : tables;
+    ? scopedTables.filter(table => table.branchId === scope.branchId)
+    : scopedTables;
 };
 
 const assertRestaurantScope = (scope: AdminScope, restaurantId?: string) => {
@@ -355,7 +431,7 @@ const assertBranchScope = (scope: AdminScope, branchId?: string) => {
 const assertManagerPermission = (scope: AdminScope) => {
   if (scope.session.role === 'STAFF') {
     throw new Error(
-      'Tài khoản nhân viên chỉ được xem và xử lý đơn trong phạm vi được cấp, không được sửa menu/bàn/QR.',
+      'Tài khoản nhân viên chỉ được xem và xử lý đơn trong phạm vi được cấp, không được sửa menu/QR.',
     );
   }
 };
@@ -544,21 +620,21 @@ export const mapToAdminBillSessions = (
 
 export const loadAdminOrders = async () => {
   const scope = await ensureAdminScope();
-  const orders = await loadOrders();
+  const orders = await loadOrders(scope.restaurantId);
   return mapToAdminOrders(filterOrdersByScope(orders, scope));
 };
 
 export const loadAdminBillSessions = async () => {
   const scope = await ensureAdminScope();
-  const billSessions = await loadBillSessions();
+  const billSessions = await loadBillSessions(scope.restaurantId);
   return mapToAdminBillSessions(filterBillSessionsByScope(billSessions, scope));
 };
 
 export const loadAdminOrderDashboard = async () => {
   const scope = await ensureAdminScope();
   const [orders, billSessions] = await Promise.all([
-    loadOrders(),
-    loadBillSessions(),
+    loadOrders(scope.restaurantId),
+    loadBillSessions(scope.restaurantId),
   ]);
 
   return {
@@ -573,16 +649,16 @@ export const loadRestaurantAdminData = async () => {
   const scope = await ensureAdminScope();
   const [categories, menuItems, orders, billSessions, tables] =
     await Promise.all([
-      loadMenuCategories(),
-      loadMenuItems(),
-      loadOrders(),
-      loadBillSessions(),
+      loadMenuCategories(scope.restaurantId),
+      loadMenuItems(scope.restaurantId),
+      loadOrders(scope.restaurantId),
+      loadBillSessions(scope.restaurantId),
       loadRestaurantTables(scope.restaurantId),
     ]);
 
   return {
-    categories,
-    menuItems,
+    categories: filterCategoriesByScope(categories, scope),
+    menuItems: filterMenuItemsByScope(menuItems, scope),
     orders: mapToAdminOrders(filterOrdersByScope(orders, scope)),
     billSessions: mapToAdminBillSessions(
       filterBillSessionsByScope(billSessions, scope),
@@ -595,6 +671,155 @@ export const loadAdminTables = async () => {
   const scope = await ensureAdminScope();
   const tables = await loadRestaurantTables(scope.restaurantId);
   return filterTablesByScope(tables, scope);
+};
+
+
+export const saveAdminRestaurantName = async (input: {
+  restaurantId: string;
+  name: string;
+}) => {
+  const scope = await ensureAdminScope();
+  assertManagerPermission(scope);
+  assertRestaurantScope(scope, input.restaurantId);
+
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error('Vui lòng nhập tên quán.');
+  }
+
+  const restaurant = await updateRestaurantWorkspace(scope.restaurantId, {name});
+
+  if (scope.branchId) {
+    try {
+      await updateRestaurantBranch(scope.branchId, {
+        restaurantId: scope.restaurantId,
+        name,
+      });
+    } catch (_error) {
+      // Branch name is an implementation detail now; restaurant name remains the source of truth.
+    }
+  }
+
+  await setActiveRestaurantContext({
+    restaurantId: scope.restaurantId,
+    restaurantName: restaurant.name,
+    branchId: scope.branchId,
+    source: 'admin',
+    role: scope.session.role,
+    allowedRestaurantIds: scope.allowedRestaurantIds,
+  });
+  await updateRestaurantAdminSessionContext({
+    restaurantId: scope.restaurantId,
+    restaurantName: restaurant.name,
+    branchId: scope.branchId,
+  });
+
+  return restaurant;
+};
+
+const getManagedTableNumber = (index: number) => `Bàn ${index}`;
+
+const getManagedTableIndex = (tableNumber?: string) => {
+  const normalized = String(tableNumber || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const match = normalized.match(/^ban\s*0*(\d+)$/);
+  if (!match?.[1]) {
+    return 0;
+  }
+  const index = Number(match[1]);
+  return Number.isInteger(index) && index > 0 ? index : 0;
+};
+
+const createManagedTableToken = (
+  restaurantId: string,
+  branchId: string | undefined,
+  index: number,
+) => {
+  const scopeKey = `${restaurantId}_${branchId || 'main'}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'restaurant';
+  return `qr_${scopeKey}_ban_${index}_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
+};
+
+export const syncAdminTableCount = async (tableCount: number) => {
+  const scope = await ensureAdminScope();
+  assertManagerPermission(scope);
+
+  const targetCount = Math.floor(Number(tableCount));
+  if (!Number.isFinite(targetCount) || targetCount < 1 || targetCount > 200) {
+    throw new Error('Số bàn chỉ được nhập số từ 1 đến 200.');
+  }
+
+  const allTables = await loadRestaurantTables(scope.restaurantId);
+  const scopedTables = filterTablesByScope(allTables, scope).filter(table =>
+    scope.branchId ? table.branchId === scope.branchId : true,
+  );
+  const tableByIndex = new Map<number, RestaurantTable>();
+
+  scopedTables.forEach(table => {
+    const index = getManagedTableIndex(table.tableNumber);
+    if (index > 0 && !tableByIndex.has(index)) {
+      tableByIndex.set(index, table);
+    }
+  });
+
+  for (let index = 1; index <= targetCount; index += 1) {
+    const expectedTableNumber = getManagedTableNumber(index);
+    const existingTable = tableByIndex.get(index);
+
+    if (existingTable) {
+      const mustUpdate =
+        existingTable.tableNumber !== expectedTableNumber ||
+        existingTable.branchId !== scope.branchId ||
+        existingTable.status !== 'AVAILABLE';
+      if (mustUpdate) {
+        await updateRestaurantTable(existingTable.id, {
+          restaurantId: scope.restaurantId,
+          branchId: scope.branchId,
+          tableNumber: expectedTableNumber,
+          qrCodeToken:
+            existingTable.qrCodeToken ||
+            createManagedTableToken(scope.restaurantId, scope.branchId, index),
+          status: 'AVAILABLE',
+        });
+      }
+      continue;
+    }
+
+    await createRestaurantTable({
+      restaurantId: scope.restaurantId,
+      branchId: scope.branchId,
+      tableNumber: expectedTableNumber,
+      qrCodeToken: createManagedTableToken(scope.restaurantId, scope.branchId, index),
+      status: 'AVAILABLE',
+    });
+  }
+
+  for (const table of scopedTables) {
+    const index = getManagedTableIndex(table.tableNumber);
+    const keepVisible =
+      index >= 1 &&
+      index <= targetCount &&
+      tableByIndex.get(index)?.id === table.id;
+    if (!keepVisible && table.status !== 'HIDDEN') {
+      await updateRestaurantTable(table.id, {
+        restaurantId: scope.restaurantId,
+        branchId: table.branchId,
+        tableNumber: table.tableNumber,
+        qrCodeToken: table.qrCodeToken,
+        status: 'HIDDEN',
+      });
+    }
+  }
+
+  const nextTables = await loadRestaurantTables(scope.restaurantId);
+  return filterTablesByScope(nextTables, scope);
 };
 
 export const saveAdminTable = async (input: AdminRestaurantTableForm) => {
@@ -719,13 +944,13 @@ export const deleteAdminMenuCategory = async (
     moveItemsToCategoryId,
     restaurantId: scope.restaurantId,
   });
-  const menuItems = await loadMenuItems();
+  const menuItems = await loadMenuItems(scope.restaurantId);
 
   return {...result, menuItems};
 };
 
 const getOrderInScope = async (orderId: string, scope: AdminScope) => {
-  const orders = filterOrdersByScope(await loadOrders(), scope);
+  const orders = filterOrdersByScope(await loadOrders(scope.restaurantId), scope);
   const order = orders.find(item => item.id === orderId);
 
   if (!order) {
@@ -784,7 +1009,7 @@ const getBillSessionInScope = async (
   scope: AdminScope,
 ) => {
   const billSessions = filterBillSessionsByScope(
-    await loadBillSessions(),
+    await loadBillSessions(scope.restaurantId),
     scope,
   );
   const billSession = billSessions.find(item => item.id === billSessionId);

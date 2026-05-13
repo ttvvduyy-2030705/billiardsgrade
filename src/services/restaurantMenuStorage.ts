@@ -4,6 +4,10 @@ import {
   cleanupRestaurantMenuImageIfUnused,
   getMenuItemImageValue,
 } from './restaurantMenuImage';
+import {
+  createRestaurantWorkspace,
+  loadRestaurantBranches,
+} from './restaurantWorkspaceStorage';
 
 export {
   getMenuItemImageValue,
@@ -340,179 +344,17 @@ const sampleTime = nowIso();
 export const DEFAULT_DRINK_CATEGORY_ID = 'drink';
 export const DEFAULT_FOOD_CATEGORY_ID = 'food';
 
-export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
-  {
-    id: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Đồ uống',
-    sortOrder: 1,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: DEFAULT_FOOD_CATEGORY_ID,
-    name: 'Đồ ăn',
-    sortOrder: 2,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-];
+export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [];
 
-export const defaultMenuItems: RestaurantMenuItem[] = [
-  {
-    id: 'sample_coca',
-    categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Coca',
-    price: 25000,
-    description: 'Coca-Cola lạnh, phục vụ nhanh tại bàn.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'sample_fanta',
-    categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Fanta',
-    price: 25000,
-    description: 'Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'sample_mirinda',
-    categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Mirinda',
-    price: 25000,
-    description: 'Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'sample_pepsi',
-    categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: 'Pepsi',
-    price: 25000,
-    description: 'Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-];
+export const defaultMenuItems: RestaurantMenuItem[] = [];
 
-const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [
-  {
-    id: 'haidilao_hotpot',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: 'Nước lẩu',
-    sortOrder: 1,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'haidilao_meat',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: 'Thịt nhúng',
-    sortOrder: 2,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'haidilao_side',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: 'Rau - món kèm',
-    sortOrder: 3,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-];
+const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [];
 
-const HAIDILAO_LOCAL_MENU_ITEMS: RestaurantMenuItem[] = [
-  {
-    id: 'haidilao_mushroom_hotpot',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: 'haidilao_hotpot',
-    name: 'Lẩu nấm thanh ngọt',
-    price: 189000,
-    description: 'Nước lẩu nấm dịu vị, phù hợp dùng cùng thịt bò và rau tươi.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1512003867696-6d5ce6835040?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'haidilao_spicy_hotpot',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: 'haidilao_hotpot',
-    name: 'Lẩu cay Tứ Xuyên',
-    price: 199000,
-    description: 'Vị cay thơm, hợp với đồ nhúng bò, hải sản và viên thả lẩu.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'haidilao_beef_plate',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: 'haidilao_meat',
-    name: 'Ba chỉ bò Mỹ',
-    price: 129000,
-    description: 'Thịt bò cắt lát mỏng, nhúng nhanh trong nước lẩu đang sôi.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: 'haidilao_vegetable_set',
-    restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: 'haidilao_side',
-    name: 'Set rau nấm tổng hợp',
-    price: 79000,
-    description: 'Rau xanh, nấm và đồ ăn kèm cho bàn lẩu.',
-    imageUrl:
-      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80',
-    available: true,
-    status: 'SELLING',
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-];
+const HAIDILAO_LOCAL_MENU_ITEMS: RestaurantMenuItem[] = [];
 
-const getSeedCategoriesForRestaurant = (restaurantId: string) => {
-  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
-    return HAIDILAO_LOCAL_CATEGORIES;
-  }
+const getSeedCategoriesForRestaurant = (_restaurantId: string) => [];
 
-  return DEFAULT_MENU_CATEGORIES;
-};
-
-const getSeedItemsForRestaurant = (restaurantId: string) => {
-  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
-    return HAIDILAO_LOCAL_MENU_ITEMS;
-  }
-
-  return defaultMenuItems;
-};
+const getSeedItemsForRestaurant = (_restaurantId: string) => [];
 
 const legacySeedCategoryIds = [
   'hotpot',
@@ -532,6 +374,183 @@ const legacySeedItemIds = [
   'sample_snack_combo',
   'sample_iced_tea',
 ];
+
+const builtInSeedCategoryIds = new Set([
+  DEFAULT_DRINK_CATEGORY_ID,
+  DEFAULT_FOOD_CATEGORY_ID,
+  'haidilao_hotpot',
+  'haidilao_meat',
+  'haidilao_side',
+]);
+
+const builtInSeedItemIds = new Set([
+  ...legacySeedItemIds,
+  'sample_coca',
+  'sample_fanta',
+  'sample_mirinda',
+  'sample_pepsi',
+  'haidilao_mushroom_hotpot',
+  'haidilao_spicy_hotpot',
+  'haidilao_beef_plate',
+  'haidilao_vegetable_set',
+]);
+
+const isBuiltInSeedCategory = (category: Partial<MenuCategory>) =>
+  builtInSeedCategoryIds.has(String(category.id || '')) ||
+  String(category.id || '').startsWith('seed_');
+
+const isBuiltInSeedItem = (item: Partial<RestaurantMenuItem>) =>
+  builtInSeedItemIds.has(String(item.id || '')) ||
+  String(item.id || '').startsWith('seed_');
+
+const isBuiltInSeedOrder = (order: {id?: unknown}) =>
+  String(order.id || '').startsWith('seed_') ||
+  String(order.id || '').startsWith('seed_local_');
+
+const isBuiltInSeedBillSession = (billSession: {id?: unknown; billSessionId?: unknown}) =>
+  String(billSession.id || billSession.billSessionId || '').startsWith('seed_') ||
+  String(billSession.id || billSession.billSessionId || '').startsWith('seed_local_');
+
+
+const demoRuntimeKeywords = [
+  'demo',
+  'sample',
+  'seed',
+  'test',
+  'du lieu mau',
+  'mau',
+  'haidilao',
+  'aplus',
+  'a plus',
+  'nha hang cu',
+  'nha hang chinh',
+  'coca',
+  'coca cola',
+  'pepsi',
+  'fanta',
+  'mirinda',
+  'tra da',
+  'tra dao',
+  'nuoc ngot',
+  'do uong',
+  'combo lau',
+  'lau hai san',
+  'bo my',
+];
+
+const normalizeDemoText = (value?: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .trim();
+
+const containsDemoRuntimeText = (value?: unknown) => {
+  const text = normalizeDemoText(value);
+  return demoRuntimeKeywords.some(keyword => text.includes(keyword));
+};
+
+const getRuntimeCreatedMs = (record: {createdAt?: unknown; openedAt?: unknown; orderedAt?: unknown; updatedAt?: unknown}) => {
+  const candidates = [record.createdAt, record.openedAt, record.orderedAt, record.updatedAt];
+  for (const candidate of candidates) {
+    const ms = Date.parse(String(candidate || ''));
+    if (Number.isFinite(ms)) {
+      return ms;
+    }
+  }
+  return 0;
+};
+
+const isLikelyLeakedDemoCategory = (category: Partial<MenuCategory>) =>
+  isBuiltInSeedCategory(category) ||
+  containsDemoRuntimeText(`${category.id || ''} ${category.name || ''} ${(category as {description?: unknown}).description || ''}`);
+
+const isLikelyLeakedDemoItem = (item: Partial<RestaurantMenuItem> & {note?: unknown}) =>
+  isBuiltInSeedItem(item) ||
+  isBuiltInSeedCategory({id: item.categoryId}) ||
+  containsDemoRuntimeText(`${item.id || ''} ${item.categoryId || ''} ${item.name || ''} ${item.description || ''} ${item.note || ''}`);
+
+const isLikelyLeakedDemoOrder = (order: Partial<RestaurantOrder>) => {
+  if (isBuiltInSeedOrder(order) || containsDemoRuntimeText(`${order.id || ''} ${order.note || ''} ${order.guestSessionId || ''} ${order.tableNumber || ''}`)) {
+    return true;
+  }
+  const items = Array.isArray(order.items) ? order.items : [];
+  return items.length > 0 && items.every(item =>
+    containsDemoRuntimeText(`${item.itemId || ''} ${item.name || ''} ${item.note || ''}`),
+  );
+};
+
+const isLikelyLeakedDemoBillSession = (billSession: Partial<RestaurantBillSessionDetail>) =>
+  isBuiltInSeedBillSession(billSession) ||
+  containsDemoRuntimeText(`${billSession.id || ''} ${billSession.note || ''} ${billSession.guestSessionId || ''} ${billSession.tableNumber || ''}`) ||
+  (Array.isArray(billSession.orders) && billSession.orders.some(isLikelyLeakedDemoOrder));
+
+type LocalRuntimeSnapshot = {
+  categories: MenuCategory[];
+  items: RestaurantMenuItem[];
+  orders: RestaurantOrder[];
+  billSessions: RestaurantBillSessionDetail[];
+  carts: unknown[];
+};
+
+const localRuntimeCount = (snapshot: LocalRuntimeSnapshot) =>
+  snapshot.categories.length +
+  snapshot.items.length +
+  snapshot.orders.length +
+  snapshot.billSessions.length +
+  snapshot.carts.length;
+
+const hasLocalRuntimeOlderThanAdmin = (
+  snapshot: LocalRuntimeSnapshot,
+  account?: Pick<RestaurantAdminAccount, 'createdAt'>,
+) => {
+  const adminCreatedMs = Date.parse(String(account?.createdAt || ''));
+  if (!Number.isFinite(adminCreatedMs) || adminCreatedMs <= 0) {
+    return false;
+  }
+  const records = [
+    ...snapshot.categories,
+    ...snapshot.items,
+    ...snapshot.orders,
+    ...snapshot.billSessions,
+    ...snapshot.carts,
+  ] as Array<{createdAt?: unknown; openedAt?: unknown; orderedAt?: unknown; updatedAt?: unknown}>;
+  return records.some(record => {
+    const recordMs = getRuntimeCreatedMs(record);
+    return recordMs > 0 && recordMs + 1000 < adminCreatedMs;
+  });
+};
+
+const hasLocalBundledDemoFootprint = (snapshot: LocalRuntimeSnapshot) => {
+  const itemCount = snapshot.items.length;
+  const orderCount = snapshot.orders.length;
+  const billCount = snapshot.billSessions.length;
+  const categoryCount = snapshot.categories.length;
+  const cartCount = snapshot.carts.length;
+  const demoItemCount = snapshot.items.filter(isLikelyLeakedDemoItem).length;
+  const demoOrderCount = snapshot.orders.filter(isLikelyLeakedDemoOrder).length;
+  const demoBillCount = snapshot.billSessions.filter(isLikelyLeakedDemoBillSession).length;
+  const demoCategoryCount = snapshot.categories.filter(isLikelyLeakedDemoCategory).length;
+  const cartHasDemoItems = snapshot.carts.some(cart => {
+    const items = Array.isArray((cart as {items?: unknown[]})?.items)
+      ? ((cart as {items?: unknown[]}).items || [])
+      : [];
+    return items.length === 0 || items.some(item =>
+      containsDemoRuntimeText(
+        `${(item as {itemId?: unknown})?.itemId || ''} ${(item as {name?: unknown})?.name || ''} ${(item as {note?: unknown})?.note || ''}`,
+      ),
+    );
+  });
+
+  return (
+    (itemCount > 0 && itemCount <= 6 && demoItemCount > 0 && orderCount <= 2 && billCount <= 2) ||
+    (orderCount > 0 && orderCount <= 2 && demoOrderCount > 0 && itemCount <= 8) ||
+    (billCount > 0 && billCount <= 2 && demoBillCount > 0 && itemCount <= 8) ||
+    (categoryCount > 0 && categoryCount <= 4 && demoCategoryCount === categoryCount && itemCount <= 8 && orderCount <= 2) ||
+    (cartCount > 0 && cartCount <= 3 && cartHasDemoItems && itemCount <= 8)
+  );
+};
 
 const normalise = (value?: string) => {
   return (value || '')
@@ -556,8 +575,10 @@ const safeJsonParse = <T>(value: string | null, fallback: T) => {
 
 const resolveRestaurantScopeId = (restaurantId?: string) => {
   const cleanRestaurantId = String(restaurantId || '').trim();
-  return cleanRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID;
+  return cleanRestaurantId || '__unassigned_restaurant_scope__';
 };
+
+const shouldSeedDemoMenuForRestaurant = (_restaurantId?: string) => false;
 
 export const getRestaurantScopedStorageKey = (
   baseKey: string,
@@ -650,11 +671,7 @@ const ensureDefaultCategories = (
   // Defaults are only used when there is no category data yet. After the first
   // seed, Admin must be able to rename/delete Đồ uống and Đồ ăn like normal
   // dynamic categories. Do not force them back into AsyncStorage on every load.
-  return withoutDuplicateNames.length > 0
-    ? withoutDuplicateNames
-    : DEFAULT_MENU_CATEGORIES.map(category =>
-        cleanCategory(category, restaurantId),
-      );
+  return withoutDuplicateNames;
 };
 
 const seedDefaultMenu = async (restaurantId = DEFAULT_LOCAL_RESTAURANT_ID) => {
@@ -784,26 +801,47 @@ const ensureRestaurantSchema = async (
     return;
   }
 
+  const shouldSeedDemoMenu = shouldSeedDemoMenuForRestaurant(scopedKeys.restaurantId);
   const sourceCategories =
-    scopedCategories.length > 0 ? scopedCategories : legacyCategories;
-  const sourceItems = scopedItems.length > 0 ? scopedItems : legacyItems;
+    scopedCategories.length > 0
+      ? scopedCategories
+      : shouldSeedDemoMenu
+        ? legacyCategories
+        : [];
+  const sourceItems =
+    scopedItems.length > 0
+      ? scopedItems
+      : shouldSeedDemoMenu
+        ? legacyItems
+        : [];
 
   if (sourceCategories.length === 0 && sourceItems.length === 0) {
-    await seedDefaultMenu(scopedKeys.restaurantId);
+    if (shouldSeedDemoMenu) {
+      await seedDefaultMenu(scopedKeys.restaurantId);
+    } else {
+      await writeArray(scopedKeys.categories, []);
+      await writeArray(scopedKeys.menuItems, []);
+      await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+    }
     return;
   }
 
-  const nextCategories = ensureDefaultCategories(
-    sourceCategories.map(category =>
-      cleanCategory(
-        withRestaurantId(category, scopedKeys.restaurantId),
-        scopedKeys.restaurantId,
-      ),
-    ),
-    scopedKeys.restaurantId,
+  const cleanSourceCategories = sourceCategories.filter(
+    category => !isBuiltInSeedCategory(category),
   );
+  const nextCategories = cleanSourceCategories.length > 0
+    ? ensureDefaultCategories(
+        cleanSourceCategories.map(category =>
+          cleanCategory(
+            withRestaurantId(category, scopedKeys.restaurantId),
+            scopedKeys.restaurantId,
+          ),
+        ),
+        scopedKeys.restaurantId,
+      )
+    : [];
   const nextItems = sourceItems
-    .filter(item => legacySeedItemIds.indexOf(item.id || '') < 0)
+    .filter(item => !isBuiltInSeedItem(item))
     .map(item =>
       migrateMenuItem(
         withRestaurantId(item, scopedKeys.restaurantId),
@@ -813,14 +851,7 @@ const ensureRestaurantSchema = async (
     );
 
   await writeArray(scopedKeys.categories, nextCategories);
-  await writeArray(
-    scopedKeys.menuItems,
-    nextItems.length > 0
-      ? nextItems
-      : defaultMenuItems.map(item =>
-          migrateMenuItem(item, nextCategories, scopedKeys.restaurantId),
-        ),
-  );
+  await writeArray(scopedKeys.menuItems, nextItems.length > 0 ? nextItems : []);
   await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
 };
 
@@ -840,16 +871,23 @@ export const loadMenuCategories = async (
   const stored = await readArray<MenuCategory>(scopedKeys.categories);
 
   if (stored.length === 0) {
-    await seedDefaultMenu(scopedKeys.restaurantId);
-    return DEFAULT_MENU_CATEGORIES.map(category =>
-      cleanCategory(category, scopedKeys.restaurantId),
-    );
+    if (shouldSeedDemoMenuForRestaurant(scopedKeys.restaurantId)) {
+      await seedDefaultMenu(scopedKeys.restaurantId);
+      return DEFAULT_MENU_CATEGORIES.map(category =>
+        cleanCategory(category, scopedKeys.restaurantId),
+      );
+    }
+
+    return [];
   }
 
-  const migrated = ensureDefaultCategories(
-    stored.map(category => cleanCategory(category, scopedKeys.restaurantId)),
-    scopedKeys.restaurantId,
-  );
+  const storedWithoutSeeds = stored.filter(category => !isBuiltInSeedCategory(category));
+  const migrated = storedWithoutSeeds.length > 0
+    ? ensureDefaultCategories(
+        storedWithoutSeeds.map(category => cleanCategory(category, scopedKeys.restaurantId)),
+        scopedKeys.restaurantId,
+      )
+    : [];
 
   if (JSON.stringify(stored) !== JSON.stringify(migrated)) {
     await writeArray(scopedKeys.categories, migrated);
@@ -962,7 +1000,7 @@ export const deleteMenuCategory = async (
   }
 
   const nextCategories = categories.filter(
-    category => category.id !== categoryId,
+    (category: MenuCategory) => category.id !== categoryId,
   );
   const fallbackCategory =
     nextCategories.find(
@@ -977,7 +1015,7 @@ export const deleteMenuCategory = async (
     };
   }
 
-  const usedItems = items.filter(item => item.categoryId === categoryId);
+  const usedItems = items.filter((item: RestaurantMenuItem) => item.categoryId === categoryId);
   const savedCategories = await saveMenuCategories(
     nextCategories,
     restaurantId,
@@ -1022,14 +1060,19 @@ export const loadMenuItems = async (
   const stored = await readArray<RestaurantMenuItem>(scopedKeys.menuItems);
 
   if (stored.length === 0) {
-    const seededItems = defaultMenuItems.map(item =>
-      migrateMenuItem(item, categories, scopedKeys.restaurantId),
-    );
-    await writeArray(scopedKeys.menuItems, seededItems);
-    return seededItems;
+    if (shouldSeedDemoMenuForRestaurant(scopedKeys.restaurantId)) {
+      const seededItems = defaultMenuItems.map(item =>
+        migrateMenuItem(item, categories, scopedKeys.restaurantId),
+      );
+      await writeArray(scopedKeys.menuItems, seededItems);
+      return seededItems;
+    }
+
+    return [];
   }
 
-  const migrated = stored.map(item =>
+  const storedWithoutSeeds = stored.filter(item => !isBuiltInSeedItem(item));
+  const migrated = storedWithoutSeeds.map(item =>
     migrateMenuItem(item, categories, scopedKeys.restaurantId),
   );
   const needsMigration = JSON.stringify(stored) !== JSON.stringify(migrated);
@@ -1407,194 +1450,11 @@ export const isRestaurantOrderStatusTransitionAllowed = (
   toStatus: RestaurantOrderStatus,
 ) => ORDER_STATUS_TRANSITIONS[fromStatus].indexOf(toStatus) >= 0;
 
-const createLocalDemoOrder = ({
-  id,
-  restaurantId,
-  branchId,
-  tableId,
-  tableNumber,
-  billSessionId,
-  guestSessionId,
-  items,
-  note,
-  createdAt,
-}: {
-  id: string;
-  restaurantId: string;
-  branchId: string;
-  tableId: string;
-  tableNumber: string;
-  billSessionId: string;
-  guestSessionId: string;
-  items: RestaurantOrderItem[];
-  note: string;
-  createdAt: string;
-}): RestaurantOrder => ({
-  id,
-  restaurantId,
-  branchId,
-  tableId,
-  tableNumber,
-  billSessionId,
-  guestSessionId,
-  orderSource: 'customer',
-  items,
-  note,
-  total: calculateRestaurantOrderTotal(items),
-  orderStatus: 'NEW',
-  paymentStatus: 'UNPAID',
-  paymentMethod: 'CASH',
-  createdAt,
-  updatedAt: createdAt,
-});
-
-const createLocalDemoBillSession = ({
-  id,
-  restaurantId,
-  branchId,
-  tableId,
-  tableNumber,
-  guestSessionId,
-  orders,
-  note,
-  openedAt,
-}: {
-  id: string;
-  restaurantId: string;
-  branchId: string;
-  tableId: string;
-  tableNumber: string;
-  guestSessionId: string;
-  orders: RestaurantOrder[];
-  note: string;
-  openedAt: string;
-}): RestaurantBillSessionDetail =>
-  normaliseRestaurantBillSession(
-    {
-      id,
-      restaurantId,
-      branchId,
-      tableId,
-      tableNumber,
-      guestSessionId,
-      status: 'OPEN',
-      orderIds: orders.map(order => order.id),
-      note,
-      openedAt,
-      createdAt: openedAt,
-      updatedAt: openedAt,
-      orders,
-    },
-    restaurantId,
-  );
-
 const getSeedBillSessionsForRestaurant = (
-  restaurantId: string,
+  _restaurantId: string,
 ): {orders: RestaurantOrder[]; billSessions: RestaurantBillSessionDetail[]} => {
-  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
-    const order1 = createLocalDemoOrder({
-      id: 'seed_local_order_haidilao_001',
-      restaurantId,
-      branchId: HAIDILAO_LOCAL_BRANCH_ID,
-      tableId: HAIDILAO_LOCAL_TABLE_ID,
-      tableNumber: 'HDL 01',
-      billSessionId: 'seed_local_bill_haidilao_hdl01',
-      guestSessionId: 'seed_local_guest_haidilao_hdl01',
-      createdAt: sampleTime,
-      note: 'Dữ liệu mẫu local: lần đầu gọi món',
-      items: [
-        {
-          itemId: 'haidilao_beef_plate',
-          name: 'Ba chỉ bò Mỹ',
-          price: 129000,
-          quantity: 2,
-          note: 'Ít cay',
-        },
-      ],
-    });
-    const order2 = createLocalDemoOrder({
-      id: 'seed_local_order_haidilao_002',
-      restaurantId,
-      branchId: HAIDILAO_LOCAL_BRANCH_ID,
-      tableId: HAIDILAO_LOCAL_TABLE_ID,
-      tableNumber: 'HDL 01',
-      billSessionId: 'seed_local_bill_haidilao_hdl01',
-      guestSessionId: 'seed_local_guest_haidilao_hdl01',
-      createdAt: sampleTime,
-      note: 'Dữ liệu mẫu local: gọi thêm món',
-      items: [
-        {
-          itemId: 'haidilao_vegetable_set',
-          name: 'Set rau nấm tổng hợp',
-          price: 79000,
-          quantity: 1,
-        },
-      ],
-    });
-    const orders = [order2, order1];
-    return {
-      orders,
-      billSessions: [
-        createLocalDemoBillSession({
-          id: 'seed_local_bill_haidilao_hdl01',
-          restaurantId,
-          branchId: HAIDILAO_LOCAL_BRANCH_ID,
-          tableId: HAIDILAO_LOCAL_TABLE_ID,
-          tableNumber: 'HDL 01',
-          guestSessionId: 'seed_local_guest_haidilao_hdl01',
-          orders,
-          note: 'Dữ liệu mẫu local: hóa đơn cộng dồn.',
-          openedAt: sampleTime,
-        }),
-      ],
-    };
-  }
-
-  if (restaurantId === DEFAULT_LOCAL_RESTAURANT_ID) {
-    const order = createLocalDemoOrder({
-      id: 'seed_local_order_aplus_001',
-      restaurantId,
-      branchId: DEFAULT_LOCAL_BRANCH_ID,
-      tableId: DEFAULT_LOCAL_TABLE_ID,
-      tableNumber: 'APlus 01',
-      billSessionId: 'seed_local_bill_aplus_01',
-      guestSessionId: 'seed_local_guest_aplus_01',
-      createdAt: sampleTime,
-      note: 'Dữ liệu mẫu local: đồ uống',
-      items: [
-        {itemId: 'sample_coca', name: 'Coca-Cola', price: 25000, quantity: 2},
-        {itemId: 'sample_pepsi', name: 'Pepsi', price: 25000, quantity: 1},
-      ],
-    });
-    return {
-      orders: [order],
-      billSessions: [
-        createLocalDemoBillSession({
-          id: 'seed_local_bill_aplus_01',
-          restaurantId,
-          branchId: DEFAULT_LOCAL_BRANCH_ID,
-          tableId: DEFAULT_LOCAL_TABLE_ID,
-          tableNumber: 'APlus 01',
-          guestSessionId: 'seed_local_guest_aplus_01',
-          orders: [order],
-          note: 'Dữ liệu mẫu local: hóa đơn.',
-          openedAt: sampleTime,
-        }),
-      ],
-    };
-  }
-
   return {orders: [], billSessions: []};
 };
-
-const getLegacyLocalOrderMigrationGroupKey = (order: RestaurantOrder) =>
-  [
-    order.restaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
-    order.branchId || 'no_branch',
-    order.tableId || 'no_table_id',
-    order.tableNumber || 'Bàn chưa rõ',
-    order.guestSessionId || 'legacy_guest',
-  ].join('|');
 
 const migrateLegacyLocalOrdersToBillSessions = async (
   restaurantId: string,
@@ -1681,13 +1541,15 @@ export const loadOrders = async (
   const scopedKeys = getScopedKeys(restaurantId);
   const scopedOrders = await readArray<RawRestaurantOrder>(scopedKeys.orders);
   const legacyOrders =
-    scopedOrders.length > 0
+    scopedOrders.length > 0 || !shouldSeedDemoMenuForRestaurant(scopedKeys.restaurantId)
       ? []
       : await readArray<RawRestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
   const rawOrders = scopedOrders.length > 0 ? scopedOrders : legacyOrders;
-  const orders = rawOrders.map(order =>
-    normaliseRestaurantOrder(order, scopedKeys.restaurantId),
-  );
+  const orders = rawOrders
+    .filter(order => !isBuiltInSeedOrder(order))
+    .map(order =>
+      normaliseRestaurantOrder(order, scopedKeys.restaurantId),
+    );
   const filteredOrders = orders.filter(
     order => order.restaurantId === scopedKeys.restaurantId,
   );
@@ -1695,6 +1557,9 @@ export const loadOrders = async (
     rawOrders.length !== filteredOrders.length ||
     rawOrders.some((order, index) => {
       const normalised = orders[index];
+      if (!normalised) {
+        return true;
+      }
       return (
         order.status !== undefined ||
         order.restaurantId !== scopedKeys.restaurantId ||
@@ -1731,8 +1596,14 @@ export const loadBillSessions = async (
   restaurantId?: string,
 ): Promise<RestaurantBillSessionDetail[]> => {
   const scopedKeys = getScopedKeys(restaurantId);
-  let scopedBillSessions = await readArray<RawRestaurantBillSession>(
+  const rawScopedBillSessions = await readArray<RawRestaurantBillSession>(
     scopedKeys.billSessions,
+  );
+  const removedBuiltInSeedBillSessions = rawScopedBillSessions.some(
+    billSession => isBuiltInSeedBillSession(billSession),
+  );
+  let scopedBillSessions = rawScopedBillSessions.filter(
+    billSession => !isBuiltInSeedBillSession(billSession),
   );
   let orders = await loadOrders(scopedKeys.restaurantId);
 
@@ -1748,6 +1619,15 @@ export const loadBillSessions = async (
         CURRENT_SCHEMA_VERSION,
       );
     }
+  }
+
+  if (removedBuiltInSeedBillSessions) {
+    await saveBillSessions(
+      scopedBillSessions.map(billSession =>
+        normaliseRestaurantBillSession(billSession, scopedKeys.restaurantId),
+      ),
+      scopedKeys.restaurantId,
+    );
   }
 
   const migration = await migrateLegacyLocalOrdersToBillSessions(
@@ -2419,6 +2299,116 @@ export const clearCurrentCart = async (restaurantId?: string) => {
   await AsyncStorage.removeItem(scopedKeys.currentCart);
 };
 
+export const clearRestaurantScopedMenuData = async (restaurantId?: string) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  await Promise.all([
+    writeArray(scopedKeys.categories, []),
+    writeArray(scopedKeys.menuItems, []),
+    writeArray(scopedKeys.orders, []),
+    writeArray(scopedKeys.billSessions, []),
+    AsyncStorage.removeItem(scopedKeys.currentCart),
+    AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION),
+  ]);
+};
+
+
+export const sanitizeRestaurantScopedRuntimeData = async (
+  restaurantId?: string,
+  account?: Pick<RestaurantAdminAccount, 'createdAt'>,
+) => {
+  const scopedKeys = getScopedKeys(restaurantId);
+  const [categories, items, rawOrders, rawBillSessions, rawCart] =
+    await Promise.all([
+      readArray<MenuCategory>(scopedKeys.categories),
+      readArray<RestaurantMenuItem>(scopedKeys.menuItems),
+      readArray<RawRestaurantOrder>(scopedKeys.orders),
+      readArray<RawRestaurantBillSession>(scopedKeys.billSessions),
+      AsyncStorage.getItem(scopedKeys.currentCart),
+    ]);
+
+  const orders = rawOrders.map((order: RawRestaurantOrder) =>
+    normaliseRestaurantOrder(order, scopedKeys.restaurantId),
+  );
+  const billSessions = rawBillSessions.map((billSession: RawRestaurantBillSession) =>
+    normaliseRestaurantBillSession(billSession, scopedKeys.restaurantId),
+  );
+  const parsedCart = safeJsonParse<unknown | null>(rawCart, null).value;
+  const carts = parsedCart ? [parsedCart] : [];
+  const snapshot: LocalRuntimeSnapshot = {
+    categories,
+    items,
+    orders,
+    billSessions,
+    carts,
+  };
+
+  if (localRuntimeCount(snapshot) === 0) {
+    return false;
+  }
+
+  if (
+    hasLocalRuntimeOlderThanAdmin(snapshot, account) ||
+    hasLocalBundledDemoFootprint(snapshot)
+  ) {
+    await clearRestaurantScopedMenuData(scopedKeys.restaurantId);
+    return true;
+  }
+
+  const nextCategories = categories.filter(
+    (category: MenuCategory) => !isLikelyLeakedDemoCategory(category),
+  );
+  const nextItems = items.filter((item: RestaurantMenuItem) => !isLikelyLeakedDemoItem(item));
+  const nextOrders = rawOrders.filter(
+    (order: RawRestaurantOrder) => !isLikelyLeakedDemoOrder(normaliseRestaurantOrder(order, scopedKeys.restaurantId)),
+  );
+  const nextBillSessions = rawBillSessions.filter(
+    (billSession: RawRestaurantBillSession) =>
+      !isLikelyLeakedDemoBillSession(
+        normaliseRestaurantBillSession(billSession, scopedKeys.restaurantId),
+      ),
+  );
+  let changed = false;
+
+  if (nextCategories.length !== categories.length) {
+    await writeArray(scopedKeys.categories, nextCategories);
+    changed = true;
+  }
+  if (nextItems.length !== items.length) {
+    await writeArray(scopedKeys.menuItems, nextItems);
+    changed = true;
+  }
+  if (nextOrders.length !== rawOrders.length) {
+    await writeArray(scopedKeys.orders, nextOrders);
+    changed = true;
+  }
+  if (nextBillSessions.length !== rawBillSessions.length) {
+    await writeArray(scopedKeys.billSessions, nextBillSessions);
+    changed = true;
+  }
+  if (carts.length > 0) {
+    const parsedCartObject = parsedCart as {items?: unknown[]} | null;
+    const cartItems = Array.isArray(parsedCartObject?.items)
+      ? parsedCartObject?.items || []
+      : [];
+    if (
+      cartItems.length === 0 ||
+      cartItems.some(item =>
+        containsDemoRuntimeText(
+          `${(item as {itemId?: unknown})?.itemId || ''} ${(item as {name?: unknown})?.name || ''} ${(item as {note?: unknown})?.note || ''}`,
+        ),
+      )
+    ) {
+      await AsyncStorage.removeItem(scopedKeys.currentCart);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+  }
+  return changed;
+};
+
 const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
   const current = await readArray<RestaurantAdminAccount>(
     RESTAURANT_STORAGE_KEYS.adminAccounts,
@@ -2442,17 +2432,106 @@ const loadAdminAccounts = async (): Promise<RestaurantAdminAccount[]> => {
   return seededAccounts;
 };
 
+const getAccountPrimaryRestaurantId = (account: RestaurantAdminAccount) =>
+  account.activeRestaurantId ||
+  account.restaurantIds?.[0] ||
+  DEFAULT_LOCAL_RESTAURANT_ID;
+
+const shouldCreatePrivateLocalWorkspace = (
+  account: RestaurantAdminAccount,
+  accounts: RestaurantAdminAccount[],
+) => {
+  const role = account.role || 'OWNER';
+  if (role !== 'OWNER') {
+    return false;
+  }
+
+  const activeRestaurantId = getAccountPrimaryRestaurantId(account);
+  if (
+    activeRestaurantId === DEFAULT_LOCAL_RESTAURANT_ID ||
+    activeRestaurantId === HAIDILAO_LOCAL_RESTAURANT_ID ||
+    activeRestaurantId === 'haidilao_local_demo' ||
+    activeRestaurantId === 'aplus_billiards_hanoi' ||
+    activeRestaurantId === 'haidilao_demo'
+  ) {
+    return true;
+  }
+
+  return accounts.some(
+    other =>
+      normalise(other.username) !== normalise(account.username) &&
+      (other.role || 'OWNER') === 'OWNER' &&
+      getAccountPrimaryRestaurantId(other) === activeRestaurantId,
+  );
+};
+
+const ensurePrivateLocalWorkspaceForAdmin = async (
+  account: RestaurantAdminAccount,
+  accounts: RestaurantAdminAccount[],
+) => {
+  if (!shouldCreatePrivateLocalWorkspace(account, accounts)) {
+    const cleanedRuntimeData = await sanitizeRestaurantScopedRuntimeData(
+      getAccountPrimaryRestaurantId(account),
+      account,
+    );
+    return {account, accounts, changed: cleanedRuntimeData};
+  }
+
+  const userId = `local_admin_${normalise(account.username) || 'unknown'}`;
+  const desiredRestaurantName = `Quán của ${account.username.trim()}`;
+  let workspace: Awaited<ReturnType<typeof createRestaurantWorkspace>>;
+
+  try {
+    workspace = await createRestaurantWorkspace({
+      name: desiredRestaurantName,
+      ownerId: userId,
+    });
+  } catch (error) {
+    if (!/tồn tại/i.test(String((error as Error)?.message || ''))) {
+      throw error;
+    }
+    workspace = await createRestaurantWorkspace({
+      name: `${desiredRestaurantName} ${Date.now().toString().slice(-5)}`,
+      ownerId: userId,
+    });
+  }
+
+  await clearRestaurantScopedMenuData(workspace.id);
+  await sanitizeRestaurantScopedRuntimeData(workspace.id, account);
+
+  const nextAccount: RestaurantAdminAccount = {
+    ...account,
+    restaurantIds: [workspace.id],
+    activeRestaurantId: workspace.id,
+    role: account.role || 'OWNER',
+  };
+  const nextAccounts = accounts.map(item =>
+    normalise(item.username) === normalise(account.username)
+      ? nextAccount
+      : item,
+  );
+  await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, nextAccounts);
+
+  return {account: nextAccount, accounts: nextAccounts, changed: true};
+};
+
 export const registerRestaurantAdmin = async (
   username: string,
   password: string,
-  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+  restaurantId = '',
+  restaurantName = '',
 ): Promise<{
   ok: boolean;
   message: string;
   userId?: string;
   role?: 'OWNER' | 'MANAGER' | 'STAFF';
   restaurantId?: string;
+  restaurantName?: string;
   restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
+  activeBranchName?: string;
+  menuQrToken?: string;
 }> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
@@ -2470,6 +2549,33 @@ export const registerRestaurantAdmin = async (
     return {ok: false, message: 'Tài khoản admin đã tồn tại'};
   }
 
+  const userId = `local_admin_${normalise(cleanUsername) || 'unknown'}`;
+  const desiredRestaurantName =
+    restaurantName.trim() || `Quán của ${cleanUsername}`;
+  let workspace: Awaited<ReturnType<typeof createRestaurantWorkspace>>;
+
+  try {
+    workspace = await createRestaurantWorkspace({
+      id: restaurantId || undefined,
+      name: desiredRestaurantName,
+      ownerId: userId,
+    });
+  } catch (error) {
+    if (!/tồn tại/i.test(String((error as Error)?.message || ''))) {
+      throw error;
+    }
+    workspace = await createRestaurantWorkspace({
+      name: `${desiredRestaurantName} ${Date.now().toString().slice(-5)}`,
+      ownerId: userId,
+    });
+  }
+
+  await clearRestaurantScopedMenuData(workspace.id);
+  await sanitizeRestaurantScopedRuntimeData(workspace.id, {createdAt: nowIso()});
+
+  const branches = await loadRestaurantBranches(workspace.id);
+  const activeBranch = branches[0];
+
   // password is stored in AsyncStorage for the first offline version.
   // This offline build stores credentials on device. Use a server-backed login only when enabling shared multi-device accounts.
   const nextAccounts = [
@@ -2477,36 +2583,45 @@ export const registerRestaurantAdmin = async (
     {
       username: cleanUsername,
       password: cleanPassword,
-      restaurantIds: [resolveRestaurantScopeId(restaurantId)],
-      activeRestaurantId: resolveRestaurantScopeId(restaurantId),
+      restaurantIds: [workspace.id],
+      activeRestaurantId: workspace.id,
       role: 'OWNER' as const,
       createdAt: nowIso(),
     },
   ];
   await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, nextAccounts);
 
-  const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
   return {
     ok: true,
     message: 'Đăng ký admin local thành công',
-    userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
+    userId,
     role: 'OWNER',
-    restaurantId: scopedRestaurantId,
-    restaurantIds: [scopedRestaurantId],
+    restaurantId: workspace.id,
+    restaurantName: workspace.name,
+    restaurantIds: [workspace.id],
+    branchIds: activeBranch?.id ? [activeBranch.id] : [],
+    activeBranchId: activeBranch?.id,
+    activeBranchName: activeBranch?.name,
+    menuQrToken: activeBranch?.menuQrToken,
   };
 };
 
 export const verifyRestaurantAdmin = async (
   username: string,
   password: string,
-  restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
+  restaurantId = '',
 ): Promise<{
   ok: boolean;
   message: string;
   userId?: string;
   role?: 'OWNER' | 'MANAGER' | 'STAFF';
   restaurantId?: string;
+  restaurantName?: string;
   restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
+  activeBranchName?: string;
+  menuQrToken?: string;
 }> => {
   const cleanUsername = username.trim();
   const cleanPassword = password.trim();
@@ -2528,12 +2643,18 @@ export const verifyRestaurantAdmin = async (
     return {ok: false, message: 'Tên tài khoản hoặc mật khẩu chưa đúng'};
   }
 
-  const accountRestaurantIds = matchedAccount.restaurantIds || [
-    matchedAccount.activeRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
+  const privateScope = await ensurePrivateLocalWorkspaceForAdmin(
+    matchedAccount,
+    accounts,
+  );
+  const activeAccount = privateScope.account;
+
+  const accountRestaurantIds = activeAccount.restaurantIds || [
+    activeAccount.activeRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
   ];
-  const role = matchedAccount.role || 'OWNER';
+  const role = activeAccount.role || 'OWNER';
   const preferredRestaurantId =
-    matchedAccount.activeRestaurantId ||
+    activeAccount.activeRestaurantId ||
     accountRestaurantIds[0] ||
     DEFAULT_LOCAL_RESTAURANT_ID;
   const canUsePreferredRestaurant =
@@ -2549,6 +2670,11 @@ export const verifyRestaurantAdmin = async (
       ? targetRestaurantId
       : accountRestaurantIds[0] || DEFAULT_LOCAL_RESTAURANT_ID;
 
+  await sanitizeRestaurantScopedRuntimeData(scopedRestaurantId, activeAccount);
+
+  const branches = await loadRestaurantBranches(scopedRestaurantId);
+  const activeBranch = branches[0];
+
   return {
     ok: true,
     message: 'Đăng nhập admin thành công',
@@ -2556,5 +2682,9 @@ export const verifyRestaurantAdmin = async (
     role,
     restaurantId: scopedRestaurantId,
     restaurantIds: accountRestaurantIds,
+    branchIds: activeBranch?.id ? [activeBranch.id] : [],
+    activeBranchId: activeBranch?.id,
+    activeBranchName: activeBranch?.name,
+    menuQrToken: activeBranch?.menuQrToken,
   };
 };

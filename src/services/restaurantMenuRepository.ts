@@ -250,14 +250,22 @@ export const verifyRestaurantAdminCredentials = (
 export const registerRestaurantAdminCredentials = (
   username: string,
   password: string,
+  restaurantName?: string,
 ): Promise<RestaurantAdminCredentialResult> => {
-  return activeRepository.registerAdminAccount(username, password);
+  return activeRepository.registerAdminAccount(username, password, restaurantName);
 };
 
 export const createRestaurantWorkspace = (
   payload: RestaurantWorkspacePayload,
 ): Promise<RestaurantWorkspace> => {
   return activeRepository.createRestaurant(payload);
+};
+
+export const updateRestaurantWorkspace = (
+  restaurantId: string,
+  payload: Partial<RestaurantWorkspacePayload>,
+): Promise<RestaurantWorkspace> => {
+  return activeRepository.updateRestaurant(restaurantId, payload);
 };
 
 export const loadRestaurantBranches = (
@@ -336,7 +344,26 @@ export const loadPublicTablesByQrToken = (
   return activeRepository.getPublicTablesByQrToken(token);
 };
 
-export const loadMenuCategories = (): Promise<MenuCategory[]> => {
+const ensureRepositoryRestaurantScope = async (restaurantId?: string) => {
+  const cleanRestaurantId = String(restaurantId || '').trim();
+  if (!cleanRestaurantId) {
+    return;
+  }
+  const current = await activeRepository.getActiveContext().catch(() => null);
+  if (current?.restaurantId !== cleanRestaurantId) {
+    await activeRepository.setActiveContext({
+      restaurantId: cleanRestaurantId,
+      source: current?.source || 'admin',
+      role: current?.role,
+      allowedRestaurantIds: current?.allowedRestaurantIds,
+    });
+  }
+};
+
+export const loadMenuCategories = async (
+  restaurantId?: string,
+): Promise<MenuCategory[]> => {
+  await ensureRepositoryRestaurantScope(restaurantId);
   return activeRepository.getCategories();
 };
 
@@ -360,7 +387,10 @@ export const deleteMenuCategory = (
   return activeRepository.deleteCategory(id, options);
 };
 
-export const loadMenuItems = (): Promise<RestaurantMenuItem[]> => {
+export const loadMenuItems = async (
+  restaurantId?: string,
+): Promise<RestaurantMenuItem[]> => {
+  await ensureRepositoryRestaurantScope(restaurantId);
   return activeRepository.getItems();
 };
 
@@ -387,11 +417,17 @@ export const uploadRestaurantMenuImage = (
   return activeRepository.uploadMenuItemImage(payload);
 };
 
-export const loadOrders = (): Promise<RestaurantOrder[]> => {
+export const loadOrders = async (
+  restaurantId?: string,
+): Promise<RestaurantOrder[]> => {
+  await ensureRepositoryRestaurantScope(restaurantId);
   return activeRepository.getOrders();
 };
 
-export const loadBillSessions = (): Promise<RestaurantBillSessionDetail[]> => {
+export const loadBillSessions = async (
+  restaurantId?: string,
+): Promise<RestaurantBillSessionDetail[]> => {
+  await ensureRepositoryRestaurantScope(restaurantId);
   return activeRepository.getBillSessions();
 };
 

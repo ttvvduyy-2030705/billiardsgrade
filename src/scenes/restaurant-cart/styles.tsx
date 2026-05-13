@@ -368,10 +368,14 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       marginLeft: spacing.xs,
     },
     tableChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       columnGap: spacing.xs,
+      rowGap: spacing.xs,
       paddingRight: spacing.md,
     },
     tableChip: {
+      minWidth: 86,
       minHeight: control.minTouch - spacing.xs,
       borderRadius: radius.pill,
       borderWidth: border.thin,

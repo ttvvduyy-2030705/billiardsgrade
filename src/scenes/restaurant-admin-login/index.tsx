@@ -17,6 +17,7 @@ import {
   loginRestaurantAdmin,
   registerRestaurantAdminAccount,
 } from '../../services/restaurantAdminAuthService';
+import {resetRestaurantContextStore} from '../../stores/RestaurantContextStore';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {Navigation} from 'types/navigation';
@@ -367,6 +368,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     }
 
     if (nextDashboardUsername) {
+      resetRestaurantContextStore({resetScopedStores: true});
       routeToDashboard(nextDashboardUsername);
     }
   };
@@ -378,7 +380,6 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
     const currentValues = adminAuthDraftSession;
     const cleanPassword = currentValues.password.trim();
-
     if (cleanPassword !== currentValues.confirmPassword.trim()) {
       setErrorMessage('Mật khẩu nhập lại chưa khớp');
       return;
@@ -409,7 +410,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         username: currentValues.username,
         password: '',
         confirmPassword: '',
-      });
+            });
       syncDraftToUi();
       requestAnimationFrame(syncDraftToUi);
     } catch (error) {
@@ -420,6 +421,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     }
 
     if (nextDashboardUsername) {
+      resetRestaurantContextStore({resetScopedStores: true});
       routeToDashboard(nextDashboardUsername);
     }
   };
@@ -504,6 +506,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
               : 'Tạo tài khoản quản trị cho nhà hàng. Sau khi đăng ký thành công, app sẽ tự đăng nhập vào trang quản trị.'}
           </RNText>
+
 
           {renderNativeInputField(
             'username',

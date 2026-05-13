@@ -56,6 +56,7 @@ import {
   createRestaurantBranch,
   createRestaurantTable,
   createRestaurantWorkspace,
+  updateRestaurantWorkspace,
   deleteRestaurantBranch,
   deleteRestaurantTable,
   loadActiveRestaurantContext,
@@ -100,19 +101,28 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
   }
 
   async verifyAdminCredentials(username: string, password: string) {
-    const context = await this.getActiveContext();
-    return verifyRestaurantAdmin(username, password, context.restaurantId);
+    return verifyRestaurantAdmin(username, password);
   }
 
-  async registerAdminAccount(username: string, password: string) {
-    const context = await this.getActiveContext();
-    return registerRestaurantAdmin(username, password, context.restaurantId);
+  async registerAdminAccount(
+    username: string,
+    password: string,
+    restaurantName?: string,
+  ) {
+    return registerRestaurantAdmin(username, password, undefined, restaurantName);
   }
 
   createRestaurant(
     payload: RestaurantWorkspacePayload,
   ): Promise<RestaurantWorkspace> {
     return createRestaurantWorkspace(payload);
+  }
+
+  updateRestaurant(
+    restaurantId: string,
+    payload: Partial<RestaurantWorkspacePayload>,
+  ): Promise<RestaurantWorkspace> {
+    return updateRestaurantWorkspace(restaurantId, payload);
   }
 
   listBranches(restaurantId?: string): Promise<RestaurantBranch[]> {

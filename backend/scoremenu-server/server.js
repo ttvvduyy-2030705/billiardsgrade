@@ -45,7 +45,7 @@ const DATA_FILE = resolveStoragePath(process.env.SCOREMENU_DB_FILE, path.join('d
   label: 'Database',
 });
 const SCHEMA_FILE = path.join(__dirname, 'data', 'schema.json');
-const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD === '1';
+const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD !== '0';
 const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret_change_me';
 const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24);
 const UPLOAD_DIR = resolveStoragePath(process.env.SCOREMENU_UPLOAD_DIR, path.join('data', 'uploads'), {
@@ -97,6 +97,122 @@ const PRODUCTION_DEMO_ADMIN_SALTS = new Set([
   'admin_demo_owner_salt',
 ]);
 const PRODUCTION_DEMO_ADMIN_USERNAMES = new Set(['admin', 'staff', 'haidilao']);
+const PRODUCTION_DEMO_RESTAURANT_IDS = new Set([
+  'aplus_billiards_hanoi',
+  'haidilao_demo',
+  'haidilao_local_demo',
+  'legacy_removed_restaurant',
+  'local_restaurant',
+]);
+const PRODUCTION_DEMO_BRANCH_IDS = new Set([
+  'aplus_hanoi_main',
+  'aplus_hanoi_vip',
+  'haidilao_demo_main',
+  'haidilao_demo_2',
+  'haidilao_local_main_branch',
+  'legacy_removed_branch',
+  'local_main_branch',
+]);
+const PRODUCTION_DEMO_TABLE_IDS = new Set([
+  'aplus_main_table_01',
+  'aplus_main_table_02',
+  'aplus_vip_table_01',
+  'haidilao_main_table_01',
+  'haidilao_main_table_02',
+  'haidilao_2_table_01',
+  'haidilao_local_table_01',
+  'legacy_removed_table',
+  'local_table_01',
+]);
+const PRODUCTION_DEMO_CATEGORY_IDS = new Set([
+  'aplus_drink',
+  'aplus_snack',
+  'haidilao_hotpot',
+  'haidilao_meat',
+  'haidilao_side',
+  'drink',
+  'food',
+]);
+const PRODUCTION_DEMO_ITEM_IDS = new Set([
+  'aplus_coca',
+  'aplus_pepsi',
+  'aplus_fries',
+  'haidilao_mushroom_hotpot',
+  'haidilao_beef_plate',
+  'haidilao_spicy_hotpot',
+  'haidilao_vegetable_set',
+  'sample_coca',
+  'sample_fanta',
+  'sample_mirinda',
+  'sample_pepsi',
+]);
+
+
+const isProductionDemoRestaurantId = value => {
+  const id = cleanString(value);
+  return Boolean(id) && (
+    PRODUCTION_DEMO_RESTAURANT_IDS.has(id) ||
+    /^aplus_|^haidilao_|^seed_|^sample_|^legacy_removed_/i.test(id)
+  );
+};
+
+const isProductionDemoBranchId = value => {
+  const id = cleanString(value);
+  return Boolean(id) && (
+    PRODUCTION_DEMO_BRANCH_IDS.has(id) ||
+    /^aplus_|^haidilao_|^seed_|^sample_|^legacy_removed_/i.test(id)
+  );
+};
+
+const sanitizeAdminUserScope = (db, user) => {
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+
+  const knownRestaurantIds = new Set(
+    (Array.isArray(db.restaurants) ? db.restaurants : [])
+      .filter(restaurant => !isProductionDemoRestaurant(restaurant))
+      .map(restaurant => cleanString(restaurant.id))
+      .filter(Boolean),
+  );
+  const cleanRestaurantIds = (Array.isArray(user.restaurantIds) ? user.restaurantIds : [])
+    .map(cleanString)
+    .filter(Boolean)
+    .filter(id => knownRestaurantIds.has(id) && !isProductionDemoRestaurantId(id));
+  const uniqueRestaurantIds = Array.from(new Set(cleanRestaurantIds));
+  const cleanActiveRestaurantId = cleanString(user.activeRestaurantId);
+  const nextActiveRestaurantId =
+    cleanActiveRestaurantId && uniqueRestaurantIds.includes(cleanActiveRestaurantId)
+      ? cleanActiveRestaurantId
+      : uniqueRestaurantIds[0] || '';
+
+  const cleanBranchIds = (Array.isArray(user.branchIds) ? user.branchIds : [])
+    .map(cleanString)
+    .filter(Boolean)
+    .filter(id => !isProductionDemoBranchId(id));
+  const uniqueBranchIds = Array.from(new Set(cleanBranchIds));
+  const cleanActiveBranchId = cleanString(user.activeBranchId);
+  const nextActiveBranchId =
+    cleanActiveBranchId && uniqueBranchIds.includes(cleanActiveBranchId)
+      ? cleanActiveBranchId
+      : uniqueBranchIds[0] || '';
+
+  const changed =
+    JSON.stringify(user.restaurantIds || []) !== JSON.stringify(uniqueRestaurantIds) ||
+    cleanString(user.activeRestaurantId) !== nextActiveRestaurantId ||
+    JSON.stringify(user.branchIds || []) !== JSON.stringify(uniqueBranchIds) ||
+    cleanString(user.activeBranchId) !== nextActiveBranchId;
+
+  if (changed) {
+    user.restaurantIds = uniqueRestaurantIds;
+    user.activeRestaurantId = nextActiveRestaurantId;
+    user.branchIds = uniqueBranchIds;
+    user.activeBranchId = nextActiveBranchId;
+    user.updatedAt = nowIso();
+  }
+
+  return changed;
+};
 
 const normalizeUsernameKey = value => String(value || '').trim().toLowerCase();
 
@@ -128,6 +244,361 @@ const purgeProductionDemoAdmins = db => {
   const before = db.adminUsers.length;
   db.adminUsers = db.adminUsers.filter(user => !isProductionDemoAdminUser(user));
   return db.adminUsers.length !== before;
+};
+
+const isProductionDemoRestaurant = restaurant => {
+  if (!restaurant || typeof restaurant !== 'object') {
+    return false;
+  }
+
+  const id = String(restaurant.id || '');
+  const ownerId = String(restaurant.ownerId || '');
+  return (
+    PRODUCTION_DEMO_RESTAURANT_IDS.has(id) ||
+    PRODUCTION_DEMO_ADMIN_IDS.has(ownerId) ||
+    (String(restaurant.createdAt || '').startsWith('2026-05-09') &&
+      /demo|aplus|haidilao|nhà hàng chính|nhà hàng cũ/i.test(`${id} ${restaurant.name || ''}`))
+  );
+};
+
+const purgeProductionDemoData = db => {
+  if (!db || typeof db !== 'object') {
+    return false;
+  }
+
+  const demoRestaurantIds = new Set(PRODUCTION_DEMO_RESTAURANT_IDS);
+  (Array.isArray(db.restaurants) ? db.restaurants : []).forEach(restaurant => {
+    if (isProductionDemoRestaurant(restaurant)) {
+      demoRestaurantIds.add(String(restaurant.id || ''));
+    }
+  });
+
+  let changed = false;
+  const filterArray = (key, predicate) => {
+    const current = Array.isArray(db[key]) ? db[key] : [];
+    const next = current.filter(predicate);
+    if (next.length !== current.length) {
+      changed = true;
+      db[key] = next;
+    }
+  };
+
+  filterArray('restaurants', item => !demoRestaurantIds.has(String(item.id || '')));
+  filterArray('branches', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !PRODUCTION_DEMO_BRANCH_IDS.has(String(item.id || '')),
+  );
+  filterArray('tables', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !PRODUCTION_DEMO_TABLE_IDS.has(String(item.id || '')),
+  );
+  filterArray('categories', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !PRODUCTION_DEMO_CATEGORY_IDS.has(String(item.id || '')),
+  );
+  filterArray('items', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !PRODUCTION_DEMO_ITEM_IDS.has(String(item.id || '')),
+  );
+  filterArray('orders', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !String(item.id || '').startsWith('seed_'),
+  );
+  filterArray('billSessions', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !String(item.id || '').startsWith('seed_'),
+  );
+  filterArray('auditLogs', item =>
+    !demoRestaurantIds.has(String(item.restaurantId || '')) &&
+    !String(item.id || '').startsWith('seed_'),
+  );
+  filterArray('publicOrderRateLimits', item => !demoRestaurantIds.has(String(item.restaurantId || '')));
+  filterArray('imageUploads', item => !demoRestaurantIds.has(String(item.restaurantId || '')));
+
+  if (db.carts && typeof db.carts === 'object') {
+    Object.keys(db.carts).forEach(key => {
+      const restaurantId = key.split(':')[0];
+      if (demoRestaurantIds.has(restaurantId)) {
+        delete db.carts[key];
+        changed = true;
+      }
+    });
+  }
+
+  return changed;
+};
+
+
+const isDemoRecordId = value => {
+  const id = String(value || '').trim();
+  return (
+    id.startsWith('seed_') ||
+    id.startsWith('sample_') ||
+    id.startsWith('aplus_') ||
+    id.startsWith('haidilao_') ||
+    id.startsWith('legacy_removed_') ||
+    PRODUCTION_DEMO_CATEGORY_IDS.has(id) ||
+    PRODUCTION_DEMO_ITEM_IDS.has(id) ||
+    PRODUCTION_DEMO_BRANCH_IDS.has(id) ||
+    PRODUCTION_DEMO_TABLE_IDS.has(id)
+  );
+};
+
+const isDemoRecordText = value =>
+  /dữ liệu mẫu|demo|sample|haidilao|a\s*plus|aplus|nhà hàng chính|nhà hàng cũ/i.test(
+    String(value || ''),
+  );
+
+const isLeakedDemoCategory = category =>
+  isDemoRecordId(category?.id) ||
+  isDemoRecordText(`${category?.name || ''} ${category?.description || ''}`);
+
+const isLeakedDemoItem = item =>
+  isDemoRecordId(item?.id) ||
+  isDemoRecordId(item?.categoryId) ||
+  isDemoRecordText(`${item?.name || ''} ${item?.description || ''} ${item?.note || ''}`);
+
+const isLeakedDemoOrder = order => {
+  if (isDemoRecordId(order?.id) || isDemoRecordText(`${order?.note || ''} ${order?.guestSessionId || ''}`)) {
+    return true;
+  }
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return items.length > 0 && items.every(item => isDemoRecordId(item?.itemId) || isDemoRecordText(`${item?.name || ''} ${item?.note || ''}`));
+};
+
+const isLeakedDemoBillSession = billSession =>
+  isDemoRecordId(billSession?.id) ||
+  isDemoRecordText(`${billSession?.note || ''} ${billSession?.guestSessionId || ''}`) ||
+  (Array.isArray(billSession?.orders) && billSession.orders.some(isLeakedDemoOrder));
+
+const clearRestaurantScopedRuntimeData = (db, restaurantId) => {
+  const id = cleanString(restaurantId);
+  if (!id) {
+    return false;
+  }
+
+  let changed = false;
+  const wipeKeys = ['categories', 'items', 'orders', 'billSessions'];
+  wipeKeys.forEach(key => {
+    const current = Array.isArray(db[key]) ? db[key] : [];
+    const next = current.filter(item => cleanString(item.restaurantId) !== id);
+    if (next.length !== current.length) {
+      db[key] = next;
+      changed = true;
+    }
+  });
+
+  if (db.carts && typeof db.carts === 'object') {
+    Object.keys(db.carts).forEach(key => {
+      if (key.split(':')[0] === id) {
+        delete db.carts[key];
+        changed = true;
+      }
+    });
+  }
+
+  return changed;
+};
+
+const removeLeakedDemoRecordsForRestaurant = (db, restaurantId) => {
+  const id = cleanString(restaurantId);
+  if (!id) {
+    return false;
+  }
+
+  let changed = false;
+  const filterScoped = (key, predicate) => {
+    const current = Array.isArray(db[key]) ? db[key] : [];
+    const next = current.filter(item => cleanString(item.restaurantId) !== id || !predicate(item));
+    if (next.length !== current.length) {
+      db[key] = next;
+      changed = true;
+    }
+  };
+
+  filterScoped('categories', isLeakedDemoCategory);
+  filterScoped('items', isLeakedDemoItem);
+  filterScoped('orders', isLeakedDemoOrder);
+  filterScoped('billSessions', isLeakedDemoBillSession);
+
+  if (db.carts && typeof db.carts === 'object') {
+    Object.keys(db.carts).forEach(key => {
+      if (key.split(':')[0] !== id) {
+        return;
+      }
+      const cart = db.carts[key];
+      const items = Array.isArray(cart?.items) ? cart.items : [];
+      if (items.length === 0 || items.some(item => isLeakedDemoItem({id: item.itemId, name: item.name, note: item.note}))) {
+        delete db.carts[key];
+        changed = true;
+      }
+    });
+  }
+
+  return changed;
+};
+
+
+const normalizeDemoSearchText = value =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+
+const DEMO_RUNTIME_KEYWORDS = [
+  'demo',
+  'sample',
+  'seed',
+  'test',
+  'du lieu mau',
+  'mau',
+  'haidilao',
+  'aplus',
+  'a plus',
+  'nha hang cu',
+  'nha hang chinh',
+  'coca',
+  'coca cola',
+  'pepsi',
+  'fanta',
+  'mirinda',
+  'tra da',
+  'tra dao',
+  'nuoc ngot',
+  'do uong',
+  'combo lau',
+  'lau hai san',
+  'bo my',
+];
+
+const containsDemoRuntimeText = value => {
+  const text = normalizeDemoSearchText(value);
+  return DEMO_RUNTIME_KEYWORDS.some(keyword => text.includes(keyword));
+};
+
+const getRuntimeCreatedMs = item => {
+  const candidates = [item?.createdAt, item?.openedAt, item?.orderedAt, item?.updatedAt];
+  for (const candidate of candidates) {
+    const ms = Date.parse(String(candidate || ''));
+    if (Number.isFinite(ms)) {
+      return ms;
+    }
+  }
+  return 0;
+};
+
+const getRestaurantRuntimeRecords = (db, restaurantId) => {
+  const id = cleanString(restaurantId);
+  return {
+    categories: (Array.isArray(db.categories) ? db.categories : []).filter(item => cleanString(item.restaurantId) === id),
+    items: (Array.isArray(db.items) ? db.items : []).filter(item => cleanString(item.restaurantId) === id),
+    orders: (Array.isArray(db.orders) ? db.orders : []).filter(item => cleanString(item.restaurantId) === id),
+    billSessions: (Array.isArray(db.billSessions) ? db.billSessions : []).filter(item => cleanString(item.restaurantId) === id),
+    carts: db.carts && typeof db.carts === 'object'
+      ? Object.entries(db.carts)
+          .filter(([key]) => key.split(':')[0] === id)
+          .map(([, value]) => value)
+      : [],
+  };
+};
+
+const runtimeRecordCount = records =>
+  records.categories.length +
+  records.items.length +
+  records.orders.length +
+  records.billSessions.length +
+  records.carts.length;
+
+const hasRuntimeOlderThanAdmin = (records, user) => {
+  const userCreatedMs = Date.parse(String(user?.createdAt || ''));
+  if (!Number.isFinite(userCreatedMs) || userCreatedMs <= 0) {
+    return false;
+  }
+  const allRecords = [
+    ...records.categories,
+    ...records.items,
+    ...records.orders,
+    ...records.billSessions,
+    ...records.carts,
+  ];
+  return allRecords.some(record => {
+    const recordMs = getRuntimeCreatedMs(record);
+    return recordMs > 0 && recordMs + 1000 < userCreatedMs;
+  });
+};
+
+const isLikelySeedCategoryRuntime = category =>
+  isLeakedDemoCategory(category) ||
+  containsDemoRuntimeText(`${category?.id || ''} ${category?.name || ''} ${category?.description || ''}`);
+
+const isLikelySeedItemRuntime = item =>
+  isLeakedDemoItem(item) ||
+  containsDemoRuntimeText(`${item?.id || ''} ${item?.categoryId || ''} ${item?.name || ''} ${item?.description || ''} ${item?.note || ''}`);
+
+const isLikelySeedOrderRuntime = order => {
+  if (isLeakedDemoOrder(order)) {
+    return true;
+  }
+  const orderText = `${order?.id || ''} ${order?.note || ''} ${order?.guestSessionId || ''} ${order?.tableNumber || ''}`;
+  if (containsDemoRuntimeText(orderText)) {
+    return true;
+  }
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return items.length > 0 && items.every(item =>
+    containsDemoRuntimeText(`${item?.itemId || ''} ${item?.name || ''} ${item?.note || ''}`),
+  );
+};
+
+const isLikelySeedBillRuntime = billSession =>
+  isLeakedDemoBillSession(billSession) ||
+  containsDemoRuntimeText(`${billSession?.id || ''} ${billSession?.note || ''} ${billSession?.guestSessionId || ''} ${billSession?.tableNumber || ''}`) ||
+  (Array.isArray(billSession?.orders) && billSession.orders.some(isLikelySeedOrderRuntime));
+
+const hasBundledDemoFootprint = records => {
+  const itemCount = records.items.length;
+  const orderCount = records.orders.length;
+  const billCount = records.billSessions.length;
+  const categoryCount = records.categories.length;
+  const cartCount = records.carts.length;
+  const demoItemCount = records.items.filter(isLikelySeedItemRuntime).length;
+  const demoOrderCount = records.orders.filter(isLikelySeedOrderRuntime).length;
+  const demoBillCount = records.billSessions.filter(isLikelySeedBillRuntime).length;
+  const demoCategoryCount = records.categories.filter(isLikelySeedCategoryRuntime).length;
+  const cartHasDemoItems = records.carts.some(cart => {
+    const items = Array.isArray(cart?.items) ? cart.items : [];
+    return items.length === 0 || items.some(item =>
+      containsDemoRuntimeText(`${item?.itemId || ''} ${item?.name || ''} ${item?.note || ''}`),
+    );
+  });
+
+  return (
+    (itemCount > 0 && itemCount <= 6 && demoItemCount > 0 && orderCount <= 2 && billCount <= 2) ||
+    (orderCount > 0 && orderCount <= 2 && demoOrderCount > 0 && itemCount <= 8) ||
+    (billCount > 0 && billCount <= 2 && demoBillCount > 0 && itemCount <= 8) ||
+    (categoryCount > 0 && categoryCount <= 4 && demoCategoryCount === categoryCount && itemCount <= 8 && orderCount <= 2) ||
+    (cartCount > 0 && cartCount <= 3 && cartHasDemoItems && itemCount <= 8)
+  );
+};
+
+const sanitizeOwnerRestaurantRuntimeData = (db, user) => {
+  const restaurantId = getAdminPrimaryRestaurantId(user);
+  if (!restaurantId) {
+    return false;
+  }
+
+  const records = getRestaurantRuntimeRecords(db, restaurantId);
+  if (runtimeRecordCount(records) === 0) {
+    return false;
+  }
+
+  // Data that already existed before the admin account was created cannot be that admin's own data.
+  // This is the main guard against the bundled test dataset leaking into every newly-created account.
+  if (hasRuntimeOlderThanAdmin(records, user) || hasBundledDemoFootprint(records)) {
+    return clearRestaurantScopedRuntimeData(db, restaurantId);
+  }
+
+  return removeLeakedDemoRecordsForRestaurant(db, restaurantId);
 };
 
 const safeJsonParse = (raw, fallback) => {
@@ -168,7 +639,9 @@ const loadDb = () => {
     imageUploads: Array.isArray(db.imageUploads) ? db.imageUploads : [],
   };
 
-  if (purgeProductionDemoAdmins(nextDb)) {
+  const demoAdminsPurged = purgeProductionDemoAdmins(nextDb);
+  const demoDataPurged = purgeProductionDemoData(nextDb);
+  if (demoAdminsPurged || demoDataPurged) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(nextDb, null, 2));
   }
 
@@ -177,6 +650,7 @@ const loadDb = () => {
 
 const saveDb = db => {
   purgeProductionDemoAdmins(db);
+  purgeProductionDemoData(db);
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 };
 
@@ -421,8 +895,18 @@ const createToken = user =>
     userId: user.id,
     username: user.username,
     role: user.role,
-    restaurantIds: user.restaurantIds || [],
-    branchIds: user.branchIds || [],
+    restaurantIds: (Array.isArray(user.restaurantIds) ? user.restaurantIds : [])
+      .map(cleanString)
+      .filter(id => id && !isProductionDemoRestaurantId(id)),
+    activeRestaurantId: isProductionDemoRestaurantId(user.activeRestaurantId)
+      ? undefined
+      : cleanString(user.activeRestaurantId),
+    branchIds: (Array.isArray(user.branchIds) ? user.branchIds : [])
+      .map(cleanString)
+      .filter(id => id && !isProductionDemoBranchId(id)),
+    activeBranchId: isProductionDemoBranchId(user.activeBranchId)
+      ? undefined
+      : cleanString(user.activeBranchId),
     branchIdsByRestaurant: user.branchIdsByRestaurant || {},
     iat: Date.now(),
     exp: Date.now() + TOKEN_TTL_MS,
@@ -474,13 +958,14 @@ const getUserFromRequest = (db, req) => {
 };
 
 const canAccessRestaurant = (user, restaurantId) => {
-  if (!user) {
-    return !ENABLE_AUTH_GUARD;
+  const cleanRestaurantId = cleanString(restaurantId);
+  if (!user || !cleanRestaurantId || isProductionDemoRestaurantId(cleanRestaurantId)) {
+    return false;
   }
-  if (user.role === 'OWNER') {
-    return Array.isArray(user.restaurantIds) && user.restaurantIds.includes(restaurantId);
-  }
-  return Array.isArray(user.restaurantIds) && user.restaurantIds.includes(restaurantId);
+  const allowedRestaurantIds = Array.isArray(user.restaurantIds)
+    ? user.restaurantIds.map(cleanString).filter(id => id && !isProductionDemoRestaurantId(id))
+    : [];
+  return allowedRestaurantIds.includes(cleanRestaurantId);
 };
 
 const requireRestaurantAccess = (db, req, res, restaurantId) => {
@@ -491,13 +976,20 @@ const requireRestaurantAccess = (db, req, res, restaurantId) => {
   }
 
   const user = getUserFromRequest(db, req);
-  if (ENABLE_AUTH_GUARD && !user) {
+  if (!user) {
     fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
     return null;
   }
   if (!canAccessRestaurant(user, restaurantId)) {
     fail(res, 403, 'Tài khoản không có quyền truy cập nhà hàng này.');
     return null;
+  }
+
+  if (user.role === 'OWNER' && getAdminPrimaryRestaurantId(user) === restaurantId) {
+    const cleanedRuntimeData = sanitizeOwnerRestaurantRuntimeData(db, user);
+    if (cleanedRuntimeData) {
+      saveDb(db);
+    }
   }
 
   return {restaurant, user};
@@ -513,7 +1005,7 @@ const getUserBranchIds = (user, restaurantId) => {
 };
 
 const isBranchRestricted = (user, restaurantId) => {
-  if (!ENABLE_AUTH_GUARD || !user || user.role === 'OWNER') {
+  if (!user || user.role === 'OWNER') {
     return false;
   }
   return getUserBranchIds(user, restaurantId).length > 0;
@@ -535,8 +1027,9 @@ const requireBranchAccess = (res, user, restaurantId, branchId) => {
 };
 
 const requireRole = (res, user, allowedRoles, actionLabel) => {
-  if (!ENABLE_AUTH_GUARD || !user) {
-    return true;
+  if (!user) {
+    fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
+    return false;
   }
   if (allowedRoles.includes(user.role)) {
     return true;
@@ -1533,18 +2026,125 @@ const inferBranchMenuQrToken = branch => {
   if (explicitToken) {
     return explicitToken;
   }
-  const defaults = {
-    aplus_hanoi_main: 'qr_aplus_main_menu',
-    aplus_hanoi_vip: 'qr_aplus_vip_menu',
-    haidilao_demo_main: 'qr_haidilao_main_menu',
-    haidilao_demo_2: 'qr_haidilao_2_menu',
-  };
-  if (branch?.id && defaults[branch.id]) {
-    return defaults[branch.id];
+  if (branch?.id && isProductionDemoBranchId(branch.id)) {
+    return createUniqueMenuQrToken({branches: []}, branch.restaurantId || 'restaurant', branch.name || 'main');
   }
   const restaurantKey = normalizeKey(branch?.restaurantId || 'restaurant').replace(/[^a-z0-9]+/g, '_');
   const branchKey = normalizeKey(branch?.name || branch?.id || 'main').replace(/[^a-z0-9]+/g, '_');
   return `qr_${restaurantKey}_${branchKey}_menu`;
+};
+
+const createUniqueMenuQrToken = (db, restaurantId, label = 'main') => {
+  const restaurantKey = normalizeKey(restaurantId || 'restaurant').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'restaurant';
+  const labelKey = normalizeKey(label || 'main').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'main';
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const randomPart = crypto.randomBytes(4).toString('hex');
+    const token = `qr_${restaurantKey}_${labelKey}_${randomPart}_menu`;
+    if (!branchMenuQrTokenExists(db, token)) {
+      return token;
+    }
+  }
+
+  return `qr_${restaurantKey}_${labelKey}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}_menu`;
+};
+
+const createFreshRestaurantForAdmin = (db, {userId, username, timestamp}) => {
+  const cleanRestaurantName = `Quán của ${cleanString(username) || 'Admin'}`;
+  const restaurant = {
+    id: createId('restaurant'),
+    name: cleanRestaurantName,
+    ownerId: userId,
+    status: 'ACTIVE',
+    logoUrl: '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  const branch = {
+    id: createId('branch'),
+    restaurantId: restaurant.id,
+    name: cleanRestaurantName,
+    address: '',
+    menuQrToken: createUniqueMenuQrToken(db, restaurant.id, cleanRestaurantName),
+    status: 'ACTIVE',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  db.restaurants.unshift(restaurant);
+  db.branches.unshift(branch);
+  clearRestaurantScopedRuntimeData(db, restaurant.id);
+
+  return {restaurant, branch};
+};
+
+const getAdminPrimaryRestaurantId = user => {
+  const activeRestaurantId = cleanString(user?.activeRestaurantId);
+  if (activeRestaurantId && !isProductionDemoRestaurantId(activeRestaurantId)) {
+    return activeRestaurantId;
+  }
+  const restaurantIds = Array.isArray(user?.restaurantIds) ? user.restaurantIds : [];
+  return restaurantIds.map(cleanString).find(id => id && !isProductionDemoRestaurantId(id)) || '';
+};
+
+const shouldCreatePrivateRestaurantForOwner = (db, user) => {
+  if (!user || user.role !== 'OWNER') {
+    return false;
+  }
+
+  const activeRestaurantId = getAdminPrimaryRestaurantId(user);
+  if (!activeRestaurantId) {
+    return true;
+  }
+
+  const restaurant = db.restaurants.find(item => item.id === activeRestaurantId);
+  if (!restaurant) {
+    return true;
+  }
+
+  if (isProductionDemoRestaurant(restaurant)) {
+    return true;
+  }
+
+  if (restaurant.ownerId && restaurant.ownerId !== user.id) {
+    return true;
+  }
+
+  return db.adminUsers.some(other =>
+    other.id !== user.id &&
+    other.role === 'OWNER' &&
+    getAdminPrimaryRestaurantId(other) === activeRestaurantId,
+  );
+};
+
+const ensurePrivateRestaurantForOwner = (db, user) => {
+  if (!user || user.role !== 'OWNER') {
+    return false;
+  }
+
+  const scopeSanitized = sanitizeAdminUserScope(db, user);
+
+  if (!shouldCreatePrivateRestaurantForOwner(db, user)) {
+    return sanitizeOwnerRestaurantRuntimeData(db, user) || scopeSanitized;
+  }
+
+  const timestamp = nowIso();
+  const {restaurant, branch} = createFreshRestaurantForAdmin(db, {
+    userId: user.id,
+    username: user.username,
+    timestamp,
+  });
+
+  Object.assign(user, {
+    restaurantIds: [restaurant.id],
+    activeRestaurantId: restaurant.id,
+    branchIds: [branch.id],
+    activeBranchId: branch.id,
+    updatedAt: timestamp,
+  });
+  clearRestaurantScopedRuntimeData(db, restaurant.id);
+
+  return true;
 };
 
 const findBranchByMenuQrToken = (db, token) => {
@@ -1877,9 +2477,17 @@ const routeAuth = async (req, res, db, parts) => {
       fail(res, 401, 'Tài khoản hoặc mật khẩu chưa đúng.');
       return true;
     }
-    if (migratePlainPasswordIfNeeded(user, password)) {
+    const passwordMigrated = migratePlainPasswordIfNeeded(user, password);
+    const scopeChanged = ensurePrivateRestaurantForOwner(db, user);
+    if (passwordMigrated || scopeChanged) {
       saveDb(db);
     }
+
+    const activeRestaurantId = user.activeRestaurantId || user.restaurantIds?.[0];
+    const activeRestaurant = db.restaurants.find(item => item.id === activeRestaurantId);
+    const activeBranch =
+      db.branches.find(branch => branch.id === user.activeBranchId && branch.restaurantId === activeRestaurantId) ||
+      db.branches.find(branch => branch.restaurantId === activeRestaurantId);
 
     ok(res, {
       ok: true,
@@ -1887,10 +2495,12 @@ const routeAuth = async (req, res, db, parts) => {
       token: createToken(user),
       userId: user.id,
       role: user.role,
-      restaurantId: user.activeRestaurantId || user.restaurantIds?.[0],
+      restaurantId: activeRestaurantId,
+      restaurantName: activeRestaurant?.name,
       restaurantIds: user.restaurantIds || [],
       branchIds: user.branchIds || [],
-      activeBranchId: user.activeBranchId,
+      activeBranchId: activeBranch?.id || user.activeBranchId,
+      activeBranchName: activeBranch?.name,
     });
     return true;
   }
@@ -1906,34 +2516,50 @@ const routeAuth = async (req, res, db, parts) => {
         fail(res, 409, 'Tài khoản Admin này đã tồn tại. Hãy đăng nhập bằng đúng mật khẩu đã tạo, hoặc dùng tài khoản khác.');
         return true;
       }
-      if (migratePlainPasswordIfNeeded(existingUser, password)) {
+      const passwordMigrated = migratePlainPasswordIfNeeded(existingUser, password);
+      const scopeChanged = ensurePrivateRestaurantForOwner(db, existingUser);
+      if (passwordMigrated || scopeChanged) {
         saveDb(db);
       }
+      const activeRestaurantId = existingUser.activeRestaurantId || existingUser.restaurantIds?.[0];
+      const activeRestaurant = db.restaurants.find(item => item.id === activeRestaurantId);
+      const activeBranch =
+        db.branches.find(branch => branch.id === existingUser.activeBranchId && branch.restaurantId === activeRestaurantId) ||
+        db.branches.find(branch => branch.restaurantId === activeRestaurantId);
+
       ok(res, {
         ok: true,
         message: 'Tài khoản Admin đã tồn tại, đã đăng nhập bằng tài khoản này.',
         token: createToken(existingUser),
         userId: existingUser.id,
         role: existingUser.role,
-        restaurantId: existingUser.activeRestaurantId || existingUser.restaurantIds?.[0],
+        restaurantId: activeRestaurantId,
+        restaurantName: activeRestaurant?.name,
         restaurantIds: existingUser.restaurantIds || [],
         branchIds: existingUser.branchIds || [],
-        activeBranchId: existingUser.activeBranchId,
+        activeBranchId: activeBranch?.id || existingUser.activeBranchId,
+        activeBranchName: activeBranch?.name,
       });
       return true;
     }
 
     const timestamp = nowIso();
-    const defaultRestaurantId = db.restaurants[0]?.id || 'restaurant_default';
     const passwordRecord = createPasswordRecord(password);
+    const userId = createId('admin');
+    const {restaurant, branch} = createFreshRestaurantForAdmin(db, {
+      userId,
+      username,
+      timestamp,
+    });
     const user = {
-      id: createId('admin'),
+      id: userId,
       username,
       ...passwordRecord,
       role: 'OWNER',
-      restaurantIds: [defaultRestaurantId],
-      activeRestaurantId: defaultRestaurantId,
-      branchIds: [],
+      restaurantIds: [restaurant.id],
+      activeRestaurantId: restaurant.id,
+      branchIds: [branch.id],
+      activeBranchId: branch.id,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -1946,9 +2572,12 @@ const routeAuth = async (req, res, db, parts) => {
       userId: user.id,
       role: user.role,
       restaurantId: user.activeRestaurantId,
+      restaurantName: restaurant.name,
       restaurantIds: user.restaurantIds,
       branchIds: user.branchIds || [],
       activeBranchId: user.activeBranchId,
+      activeBranchName: branch.name,
+      menuQrToken: branch.menuQrToken,
     });
     return true;
   }
@@ -1959,20 +2588,29 @@ const routeAuth = async (req, res, db, parts) => {
 const routeRestaurants = async (req, res, db, parts) => {
   if (parts.length === 1 && req.method === 'GET') {
     const user = getUserFromRequest(db, req);
-    if (ENABLE_AUTH_GUARD && !user) {
+    if (!user) {
       fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
       return true;
     }
-    const restaurants = ENABLE_AUTH_GUARD && user
-      ? db.restaurants.filter(restaurant => canAccessRestaurant(user, restaurant.id))
-      : db.restaurants;
+    const cleanedRuntimeData = ensurePrivateRestaurantForOwner(db, user);
+    if (cleanedRuntimeData) {
+      saveDb(db);
+    }
+    const restaurants = user
+      ? db.restaurants.filter(
+          restaurant =>
+            !isProductionDemoRestaurant(restaurant) &&
+            !isProductionDemoRestaurantId(restaurant.id) &&
+            canAccessRestaurant(user, restaurant.id),
+        )
+      : [];
     ok(res, restaurants.map(asPublicRestaurant));
     return true;
   }
 
   if (parts.length === 1 && req.method === 'POST') {
     const user = getUserFromRequest(db, req);
-    if (ENABLE_AUTH_GUARD && !user) {
+    if (!user) {
       fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
       return true;
     }
@@ -2002,27 +2640,81 @@ const routeRestaurants = async (req, res, db, parts) => {
       updatedAt: timestamp,
     };
     db.restaurants.push(restaurant);
+    const menuQrToken = cleanString(body.menuQrToken) || createUniqueMenuQrToken(db, restaurant.id, name);
+    if (branchMenuQrTokenExists(db, menuQrToken)) {
+      fail(res, 409, 'Mã QR menu quán này đã được dùng.');
+      return true;
+    }
     const branch = {
       id: createId('branch'),
       restaurantId: restaurant.id,
-      name: 'Chi nhánh chính',
+      name,
       address: '',
-      menuQrToken: cleanString(body.menuQrToken),
+      menuQrToken,
       status: 'ACTIVE',
       createdAt: timestamp,
       updatedAt: timestamp,
     };
     db.branches.push(branch);
-    if (user && !Array.isArray(user.restaurantIds)) {
-      user.restaurantIds = [];
-    }
-    if (user && !user.restaurantIds.includes(restaurant.id)) {
-      user.restaurantIds.push(restaurant.id);
+    if (user) {
+      user.restaurantIds = [restaurant.id];
+      user.activeRestaurantId = restaurant.id;
+      user.branchIds = [branch.id];
+      user.activeBranchId = branch.id;
       user.updatedAt = timestamp;
     }
     saveDb(db);
     audit('restaurant.create', {user, restaurantId: restaurant.id});
     created(res, asPublicRestaurant(restaurant));
+    return true;
+  }
+
+  if (parts.length === 2 && req.method === 'PATCH') {
+    const user = getUserFromRequest(db, req);
+    const restaurantId = parts[1];
+    const restaurant = db.restaurants.find(item => item.id === restaurantId);
+    if (!restaurant) {
+      fail(res, 404, 'Không tìm thấy nhà hàng.');
+      return true;
+    }
+    if (!user) {
+      fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
+      return true;
+    }
+    if (!canAccessRestaurant(user, restaurantId)) {
+      fail(res, 403, 'Tài khoản không có quyền sửa nhà hàng này.');
+      return true;
+    }
+    if (!requireRole(res, user, ['OWNER'], 'Chỉ chủ nhà hàng mới được sửa tên quán.')) {
+      return true;
+    }
+
+    const body = await parseBody(req);
+    const name = cleanString(body.name ?? restaurant.name);
+    if (!name) {
+      fail(res, 400, 'Vui lòng nhập tên quán.');
+      return true;
+    }
+    const duplicateName = db.restaurants.some(item =>
+      item.id !== restaurant.id && normalizeKey(item.name) === normalizeKey(name),
+    );
+    if (duplicateName) {
+      fail(res, 409, 'Tên quán đã tồn tại. Vui lòng nhập tên khác.');
+      return true;
+    }
+
+    const timestamp = nowIso();
+    const previousName = restaurant.name;
+    restaurant.name = name;
+    restaurant.updatedAt = timestamp;
+    db.branches = db.branches.map(branch =>
+      branch.restaurantId === restaurant.id && (!branch.name || branch.name === previousName || branch.name === 'Chi nhánh chính')
+        ? {...branch, name, updatedAt: timestamp}
+        : branch,
+    );
+    saveDb(db);
+    audit('restaurant.update', {user, restaurantId: restaurant.id, targetId: restaurant.id});
+    ok(res, asPublicRestaurant(restaurant));
     return true;
   }
 
@@ -2146,7 +2838,7 @@ const routeTables = async (req, res, db, restaurantId, parts, user) => {
   }
 
   if (parts.length === 3 && req.method === 'POST') {
-    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền tạo bàn/QR.')) {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền tạo QR.')) {
       return true;
     }
     const body = await parseBody(req);
@@ -2195,7 +2887,7 @@ const routeTables = async (req, res, db, restaurantId, parts, user) => {
   }
 
   if (parts.length === 4 && req.method === 'PATCH') {
-    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa bàn/QR.')) {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa QR.')) {
       return true;
     }
     const table = findTable(db, restaurantId, parts[3]);
@@ -2248,7 +2940,7 @@ const routeTables = async (req, res, db, restaurantId, parts, user) => {
   }
 
   if (parts.length === 4 && req.method === 'DELETE') {
-    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền xoá bàn/QR.')) {
+    if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền xoá QR.')) {
       return true;
     }
     const tableId = parts[3];
@@ -3122,5 +3814,5 @@ const server = http.createServer(handleRequest);
 server.listen(PORT, HOST, () => {
   console.log(`[scoremenu-server] running at http://${HOST}:${PORT}`);
   console.log(`[scoremenu-server] data file: ${DATA_FILE}`);
-  console.log(`[scoremenu-server] auth guard: ${ENABLE_AUTH_GUARD ? 'ON' : 'OFF for MVP batch 25'}`);
+  console.log(`[scoremenu-server] auth guard: ${ENABLE_AUTH_GUARD ? 'ON' : 'OFF by SCOREMENU_AUTH_GUARD=0'}`);
 });
