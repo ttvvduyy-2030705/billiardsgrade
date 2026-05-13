@@ -10,6 +10,7 @@ export type ScoreMenuErrorKind =
   | 'FORBIDDEN'
   | 'SERVER'
   | 'VALIDATION'
+  | 'RATE_LIMIT'
   | 'UNKNOWN';
 
 export type ScoreMenuErrorContext = {
@@ -64,6 +65,9 @@ export const classifyScoreMenuError = (error: unknown): ScoreMenuErrorKind => {
   if (status >= 500 || code === 'SERVER_ERROR') {
     return 'SERVER';
   }
+  if (status === 429 || code === 'RATE_LIMIT') {
+    return 'RATE_LIMIT';
+  }
   if (
     status === 404 ||
     includesAny(message, ['qr', 'mã qr', 'token', 'không tìm thấy menu'])
@@ -104,6 +108,8 @@ export const getScoreMenuErrorMessage = (
       return originalMessage || 'Server menu đang lỗi. Vui lòng thử lại sau.';
     case 'VALIDATION':
       return originalMessage || 'Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại.';
+    case 'RATE_LIMIT':
+      return originalMessage || 'Bạn gửi yêu cầu quá nhanh. Vui lòng chờ vài phút rồi thử lại.';
     case 'UNKNOWN':
     default:
       return originalMessage || fallback;
@@ -112,7 +118,7 @@ export const getScoreMenuErrorMessage = (
 
 export const shouldKeepCartOnSubmitError = (error: unknown) => {
   const kind = classifyScoreMenuError(error);
-  return kind === 'NETWORK' || kind === 'TIMEOUT' || kind === 'SERVER' || kind === 'TABLE_INVALID' || kind === 'VALIDATION';
+  return kind === 'NETWORK' || kind === 'TIMEOUT' || kind === 'SERVER' || kind === 'TABLE_INVALID' || kind === 'VALIDATION' || kind === 'RATE_LIMIT';
 };
 
 export const isAuthExpiredError = (error: unknown) => {

@@ -17,6 +17,20 @@ const UPLOAD_DIR = process.env.SCOREMENU_UPLOAD_DIR || path.join(__dirname, 'dat
 const PUBLIC_UPLOAD_PREFIX = '/uploads/menu-images';
 const MAX_BODY_BYTES = Number(process.env.SCOREMENU_MAX_BODY_BYTES || 1024 * 1024 * 12);
 const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1024 * 6);
+const PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS = Number(
+  process.env.SCOREMENU_PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS || 1000 * 60,
+);
+const PUBLIC_ORDER_RATE_LIMIT_MAX = Number(process.env.SCOREMENU_PUBLIC_ORDER_RATE_LIMIT_MAX || 8);
+const PUBLIC_ORDER_ERROR_LIMIT_WINDOW_MS = Number(
+  process.env.SCOREMENU_PUBLIC_ORDER_ERROR_LIMIT_WINDOW_MS || 1000 * 60 * 5,
+);
+const PUBLIC_ORDER_ERROR_LIMIT_MAX = Number(process.env.SCOREMENU_PUBLIC_ORDER_ERROR_LIMIT_MAX || 5);
+const PUBLIC_ORDER_BLOCK_MS = Number(process.env.SCOREMENU_PUBLIC_ORDER_BLOCK_MS || 1000 * 60 * 5);
+const PUBLIC_ORDER_RATE_LIMIT_STORE_MAX = Number(
+  process.env.SCOREMENU_PUBLIC_ORDER_RATE_LIMIT_STORE_MAX || 2000,
+);
+const AUDIT_LOG_STORE_MAX = Number(process.env.SCOREMENU_AUDIT_LOG_STORE_MAX || 1000);
+const SCOREMENU_SCHEMA_VERSION = 'scoremenu_backend_schema_v1_batch25';
 
 
 const ORDER_STATUSES = ['NEW', 'ACCEPTED', 'PREPARING', 'COMPLETED', 'CANCELLED'];
@@ -55,6 +69,7 @@ const loadDb = () => {
   return {
     ...createSeedDatabase(),
     ...db,
+    meta: {...createSeedDatabase().meta, ...(db.meta && typeof db.meta === 'object' ? db.meta : {})},
     restaurants: Array.isArray(db.restaurants) ? db.restaurants : [],
     branches: Array.isArray(db.branches) ? db.branches : [],
     tables: Array.isArray(db.tables) ? db.tables : [],
@@ -63,6 +78,7 @@ const loadDb = () => {
     orders: Array.isArray(db.orders) ? db.orders : [],
     billSessions: Array.isArray(db.billSessions) ? db.billSessions : [],
     auditLogs: Array.isArray(db.auditLogs) ? db.auditLogs : [],
+    publicOrderRateLimits: Array.isArray(db.publicOrderRateLimits) ? db.publicOrderRateLimits : [],
     carts: db.carts && typeof db.carts === 'object' ? db.carts : {},
     adminUsers: Array.isArray(db.adminUsers) ? db.adminUsers : [],
     imageUploads: Array.isArray(db.imageUploads) ? db.imageUploads : [],
@@ -114,6 +130,47 @@ const getPathParts = url => {
 
 const cleanString = value => String(value || '').trim();
 const normalizeKey = value => cleanString(value).toLowerCase();
+
+const SENSITIVE_LOG_FIELD_PATTERN = /(password|token|authorization|base64|datauri|dataurl|imagedata|secret)/i;
+
+const redactValueForLog = (value, depth = 0) => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (depth > 4) {
+    return '[truncated]';
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map(item => redactValueForLog(item, depth + 1));
+  }
+  if (typeof value === 'object') {
+    return Object.entries(value).reduce((result, [key, item]) => {
+      if (SENSITIVE_LOG_FIELD_PATTERN.test(key)) {
+        result[key] = '[redacted]';
+        return result;
+      }
+      result[key] = redactValueForLog(item, depth + 1);
+      return result;
+    }, {});
+  }
+  if (typeof value === 'string' && value.length > 160) {
+    return `${value.slice(0, 157)}...`;
+  }
+  return value;
+};
+
+const sanitizeLogDetails = details => {
+  if (!details || typeof details !== 'object') {
+    return details;
+  }
+  return redactValueForLog(details);
+};
+
+const hashForLog = value =>
+  cleanString(value)
+    ? crypto.createHash('sha256').update(cleanString(value)).digest('hex').slice(0, 16)
+    : undefined;
+
 
 const IMAGE_MIME_TO_EXTENSION = {
   'image/jpeg': 'jpg',
@@ -443,7 +500,7 @@ const audit = (action, {user, restaurantId, branchId, targetId, details} = {}) =
       restaurantId,
       branchId,
       targetId,
-      details,
+      details: sanitizeLogDetails(details),
     }),
   );
 };
@@ -458,7 +515,7 @@ const createAuditLogEntry = (action, {user, restaurantId, branchId, targetId, de
   restaurantId,
   branchId,
   targetId,
-  details: details && typeof details === 'object' ? details : undefined,
+  details: details && typeof details === 'object' ? sanitizeLogDetails(details) : undefined,
 });
 
 const sortByOrderAndName = (a, b) => {
@@ -593,6 +650,183 @@ const recalculateBillSessionTotals = (db, billSession) => {
 };
 
 
+
+const getOrderMigrationGroupKey = order => {
+  const restaurantId = cleanString(order.restaurantId) || 'unknown_restaurant';
+  const branchId = cleanString(order.branchId) || 'no_branch';
+  const tableId = cleanString(order.tableId) || 'no_table_id';
+  const tableNumber = cleanString(order.tableNumber) || 'Bàn chưa rõ';
+  const guestSessionId = cleanString(order.guestSessionId) || 'legacy_guest';
+  return [restaurantId, branchId, tableId, tableNumber, guestSessionId].join('|');
+};
+
+const normalizeLegacyOrderForBillMigration = order => {
+  const timestamp = nowIso();
+  const items = Array.isArray(order.items) ? order.items : [];
+  const calculatedTotal = items.reduce(
+    (sum, item) => sum + Number(item.price || 0) * Math.max(0, Number(item.quantity || 0)),
+    0,
+  );
+  order.id = cleanString(order.id) || createId('order_migrated');
+  order.tableNumber = cleanString(order.tableNumber) || 'Bàn chưa rõ';
+  order.items = items;
+  order.total = Number.isFinite(Number(order.total)) && Number(order.total) > 0
+    ? Number(order.total)
+    : calculatedTotal;
+  order.orderStatus = ORDER_STATUSES.includes(order.orderStatus)
+    ? order.orderStatus
+    : ORDER_STATUSES.includes(order.status)
+      ? order.status
+      : 'NEW';
+  order.paymentStatus = PAYMENT_STATUSES.includes(order.paymentStatus)
+    ? order.paymentStatus
+    : order.status === 'PAID'
+      ? 'PAID'
+      : 'UNPAID';
+  order.paymentMethod = normalizePaymentMethod(order.paymentMethod);
+  order.orderSource = order.orderSource || 'customer';
+  order.createdAt = order.createdAt || timestamp;
+  order.updatedAt = timestamp;
+  delete order.status;
+  return order;
+};
+
+const findTableForLegacyOrder = (db, order) => {
+  const restaurantId = cleanString(order.restaurantId);
+  const branchId = cleanString(order.branchId);
+  const tableId = cleanString(order.tableId);
+  const tableNumber = cleanString(order.tableNumber);
+
+  if (tableId) {
+    const byId = db.tables.find(table => table.id === tableId && table.restaurantId === restaurantId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  return db.tables.find(table =>
+    table.restaurantId === restaurantId &&
+    (!branchId || table.branchId === branchId) &&
+    normalizeKey(table.tableNumber) === normalizeKey(tableNumber),
+  ) || null;
+};
+
+const createMigratedBillSessionFromOrders = (db, groupKey, groupOrders) => {
+  const first = groupOrders[0];
+  const table = findTableForLegacyOrder(db, first);
+  const createdAt = groupOrders
+    .map(order => order.createdAt)
+    .filter(Boolean)
+    .sort()[0] || nowIso();
+  const paidOrders = groupOrders.filter(order => order.paymentStatus === 'PAID');
+  const status = paidOrders.length === groupOrders.length && groupOrders.length > 0 ? 'PAID' : 'OPEN';
+  const id = `bill_migrated_${hashForLog(groupKey)}`;
+  const existing = db.billSessions.find(billSession => billSession.id === id);
+
+  if (existing) {
+    return existing;
+  }
+
+  const billSession = normalizeBillSessionPayload(db, cleanString(first.restaurantId), {
+    id,
+    restaurantId: cleanString(first.restaurantId),
+    branchId: cleanString(first.branchId || table?.branchId),
+    tableId: cleanString(first.tableId || table?.id),
+    tableNumber: cleanString(first.tableNumber || table?.tableNumber || 'Bàn chưa rõ'),
+    guestSessionId: cleanString(first.guestSessionId),
+    status,
+    orderIds: groupOrders.map(order => order.id),
+    openedAt: createdAt,
+    createdAt,
+    note: 'Batch 24 migration: tạo BillSession tạm cho order cũ chưa có billSessionId.',
+  });
+  billSession.migratedFromLegacyOrders = true;
+  billSession.migrationBatch = 'batch24';
+  billSession.source = 'migration';
+  if (status === 'PAID') {
+    billSession.paymentMethod = paidOrders[0]?.paymentMethod || 'MOCK';
+    billSession.paidAt = groupOrders.map(order => order.updatedAt || order.createdAt).filter(Boolean).sort().slice(-1)[0] || nowIso();
+  }
+  db.billSessions.unshift(billSession);
+  return billSession;
+};
+
+const migrateLegacyOrdersToBillSessions = db => {
+  if (!Array.isArray(db.orders) || db.orders.length === 0) {
+    return {changed: false, migratedOrderCount: 0, migratedBillSessionCount: 0};
+  }
+  if (!Array.isArray(db.billSessions)) {
+    db.billSessions = [];
+  }
+
+  const groups = new Map();
+  db.orders.forEach(order => {
+    if (cleanString(order.billSessionId) || !cleanString(order.restaurantId)) {
+      return;
+    }
+    normalizeLegacyOrderForBillMigration(order);
+    const groupKey = getOrderMigrationGroupKey(order);
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, []);
+    }
+    groups.get(groupKey).push(order);
+  });
+
+  if (groups.size === 0) {
+    return {changed: false, migratedOrderCount: 0, migratedBillSessionCount: 0};
+  }
+
+  let migratedOrderCount = 0;
+  let migratedBillSessionCount = 0;
+  groups.forEach((orders, groupKey) => {
+    const beforeBillCount = db.billSessions.length;
+    const billSession = createMigratedBillSessionFromOrders(db, groupKey, orders);
+    migratedBillSessionCount += db.billSessions.length > beforeBillCount ? 1 : 0;
+    orders.forEach(order => {
+      order.billSessionId = billSession.id;
+      order.branchId = billSession.branchId || order.branchId;
+      order.tableId = billSession.tableId || order.tableId;
+      order.tableNumber = billSession.tableNumber || order.tableNumber;
+      order.guestSessionId = billSession.guestSessionId || order.guestSessionId;
+      order.migratedBillSessionId = billSession.id;
+      order.updatedAt = nowIso();
+      migratedOrderCount += 1;
+    });
+    recalculateBillSessionTotals(db, billSession);
+  });
+
+  if (!Array.isArray(db.auditLogs)) {
+    db.auditLogs = [];
+  }
+  db.auditLogs.unshift(createAuditLogEntry('legacyOrdersMigratedToBillSessions', {
+    details: {migratedOrderCount, migratedBillSessionCount, migrationBatch: 'batch24'},
+  }));
+  db.auditLogs = db.auditLogs.slice(0, AUDIT_LOG_STORE_MAX);
+  return {changed: true, migratedOrderCount, migratedBillSessionCount};
+};
+
+const ensureBatch25DatabaseShape = db => {
+  let changed = false;
+  if (!db.meta || typeof db.meta !== 'object') {
+    db.meta = {};
+  }
+  if (db.meta.schemaVersion !== SCOREMENU_SCHEMA_VERSION) {
+    db.meta.schemaVersion = SCOREMENU_SCHEMA_VERSION;
+    changed = true;
+  }
+  const migration = migrateLegacyOrdersToBillSessions(db);
+  if (migration.changed) {
+    changed = true;
+    db.meta.lastMigration = {
+      name: 'batch24_legacy_orders_to_bill_sessions',
+      migratedOrderCount: migration.migratedOrderCount,
+      migratedBillSessionCount: migration.migratedBillSessionCount,
+      migratedAt: nowIso(),
+    };
+  }
+  return {changed, migration};
+};
+
 const createBillTableChangeLog = ({billSession, table, user, reason, auditLogId}) => ({
   id: createId('table_change'),
   auditLogId,
@@ -649,7 +883,7 @@ const transferBillSessionToTable = (db, restaurantId, billSession, table, {user,
     tableId: billSession.tableId,
     tableNumber: billSession.tableNumber,
   };
-  const auditLog = createAuditLogEntry('bill.table.change', {
+  const auditLog = createAuditLogEntry('tableChanged', {
     user,
     restaurantId,
     branchId: table.branchId || billSession.branchId,
@@ -668,7 +902,7 @@ const transferBillSessionToTable = (db, restaurantId, billSession, table, {user,
     db.auditLogs = [];
   }
   db.auditLogs.unshift(auditLog);
-  db.auditLogs = db.auditLogs.slice(0, 500);
+  db.auditLogs = db.auditLogs.slice(0, AUDIT_LOG_STORE_MAX);
 
   const tableChangeLog = createBillTableChangeLog({
     billSession,
@@ -715,7 +949,7 @@ const transferBillSessionToTable = (db, restaurantId, billSession, table, {user,
     }
   });
 
-  audit('bill.table.change', {
+  audit('tableChanged', {
     user,
     restaurantId,
     branchId: table.branchId || billSession.branchId,
@@ -740,9 +974,143 @@ const appendAuditLog = (db, action, {user, restaurantId, branchId, targetId, det
     db.auditLogs = [];
   }
   db.auditLogs.unshift(auditLog);
-  db.auditLogs = db.auditLogs.slice(0, 500);
+  db.auditLogs = db.auditLogs.slice(0, AUDIT_LOG_STORE_MAX);
   audit(action, {user, restaurantId, branchId, targetId, details});
   return auditLog;
+};
+
+
+const getPublicOrderRateLimitKey = ({guestSessionId, qrToken}) => {
+  const cleanGuestSessionId = cleanString(guestSessionId) || 'guest_anonymous';
+  return `${cleanGuestSessionId}:${hashForLog(qrToken) || 'no_qr'}`;
+};
+
+const getPublicOrderRateLimitBucket = (db, guard) => {
+  if (!Array.isArray(db.publicOrderRateLimits)) {
+    db.publicOrderRateLimits = [];
+  }
+  const key = getPublicOrderRateLimitKey(guard);
+  let bucket = db.publicOrderRateLimits.find(item => item.key === key);
+  const timestamp = nowIso();
+
+  if (!bucket) {
+    bucket = {
+      key,
+      guestSessionId: cleanString(guard.guestSessionId) || 'guest_anonymous',
+      qrHash: hashForLog(guard.qrToken),
+      restaurantId: guard.restaurantId,
+      branchId: guard.branchId,
+      orderWindowStartedAt: timestamp,
+      orderCount: 0,
+      errorWindowStartedAt: timestamp,
+      errorCount: 0,
+      blockedUntil: undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    db.publicOrderRateLimits.unshift(bucket);
+  }
+
+  return bucket;
+};
+
+const resetBucketWindowIfExpired = (bucket, fieldPrefix, windowMs, nowMs) => {
+  const startedAt = Date.parse(bucket[`${fieldPrefix}WindowStartedAt`] || '');
+  if (!Number.isFinite(startedAt) || nowMs - startedAt > windowMs) {
+    bucket[`${fieldPrefix}WindowStartedAt`] = nowIso();
+    bucket[`${fieldPrefix}Count`] = 0;
+  }
+};
+
+const trimPublicOrderRateLimitStore = db => {
+  if (!Array.isArray(db.publicOrderRateLimits)) {
+    db.publicOrderRateLimits = [];
+    return;
+  }
+  db.publicOrderRateLimits = db.publicOrderRateLimits
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+    .slice(0, PUBLIC_ORDER_RATE_LIMIT_STORE_MAX);
+};
+
+const createPublicOrderGuard = (scope, body = {}) => ({
+  guestSessionId: cleanString(body.guestSessionId),
+  qrToken: scope.context.qrCodeToken || scope.context.menuQrToken,
+  restaurantId: scope.context.restaurantId,
+  branchId: scope.context.branchId,
+});
+
+const appendAbuseDetectedLog = (db, guard, reason, details = {}) => {
+  appendAuditLog(db, 'abuseDetected', {
+    restaurantId: guard.restaurantId,
+    branchId: guard.branchId,
+    targetId: cleanString(guard.guestSessionId) || 'guest_anonymous',
+    details: {
+      reason,
+      guestSessionId: cleanString(guard.guestSessionId) || 'guest_anonymous',
+      qrHash: hashForLog(guard.qrToken),
+      ...details,
+    },
+  });
+};
+
+const assertPublicOrderAllowed = (db, guard) => {
+  const nowMs = Date.now();
+  const bucket = getPublicOrderRateLimitBucket(db, guard);
+  const blockedUntilMs = Date.parse(bucket.blockedUntil || '');
+
+  if (Number.isFinite(blockedUntilMs) && blockedUntilMs > nowMs) {
+    appendAbuseDetectedLog(db, guard, 'blocked_public_order_attempt', {
+      blockedUntil: bucket.blockedUntil,
+      orderCount: bucket.orderCount,
+      errorCount: bucket.errorCount,
+    });
+    throw Object.assign(new Error('Thiết bị này đang gửi quá nhiều yêu cầu. Vui lòng chờ vài phút rồi thử lại.'), {
+      statusCode: 429,
+    });
+  }
+
+  resetBucketWindowIfExpired(bucket, 'order', PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS, nowMs);
+  bucket.orderCount = Number(bucket.orderCount || 0) + 1;
+  bucket.updatedAt = nowIso();
+
+  if (bucket.orderCount > PUBLIC_ORDER_RATE_LIMIT_MAX) {
+    bucket.blockedUntil = new Date(nowMs + PUBLIC_ORDER_BLOCK_MS).toISOString();
+    appendAbuseDetectedLog(db, guard, 'public_order_rate_limit_exceeded', {
+      orderCount: bucket.orderCount,
+      max: PUBLIC_ORDER_RATE_LIMIT_MAX,
+      windowMs: PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS,
+      blockedUntil: bucket.blockedUntil,
+    });
+    throw Object.assign(new Error('Bạn gửi đơn quá nhanh. Vui lòng chờ vài phút rồi thử lại.'), {
+      statusCode: 429,
+    });
+  }
+
+  trimPublicOrderRateLimitStore(db);
+  return bucket;
+};
+
+const recordPublicOrderValidationError = (db, guard, message) => {
+  const nowMs = Date.now();
+  const bucket = getPublicOrderRateLimitBucket(db, guard);
+  resetBucketWindowIfExpired(bucket, 'error', PUBLIC_ORDER_ERROR_LIMIT_WINDOW_MS, nowMs);
+  bucket.errorCount = Number(bucket.errorCount || 0) + 1;
+  bucket.lastErrorMessage = cleanString(message).slice(0, 160);
+  bucket.updatedAt = nowIso();
+
+  if (bucket.errorCount >= PUBLIC_ORDER_ERROR_LIMIT_MAX) {
+    bucket.blockedUntil = new Date(nowMs + PUBLIC_ORDER_BLOCK_MS).toISOString();
+    appendAbuseDetectedLog(db, guard, 'public_order_error_limit_exceeded', {
+      errorCount: bucket.errorCount,
+      max: PUBLIC_ORDER_ERROR_LIMIT_MAX,
+      windowMs: PUBLIC_ORDER_ERROR_LIMIT_WINDOW_MS,
+      blockedUntil: bucket.blockedUntil,
+      lastErrorMessage: bucket.lastErrorMessage,
+    });
+  }
+
+  trimPublicOrderRateLimitStore(db);
+  return bucket;
 };
 
 const updateBillSessionPayment = (db, restaurantId, billSession, body = {}, {user} = {}) => {
@@ -853,7 +1221,7 @@ const closeBillSession = (db, restaurantId, billSession, body = {}, {user} = {})
     });
   }
 
-  appendAuditLog(db, 'bill.close', {
+  appendAuditLog(db, 'billClosed', {
     user,
     restaurantId,
     branchId: updated.branchId,
@@ -2153,6 +2521,27 @@ const routeBills = async (req, res, db, restaurantId, parts, query, user) => {
   return false;
 };
 
+
+const routeAuditLogs = async (req, res, db, restaurantId, parts, query, user) => {
+  if (parts.length !== 3 || req.method !== 'GET') {
+    return false;
+  }
+  const requestedBranchId = cleanString(query.get('branchId'));
+  if (!requireBranchAccess(res, user, restaurantId, requestedBranchId)) {
+    return true;
+  }
+  const action = cleanString(query.get('action'));
+  const limit = Math.min(200, Math.max(1, Number(query.get('limit') || 50)));
+  const logs = (Array.isArray(db.auditLogs) ? db.auditLogs : [])
+    .filter(log => log.restaurantId === restaurantId)
+    .filter(log => !requestedBranchId || log.branchId === requestedBranchId)
+    .filter(log => !action || log.action === action)
+    .filter(log => canAccessBranch(user, restaurantId, log.branchId))
+    .slice(0, limit);
+  ok(res, logs);
+  return true;
+};
+
 const routeOrders = async (req, res, db, restaurantId, parts, query, user) => {
   if (parts.length === 3 && req.method === 'GET') {
     const requestedBranchId = cleanString(query.get('branchId'));
@@ -2371,7 +2760,9 @@ const routePublicMenu = async (req, res, db, parts, query) => {
 
   if (parts.length === 4 && parts[3] === 'orders' && req.method === 'POST') {
     const body = await parseBody(req);
+    const publicOrderGuard = createPublicOrderGuard(scope, body);
     try {
+      assertPublicOrderAllowed(db, publicOrderGuard);
       const {billSession, created: createdBillSession} = resolvePublicOrderBillSession(db, scope, body);
       const order = normalizeOrderPayload(db, scope.context.restaurantId, {
         ...body,
@@ -2387,24 +2778,40 @@ const routePublicMenu = async (req, res, db, parts, query) => {
       recalculateBillSessionTotals(db, billSession);
       delete db.carts[cartKey(scope.context)];
       delete db.carts[cartKey(order)];
-      saveDb(db);
-      audit(createdBillSession ? 'bill.open.public' : 'bill.order.add.public', {
+      appendAuditLog(db, createdBillSession ? 'billOpened' : 'orderAdded', {
         restaurantId: scope.context.restaurantId,
         branchId: order.branchId,
-        tableId: billSession.tableId,
-        tableNumber: billSession.tableNumber,
         targetId: billSession.id,
+        details: {
+          orderId: order.id,
+          tableId: billSession.tableId,
+          tableNumber: billSession.tableNumber,
+          guestSessionId: order.guestSessionId,
+          qrHash: hashForLog(publicOrderGuard.qrToken),
+          billTotal: billSession.total,
+          itemCount: order.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0),
+        },
       });
-      audit('order.create.public', {
+      appendAuditLog(db, 'order.create.public', {
         restaurantId: scope.context.restaurantId,
         branchId: order.branchId,
-        tableId: billSession.tableId,
-        tableNumber: billSession.tableNumber,
         targetId: order.id,
+        details: {
+          billSessionId: billSession.id,
+          tableId: billSession.tableId,
+          tableNumber: billSession.tableNumber,
+          guestSessionId: order.guestSessionId,
+        },
       });
+      saveDb(db);
       created(res, createPublicOrderResponse(db, billSession, order));
     } catch (error) {
-      fail(res, 400, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
+      const statusCode = Number(error.statusCode || 400);
+      if (statusCode !== 429) {
+        recordPublicOrderValidationError(db, publicOrderGuard, error.message || 'public order validation failed');
+      }
+      saveDb(db);
+      fail(res, statusCode, error.message || 'Dữ liệu đơn hàng chưa hợp lệ.');
     }
     return true;
   }
@@ -2500,6 +2907,9 @@ const routeRestaurantScoped = async (req, res, db, parts, query) => {
   if (parts[2] === 'orders') {
     return routeOrders(req, res, db, restaurantId, parts, query, access.user);
   }
+  if (parts[2] === 'audit-logs') {
+    return routeAuditLogs(req, res, db, restaurantId, parts, query, access.user);
+  }
   if (await routeCart(req, res, db, restaurantId, parts, access.user)) {
     return true;
   }
@@ -2518,13 +2928,17 @@ const handleRequest = async (req, res) => {
     return;
   }
   const db = loadDb();
+  const batch25Migration = ensureBatch25DatabaseShape(db);
+  if (batch25Migration.changed) {
+    saveDb(db);
+  }
 
   try {
     if (pathname === '/health' && req.method === 'GET') {
       ok(res, {
         ok: true,
         service: 'scoremenu-server',
-        schemaVersion: db.meta?.schemaVersion || 'unknown',
+        schemaVersion: db.meta?.schemaVersion || SCOREMENU_SCHEMA_VERSION,
         restaurants: db.restaurants.length,
         branches: db.branches.length,
         tables: db.tables.length,
@@ -2533,6 +2947,8 @@ const handleRequest = async (req, res) => {
         orders: db.orders.length,
         billSessions: db.billSessions.length,
         auditLogs: db.auditLogs.length,
+        publicOrderRateLimits: db.publicOrderRateLimits.length,
+        lastMigration: db.meta?.lastMigration,
         billSessionStatuses: BILL_SESSION_MODEL.statuses,
       });
       return;
@@ -2584,5 +3000,5 @@ const server = http.createServer(handleRequest);
 server.listen(PORT, HOST, () => {
   console.log(`[scoremenu-server] running at http://${HOST}:${PORT}`);
   console.log(`[scoremenu-server] data file: ${DATA_FILE}`);
-  console.log(`[scoremenu-server] auth guard: ${ENABLE_AUTH_GUARD ? 'ON' : 'OFF for MVP batch 12'}`);
+  console.log(`[scoremenu-server] auth guard: ${ENABLE_AUTH_GUARD ? 'ON' : 'OFF for MVP batch 25'}`);
 });

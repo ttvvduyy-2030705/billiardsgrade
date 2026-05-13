@@ -190,6 +190,15 @@ const createStyles = (design: any, metrics: Metrics) => {
       textAlign: 'center',
       maxWidth: 420,
     },
+    cameraFallbackError: {
+      color: 'rgba(255,255,255,0.52)',
+      fontSize: isShortLandscape ? 10 : 11,
+      lineHeight: isShortLandscape ? 14 : 16,
+      fontWeight: '700',
+      textAlign: 'center',
+      maxWidth: 460,
+      marginTop: 12,
+    },
     cameraPermissionButton: {
       marginTop: 18,
       borderRadius: 999,

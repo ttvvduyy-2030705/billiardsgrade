@@ -47,6 +47,7 @@ export type RestaurantMenuApiErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
+  | 'RATE_LIMIT'
   | 'SERVER_ERROR'
   | 'API_ERROR';
 
@@ -132,6 +133,8 @@ const toReadableApiMessage = (status: number, fallback: string) => {
       return 'Không tìm thấy dữ liệu cần xử lý.';
     case 409:
       return fallback || 'Dữ liệu bị trùng hoặc xung đột.';
+    case 429:
+      return fallback || 'Bạn thao tác quá nhanh. Vui lòng chờ vài phút rồi thử lại.';
     default:
       if (status >= 500) {
         return 'Server menu đang lỗi. Vui lòng thử lại sau.';
@@ -149,6 +152,9 @@ const statusToErrorCode = (status: number): RestaurantMenuApiErrorCode => {
   }
   if (status === 404) {
     return 'NOT_FOUND';
+  }
+  if (status === 429) {
+    return 'RATE_LIMIT';
   }
   if (status === 400 || status === 409 || status === 422) {
     return 'VALIDATION_ERROR';

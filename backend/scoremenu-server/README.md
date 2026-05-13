@@ -1,6 +1,6 @@
-# ScoreMenu Backend MVP - Batch 12
+# ScoreMenu Backend MVP - Batch 25
 
-Backend này là server Menu/Admin MVP cho batch 12. Mục tiêu là thay dữ liệu local/mock bằng API thật ở mức tối thiểu nhưng đủ kiểm thử nhiều nhà hàng: auth, restaurant, branch, table, category, dish, order và cart.
+Backend này là server Menu/Admin MVP cho Batch 25. Mục tiêu là thay dữ liệu local/mock bằng API thật ở mức tối thiểu nhưng đủ kiểm thử nhiều nhà hàng: auth, restaurant, branch, table, category, dish, order, cart và BillSession/TableBill.
 
 ## Chạy server
 
@@ -51,7 +51,7 @@ curl -X POST http://localhost:4012/dev/reset
 
 ## Dữ liệu seed
 
-Có sẵn 2 nhà hàng demo:
+Có sẵn 2 nhà hàng demo và BillSession/TableBill demo sau khi reset:
 
 1. `aplus_billiards_hanoi`
    - `aplus_hanoi_main`
@@ -62,6 +62,15 @@ Có sẵn 2 nhà hàng demo:
    - `haidilao_demo_main`
    - `haidilao_demo_2`
    - QR token: `qr_haidilao_main_01`, `qr_haidilao_2_01`
+
+BillSession seed Batch 25:
+
+| Nhà hàng | Bàn | BillSession | Tổng |
+|---|---|---|---:|
+| `haidilao_demo` | `HDL 01` | `seed_bill_haidilao_hdl01` | 417000 |
+| `aplus_billiards_hanoi` | `Bàn 01` | `seed_bill_aplus_ban01` | 95000 |
+
+Backend tự migrate order cũ chưa có `billSessionId` sang `bill_migrated_<hash>` khi load DB.
 
 ## Endpoint chính
 
@@ -117,10 +126,17 @@ DELETE /restaurants/:restaurantId/menu/items/:itemId
 ### Order/payment/cart
 
 ```text
+GET   /restaurants/:restaurantId/bills?branchId=:branchId
+GET   /restaurants/:restaurantId/bills/:billSessionId
+PATCH /restaurants/:restaurantId/bills/:billSessionId/table
+PATCH /restaurants/:restaurantId/bills/:billSessionId/payment
+PATCH /restaurants/:restaurantId/bills/:billSessionId/close
 GET   /restaurants/:restaurantId/orders?branchId=:branchId
 POST  /restaurants/:restaurantId/orders
 PATCH /restaurants/:restaurantId/orders/:orderId/status
 PATCH /restaurants/:restaurantId/orders/:orderId/payment
+POST  /public/menu/:qrToken/orders
+GET   /public/menu/:qrToken/bills/current?guestSessionId=:guestSessionId&billSessionId=:billSessionId
 GET   /restaurants/:restaurantId/menu/cart/current
 PATCH /restaurants/:restaurantId/menu/cart/current
 DELETE /restaurants/:restaurantId/menu/cart/current
@@ -131,7 +147,7 @@ DELETE /restaurants/:restaurantId/tables/:tableId/cart/current
 
 ## Bật auth guard
 
-Batch 12 để auth guard tắt mặc định để app có thể test menu/API nhanh. Khi muốn ép quyền token:
+Batch 25 vẫn để auth guard tắt mặc định để app có thể test menu/API nhanh. Khi muốn ép quyền token:
 
 ```bash
 SCOREMENU_AUTH_GUARD=1 npm start
@@ -170,3 +186,24 @@ export const RESTAURANT_MENU_ENV_CONFIG = {
 ```ts
 mode: 'local'
 ```
+
+
+## Batch 24-25 local/dev-api/staging/prod và nghiệm thu
+
+Xem thêm `docs/scoremenu-batch24-local-api-migration-demo-data.md` và `docs/scoremenu-batch25-acceptance-test-report.md` ở root project.
+
+- Local mode dùng AsyncStorage và seed BillSession demo khi chưa có dữ liệu.
+- Dev API mode dùng backend này, mặc định `http://10.0.2.2:4012` cho Android emulator.
+- Staging/prod phải cấu hình `SCOREMENU_API_BASE_URL`.
+- API mode không fallback im lặng sang local; thiếu base URL sẽ báo lỗi cấu hình rõ ràng.
+
+Smoke/acceptance test:
+
+```bash
+npm run scoremenu:server
+npm run scoremenu:test:e2e
+# hoặc
+npm run scoremenu:test:acceptance
+```
+
+Batch 25 acceptance script kiểm tra tự động: order lần đầu tạo BillSession, order lần hai khóa bàn, admin dashboard thấy bill tổng/order con, staff chuyển bàn, bill PAID/CLOSED chặn gọi thêm, và dữ liệu không lẫn giữa APlus/Haidilao/chi nhánh.

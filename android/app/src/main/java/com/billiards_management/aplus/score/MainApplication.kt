@@ -1,6 +1,7 @@
 package com.aplus.score
 
 import android.app.Application
+import android.util.Log
 import com.aplus.score.BuildConfig
 import com.aplus.score.billing.AplusBillingPackage
 import com.aplus.score.deviceconfig.ScreenMetricsPackage
@@ -16,6 +17,7 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
+import com.google.mlkit.common.MlKit
 
 class MainApplication : Application(), ReactApplication {
   override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
@@ -39,9 +41,21 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    initializeMlKitForQrScanner()
     SoLoader.init(this, false)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       load()
+    }
+  }
+
+  private fun initializeMlKitForQrScanner() {
+    try {
+      MlKit.initialize(this)
+      Log.d("ScoreMenuQR", "ML Kit initialized for VisionCamera QR scanner")
+    } catch (error: Throwable) {
+      // Do not block the whole app if ML Kit is unavailable on a particular build/device.
+      // The QR screen still has demo buttons and manual token input as a safe fallback.
+      Log.w("ScoreMenuQR", "Failed to initialize ML Kit for QR scanner", error)
     }
   }
 }

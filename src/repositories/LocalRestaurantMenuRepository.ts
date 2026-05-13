@@ -81,6 +81,9 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
       loadMenuCategories(context.restaurantId),
       loadMenuItems(context.restaurantId),
       loadOrders(context.restaurantId),
+      loadBillSessions(context.restaurantId),
+      loadBillSessions('local_demo_restaurant'),
+      loadBillSessions('haidilao_local_demo'),
     ]);
   }
 

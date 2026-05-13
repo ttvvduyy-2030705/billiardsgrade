@@ -167,8 +167,20 @@ const sameRestaurantBranch = (
   );
 };
 
-const createGuestSessionId = () =>
-  `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+const normalizeGuestSessionId = (value?: string | null) => {
+  const normalized = normalizeQrToken(value || '')
+    .replace(/[^a-zA-Z0-9_-]/g, '')
+    .slice(0, 80);
+  return normalized.startsWith('guest_') ? normalized : '';
+};
+
+const createGuestSessionId = () => {
+  const timePart = Date.now().toString(36);
+  const randomPart = `${Math.random().toString(36).slice(2, 10)}${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+  return `guest_${timePart}_${randomPart}`;
+};
 
 export const ensureCustomerGuestSessionId = async () => {
   if (storeState.guestSessionId) {
@@ -176,7 +188,7 @@ export const ensureCustomerGuestSessionId = async () => {
   }
 
   try {
-    const stored = normalizeQrToken(
+    const stored = normalizeGuestSessionId(
       await AsyncStorage.getItem(CUSTOMER_GUEST_SESSION_STORAGE_KEY),
     );
     if (stored) {

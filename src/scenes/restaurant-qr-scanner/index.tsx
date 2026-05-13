@@ -100,6 +100,7 @@ const RestaurantQrScannerScreen = (props: Props) => {
   const [statusMessage, setStatusMessage] = useState(
     'Đưa mã QR của quán hoặc chi nhánh vào giữa khung camera.',
   );
+  const [scannerNativeError, setScannerNativeError] = useState<string | null>(null);
   const environmentLabel = useMemo(
     () => getRestaurantMenuEnvironmentLabel(RESTAURANT_MENU_ENV_CONFIG),
     [],
@@ -130,6 +131,7 @@ const RestaurantQrScannerScreen = (props: Props) => {
 
       lastHandledTokenRef.current = qrToken;
       lastHandledAtRef.current = now;
+      setScannerNativeError(null);
       setStatusMessage(`Đã nhận QR: ${qrToken}`);
       devModuleLog('QR', 'qr token scanned', {qrToken});
 
@@ -189,6 +191,22 @@ const RestaurantQrScannerScreen = (props: Props) => {
     },
   });
 
+  const handleCameraError = useCallback((error: unknown) => {
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : 'Camera QR chưa khởi tạo được trên thiết bị này.';
+
+    logScoreMenuError(
+      {module: 'QR', action: 'camera scanner native error', extra: {message}},
+      error,
+    );
+    setScannerNativeError(message);
+    setStatusMessage('Camera QR chưa sẵn sàng. Bạn vẫn có thể chọn QR demo hoặc nhập token để test menu.');
+  }, []);
+
   const renderCameraContent = () => {
     if (permissionState === 'loading') {
       return (
@@ -226,12 +244,27 @@ const RestaurantQrScannerScreen = (props: Props) => {
       );
     }
 
+    if (scannerNativeError) {
+      return (
+        <View style={styles.cameraFallbackContent}>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>Camera QR chưa sẵn sàng</Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
+            ML Kit/code scanner chưa khởi tạo được trên thiết bị này. Hãy rebuild app sau bản vá, hoặc dùng QR demo/nhập token thủ công để tiếp tục test.
+          </Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackError}>
+            {scannerNativeError}
+          </Text>
+        </View>
+      );
+    }
+
     return (
       <Camera
         style={styles.cameraPreview}
         device={cameraDevice}
         isActive={isFocused}
         codeScanner={codeScanner}
+        onError={handleCameraError}
       />
     );
   };

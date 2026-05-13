@@ -12,6 +12,10 @@ export {
 
 const DEFAULT_LOCAL_RESTAURANT_ID = "local_demo_restaurant";
 const HAIDILAO_LOCAL_RESTAURANT_ID = "haidilao_local_demo";
+const DEFAULT_LOCAL_BRANCH_ID = "local_demo_main_branch";
+const HAIDILAO_LOCAL_BRANCH_ID = "haidilao_local_main_branch";
+const DEFAULT_LOCAL_TABLE_ID = "local_demo_table_01";
+const HAIDILAO_LOCAL_TABLE_ID = "haidilao_local_table_01";
 
 export const RESTAURANT_STORAGE_KEYS = {
   schemaVersion: "restaurant_menu_schema_version",
@@ -24,7 +28,7 @@ export const RESTAURANT_STORAGE_KEYS = {
   legacyAdminAccounts: "restaurant_admin_accounts",
 };
 
-const CURRENT_SCHEMA_VERSION = "20260512_batch16_bill_session_model_v1";
+const CURRENT_SCHEMA_VERSION = "20260512_batch24_bill_session_demo_migration_v1";
 
 export type MenuCategory = {
   id: string;
@@ -307,6 +311,14 @@ export type RestaurantAdminAccount = {
 };
 
 const nowIso = () => new Date().toISOString();
+
+const stableHash = (value: string) => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(16);
+};
 
 const getDefaultLocalAdminAccounts = (): RestaurantAdminAccount[] => {
   const timestamp = nowIso();
@@ -1428,6 +1440,250 @@ export const isRestaurantOrderStatusTransitionAllowed = (
   toStatus: RestaurantOrderStatus,
 ) => ORDER_STATUS_TRANSITIONS[fromStatus].indexOf(toStatus) >= 0;
 
+
+const createLocalDemoOrder = ({
+  id,
+  restaurantId,
+  branchId,
+  tableId,
+  tableNumber,
+  billSessionId,
+  guestSessionId,
+  items,
+  note,
+  createdAt,
+}: {
+  id: string;
+  restaurantId: string;
+  branchId: string;
+  tableId: string;
+  tableNumber: string;
+  billSessionId: string;
+  guestSessionId: string;
+  items: RestaurantOrderItem[];
+  note: string;
+  createdAt: string;
+}): RestaurantOrder => ({
+  id,
+  restaurantId,
+  branchId,
+  tableId,
+  tableNumber,
+  billSessionId,
+  guestSessionId,
+  orderSource: "customer",
+  items,
+  note,
+  total: calculateRestaurantOrderTotal(items),
+  orderStatus: "NEW",
+  paymentStatus: "UNPAID",
+  paymentMethod: "MOCK",
+  createdAt,
+  updatedAt: createdAt,
+});
+
+const createLocalDemoBillSession = ({
+  id,
+  restaurantId,
+  branchId,
+  tableId,
+  tableNumber,
+  guestSessionId,
+  orders,
+  note,
+  openedAt,
+}: {
+  id: string;
+  restaurantId: string;
+  branchId: string;
+  tableId: string;
+  tableNumber: string;
+  guestSessionId: string;
+  orders: RestaurantOrder[];
+  note: string;
+  openedAt: string;
+}): RestaurantBillSessionDetail => normaliseRestaurantBillSession(
+  {
+    id,
+    restaurantId,
+    branchId,
+    tableId,
+    tableNumber,
+    guestSessionId,
+    status: "OPEN",
+    orderIds: orders.map(order => order.id),
+    note,
+    openedAt,
+    createdAt: openedAt,
+    updatedAt: openedAt,
+    orders,
+  },
+  restaurantId,
+);
+
+const getSeedBillSessionsForRestaurant = (
+  restaurantId: string,
+): {orders: RestaurantOrder[]; billSessions: RestaurantBillSessionDetail[]} => {
+  if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
+    const order1 = createLocalDemoOrder({
+      id: "seed_local_order_haidilao_001",
+      restaurantId,
+      branchId: HAIDILAO_LOCAL_BRANCH_ID,
+      tableId: HAIDILAO_LOCAL_TABLE_ID,
+      tableNumber: "HDL 01",
+      billSessionId: "seed_local_bill_haidilao_hdl01",
+      guestSessionId: "seed_local_guest_haidilao_hdl01",
+      createdAt: sampleTime,
+      note: "Seed demo local: lần đầu gọi món",
+      items: [
+        {itemId: "haidilao_beef_plate", name: "Ba chỉ bò Mỹ", price: 129000, quantity: 2, note: "Ít cay"},
+      ],
+    });
+    const order2 = createLocalDemoOrder({
+      id: "seed_local_order_haidilao_002",
+      restaurantId,
+      branchId: HAIDILAO_LOCAL_BRANCH_ID,
+      tableId: HAIDILAO_LOCAL_TABLE_ID,
+      tableNumber: "HDL 01",
+      billSessionId: "seed_local_bill_haidilao_hdl01",
+      guestSessionId: "seed_local_guest_haidilao_hdl01",
+      createdAt: sampleTime,
+      note: "Seed demo local: gọi thêm món",
+      items: [
+        {itemId: "haidilao_vegetable_set", name: "Set rau nấm tổng hợp", price: 79000, quantity: 1},
+      ],
+    });
+    const orders = [order2, order1];
+    return {
+      orders,
+      billSessions: [
+        createLocalDemoBillSession({
+          id: "seed_local_bill_haidilao_hdl01",
+          restaurantId,
+          branchId: HAIDILAO_LOCAL_BRANCH_ID,
+          tableId: HAIDILAO_LOCAL_TABLE_ID,
+          tableNumber: "HDL 01",
+          guestSessionId: "seed_local_guest_haidilao_hdl01",
+          orders,
+          note: "Seed Batch 24 local: bill Haidilao cộng dồn.",
+          openedAt: sampleTime,
+        }),
+      ],
+    };
+  }
+
+  if (restaurantId === DEFAULT_LOCAL_RESTAURANT_ID) {
+    const order = createLocalDemoOrder({
+      id: "seed_local_order_aplus_001",
+      restaurantId,
+      branchId: DEFAULT_LOCAL_BRANCH_ID,
+      tableId: DEFAULT_LOCAL_TABLE_ID,
+      tableNumber: "APlus 01",
+      billSessionId: "seed_local_bill_aplus_01",
+      guestSessionId: "seed_local_guest_aplus_01",
+      createdAt: sampleTime,
+      note: "Seed demo local: đồ uống APlus",
+      items: [
+        {itemId: "sample_coca", name: "Coca-Cola", price: 25000, quantity: 2},
+        {itemId: "sample_pepsi", name: "Pepsi", price: 25000, quantity: 1},
+      ],
+    });
+    return {
+      orders: [order],
+      billSessions: [
+        createLocalDemoBillSession({
+          id: "seed_local_bill_aplus_01",
+          restaurantId,
+          branchId: DEFAULT_LOCAL_BRANCH_ID,
+          tableId: DEFAULT_LOCAL_TABLE_ID,
+          tableNumber: "APlus 01",
+          guestSessionId: "seed_local_guest_aplus_01",
+          orders: [order],
+          note: "Seed Batch 24 local: bill APlus.",
+          openedAt: sampleTime,
+        }),
+      ],
+    };
+  }
+
+  return {orders: [], billSessions: []};
+};
+
+const getLegacyLocalOrderMigrationGroupKey = (order: RestaurantOrder) => [
+  order.restaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
+  order.branchId || "no_branch",
+  order.tableId || "no_table_id",
+  order.tableNumber || "Bàn chưa rõ",
+  order.guestSessionId || "legacy_guest",
+].join("|");
+
+const migrateLegacyLocalOrdersToBillSessions = async (
+  restaurantId: string,
+  orders: RestaurantOrder[],
+  billSessions: RawRestaurantBillSession[],
+): Promise<{orders: RestaurantOrder[]; billSessions: RawRestaurantBillSession[]; changed: boolean}> => {
+  const legacyOrders = orders.filter(order => !order.billSessionId);
+  if (legacyOrders.length === 0) {
+    return {orders, billSessions, changed: false};
+  }
+
+  const billSessionsById = new Map(
+    billSessions.map(billSession => [String(billSession.id || billSession.billSessionId || ""), billSession]),
+  );
+  const groups = new Map<string, RestaurantOrder[]>();
+  legacyOrders.forEach(order => {
+    const groupKey = getLegacyLocalOrderMigrationGroupKey(order);
+    const group = groups.get(groupKey) || [];
+    group.push(order);
+    groups.set(groupKey, group);
+  });
+
+  const nextOrders = orders.map(order => ({...order}));
+  const nextBillSessions = [...billSessions];
+  const timestamp = nowIso();
+
+  groups.forEach((groupOrders, groupKey) => {
+    const first = groupOrders[0];
+    const billSessionId = `bill_migrated_${stableHash(groupKey)}`;
+    let billSession = billSessionsById.get(billSessionId);
+    if (!billSession) {
+      billSession = normaliseRestaurantBillSession(
+        {
+          id: billSessionId,
+          restaurantId,
+          branchId: first.branchId,
+          tableId: first.tableId,
+          tableNumber: first.tableNumber || "Bàn chưa rõ",
+          guestSessionId: first.guestSessionId,
+          status: groupOrders.every(order => order.paymentStatus === "PAID") ? "PAID" : "OPEN",
+          orderIds: groupOrders.map(order => order.id),
+          note: "Batch 24 migration local: tạo BillSession tạm cho order cũ.",
+          openedAt: groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
+          createdAt: groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
+          updatedAt: timestamp,
+          orders: groupOrders,
+        },
+        restaurantId,
+      );
+      nextBillSessions.unshift(billSession);
+      billSessionsById.set(billSessionId, billSession);
+    }
+
+    nextOrders.forEach(order => {
+      if (groupOrders.some(item => item.id === order.id)) {
+        order.billSessionId = billSessionId;
+        order.branchId = billSession?.branchId || order.branchId;
+        order.tableId = billSession?.tableId || order.tableId;
+        order.tableNumber = billSession?.tableNumber || order.tableNumber;
+        order.guestSessionId = billSession?.guestSessionId || order.guestSessionId;
+        order.updatedAt = timestamp;
+      }
+    });
+  });
+
+  return {orders: nextOrders, billSessions: nextBillSessions, changed: true};
+};
+
 export const loadOrders = async (
   restaurantId?: string,
 ): Promise<RestaurantOrder[]> => {
@@ -1483,10 +1739,40 @@ export const loadBillSessions = async (
   restaurantId?: string,
 ): Promise<RestaurantBillSessionDetail[]> => {
   const scopedKeys = getScopedKeys(restaurantId);
-  const scopedBillSessions = await readArray<RawRestaurantBillSession>(
+  let scopedBillSessions = await readArray<RawRestaurantBillSession>(
     scopedKeys.billSessions,
   );
-  const orders = await loadOrders(scopedKeys.restaurantId);
+  let orders = await loadOrders(scopedKeys.restaurantId);
+
+  if (scopedBillSessions.length === 0 && orders.length === 0) {
+    const seed = getSeedBillSessionsForRestaurant(scopedKeys.restaurantId);
+    if (seed.billSessions.length > 0) {
+      orders = seed.orders;
+      scopedBillSessions = seed.billSessions;
+      await saveOrders(orders, scopedKeys.restaurantId);
+      await saveBillSessions(seed.billSessions, scopedKeys.restaurantId);
+      await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+    }
+  }
+
+  const migration = await migrateLegacyLocalOrdersToBillSessions(
+    scopedKeys.restaurantId,
+    orders,
+    scopedBillSessions,
+  );
+  if (migration.changed) {
+    orders = migration.orders;
+    scopedBillSessions = migration.billSessions;
+    await saveOrders(orders, scopedKeys.restaurantId);
+    await saveBillSessions(
+      scopedBillSessions.map(billSession =>
+        normaliseRestaurantBillSession(billSession, scopedKeys.restaurantId),
+      ),
+      scopedKeys.restaurantId,
+    );
+    await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+  }
+
   const normalised = scopedBillSessions.map(billSession => {
     const billOrders = orders.filter(order =>
       order.billSessionId === (billSession.id || billSession.billSessionId),

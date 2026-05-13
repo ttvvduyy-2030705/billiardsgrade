@@ -26,9 +26,162 @@ const createSeedAdmin = ({id, username, password, role, restaurantIds, activeRes
   };
 };
 
-const createSeedDatabase = () => ({
+
+const buildDemoOrder = ({id, restaurantId, branchId, tableId, tableNumber, billSessionId, guestSessionId, items, note, createdAt, orderStatus = 'NEW', paymentStatus = 'UNPAID', paymentMethod = 'MOCK'}) => {
+  const total = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+  return {
+    id,
+    restaurantId,
+    branchId,
+    tableId,
+    tableNumber,
+    billSessionId,
+    guestSessionId,
+    orderSource: 'customer',
+    items,
+    note,
+    total,
+    orderStatus,
+    paymentStatus,
+    paymentMethod,
+    createdAt,
+    updatedAt: createdAt,
+  };
+};
+
+const buildDemoBillSession = ({id, restaurantId, branchId, tableId, tableNumber, guestSessionId, orderIds, orders, openedAt, status = 'OPEN', note = ''}) => {
+  const billOrders = orders.filter(order => orderIds.includes(order.id));
+  const subtotal = billOrders.reduce(
+    (sum, order) => order.orderStatus === 'CANCELLED' ? sum : sum + Number(order.total || 0),
+    0,
+  );
+  return {
+    id,
+    restaurantId,
+    branchId,
+    tableId,
+    tableNumber,
+    guestSessionId,
+    status,
+    orderIds,
+    orderCount: orderIds.length,
+    subtotal,
+    discountTotal: 0,
+    serviceFeeTotal: 0,
+    total: subtotal,
+    paymentMethod: 'MOCK',
+    note,
+    tableChangeLogs: [],
+    openedAt,
+    createdAt: openedAt,
+    updatedAt: openedAt,
+  };
+};
+
+const addDemoBillSessions = db => {
+  const haidilaoOrder1 = buildDemoOrder({
+    id: 'seed_order_haidilao_001',
+    restaurantId: 'haidilao_demo',
+    branchId: 'haidilao_demo_main',
+    tableId: 'haidilao_main_table_01',
+    tableNumber: 'HDL 01',
+    billSessionId: 'seed_bill_haidilao_hdl01',
+    guestSessionId: 'seed_guest_haidilao_hdl01',
+    createdAt: '2026-05-09T08:00:00.000Z',
+    note: 'Seed demo: lần đầu gọi món',
+    items: [
+      {itemId: 'haidilao_beef_plate', name: 'Ba chỉ bò Mỹ', price: 129000, quantity: 2, note: 'Ít cay'},
+    ],
+  });
+  const haidilaoOrder2 = buildDemoOrder({
+    id: 'seed_order_haidilao_002',
+    restaurantId: 'haidilao_demo',
+    branchId: 'haidilao_demo_main',
+    tableId: 'haidilao_main_table_01',
+    tableNumber: 'HDL 01',
+    billSessionId: 'seed_bill_haidilao_hdl01',
+    guestSessionId: 'seed_guest_haidilao_hdl01',
+    createdAt: '2026-05-09T08:08:00.000Z',
+    note: 'Seed demo: gọi thêm món',
+    items: [
+      {itemId: 'haidilao_mushroom_hotpot', name: 'Lẩu nấm thanh ngọt', price: 159000, quantity: 1},
+    ],
+  });
+  const aplusOrder1 = buildDemoOrder({
+    id: 'seed_order_aplus_001',
+    restaurantId: 'aplus_billiards_hanoi',
+    branchId: 'aplus_hanoi_main',
+    tableId: 'aplus_main_table_01',
+    tableNumber: 'Bàn 01',
+    billSessionId: 'seed_bill_aplus_ban01',
+    guestSessionId: 'seed_guest_aplus_ban01',
+    createdAt: '2026-05-09T08:12:00.000Z',
+    note: 'Seed demo: nước + đồ ăn nhẹ',
+    items: [
+      {itemId: 'aplus_coca', name: 'Coca lạnh', price: 25000, quantity: 2},
+      {itemId: 'aplus_fries', name: 'Khoai tây chiên', price: 45000, quantity: 1},
+    ],
+  });
+
+  db.orders = [haidilaoOrder2, aplusOrder1, haidilaoOrder1];
+  db.billSessions = [
+    buildDemoBillSession({
+      id: 'seed_bill_haidilao_hdl01',
+      restaurantId: 'haidilao_demo',
+      branchId: 'haidilao_demo_main',
+      tableId: 'haidilao_main_table_01',
+      tableNumber: 'HDL 01',
+      guestSessionId: 'seed_guest_haidilao_hdl01',
+      orderIds: ['seed_order_haidilao_001', 'seed_order_haidilao_002'],
+      orders: db.orders,
+      openedAt: '2026-05-09T08:00:00.000Z',
+      note: 'Seed Batch 25: bill demo Haidilao cộng dồn 2 order.',
+    }),
+    buildDemoBillSession({
+      id: 'seed_bill_aplus_ban01',
+      restaurantId: 'aplus_billiards_hanoi',
+      branchId: 'aplus_hanoi_main',
+      tableId: 'aplus_main_table_01',
+      tableNumber: 'Bàn 01',
+      guestSessionId: 'seed_guest_aplus_ban01',
+      orderIds: ['seed_order_aplus_001'],
+      orders: db.orders,
+      openedAt: '2026-05-09T08:12:00.000Z',
+      note: 'Seed Batch 25: bill demo APlus.',
+    }),
+  ];
+  db.auditLogs = [
+    {
+      id: 'seed_audit_bill_opened_haidilao',
+      at: '2026-05-09T08:00:00.000Z',
+      action: 'billOpened',
+      restaurantId: 'haidilao_demo',
+      branchId: 'haidilao_demo_main',
+      targetId: 'seed_bill_haidilao_hdl01',
+      details: {seed: true, orderIds: ['seed_order_haidilao_001', 'seed_order_haidilao_002'], tableNumber: 'HDL 01'},
+    },
+    {
+      id: 'seed_audit_bill_opened_aplus',
+      at: '2026-05-09T08:12:00.000Z',
+      action: 'billOpened',
+      restaurantId: 'aplus_billiards_hanoi',
+      branchId: 'aplus_hanoi_main',
+      targetId: 'seed_bill_aplus_ban01',
+      details: {seed: true, orderIds: ['seed_order_aplus_001'], tableNumber: 'Bàn 01'},
+    },
+  ];
+  db.tables = db.tables.map(table =>
+    table.id === 'haidilao_main_table_01' || table.id === 'aplus_main_table_01'
+      ? {...table, status: 'OCCUPIED', updatedAt: now}
+      : table,
+  );
+  return db;
+};
+
+const createSeedDatabase = () => {
+  const db = ({
   meta: {
-    schemaVersion: 'scoremenu_backend_schema_v1_batch22',
+    schemaVersion: 'scoremenu_backend_schema_v1_batch25',
     generatedAt: now,
   },
   restaurants: [
@@ -130,6 +283,16 @@ const createSeedDatabase = () => ({
       branchId: 'haidilao_demo_main',
       tableNumber: 'HDL 01',
       qrCodeToken: 'qr_haidilao_main_01',
+      status: 'AVAILABLE',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'haidilao_main_table_02',
+      restaurantId: 'haidilao_demo',
+      branchId: 'haidilao_demo_main',
+      tableNumber: 'HDL 02',
+      qrCodeToken: 'qr_haidilao_main_02',
       status: 'AVAILABLE',
       createdAt: now,
       updatedAt: now,
@@ -249,6 +412,7 @@ const createSeedDatabase = () => ({
   orders: [],
   billSessions: [],
   auditLogs: [],
+  publicOrderRateLimits: [],
   carts: {},
   imageUploads: [],
   adminUsers: [
@@ -280,6 +444,8 @@ const createSeedDatabase = () => ({
     }),
   ],
 });
+  return addDemoBillSessions(db);
+};
 
 module.exports = {
   createSeedDatabase,

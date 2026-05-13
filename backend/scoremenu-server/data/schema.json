@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "scoremenu_backend_schema_v1_batch22",
+  "schemaVersion": "scoremenu_backend_schema_v1_batch25",
   "engine": "json-file-mvp",
   "tables": {
     "restaurants": {
@@ -96,7 +96,8 @@
         "guestSessionId",
         "orderStatus",
         "paymentStatus",
-        "createdAt"
+        "createdAt",
+        "migratedBillSessionId"
       ]
     },
     "adminUsers": {
@@ -156,7 +157,10 @@
         "paymentMethod",
         "paymentRequestedAt",
         "paidAt",
-        "closedAt"
+        "closedAt",
+        "migratedFromLegacyOrders",
+        "migrationBatch",
+        "source"
       ]
     },
     "auditLogs": {
@@ -164,17 +168,36 @@
       "required": [
         "id",
         "at",
-        "action",
-        "restaurantId",
-        "targetId"
+        "action"
       ],
       "indexes": [
-        "action",
         "restaurantId",
         "branchId",
+        "action",
         "targetId",
-        "userId",
         "at"
+      ]
+    },
+    "publicOrderRateLimits": {
+      "primaryKey": "key",
+      "required": [
+        "key",
+        "guestSessionId",
+        "restaurantId",
+        "orderWindowStartedAt",
+        "orderCount",
+        "errorWindowStartedAt",
+        "errorCount",
+        "createdAt",
+        "updatedAt"
+      ],
+      "indexes": [
+        "guestSessionId",
+        "qrHash",
+        "restaurantId",
+        "branchId",
+        "blockedUntil",
+        "updatedAt"
       ]
     }
   },
@@ -194,5 +217,27 @@
     "orders.billSessionId -> billSessions.id",
     "auditLogs.restaurantId -> restaurants.id",
     "auditLogs.branchId -> branches.id"
+  ],
+  "events": {
+    "billSession": [
+      "billOpened",
+      "orderAdded",
+      "billClosed",
+      "tableChanged",
+      "abuseDetected"
+    ]
+  },
+  "batch24": {
+    "demoSeed": "Reset/demo database includes open BillSession examples for APlus and Haidilao with orderIds populated.",
+    "legacyOrderMigration": "Orders without billSessionId are grouped by restaurant/branch/table/guest session into migrated BillSessions on backend load.",
+    "modeParity": "local and dev-api both expose BillSession/TableBill behaviour; API mode must fail loudly when baseUrl is missing."
+  },
+  "batch25": {
+    "acceptanceTests": "scripts/scoremenu-e2e-smoke.js covers first order, locked table, cumulative bill, admin bill dashboard, staff table transfer, paid/closed blocking, and restaurant/branch isolation.",
+    "reportSeverity": "Acceptance script prints blocker/major/minor counts and fails the process when any check fails.",
+    "demoReadiness": "All blocker checks must pass before restaurant demo."
+  },
+  "migrations": [
+    "batch24_legacy_orders_to_bill_sessions"
   ]
 }
