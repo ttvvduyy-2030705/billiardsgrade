@@ -67,7 +67,7 @@ export type AdminBillTableTransferForm = {
 
 export type AdminBillPaymentForm = {
   billSessionId: string;
-  status: "PAYMENT_REQUESTED" | "PAID";
+  status: 'PAYMENT_REQUESTED' | 'PAID';
   paymentMethod?: AdminPaymentMethod;
   discountTotal?: number;
   serviceFeeTotal?: number;
@@ -89,7 +89,10 @@ export type AdminOrder = RestaurantOrder & {
   paymentStatus: AdminPaymentStatus;
 };
 
-export type AdminBillSession = Omit<RestaurantBillSessionDetail, 'orders' | 'status'> & {
+export type AdminBillSession = Omit<
+  RestaurantBillSessionDetail,
+  'orders' | 'status'
+> & {
   status: AdminBillSessionStatus;
   orders: AdminOrder[];
   latestOrderStatus?: AdminOrderStatus;
@@ -119,7 +122,6 @@ export type AdminMenuImageUploadForm = {
   mimeType?: string;
 };
 
-
 export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
   NEW: 'Đơn mới',
   ACCEPTED: 'Đã nhận đơn',
@@ -128,13 +130,14 @@ export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
   CANCELLED: 'Đã huỷ',
 };
 
-export const ADMIN_ORDER_STATUS_SHORT_LABELS: Record<AdminOrderStatus, string> = {
-  NEW: 'Mới',
-  ACCEPTED: 'Đã nhận',
-  PREPARING: 'Đang làm',
-  COMPLETED: 'Hoàn tất',
-  CANCELLED: 'Huỷ',
-};
+export const ADMIN_ORDER_STATUS_SHORT_LABELS: Record<AdminOrderStatus, string> =
+  {
+    NEW: 'Mới',
+    ACCEPTED: 'Đã nhận',
+    PREPARING: 'Đang làm',
+    COMPLETED: 'Hoàn tất',
+    CANCELLED: 'Huỷ',
+  };
 
 export const ADMIN_ORDER_PRIMARY_ACTION_LABELS: Partial<
   Record<AdminOrderStatus, string>
@@ -152,10 +155,13 @@ export const ADMIN_PAYMENT_STATUS_LABELS: Record<AdminPaymentStatus, string> = {
 export const ADMIN_PAYMENT_METHOD_LABELS: Record<AdminPaymentMethod, string> = {
   CASH: 'Tiền mặt',
   BANK_TRANSFER: 'Chuyển khoản',
-  MOCK: 'Test/mock',
+  MOCK: 'Khác',
 };
 
-export const ADMIN_BILL_SESSION_STATUS_LABELS: Record<AdminBillSessionStatus, string> = {
+export const ADMIN_BILL_SESSION_STATUS_LABELS: Record<
+  AdminBillSessionStatus,
+  string
+> = {
   OPEN: 'Đang mở',
   PAYMENT_REQUESTED: 'Yêu cầu thanh toán',
   PAID: 'Đã thanh toán',
@@ -166,7 +172,6 @@ export const ADMIN_BILL_SESSION_STATUS_LABELS: Record<AdminBillSessionStatus, st
 export const ADMIN_PAYMENT_METHODS: AdminPaymentMethod[] = [
   'CASH',
   'BANK_TRANSFER',
-  'MOCK',
 ];
 
 export const ADMIN_ORDER_STATUS_FLOW: AdminOrderStatus[] = [
@@ -200,7 +205,10 @@ type AdminScope = {
 };
 
 const getSessionRestaurantIds = (session: RestaurantAdminSession) =>
-  normaliseIdList([...(session.restaurantIds || []), session.activeRestaurantId]);
+  normaliseIdList([
+    ...(session.restaurantIds || []),
+    session.activeRestaurantId,
+  ]);
 
 const getSessionBranchIds = (session: RestaurantAdminSession) =>
   normaliseIdList([...(session.branchIds || []), session.activeBranchId]);
@@ -213,26 +221,39 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
   }
 
   const currentContext = await getActiveRestaurantContext();
-  const allowedRestaurantIds = getSessionRestaurantIds(session as RestaurantAdminSession);
+  const allowedRestaurantIds = getSessionRestaurantIds(
+    session as RestaurantAdminSession,
+  );
   let restaurantId = currentContext.restaurantId;
 
-  if (allowedRestaurantIds.length > 0 && !allowedRestaurantIds.includes(restaurantId)) {
+  if (
+    allowedRestaurantIds.length > 0 &&
+    !allowedRestaurantIds.includes(restaurantId)
+  ) {
     restaurantId =
-      session?.activeRestaurantId && allowedRestaurantIds.includes(session.activeRestaurantId)
+      session?.activeRestaurantId &&
+      allowedRestaurantIds.includes(session.activeRestaurantId)
         ? session.activeRestaurantId
         : allowedRestaurantIds[0];
   }
 
   const branches = await loadRestaurantBranches(restaurantId);
   const branchIdsInRestaurant = new Set(branches.map(branch => branch.id));
-  const allowedBranchIds = getSessionBranchIds(session as RestaurantAdminSession).filter(branchId =>
-    branchIdsInRestaurant.has(branchId),
-  );
-  let branchId = currentContext.restaurantId === restaurantId ? currentContext.branchId : undefined;
+  const allowedBranchIds = getSessionBranchIds(
+    session as RestaurantAdminSession,
+  ).filter(branchId => branchIdsInRestaurant.has(branchId));
+  let branchId =
+    currentContext.restaurantId === restaurantId
+      ? currentContext.branchId
+      : undefined;
 
-  if (allowedBranchIds.length > 0 && (!branchId || !allowedBranchIds.includes(branchId))) {
+  if (
+    allowedBranchIds.length > 0 &&
+    (!branchId || !allowedBranchIds.includes(branchId))
+  ) {
     branchId =
-      session?.activeBranchId && allowedBranchIds.includes(session.activeBranchId)
+      session?.activeBranchId &&
+      allowedBranchIds.includes(session.activeBranchId)
         ? session.activeBranchId
         : allowedBranchIds[0];
   }
@@ -295,7 +316,9 @@ const filterBillSessionsByScope = (
   }
 
   return scope.branchId
-    ? billSessions.filter(billSession => billSession.branchId === scope.branchId)
+    ? billSessions.filter(
+        billSession => billSession.branchId === scope.branchId,
+      )
     : billSessions;
 };
 
@@ -323,13 +346,17 @@ const assertBranchScope = (scope: AdminScope, branchId?: string) => {
   }
 
   if (!scope.allowedBranchIds.includes(branchId)) {
-    throw new Error('Tài khoản hiện tại không có quyền thao tác chi nhánh này.');
+    throw new Error(
+      'Tài khoản hiện tại không có quyền thao tác chi nhánh này.',
+    );
   }
 };
 
 const assertManagerPermission = (scope: AdminScope) => {
   if (scope.session.role === 'STAFF') {
-    throw new Error('Tài khoản nhân viên chỉ được xem và xử lý đơn trong phạm vi được cấp, không được sửa menu/bàn/QR.');
+    throw new Error(
+      'Tài khoản nhân viên chỉ được xem và xử lý đơn trong phạm vi được cấp, không được sửa menu/bàn/QR.',
+    );
   }
 };
 
@@ -380,7 +407,9 @@ export const getAdminOrderNextStatus = (
   }
 };
 
-export const getAdminOrderSummary = (orders: AdminOrder[]): AdminOrderSummary => {
+export const getAdminOrderSummary = (
+  orders: AdminOrder[],
+): AdminOrderSummary => {
   return orders.reduce<AdminOrderSummary>(
     (summary, order) => {
       summary.totalOrders += 1;
@@ -461,7 +490,8 @@ const toAdminOrder = (order: RestaurantOrder): AdminOrder => {
     orderStatus,
     status: orderStatus,
     paymentStatus: toPaymentStatus(order),
-    paymentMethod: order.paymentMethod || 'MOCK',
+    paymentMethod:
+      order.paymentMethod === 'MOCK' ? 'CASH' : order.paymentMethod || 'CASH',
   };
 };
 
@@ -478,7 +508,9 @@ const sortBillChildOrders = (orders: AdminOrder[]) =>
     String(a.createdAt || '').localeCompare(String(b.createdAt || '')),
   );
 
-const toAdminBillSession = (billSession: RestaurantBillSessionDetail): AdminBillSession => {
+const toAdminBillSession = (
+  billSession: RestaurantBillSessionDetail,
+): AdminBillSession => {
   const childOrders = sortBillChildOrders(
     (billSession.orders || []).map(toAdminOrder),
   );
@@ -506,8 +538,9 @@ const sortAdminBillSessions = (billSessions: AdminBillSession[]) =>
     ),
   );
 
-export const mapToAdminBillSessions = (billSessions: RestaurantBillSessionDetail[]) =>
-  sortAdminBillSessions(billSessions.map(toAdminBillSession));
+export const mapToAdminBillSessions = (
+  billSessions: RestaurantBillSessionDetail[],
+) => sortAdminBillSessions(billSessions.map(toAdminBillSession));
 
 export const loadAdminOrders = async () => {
   const scope = await ensureAdminScope();
@@ -538,13 +571,14 @@ export const loadAdminOrderDashboard = async () => {
 
 export const loadRestaurantAdminData = async () => {
   const scope = await ensureAdminScope();
-  const [categories, menuItems, orders, billSessions, tables] = await Promise.all([
-    loadMenuCategories(),
-    loadMenuItems(),
-    loadOrders(),
-    loadBillSessions(),
-    loadRestaurantTables(scope.restaurantId),
-  ]);
+  const [categories, menuItems, orders, billSessions, tables] =
+    await Promise.all([
+      loadMenuCategories(),
+      loadMenuItems(),
+      loadOrders(),
+      loadBillSessions(),
+      loadRestaurantTables(scope.restaurantId),
+    ]);
 
   return {
     categories,
@@ -556,7 +590,6 @@ export const loadRestaurantAdminData = async () => {
     tables: filterTablesByScope(tables, scope),
   };
 };
-
 
 export const loadAdminTables = async () => {
   const scope = await ensureAdminScope();
@@ -696,7 +729,9 @@ const getOrderInScope = async (orderId: string, scope: AdminScope) => {
   const order = orders.find(item => item.id === orderId);
 
   if (!order) {
-    throw new Error('Đơn hàng không thuộc nhà hàng/chi nhánh mà tài khoản hiện tại được cấp quyền.');
+    throw new Error(
+      'Đơn hàng không thuộc nhà hàng/chi nhánh mà tài khoản hiện tại được cấp quyền.',
+    );
   }
 
   return toAdminOrder(order);
@@ -710,7 +745,9 @@ export const updateAdminOrderStatus = async (
   const order = await getOrderInScope(orderId, scope);
 
   if (!isAdminOrderStatusTransitionAllowed(order.status, status)) {
-    throw new Error('Không thể chuyển trạng thái đơn không đúng luồng hoặc đơn đã hoàn tất/hủy.');
+    throw new Error(
+      'Không thể chuyển trạng thái đơn không đúng luồng hoặc đơn đã hoàn tất/hủy.',
+    );
   }
 
   const nextOrders = await updateRestaurantOrderStatus(
@@ -742,16 +779,20 @@ export const updateAdminOrderPaymentStatus = async (
   return mapToAdminOrders(filterOrdersByScope(nextOrders, scope));
 };
 
-
 const getBillSessionInScope = async (
   billSessionId: string,
   scope: AdminScope,
 ) => {
-  const billSessions = filterBillSessionsByScope(await loadBillSessions(), scope);
+  const billSessions = filterBillSessionsByScope(
+    await loadBillSessions(),
+    scope,
+  );
   const billSession = billSessions.find(item => item.id === billSessionId);
 
   if (!billSession) {
-    throw new Error('Hóa đơn không thuộc nhà hàng/chi nhánh mà tài khoản hiện tại được cấp quyền.');
+    throw new Error(
+      'Hóa đơn không thuộc nhà hàng/chi nhánh mà tài khoản hiện tại được cấp quyền.',
+    );
   }
 
   return billSession;
@@ -767,7 +808,9 @@ export const updateAdminBillSessionPayment = async (
     throw new Error('Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.');
   }
   if (billSession.status === 'PAID' && input.status !== 'PAID') {
-    throw new Error('Hóa đơn đã thanh toán, không thể chuyển về yêu cầu thanh toán.');
+    throw new Error(
+      'Hóa đơn đã thanh toán, không thể chuyển về yêu cầu thanh toán.',
+    );
   }
 
   const updated = await updateRestaurantBillSessionPayment(billSession.id, {

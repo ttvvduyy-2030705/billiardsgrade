@@ -21,7 +21,6 @@ import {goBack} from 'utils/navigation';
 
 import {screens} from './screens';
 import {configureSystemUI} from 'theme/systemUI';
-import {LIVESTREAM_AUTH_BASE_URL} from 'config/livestreamAuth';
 import {SubscriptionProvider} from 'features/subscription';
 
 const Stack = createNativeStackNavigator();
@@ -158,22 +157,12 @@ const getWrappedRestaurantAdminTables = () =>
     require('./restaurant-admin-tables').default,
   );
 
-const LIVE_FIX_BUILD = '20260425-restaurant-menu-haidilao-polish';
-
 const StackScreens = () => {
   useEffect(() => {
-    const buildInfoLines = [
-      '[Build Info] app started',
-      '[Build Info] live-fix-build=' + LIVE_FIX_BUILD,
-      '[Build Info] apiBaseUrl=' + LIVESTREAM_AUTH_BASE_URL,
-      '[Build Info] package=' + DeviceInfo.getBundleId(),
-      '[Build Info] versionName=' + DeviceInfo.getVersion(),
-      '[Build Info] versionCode=' + DeviceInfo.getBuildNumber(),
-    ];
-
-    buildInfoLines.forEach(line => {
-      console.log(line);
-      console.warn(line);
+    console.log('[Build Info] app started', {
+      package: DeviceInfo.getBundleId(),
+      versionName: DeviceInfo.getVersion(),
+      versionCode: DeviceInfo.getBuildNumber(),
     });
 
     configureSystemUI({animated: false});

@@ -98,48 +98,41 @@ const createStyles = ({design}: Args) => {
       marginTop: spacing.xs,
       marginBottom: spacing.lg,
     },
-    demoAccountBox: {
+    apiBox: {
       borderRadius: radius.lg,
       borderWidth: 1,
-      borderColor: 'rgba(229,58,66,0.34)',
-      backgroundColor: 'rgba(201,29,36,0.12)',
+      borderColor: 'rgba(255,255,255,0.10)',
+      backgroundColor: 'rgba(255,255,255,0.045)',
       padding: spacing.sm,
       marginBottom: spacing.md,
     },
-    demoAccountTitle: {
-      color: '#FFFFFF',
-      fontSize: font.body,
+    apiLabel: {
+      color: 'rgba(255,255,255,0.78)',
+      fontSize: font.small,
       fontWeight: '900',
       marginBottom: spacing.xs,
     },
-    demoAccountHint: {
-      color: 'rgba(255,255,255,0.68)',
+    apiText: {
+      color: 'rgba(255,255,255,0.56)',
       fontSize: font.small,
-      lineHeight: font.small * 1.35,
       fontWeight: '700',
+      lineHeight: font.small * 1.45,
       marginBottom: spacing.sm,
     },
-    demoAccountActions: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.xs,
-    },
-    demoAccountButton: {
+    apiButton: {
       minHeight: control.minTouch,
       borderRadius: radius.pill,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.12)',
-      backgroundColor: 'rgba(255,255,255,0.08)',
-      paddingHorizontal: spacing.md,
       alignItems: 'center',
       justifyContent: 'center',
-      flexGrow: 1,
+      borderWidth: 1,
+      borderColor: 'rgba(229,58,66,0.42)',
+      backgroundColor: 'rgba(201,29,36,0.14)',
+      paddingHorizontal: spacing.md,
     },
-    demoAccountButtonText: {
-      color: '#FFFFFF',
-      fontSize: font.small,
+    apiButtonText: {
+      color: '#FFB0B4',
+      fontSize: font.body,
       fontWeight: '900',
-      textAlign: 'center',
     },
     fieldBlock: {
       marginBottom: spacing.md,

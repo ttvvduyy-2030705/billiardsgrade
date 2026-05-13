@@ -1,4 +1,11 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Image,
   Pressable,
@@ -16,11 +23,6 @@ import {
 
 import images from 'assets';
 import {screens} from 'scenes/screens';
-import {
-  getDefaultCustomerMenuQrToken,
-  getRestaurantMenuEnvironmentLabel,
-  RESTAURANT_MENU_ENV_CONFIG,
-} from 'config/restaurantMenu';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {Navigation} from 'types/navigation';
@@ -33,21 +35,9 @@ import createStyles from './styles';
 type CameraPermissionState = 'loading' | 'granted' | 'denied';
 
 type Props = Navigation & {
-  demoQrToken?: string;
+  /** Optional token passed by a deep link or navigation route. */
+  initialQrToken?: string;
 };
-
-const DEMO_QR_OPTIONS = [
-  {
-    label: 'Demo Haidilao',
-    subtitle: 'Menu Haidilao / chi nhánh chính',
-    token: 'qr_haidilao_main_menu',
-  },
-  {
-    label: 'Demo APlus',
-    subtitle: 'Menu APlus / chi nhánh chính',
-    token: 'qr_aplus_main_menu',
-  },
-];
 
 const extractQrToken = (rawValue?: string | null) => {
   const cleanValue = String(rawValue || '').trim();
@@ -84,7 +74,8 @@ const RestaurantQrScannerScreen = (props: Props) => {
 
   const {adaptive, design} = useDesignSystem();
   const styles = useMemo(
-    () => createStyles(design, {width: adaptive.width, height: adaptive.height}),
+    () =>
+      createStyles(design, {width: adaptive.width, height: adaptive.height}),
     [adaptive.height, adaptive.width, design],
   );
 
@@ -94,17 +85,14 @@ const RestaurantQrScannerScreen = (props: Props) => {
   const cameraDevice = useCameraDevice('back');
   const [permissionState, setPermissionState] =
     useState<CameraPermissionState>('loading');
-  const [manualToken, setManualToken] = useState(
-    props.demoQrToken || getDefaultCustomerMenuQrToken(),
-  );
   const [statusMessage, setStatusMessage] = useState(
     'Đưa mã QR của quán hoặc chi nhánh vào giữa khung camera.',
   );
-  const [scannerNativeError, setScannerNativeError] = useState<string | null>(null);
-  const environmentLabel = useMemo(
-    () => getRestaurantMenuEnvironmentLabel(RESTAURANT_MENU_ENV_CONFIG),
-    [],
+  const [scannerNativeError, setScannerNativeError] = useState<string | null>(
+    null,
   );
+  const [manualQrToken, setManualQrToken] = useState('');
+  const [manualQrError, setManualQrError] = useState('');
   const lastHandledTokenRef = useRef('');
   const lastHandledAtRef = useRef(0);
 
@@ -113,7 +101,9 @@ const RestaurantQrScannerScreen = (props: Props) => {
       const qrToken = extractQrToken(rawToken);
 
       if (!qrToken) {
-        setStatusMessage('QR/token trống. Vui lòng quét lại hoặc nhập token demo.');
+        setStatusMessage(
+          'QR không hợp lệ. Vui lòng quét lại mã của quán/chi nhánh.',
+        );
         logScoreMenuError(
           {module: 'QR', action: 'empty qr scan', extra: {rawValue: rawToken}},
           new Error('empty qr token'),
@@ -123,7 +113,8 @@ const RestaurantQrScannerScreen = (props: Props) => {
 
       const now = Date.now();
       const alreadyHandledRecently =
-        lastHandledTokenRef.current === qrToken && now - lastHandledAtRef.current < 2200;
+        lastHandledTokenRef.current === qrToken &&
+        now - lastHandledAtRef.current < 2200;
 
       if (alreadyHandledRecently) {
         return;
@@ -132,8 +123,8 @@ const RestaurantQrScannerScreen = (props: Props) => {
       lastHandledTokenRef.current = qrToken;
       lastHandledAtRef.current = now;
       setScannerNativeError(null);
-      setStatusMessage(`Đã nhận QR: ${qrToken}`);
-      devModuleLog('QR', 'qr token scanned', {qrToken});
+      setStatusMessage('Đã nhận QR. Đang mở menu...');
+      devModuleLog('QR', 'qr scanned');
 
       navigate(screens.restaurantMenu, {
         qrToken,
@@ -156,8 +147,27 @@ const RestaurantQrScannerScreen = (props: Props) => {
     navigate(screens.home);
   }, [navigate, resetNavigation]);
 
+  const handleSubmitManualQrToken = useCallback(() => {
+    const cleanToken = extractQrToken(manualQrToken);
+
+    if (!cleanToken) {
+      setManualQrError('Vui lòng nhập mã QR hợp lệ của quán/chi nhánh.');
+      return;
+    }
+
+    setManualQrError('');
+    openRestaurantMenuByToken(cleanToken);
+  }, [manualQrToken, openRestaurantMenuByToken]);
+
+  useEffect(() => {
+    if (props.initialQrToken) {
+      openRestaurantMenuByToken(props.initialQrToken);
+    }
+  }, [openRestaurantMenuByToken, props.initialQrToken]);
+
   const requestCameraPermission = useCallback(async () => {
     try {
+      setScannerNativeError(null);
       const currentStatus = await Camera.getCameraPermissionStatus();
 
       if (currentStatus === 'granted') {
@@ -192,27 +202,41 @@ const RestaurantQrScannerScreen = (props: Props) => {
   });
 
   const handleCameraError = useCallback((error: unknown) => {
-    const message =
+    const rawMessage =
       error instanceof Error
         ? error.message
         : typeof error === 'string'
           ? error
           : 'Camera QR chưa khởi tạo được trên thiết bị này.';
+    const isRestricted = rawMessage
+      .toLowerCase()
+      .includes('camera functionality is not available');
+    const message = isRestricted
+      ? 'Camera đang bị hệ điều hành hoặc chính sách thiết bị chặn.'
+      : rawMessage;
 
     logScoreMenuError(
       {module: 'QR', action: 'camera scanner native error', extra: {message}},
       error,
     );
     setScannerNativeError(message);
-    setStatusMessage('Camera QR chưa sẵn sàng. Bạn vẫn có thể chọn QR demo hoặc nhập token để test menu.');
+    setStatusMessage(
+      isRestricted
+        ? 'Camera đang bị hạn chế trên thiết bị này. Có thể nhập mã QR bên cạnh để mở menu.'
+        : 'Camera QR chưa sẵn sàng. Vui lòng thử lại hoặc nhập mã QR bên cạnh.',
+    );
   }, []);
 
   const renderCameraContent = () => {
     if (permissionState === 'loading') {
       return (
         <View style={styles.cameraFallbackContent}>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>Đang mở camera...</Text>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>Vui lòng chờ trong giây lát.</Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>
+            Đang mở camera...
+          </Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
+            Vui lòng chờ trong giây lát.
+          </Text>
         </View>
       );
     }
@@ -220,14 +244,18 @@ const RestaurantQrScannerScreen = (props: Props) => {
     if (permissionState !== 'granted') {
       return (
         <View style={styles.cameraFallbackContent}>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>Chưa có quyền camera</Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>
+            Chưa có quyền camera
+          </Text>
           <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
             Cấp quyền camera để quét QR menu của quán/chi nhánh.
           </Text>
           <Pressable
             onPress={() => void requestCameraPermission()}
             style={styles.cameraPermissionButton}>
-            <Text maxFontSizeMultiplier={1} style={styles.cameraPermissionText}>Cấp quyền camera</Text>
+            <Text maxFontSizeMultiplier={1} style={styles.cameraPermissionText}>
+              Cấp quyền camera
+            </Text>
           </Pressable>
         </View>
       );
@@ -236,9 +264,11 @@ const RestaurantQrScannerScreen = (props: Props) => {
     if (!cameraDevice) {
       return (
         <View style={styles.cameraFallbackContent}>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>Không tìm thấy camera sau</Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>
+            Không tìm thấy camera sau
+          </Text>
           <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
-            Bạn vẫn có thể chọn QR demo hoặc nhập token thủ công để test menu.
+            Vui lòng thử lại trên thiết bị có camera sau hoặc liên hệ nhân viên.
           </Text>
         </View>
       );
@@ -247,10 +277,20 @@ const RestaurantQrScannerScreen = (props: Props) => {
     if (scannerNativeError) {
       return (
         <View style={styles.cameraFallbackContent}>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>Camera QR chưa sẵn sàng</Text>
-          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
-            ML Kit/code scanner chưa khởi tạo được trên thiết bị này. Hãy rebuild app sau bản vá, hoặc dùng QR demo/nhập token thủ công để tiếp tục test.
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackTitle}>
+            Camera QR chưa sẵn sàng
           </Text>
+          <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackHint}>
+            Bộ quét QR chưa khởi tạo được trên thiết bị này. Vui lòng thử lại
+            hoặc nhập mã QR ở khung bên cạnh.
+          </Text>
+          <Pressable
+            onPress={() => void requestCameraPermission()}
+            style={styles.cameraPermissionButton}>
+            <Text maxFontSizeMultiplier={1} style={styles.cameraPermissionText}>
+              Thử mở lại camera
+            </Text>
+          </Pressable>
           <Text maxFontSizeMultiplier={1} style={styles.cameraFallbackError}>
             {scannerNativeError}
           </Text>
@@ -278,28 +318,37 @@ const RestaurantQrScannerScreen = (props: Props) => {
         hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
         onPress={goHome}
         style={styles.homeButton}>
-        <Text maxFontSizeMultiplier={1} style={styles.homeButtonText}>← Home</Text>
+        <Text maxFontSizeMultiplier={1} style={styles.homeButtonText}>
+          ← Home
+        </Text>
       </Pressable>
 
       <View style={styles.leftRail}>
-        <Image source={images.logoSmall} resizeMode="contain" style={styles.logo} />
-        <Text maxFontSizeMultiplier={1} style={styles.brandEyebrow}>APLUS MENU</Text>
-        <Text maxFontSizeMultiplier={1} style={styles.brandTitle}>Quét QR để xem menu</Text>
+        <Image
+          source={images.logoSmall}
+          resizeMode="contain"
+          style={styles.logo}
+        />
+        <Text maxFontSizeMultiplier={1} style={styles.brandEyebrow}>
+          APLUS MENU
+        </Text>
+        <Text maxFontSizeMultiplier={1} style={styles.brandTitle}>
+          Quét QR để xem menu
+        </Text>
         <Text maxFontSizeMultiplier={1} style={styles.brandHint}>
           QR xác định quán hoặc chi nhánh. Số bàn sẽ nhập/chọn trong giỏ hàng.
         </Text>
-        <View style={styles.envBadge}>
-          <Text maxFontSizeMultiplier={1} style={styles.envBadgeText}>
-            {environmentLabel}
-          </Text>
-        </View>
       </View>
 
       <View style={styles.centerPane}>
         <View style={styles.cameraCard}>
           <View style={styles.cameraHeaderRow}>
-            <Text maxFontSizeMultiplier={1} style={styles.cameraTitle}>Camera QR</Text>
-            <Text maxFontSizeMultiplier={1} style={styles.cameraBadge}>BATCH 4</Text>
+            <Text maxFontSizeMultiplier={1} style={styles.cameraTitle}>
+              Camera QR
+            </Text>
+            <Text maxFontSizeMultiplier={1} style={styles.cameraBadge}>
+              QR MENU
+            </Text>
           </View>
 
           <View style={styles.cameraFrame}>
@@ -310,7 +359,9 @@ const RestaurantQrScannerScreen = (props: Props) => {
             <View pointerEvents="none" style={styles.scanCornerBottomRight} />
           </View>
 
-          <Text maxFontSizeMultiplier={1} style={styles.statusText}>{statusMessage}</Text>
+          <Text maxFontSizeMultiplier={1} style={styles.statusText}>
+            {statusMessage}
+          </Text>
         </View>
       </View>
 
@@ -320,47 +371,52 @@ const RestaurantQrScannerScreen = (props: Props) => {
           contentContainerStyle={styles.rightRailContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          <View style={styles.manualQrCard}>
+            <Text maxFontSizeMultiplier={1} style={styles.manualQrTitle}>
+              Không quét được QR?
+            </Text>
+            <Text maxFontSizeMultiplier={1} style={styles.manualQrHint}>
+              Nhập mã QR của quán/chi nhánh được in trên bàn hoặc hóa đơn để
+              mở menu.
+            </Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxFontSizeMultiplier={1}
+              onChangeText={text => {
+                setManualQrToken(text);
+                if (manualQrError) {
+                  setManualQrError('');
+                }
+              }}
+              onSubmitEditing={handleSubmitManualQrToken}
+              placeholder="Nhập mã QR"
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              returnKeyType="go"
+              style={styles.manualQrInput}
+              value={manualQrToken}
+            />
+            {manualQrError ? (
+              <Text maxFontSizeMultiplier={1} style={styles.manualQrError}>
+                {manualQrError}
+              </Text>
+            ) : null}
+            <Pressable
+              onPress={handleSubmitManualQrToken}
+              style={styles.manualQrButton}>
+              <Text maxFontSizeMultiplier={1} style={styles.manualQrButtonText}>
+                Mở menu
+              </Text>
+            </Pressable>
+          </View>
+
           <Pressable
             onPress={() => navigate(screens.restaurantAdminLogin)}
             style={styles.adminButton}>
-            <Text maxFontSizeMultiplier={1} style={styles.adminButtonText}>Đăng nhập Admin</Text>
-          </Pressable>
-
-          <View style={styles.demoCard}>
-            <Text maxFontSizeMultiplier={1} style={styles.demoTitle}>QR demo</Text>
-            <Text maxFontSizeMultiplier={1} style={styles.demoHint}>
-              Dùng khi chưa có ảnh QR thật hoặc camera chưa quét được.
+            <Text maxFontSizeMultiplier={1} style={styles.adminButtonText}>
+              Đăng nhập Admin
             </Text>
-
-            {DEMO_QR_OPTIONS.map(option => (
-              <Pressable
-                key={option.token}
-                onPress={() => openRestaurantMenuByToken(option.token)}
-                style={styles.demoButton}>
-                <Text maxFontSizeMultiplier={1} style={styles.demoButtonText}>{option.label}</Text>
-                <Text maxFontSizeMultiplier={1} style={styles.demoButtonSubText}>{option.subtitle}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.manualCard}>
-            <Text maxFontSizeMultiplier={1} style={styles.manualTitle}>Nhập QR token</Text>
-            <TextInput
-              allowFontScaling={false}
-              value={manualToken}
-              onChangeText={setManualToken}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="qr_haidilao_main_menu"
-              placeholderTextColor="rgba(255,255,255,0.38)"
-              style={styles.manualInput}
-            />
-            <Pressable
-              onPress={() => openRestaurantMenuByToken(manualToken)}
-              style={styles.manualSubmitButton}>
-              <Text maxFontSizeMultiplier={1} style={styles.manualSubmitText}>Mở menu</Text>
-            </Pressable>
-          </View>
+          </Pressable>
         </ScrollView>
       </View>
     </View>

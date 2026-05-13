@@ -94,7 +94,8 @@ const createAdminSession = async ({
         : createLocalSessionToken(cleanUsername, signedInAt)),
     activeRestaurantId: restaurantId || context.restaurantId,
     activeRestaurantName: context.restaurantName,
-    restaurantIds: restaurantIds && restaurantIds.length > 0 ? restaurantIds : undefined,
+    restaurantIds:
+      restaurantIds && restaurantIds.length > 0 ? restaurantIds : undefined,
     branchIds: branchIds && branchIds.length > 0 ? branchIds : undefined,
     activeBranchId,
     signedInAt,
@@ -273,7 +274,6 @@ export const registerRestaurantAdminAccount = async (
   };
 };
 
-
 export const updateRestaurantAdminSessionContext = async ({
   restaurantId,
   restaurantName,
@@ -323,7 +323,6 @@ export const refreshRestaurantAdminSession = async () => {
 
 export const RestaurantAdminAuthService = {
   login: loginRestaurantAdmin,
-  registerDemo: registerRestaurantAdminAccount,
   registerLocal: registerRestaurantAdminAccount,
   getSession: getRestaurantAdminSession,
   clearSession: clearRestaurantAdminSession,

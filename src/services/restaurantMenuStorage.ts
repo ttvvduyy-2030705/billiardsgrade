@@ -1,34 +1,34 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { devWarn } from "utils/devLogger";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {devWarn} from 'utils/devLogger';
 import {
   cleanupRestaurantMenuImageIfUnused,
   getMenuItemImageValue,
-} from "./restaurantMenuImage";
+} from './restaurantMenuImage';
 
 export {
   getMenuItemImageValue,
   normaliseMenuImageUri,
-} from "./restaurantMenuImage";
+} from './restaurantMenuImage';
 
-const DEFAULT_LOCAL_RESTAURANT_ID = "local_demo_restaurant";
-const HAIDILAO_LOCAL_RESTAURANT_ID = "haidilao_local_demo";
-const DEFAULT_LOCAL_BRANCH_ID = "local_demo_main_branch";
-const HAIDILAO_LOCAL_BRANCH_ID = "haidilao_local_main_branch";
-const DEFAULT_LOCAL_TABLE_ID = "local_demo_table_01";
-const HAIDILAO_LOCAL_TABLE_ID = "haidilao_local_table_01";
+const DEFAULT_LOCAL_RESTAURANT_ID = 'local_restaurant';
+const HAIDILAO_LOCAL_RESTAURANT_ID = 'legacy_removed_restaurant';
+const DEFAULT_LOCAL_BRANCH_ID = 'local_main_branch';
+const HAIDILAO_LOCAL_BRANCH_ID = 'legacy_removed_branch';
+const DEFAULT_LOCAL_TABLE_ID = 'local_table_01';
+const HAIDILAO_LOCAL_TABLE_ID = 'legacy_removed_table';
 
 export const RESTAURANT_STORAGE_KEYS = {
-  schemaVersion: "restaurant_menu_schema_version",
-  categories: "menu_categories",
-  menuItems: "menu_items",
-  orders: "restaurant_orders",
-  billSessions: "restaurant_bill_sessions",
-  currentCart: "current_cart",
-  adminAccounts: "admin_accounts",
-  legacyAdminAccounts: "restaurant_admin_accounts",
+  schemaVersion: 'restaurant_menu_schema_version',
+  categories: 'menu_categories',
+  menuItems: 'menu_items',
+  orders: 'restaurant_orders',
+  billSessions: 'restaurant_bill_sessions',
+  currentCart: 'current_cart',
+  adminAccounts: 'admin_accounts',
+  legacyAdminAccounts: 'restaurant_admin_accounts',
 };
 
-const CURRENT_SCHEMA_VERSION = "20260512_batch24_bill_session_demo_migration_v1";
+const CURRENT_SCHEMA_VERSION = '20260513_batch26_production_cleanup_v2';
 
 export type MenuCategory = {
   id: string;
@@ -40,7 +40,7 @@ export type MenuCategory = {
   updatedAt?: string;
 };
 
-export type RestaurantMenuItemStatus = "SELLING" | "HIDDEN" | "OUT_OF_STOCK";
+export type RestaurantMenuItemStatus = 'SELLING' | 'HIDDEN' | 'OUT_OF_STOCK';
 
 export type RestaurantMenuItem = {
   id: string;
@@ -68,29 +68,27 @@ export type RestaurantCartItem = {
 };
 
 export type RestaurantBillSessionStatus =
-  | "OPEN"
-  | "PAYMENT_REQUESTED"
-  | "PAID"
-  | "CLOSED"
-  | "CANCELLED";
+  | 'OPEN'
+  | 'PAYMENT_REQUESTED'
+  | 'PAID'
+  | 'CLOSED'
+  | 'CANCELLED';
 
 export const RESTAURANT_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
-  "OPEN",
-  "PAYMENT_REQUESTED",
-  "PAID",
-  "CLOSED",
-  "CANCELLED",
+  'OPEN',
+  'PAYMENT_REQUESTED',
+  'PAID',
+  'CLOSED',
+  'CANCELLED',
 ];
 
-export const CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
-  "OPEN",
-  "PAYMENT_REQUESTED",
-];
+export const CUSTOMER_ORDERABLE_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] =
+  ['OPEN', 'PAYMENT_REQUESTED'];
 
 export const FINAL_BILL_SESSION_STATUSES: RestaurantBillSessionStatus[] = [
-  "PAID",
-  "CLOSED",
-  "CANCELLED",
+  'PAID',
+  'CLOSED',
+  'CANCELLED',
 ];
 
 export type RestaurantCartState = {
@@ -113,16 +111,16 @@ export type RestaurantCartState = {
 };
 
 export type RestaurantOrderStatus =
-  | "NEW"
-  | "ACCEPTED"
-  | "PREPARING"
-  | "COMPLETED"
-  | "CANCELLED";
+  | 'NEW'
+  | 'ACCEPTED'
+  | 'PREPARING'
+  | 'COMPLETED'
+  | 'CANCELLED';
 
 type LegacyRestaurantOrderStatus = RestaurantOrderStatus | string;
 export type RawRestaurantOrder = Omit<
   Partial<RestaurantOrder>,
-  "orderStatus" | "status" | "paymentStatus"
+  'orderStatus' | 'status' | 'paymentStatus'
 > & {
   /** Canonical field from Batch 2 onward. */
   orderStatus?: LegacyRestaurantOrderStatus;
@@ -139,14 +137,14 @@ export type RestaurantOrderItem = {
   note?: string;
 };
 
-export type RestaurantPaymentStatus = "UNPAID" | "PAID";
-export type RestaurantPaymentMethod = "CASH" | "BANK_TRANSFER" | "MOCK";
-export type RestaurantBillPaymentStatus = "PAYMENT_REQUESTED" | "PAID";
+export type RestaurantPaymentStatus = 'UNPAID' | 'PAID';
+export type RestaurantPaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'MOCK';
+export type RestaurantBillPaymentStatus = 'PAYMENT_REQUESTED' | 'PAID';
 
 export const RESTAURANT_PAYMENT_METHODS: RestaurantPaymentMethod[] = [
-  "CASH",
-  "BANK_TRANSFER",
-  "MOCK",
+  'CASH',
+  'BANK_TRANSFER',
+  'MOCK',
 ];
 
 export type RestaurantPayment = {
@@ -260,11 +258,11 @@ export type BillTableChangeLog = RestaurantBillTableChangeLog;
 export type BillSession = RestaurantBillSession;
 export type TableBill = RestaurantTableBill;
 
-export type RestaurantOrderSource = "admin" | "customer" | "local-demo";
+export type RestaurantOrderSource = 'admin' | 'customer' | 'local';
 
 export type RestaurantOrder = {
   id: string;
-  /** Required once ApiRepository/server mode is enabled. Optional only for old local demo migration. */
+  /** Required once ApiRepository/server mode is enabled. Optional only for old local data migration. */
   restaurantId?: string;
   branchId?: string;
   tableId?: string;
@@ -306,7 +304,7 @@ export type RestaurantAdminAccount = {
   password: string;
   restaurantIds?: string[];
   activeRestaurantId?: string;
-  role?: "OWNER" | "MANAGER" | "STAFF";
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
   createdAt: string;
 };
 
@@ -320,80 +318,17 @@ const stableHash = (value: string) => {
   return hash.toString(16);
 };
 
-const getDefaultLocalAdminAccounts = (): RestaurantAdminAccount[] => {
-  const timestamp = nowIso();
+const getDefaultLocalAdminAccounts = (): RestaurantAdminAccount[] => [];
 
-  return [
-    {
-      username: "admin",
-      password: "admin123",
-      restaurantIds: [DEFAULT_LOCAL_RESTAURANT_ID, HAIDILAO_LOCAL_RESTAURANT_ID],
-      activeRestaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
-      role: "OWNER",
-      createdAt: timestamp,
-    },
-    {
-      username: "haidilao",
-      password: "admin123",
-      restaurantIds: [HAIDILAO_LOCAL_RESTAURANT_ID],
-      activeRestaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-      role: "OWNER",
-      createdAt: timestamp,
-    },
-    {
-      username: "staff",
-      password: "staff123",
-      restaurantIds: [DEFAULT_LOCAL_RESTAURANT_ID],
-      activeRestaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
-      role: "STAFF",
-      createdAt: timestamp,
-    },
-  ];
-};
+const LEGACY_INTERNAL_ADMIN_USERNAMES = new Set(['admin', 'haidilao', 'staff']);
 
-const mergeDefaultLocalAdminAccounts = (
-  accounts: RestaurantAdminAccount[],
-) => {
-  const defaults = getDefaultLocalAdminAccounts();
-  const defaultsByUsername = new Map(
-    defaults.map(account => [normalise(account.username), account]),
-  );
-  const seen = new Set<string>();
-  let changed = false;
-
-  const merged = accounts.map(account => {
-    const usernameKey = normalise(account.username);
-    const defaultAccount = defaultsByUsername.get(usernameKey);
-    seen.add(usernameKey);
-
-    if (!defaultAccount) {
-      return account;
-    }
-
-    const upgraded: RestaurantAdminAccount = {
-      ...account,
-      password: defaultAccount.password,
-      restaurantIds: defaultAccount.restaurantIds,
-      activeRestaurantId: defaultAccount.activeRestaurantId,
-      role: defaultAccount.role,
-    };
-
-    if (JSON.stringify(upgraded) !== JSON.stringify(account)) {
-      changed = true;
-    }
-
-    return upgraded;
-  });
-
-  const missingDefaults = defaults.filter(
-    account => !seen.has(normalise(account.username)),
+const mergeDefaultLocalAdminAccounts = (accounts: RestaurantAdminAccount[]) => {
+  const cleaned = accounts.filter(
+    account =>
+      !LEGACY_INTERNAL_ADMIN_USERNAMES.has(normalise(account.username)),
   );
 
-  if (missingDefaults.length > 0) {
-    changed = true;
-  }
-
-  return changed ? [...merged, ...missingDefaults] : accounts;
+  return cleaned.length === accounts.length ? accounts : cleaned;
 };
 
 const createId = (prefix: string) => {
@@ -402,20 +337,20 @@ const createId = (prefix: string) => {
 
 const sampleTime = nowIso();
 
-export const DEFAULT_DRINK_CATEGORY_ID = "drink";
-export const DEFAULT_FOOD_CATEGORY_ID = "food";
+export const DEFAULT_DRINK_CATEGORY_ID = 'drink';
+export const DEFAULT_FOOD_CATEGORY_ID = 'food';
 
 export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
   {
     id: DEFAULT_DRINK_CATEGORY_ID,
-    name: "Đồ uống",
+    name: 'Đồ uống',
     sortOrder: 1,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
     id: DEFAULT_FOOD_CATEGORY_ID,
-    name: "Đồ ăn",
+    name: 'Đồ ăn',
     sortOrder: 2,
     createdAt: sampleTime,
     updatedAt: sampleTime,
@@ -424,54 +359,54 @@ export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
 
 export const defaultMenuItems: RestaurantMenuItem[] = [
   {
-    id: "sample_coca",
+    id: 'sample_coca',
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: "Coca",
+    name: 'Coca',
     price: 25000,
-    description: "Coca-Cola lạnh, phục vụ nhanh tại bàn.",
+    description: 'Coca-Cola lạnh, phục vụ nhanh tại bàn.',
     imageUrl:
-      "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "sample_fanta",
+    id: 'sample_fanta',
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: "Fanta",
+    name: 'Fanta',
     price: 25000,
-    description: "Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.",
+    description: 'Nước cam có gas, vị ngọt mát, uống lạnh ngon hơn.',
     imageUrl:
-      "https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1624517452488-04869289c4ca?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "sample_mirinda",
+    id: 'sample_mirinda',
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: "Mirinda",
+    name: 'Mirinda',
     price: 25000,
-    description: "Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.",
+    description: 'Mirinda lạnh, hợp dùng khi chơi hoặc nghỉ giữa trận.',
     imageUrl:
-      "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "sample_pepsi",
+    id: 'sample_pepsi',
     categoryId: DEFAULT_DRINK_CATEGORY_ID,
-    name: "Pepsi",
+    name: 'Pepsi',
     price: 25000,
-    description: "Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.",
+    description: 'Pepsi lạnh, vị ga mạnh, phục vụ nhanh cho bàn chơi.',
     imageUrl:
-      "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -479,25 +414,25 @@ export const defaultMenuItems: RestaurantMenuItem[] = [
 
 const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [
   {
-    id: "haidilao_hotpot",
+    id: 'haidilao_hotpot',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: "Nước lẩu",
+    name: 'Nước lẩu',
     sortOrder: 1,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "haidilao_meat",
+    id: 'haidilao_meat',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: "Thịt nhúng",
+    name: 'Thịt nhúng',
     sortOrder: 2,
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "haidilao_side",
+    id: 'haidilao_side',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    name: "Rau - món kèm",
+    name: 'Rau - món kèm',
     sortOrder: 3,
     createdAt: sampleTime,
     updatedAt: sampleTime,
@@ -506,58 +441,58 @@ const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [
 
 const HAIDILAO_LOCAL_MENU_ITEMS: RestaurantMenuItem[] = [
   {
-    id: "haidilao_mushroom_hotpot",
+    id: 'haidilao_mushroom_hotpot',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: "haidilao_hotpot",
-    name: "Lẩu nấm thanh ngọt",
+    categoryId: 'haidilao_hotpot',
+    name: 'Lẩu nấm thanh ngọt',
     price: 189000,
-    description: "Nước lẩu nấm dịu vị, phù hợp dùng cùng thịt bò và rau tươi.",
+    description: 'Nước lẩu nấm dịu vị, phù hợp dùng cùng thịt bò và rau tươi.',
     imageUrl:
-      "https://images.unsplash.com/photo-1512003867696-6d5ce6835040?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1512003867696-6d5ce6835040?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "haidilao_spicy_hotpot",
+    id: 'haidilao_spicy_hotpot',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: "haidilao_hotpot",
-    name: "Lẩu cay Tứ Xuyên",
+    categoryId: 'haidilao_hotpot',
+    name: 'Lẩu cay Tứ Xuyên',
     price: 199000,
-    description: "Vị cay thơm, hợp với đồ nhúng bò, hải sản và viên thả lẩu.",
+    description: 'Vị cay thơm, hợp với đồ nhúng bò, hải sản và viên thả lẩu.',
     imageUrl:
-      "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "haidilao_beef_plate",
+    id: 'haidilao_beef_plate',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: "haidilao_meat",
-    name: "Ba chỉ bò Mỹ",
+    categoryId: 'haidilao_meat',
+    name: 'Ba chỉ bò Mỹ',
     price: 129000,
-    description: "Thịt bò cắt lát mỏng, nhúng nhanh trong nước lẩu đang sôi.",
+    description: 'Thịt bò cắt lát mỏng, nhúng nhanh trong nước lẩu đang sôi.',
     imageUrl:
-      "https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1600891964092-4316c288032e?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
   {
-    id: "haidilao_vegetable_set",
+    id: 'haidilao_vegetable_set',
     restaurantId: HAIDILAO_LOCAL_RESTAURANT_ID,
-    categoryId: "haidilao_side",
-    name: "Set rau nấm tổng hợp",
+    categoryId: 'haidilao_side',
+    name: 'Set rau nấm tổng hợp',
     price: 79000,
-    description: "Rau xanh, nấm và đồ ăn kèm cho bàn lẩu.",
+    description: 'Rau xanh, nấm và đồ ăn kèm cho bàn lẩu.',
     imageUrl:
-      "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80",
+      'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80',
     available: true,
-    status: "SELLING",
+    status: 'SELLING',
     createdAt: sampleTime,
     updatedAt: sampleTime,
   },
@@ -580,47 +515,47 @@ const getSeedItemsForRestaurant = (restaurantId: string) => {
 };
 
 const legacySeedCategoryIds = [
-  "hotpot",
-  "meat",
-  "seafood",
-  "vegetable",
-  "snack",
-  "combo",
-  "other",
+  'hotpot',
+  'meat',
+  'seafood',
+  'vegetable',
+  'snack',
+  'combo',
+  'other',
 ];
 
 const legacySeedItemIds = [
-  "sample_hotpot_combo",
-  "sample_beef_plate",
-  "sample_seafood_plate",
-  "sample_mushroom_set",
-  "sample_snack_combo",
-  "sample_iced_tea",
+  'sample_hotpot_combo',
+  'sample_beef_plate',
+  'sample_seafood_plate',
+  'sample_mushroom_set',
+  'sample_snack_combo',
+  'sample_iced_tea',
 ];
 
 const normalise = (value?: string) => {
-  return (value || "")
+  return (value || '')
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .trim();
 };
 
 const safeJsonParse = <T>(value: string | null, fallback: T) => {
   if (!value) {
-    return { value: fallback, ok: true };
+    return {value: fallback, ok: true};
   }
 
   try {
-    return { value: JSON.parse(value) as T, ok: true };
+    return {value: JSON.parse(value) as T, ok: true};
   } catch (error) {
-    devWarn("[RestaurantMenuStorage] invalid JSON, reset safe fallback", error);
-    return { value: fallback, ok: false };
+    devWarn('[RestaurantMenuStorage] invalid JSON, reset safe fallback', error);
+    return {value: fallback, ok: false};
   }
 };
 
 const resolveRestaurantScopeId = (restaurantId?: string) => {
-  const cleanRestaurantId = String(restaurantId || "").trim();
+  const cleanRestaurantId = String(restaurantId || '').trim();
   return cleanRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID;
 };
 
@@ -646,7 +581,10 @@ const getScopedKeys = (restaurantId?: string) => {
       RESTAURANT_STORAGE_KEYS.menuItems,
       scopeId,
     ),
-    orders: getRestaurantScopedStorageKey(RESTAURANT_STORAGE_KEYS.orders, scopeId),
+    orders: getRestaurantScopedStorageKey(
+      RESTAURANT_STORAGE_KEYS.orders,
+      scopeId,
+    ),
     billSessions: getRestaurantScopedStorageKey(
       RESTAURANT_STORAGE_KEYS.billSessions,
       scopeId,
@@ -673,20 +611,20 @@ const writeArray = async <T>(key: string, value: T[]) => {
   await AsyncStorage.setItem(key, JSON.stringify(value));
 };
 
-const withRestaurantId = <T extends { restaurantId?: string }>(
+const withRestaurantId = <T extends {restaurantId?: string}>(
   record: T,
   restaurantId: string,
-): T => ({ ...record, restaurantId: record.restaurantId || restaurantId });
+): T => ({...record, restaurantId: record.restaurantId || restaurantId});
 
 const cleanCategory = (
   category: Partial<MenuCategory>,
   restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
 ): MenuCategory => {
   const timestamp = nowIso();
-  const cleanName = (category.name || "").trim() || "Đồ uống";
+  const cleanName = (category.name || '').trim() || 'Đồ uống';
 
   return {
-    id: category.id || createId("cat"),
+    id: category.id || createId('cat'),
     restaurantId: category.restaurantId || restaurantId,
     name: cleanName,
     sortOrder: category.sortOrder,
@@ -699,7 +637,9 @@ const ensureDefaultCategories = (
   categories: MenuCategory[],
   restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
 ) => {
-  const cleaned = categories.map(category => cleanCategory(category, restaurantId));
+  const cleaned = categories.map(category =>
+    cleanCategory(category, restaurantId),
+  );
   const withoutDuplicateNames = cleaned.filter(
     (category, index, source) =>
       source.findIndex(
@@ -712,16 +652,18 @@ const ensureDefaultCategories = (
   // dynamic categories. Do not force them back into AsyncStorage on every load.
   return withoutDuplicateNames.length > 0
     ? withoutDuplicateNames
-    : DEFAULT_MENU_CATEGORIES.map(category => cleanCategory(category, restaurantId));
+    : DEFAULT_MENU_CATEGORIES.map(category =>
+        cleanCategory(category, restaurantId),
+      );
 };
 
 const seedDefaultMenu = async (restaurantId = DEFAULT_LOCAL_RESTAURANT_ID) => {
   const scopedKeys = getScopedKeys(restaurantId);
-  const categories = getSeedCategoriesForRestaurant(scopedKeys.restaurantId).map(category =>
-    cleanCategory(category, scopedKeys.restaurantId),
-  );
-  const seededItems = getSeedItemsForRestaurant(scopedKeys.restaurantId).map(item =>
-    migrateMenuItem(item, categories, scopedKeys.restaurantId),
+  const categories = getSeedCategoriesForRestaurant(
+    scopedKeys.restaurantId,
+  ).map(category => cleanCategory(category, scopedKeys.restaurantId));
+  const seededItems = getSeedItemsForRestaurant(scopedKeys.restaurantId).map(
+    item => migrateMenuItem(item, categories, scopedKeys.restaurantId),
   );
 
   await writeArray(scopedKeys.categories, categories);
@@ -737,13 +679,13 @@ const resolveCategoryId = (
   const drinkCategory =
     categories.find(category => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
     categories.find(
-      category => normalise(category.name) === normalise("Đồ uống"),
+      category => normalise(category.name) === normalise('Đồ uống'),
     ) ||
     categories[0];
   const foodCategory =
     categories.find(category => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
     categories.find(
-      category => normalise(category.name) === normalise("Đồ ăn"),
+      category => normalise(category.name) === normalise('Đồ ăn'),
     ) ||
     drinkCategory;
 
@@ -762,14 +704,14 @@ const resolveCategoryId = (
   }
 
   if (
-    raw.includes("uong") ||
-    raw.includes("drink") ||
-    raw.includes("coca") ||
-    raw.includes("pepsi") ||
-    raw.includes("fanta") ||
-    raw.includes("mirinda") ||
-    raw.includes("tra") ||
-    raw.includes("nuoc")
+    raw.includes('uong') ||
+    raw.includes('drink') ||
+    raw.includes('coca') ||
+    raw.includes('pepsi') ||
+    raw.includes('fanta') ||
+    raw.includes('mirinda') ||
+    raw.includes('tra') ||
+    raw.includes('nuoc')
   ) {
     return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
   }
@@ -782,14 +724,14 @@ const normaliseMenuItemStatus = (
   available?: boolean,
 ): RestaurantMenuItemStatus => {
   if (
-    status === "HIDDEN" ||
-    status === "OUT_OF_STOCK" ||
-    status === "SELLING"
+    status === 'HIDDEN' ||
+    status === 'OUT_OF_STOCK' ||
+    status === 'SELLING'
   ) {
     return status;
   }
 
-  return available === false ? "HIDDEN" : "SELLING";
+  return available === false ? 'HIDDEN' : 'SELLING';
 };
 
 const migrateMenuItem = (
@@ -806,15 +748,15 @@ const migrateMenuItem = (
   const imageUrl = getMenuItemImageValue(item);
 
   return {
-    id: item.id || createId("dish"),
+    id: item.id || createId('dish'),
     restaurantId: item.restaurantId || restaurantId,
     categoryId,
-    name: (item.name || "Món chưa đặt tên").trim(),
+    name: (item.name || 'Món chưa đặt tên').trim(),
     price: Number(item.price) || 0,
-    description: item.description || "",
+    description: item.description || '',
     imageUrl,
     imageUri: undefined,
-    available: status === "SELLING",
+    available: status === 'SELLING',
     status,
     createdAt: item.createdAt || timestamp,
     updatedAt: item.updatedAt || timestamp,
@@ -853,12 +795,15 @@ const ensureRestaurantSchema = async (
 
   const nextCategories = ensureDefaultCategories(
     sourceCategories.map(category =>
-      cleanCategory(withRestaurantId(category, scopedKeys.restaurantId), scopedKeys.restaurantId),
+      cleanCategory(
+        withRestaurantId(category, scopedKeys.restaurantId),
+        scopedKeys.restaurantId,
+      ),
     ),
     scopedKeys.restaurantId,
   );
   const nextItems = sourceItems
-    .filter(item => legacySeedItemIds.indexOf(item.id || "") < 0)
+    .filter(item => legacySeedItemIds.indexOf(item.id || '') < 0)
     .map(item =>
       migrateMenuItem(
         withRestaurantId(item, scopedKeys.restaurantId),
@@ -913,7 +858,7 @@ export const loadMenuCategories = async (
   return migrated.sort(
     (a, b) =>
       Number(a.sortOrder || 0) - Number(b.sortOrder || 0) ||
-      String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+      String(a.createdAt || '').localeCompare(String(b.createdAt || '')),
   );
 };
 
@@ -923,7 +868,9 @@ export const saveMenuCategories = async (
 ) => {
   const scopedKeys = getScopedKeys(restaurantId);
   const cleaned = ensureDefaultCategories(
-    categories.map(category => cleanCategory(category, scopedKeys.restaurantId)),
+    categories.map(category =>
+      cleanCategory(category, scopedKeys.restaurantId),
+    ),
     scopedKeys.restaurantId,
   );
   await writeArray(scopedKeys.categories, cleaned);
@@ -932,15 +879,15 @@ export const saveMenuCategories = async (
 };
 
 export const upsertMenuCategory = async (
-  input: Partial<MenuCategory> & { name: string },
-): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
+  input: Partial<MenuCategory> & {name: string},
+): Promise<{ok: boolean; message: string; categories: MenuCategory[]}> => {
   const restaurantId = resolveRestaurantScopeId(input.restaurantId);
   const cleanName = input.name.trim();
 
   if (!cleanName) {
     return {
       ok: false,
-      message: "Vui lòng nhập tên danh mục",
+      message: 'Vui lòng nhập tên danh mục',
       categories: await loadMenuCategories(restaurantId),
     };
   }
@@ -955,14 +902,14 @@ export const upsertMenuCategory = async (
   if (existedName) {
     return {
       ok: false,
-      message: "Danh mục này đã tồn tại",
+      message: 'Danh mục này đã tồn tại',
       categories: current,
     };
   }
 
   const timestamp = nowIso();
   const nextCategory: MenuCategory = {
-    id: input.id || createId("cat"),
+    id: input.id || createId('cat'),
     restaurantId,
     name: cleanName,
     sortOrder: input.sortOrder ?? current.length + 1,
@@ -980,26 +927,28 @@ export const upsertMenuCategory = async (
 
   return {
     ok: true,
-    message: input.id ? "Đã cập nhật danh mục" : "Đã thêm danh mục mới",
+    message: input.id ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục mới',
     categories,
   };
 };
 
 export const deleteMenuCategory = async (
   categoryId: string,
-  options: { moveItemsToCategoryId?: string; restaurantId?: string } = {},
-): Promise<{ ok: boolean; message: string; categories: MenuCategory[] }> => {
+  options: {moveItemsToCategoryId?: string; restaurantId?: string} = {},
+): Promise<{ok: boolean; message: string; categories: MenuCategory[]}> => {
   const restaurantId = resolveRestaurantScopeId(options.restaurantId);
   const [categories, items] = await Promise.all([
     loadMenuCategories(restaurantId),
     loadMenuItems(restaurantId),
   ]);
-  const targetCategory = categories.find(category => category.id === categoryId);
+  const targetCategory = categories.find(
+    category => category.id === categoryId,
+  );
 
   if (!targetCategory) {
     return {
       ok: false,
-      message: "Không tìm thấy danh mục cần xoá",
+      message: 'Không tìm thấy danh mục cần xoá',
       categories,
     };
   }
@@ -1007,12 +956,14 @@ export const deleteMenuCategory = async (
   if (categories.length <= 1) {
     return {
       ok: false,
-      message: "Menu cần ít nhất 1 danh mục.",
+      message: 'Menu cần ít nhất 1 danh mục.',
       categories,
     };
   }
 
-  const nextCategories = categories.filter(category => category.id !== categoryId);
+  const nextCategories = categories.filter(
+    category => category.id !== categoryId,
+  );
   const fallbackCategory =
     nextCategories.find(
       category => category.id === options.moveItemsToCategoryId,
@@ -1021,19 +972,22 @@ export const deleteMenuCategory = async (
   if (!fallbackCategory) {
     return {
       ok: false,
-      message: "Không có danh mục thay thế để chuyển món.",
+      message: 'Không có danh mục thay thế để chuyển món.',
       categories,
     };
   }
 
   const usedItems = items.filter(item => item.categoryId === categoryId);
-  const savedCategories = await saveMenuCategories(nextCategories, restaurantId);
+  const savedCategories = await saveMenuCategories(
+    nextCategories,
+    restaurantId,
+  );
 
   if (usedItems.length > 0) {
     const timestamp = nowIso();
     const movedItems = items.map(item =>
       item.categoryId === categoryId
-        ? { ...item, categoryId: fallbackCategory.id, updatedAt: timestamp }
+        ? {...item, categoryId: fallbackCategory.id, updatedAt: timestamp}
         : item,
     );
 
@@ -1043,9 +997,9 @@ export const deleteMenuCategory = async (
   const message =
     usedItems.length > 0
       ? `Đã xoá danh mục và chuyển ${usedItems.length} món sang “${fallbackCategory.name}”`
-      : "Đã xoá danh mục";
+      : 'Đã xoá danh mục';
 
-  return { ok: true, message, categories: savedCategories };
+  return {ok: true, message, categories: savedCategories};
 };
 
 export const getCategoryNameById = (
@@ -1055,7 +1009,7 @@ export const getCategoryNameById = (
   return (
     categories.find(category => category.id === categoryId)?.name ||
     categories[0]?.name ||
-    "Chưa phân loại"
+    'Chưa phân loại'
   );
 };
 
@@ -1095,14 +1049,16 @@ export const saveMenuItems = async (
   const categories = await loadMenuCategories(scopedKeys.restaurantId);
   await writeArray(
     scopedKeys.menuItems,
-    items.map(item => migrateMenuItem(item, categories, scopedKeys.restaurantId)),
+    items.map(item =>
+      migrateMenuItem(item, categories, scopedKeys.restaurantId),
+    ),
   );
 };
 
 export const upsertMenuItem = async (
   input: Omit<
     RestaurantMenuItem,
-    "id" | "createdAt" | "updatedAt" | "available"
+    'id' | 'createdAt' | 'updatedAt' | 'available'
   > & {
     id?: string;
     createdAt?: string;
@@ -1117,7 +1073,7 @@ export const upsertMenuItem = async (
   const timestamp = nowIso();
   const status = normaliseMenuItemStatus(input.status, input.available);
   const cleanImageUrl = getMenuItemImageValue(input);
-  const itemId = input.id || createId("dish");
+  const itemId = input.id || createId('dish');
   const existingItem = current.find(item => item.id === itemId);
   const oldImage = getMenuItemImageValue(existingItem);
 
@@ -1131,7 +1087,7 @@ export const upsertMenuItem = async (
     description: input.description.trim(),
     imageUrl: cleanImageUrl,
     imageUri: undefined,
-    available: status === "SELLING",
+    available: status === 'SELLING',
     status,
     createdAt: input.createdAt || existingItem?.createdAt || timestamp,
     updatedAt: timestamp,
@@ -1178,49 +1134,49 @@ export const normaliseOrderStatus = (
   status?: LegacyRestaurantOrderStatus,
 ): RestaurantOrderStatus => {
   switch (
-    String(status || "")
+    String(status || '')
       .trim()
       .toUpperCase()
   ) {
-    case "ACCEPTED":
-      return "ACCEPTED";
-    case "PREPARING":
-      return "PREPARING";
-    case "SERVED":
-    case "COMPLETED":
-      return "COMPLETED";
-    case "CANCELLED":
-      return "CANCELLED";
-    case "PAID":
+    case 'ACCEPTED':
+      return 'ACCEPTED';
+    case 'PREPARING':
+      return 'PREPARING';
+    case 'SERVED':
+    case 'COMPLETED':
+      return 'COMPLETED';
+    case 'CANCELLED':
+      return 'CANCELLED';
+    case 'PAID':
       // Legacy builds incorrectly used `paid` as an order processing status.
       // Do not blindly mark the kitchen/service flow as completed here; Batch 2
       // migrates payment to paymentStatus and keeps the processing state safe.
-      return "NEW";
-    case "NEW":
+      return 'NEW';
+    case 'NEW':
     default:
-      return "NEW";
+      return 'NEW';
   }
 };
 
 export const normalisePaymentStatus = (
   order: RawRestaurantOrder,
 ): RestaurantPaymentStatus => {
-  const paymentStatus = String(order.paymentStatus || "")
+  const paymentStatus = String(order.paymentStatus || '')
     .trim()
     .toUpperCase();
-  const legacyStatus = String(order.status || order.orderStatus || "")
+  const legacyStatus = String(order.status || order.orderStatus || '')
     .trim()
     .toUpperCase();
 
-  return paymentStatus === "PAID" || legacyStatus === "PAID"
-    ? "PAID"
-    : "UNPAID";
+  return paymentStatus === 'PAID' || legacyStatus === 'PAID'
+    ? 'PAID'
+    : 'UNPAID';
 };
 
 export const normalisePaymentMethod = (
   method?: RestaurantPaymentMethod | string,
 ): RestaurantPaymentMethod => {
-  const normalized = String(method || "")
+  const normalized = String(method || '')
     .trim()
     .toUpperCase();
 
@@ -1228,13 +1184,13 @@ export const normalisePaymentMethod = (
     normalized as RestaurantPaymentMethod,
   )
     ? (normalized as RestaurantPaymentMethod)
-    : "MOCK";
+    : 'CASH';
 };
 
 export const normaliseBillSessionStatus = (
   status?: RestaurantBillSessionStatus | string,
 ): RestaurantBillSessionStatus => {
-  const normalized = String(status || "")
+  const normalized = String(status || '')
     .trim()
     .toUpperCase();
 
@@ -1242,7 +1198,7 @@ export const normaliseBillSessionStatus = (
     normalized as RestaurantBillSessionStatus,
   )
     ? (normalized as RestaurantBillSessionStatus)
-    : "OPEN";
+    : 'OPEN';
 };
 
 export const canCustomerAddOrderToBillSession = (
@@ -1256,7 +1212,9 @@ export const canCustomerAddOrderToBillSession = (
 export const isFinalBillSessionStatus = (
   status?: RestaurantBillSessionStatus | string,
 ) => {
-  return FINAL_BILL_SESSION_STATUSES.includes(normaliseBillSessionStatus(status));
+  return FINAL_BILL_SESSION_STATUSES.includes(
+    normaliseBillSessionStatus(status),
+  );
 };
 
 export const createBillOrderSummary = (
@@ -1271,7 +1229,7 @@ export const createBillOrderSummary = (
     (sum, item) => sum + Math.max(0, Number(item.quantity || 0)),
     0,
   ),
-  total: order.orderStatus === "CANCELLED" ? 0 : order.total,
+  total: order.orderStatus === 'CANCELLED' ? 0 : order.total,
   createdAt: order.createdAt,
   updatedAt: order.updatedAt,
 });
@@ -1281,7 +1239,7 @@ export const calculateRestaurantBillSubtotal = (
 ) => {
   return orders.reduce(
     (sum, order) =>
-      order.orderStatus === "CANCELLED"
+      order.orderStatus === 'CANCELLED'
         ? sum
         : sum + Math.max(0, Number(order.total || 0)),
     0,
@@ -1304,17 +1262,17 @@ export const normaliseRestaurantOrder = (
 ): RestaurantOrder => {
   const timestamp = nowIso();
   return {
-    id: String(order.id || createId("order")),
+    id: String(order.id || createId('order')),
     restaurantId: order.restaurantId || restaurantId,
     branchId: order.branchId,
     tableId: order.tableId,
     billSessionId: order.billSessionId,
     guestSessionId: order.guestSessionId,
     orderSource:
-      order.orderSource || (order.restaurantId ? "customer" : "local-demo"),
-    tableNumber: String(order.tableNumber || ""),
+      order.orderSource || (order.restaurantId ? 'customer' : 'local'),
+    tableNumber: String(order.tableNumber || ''),
     items: Array.isArray(order.items) ? order.items : [],
-    note: String(order.note || ""),
+    note: String(order.note || ''),
     total: calculateRestaurantOrderTotal(
       Array.isArray(order.items) ? order.items : [],
     ),
@@ -1329,18 +1287,18 @@ export const normaliseRestaurantOrder = (
 const normaliseBillTableChangeLog = (
   value: Partial<RestaurantBillTableChangeLog>,
 ): RestaurantBillTableChangeLog => ({
-  id: String(value.id || createId("table_change")),
+  id: String(value.id || createId('table_change')),
   auditLogId: value.auditLogId,
   fromBranchId: value.fromBranchId,
   fromTableId: value.fromTableId,
   fromTableNumber: value.fromTableNumber,
   toBranchId: value.toBranchId,
   toTableId: value.toTableId,
-  toTableNumber: String(value.toTableNumber || ""),
+  toTableNumber: String(value.toTableNumber || ''),
   changedByUserId: value.changedByUserId,
   changedByUsername: value.changedByUsername,
   changedByRole: value.changedByRole,
-  reason: String(value.reason || ""),
+  reason: String(value.reason || ''),
   changedAt: value.changedAt || nowIso(),
 });
 
@@ -1350,7 +1308,9 @@ export const normaliseRestaurantBillSession = (
 ): RestaurantBillSessionDetail => {
   const timestamp = nowIso();
   const orders = Array.isArray(billSession.orders)
-    ? billSession.orders.map(order => normaliseRestaurantOrder(order, restaurantId))
+    ? billSession.orders.map(order =>
+        normaliseRestaurantOrder(order, restaurantId),
+      )
     : [];
   const orderIds = Array.isArray(billSession.orderIds)
     ? billSession.orderIds.map(id => String(id)).filter(Boolean)
@@ -1360,10 +1320,14 @@ export const normaliseRestaurantBillSession = (
     : calculateRestaurantBillSubtotal(orders);
   const discountTotal = Math.max(0, Number(billSession.discountTotal || 0));
   const serviceFeeTotal = Math.max(0, Number(billSession.serviceFeeTotal || 0));
-  const total = Number.isFinite(Number(billSession.total ?? billSession.billTotal))
+  const total = Number.isFinite(
+    Number(billSession.total ?? billSession.billTotal),
+  )
     ? Math.max(0, Number(billSession.total ?? billSession.billTotal))
     : Math.max(0, subtotal - discountTotal + serviceFeeTotal);
-  const id = String(billSession.id || billSession.billSessionId || createId("bill"));
+  const id = String(
+    billSession.id || billSession.billSessionId || createId('bill'),
+  );
   const orderSummaries = Array.isArray(billSession.orderSummaries)
     ? billSession.orderSummaries
     : orders.map(createBillOrderSummary);
@@ -1379,7 +1343,7 @@ export const normaliseRestaurantBillSession = (
     restaurantId: billSession.restaurantId || restaurantId,
     branchId: billSession.branchId,
     tableId: billSession.tableId,
-    tableNumber: String(billSession.tableNumber || ""),
+    tableNumber: String(billSession.tableNumber || ''),
     status,
     orderCount: Number.isFinite(Number(billSession.orderCount))
       ? Math.max(0, Number(billSession.orderCount))
@@ -1402,7 +1366,7 @@ export const normaliseRestaurantBillSession = (
     restaurantId: billSession.restaurantId || restaurantId,
     branchId: billSession.branchId,
     tableId: billSession.tableId,
-    tableNumber: String(billSession.tableNumber || ""),
+    tableNumber: String(billSession.tableNumber || ''),
     guestSessionId: billSession.guestSessionId,
     status,
     orderIds,
@@ -1413,7 +1377,7 @@ export const normaliseRestaurantBillSession = (
     total,
     billTotal: total,
     paymentMethod,
-    note: String(billSession.note || ""),
+    note: String(billSession.note || ''),
     tableChangeLogs,
     summary,
     openedAt,
@@ -1427,19 +1391,21 @@ export const normaliseRestaurantBillSession = (
   };
 };
 
-const ORDER_STATUS_TRANSITIONS: Record<RestaurantOrderStatus, RestaurantOrderStatus[]> = {
-  NEW: ["NEW", "ACCEPTED", "CANCELLED"],
-  ACCEPTED: ["ACCEPTED", "PREPARING", "CANCELLED"],
-  PREPARING: ["PREPARING", "COMPLETED", "CANCELLED"],
-  COMPLETED: ["COMPLETED"],
-  CANCELLED: ["CANCELLED"],
+const ORDER_STATUS_TRANSITIONS: Record<
+  RestaurantOrderStatus,
+  RestaurantOrderStatus[]
+> = {
+  NEW: ['NEW', 'ACCEPTED', 'CANCELLED'],
+  ACCEPTED: ['ACCEPTED', 'PREPARING', 'CANCELLED'],
+  PREPARING: ['PREPARING', 'COMPLETED', 'CANCELLED'],
+  COMPLETED: ['COMPLETED'],
+  CANCELLED: ['CANCELLED'],
 };
 
 export const isRestaurantOrderStatusTransitionAllowed = (
   fromStatus: RestaurantOrderStatus,
   toStatus: RestaurantOrderStatus,
 ) => ORDER_STATUS_TRANSITIONS[fromStatus].indexOf(toStatus) >= 0;
-
 
 const createLocalDemoOrder = ({
   id,
@@ -1471,13 +1437,13 @@ const createLocalDemoOrder = ({
   tableNumber,
   billSessionId,
   guestSessionId,
-  orderSource: "customer",
+  orderSource: 'customer',
   items,
   note,
   total: calculateRestaurantOrderTotal(items),
-  orderStatus: "NEW",
-  paymentStatus: "UNPAID",
-  paymentMethod: "MOCK",
+  orderStatus: 'NEW',
+  paymentStatus: 'UNPAID',
+  paymentMethod: 'CASH',
   createdAt,
   updatedAt: createdAt,
 });
@@ -1502,55 +1468,67 @@ const createLocalDemoBillSession = ({
   orders: RestaurantOrder[];
   note: string;
   openedAt: string;
-}): RestaurantBillSessionDetail => normaliseRestaurantBillSession(
-  {
-    id,
+}): RestaurantBillSessionDetail =>
+  normaliseRestaurantBillSession(
+    {
+      id,
+      restaurantId,
+      branchId,
+      tableId,
+      tableNumber,
+      guestSessionId,
+      status: 'OPEN',
+      orderIds: orders.map(order => order.id),
+      note,
+      openedAt,
+      createdAt: openedAt,
+      updatedAt: openedAt,
+      orders,
+    },
     restaurantId,
-    branchId,
-    tableId,
-    tableNumber,
-    guestSessionId,
-    status: "OPEN",
-    orderIds: orders.map(order => order.id),
-    note,
-    openedAt,
-    createdAt: openedAt,
-    updatedAt: openedAt,
-    orders,
-  },
-  restaurantId,
-);
+  );
 
 const getSeedBillSessionsForRestaurant = (
   restaurantId: string,
 ): {orders: RestaurantOrder[]; billSessions: RestaurantBillSessionDetail[]} => {
   if (restaurantId === HAIDILAO_LOCAL_RESTAURANT_ID) {
     const order1 = createLocalDemoOrder({
-      id: "seed_local_order_haidilao_001",
+      id: 'seed_local_order_haidilao_001',
       restaurantId,
       branchId: HAIDILAO_LOCAL_BRANCH_ID,
       tableId: HAIDILAO_LOCAL_TABLE_ID,
-      tableNumber: "HDL 01",
-      billSessionId: "seed_local_bill_haidilao_hdl01",
-      guestSessionId: "seed_local_guest_haidilao_hdl01",
+      tableNumber: 'HDL 01',
+      billSessionId: 'seed_local_bill_haidilao_hdl01',
+      guestSessionId: 'seed_local_guest_haidilao_hdl01',
       createdAt: sampleTime,
-      note: "Seed demo local: lần đầu gọi món",
+      note: 'Dữ liệu mẫu local: lần đầu gọi món',
       items: [
-        {itemId: "haidilao_beef_plate", name: "Ba chỉ bò Mỹ", price: 129000, quantity: 2, note: "Ít cay"},
+        {
+          itemId: 'haidilao_beef_plate',
+          name: 'Ba chỉ bò Mỹ',
+          price: 129000,
+          quantity: 2,
+          note: 'Ít cay',
+        },
       ],
     });
     const order2 = createLocalDemoOrder({
-      id: "seed_local_order_haidilao_002",
+      id: 'seed_local_order_haidilao_002',
       restaurantId,
       branchId: HAIDILAO_LOCAL_BRANCH_ID,
       tableId: HAIDILAO_LOCAL_TABLE_ID,
-      tableNumber: "HDL 01",
-      billSessionId: "seed_local_bill_haidilao_hdl01",
-      guestSessionId: "seed_local_guest_haidilao_hdl01",
+      tableNumber: 'HDL 01',
+      billSessionId: 'seed_local_bill_haidilao_hdl01',
+      guestSessionId: 'seed_local_guest_haidilao_hdl01',
       createdAt: sampleTime,
-      note: "Seed demo local: gọi thêm món",
+      note: 'Dữ liệu mẫu local: gọi thêm món',
       items: [
-        {itemId: "haidilao_vegetable_set", name: "Set rau nấm tổng hợp", price: 79000, quantity: 1},
+        {
+          itemId: 'haidilao_vegetable_set',
+          name: 'Set rau nấm tổng hợp',
+          price: 79000,
+          quantity: 1,
+        },
       ],
     });
     const orders = [order2, order1];
@@ -1558,14 +1536,14 @@ const getSeedBillSessionsForRestaurant = (
       orders,
       billSessions: [
         createLocalDemoBillSession({
-          id: "seed_local_bill_haidilao_hdl01",
+          id: 'seed_local_bill_haidilao_hdl01',
           restaurantId,
           branchId: HAIDILAO_LOCAL_BRANCH_ID,
           tableId: HAIDILAO_LOCAL_TABLE_ID,
-          tableNumber: "HDL 01",
-          guestSessionId: "seed_local_guest_haidilao_hdl01",
+          tableNumber: 'HDL 01',
+          guestSessionId: 'seed_local_guest_haidilao_hdl01',
           orders,
-          note: "Seed Batch 24 local: bill Haidilao cộng dồn.",
+          note: 'Dữ liệu mẫu local: hóa đơn cộng dồn.',
           openedAt: sampleTime,
         }),
       ],
@@ -1574,32 +1552,32 @@ const getSeedBillSessionsForRestaurant = (
 
   if (restaurantId === DEFAULT_LOCAL_RESTAURANT_ID) {
     const order = createLocalDemoOrder({
-      id: "seed_local_order_aplus_001",
+      id: 'seed_local_order_aplus_001',
       restaurantId,
       branchId: DEFAULT_LOCAL_BRANCH_ID,
       tableId: DEFAULT_LOCAL_TABLE_ID,
-      tableNumber: "APlus 01",
-      billSessionId: "seed_local_bill_aplus_01",
-      guestSessionId: "seed_local_guest_aplus_01",
+      tableNumber: 'APlus 01',
+      billSessionId: 'seed_local_bill_aplus_01',
+      guestSessionId: 'seed_local_guest_aplus_01',
       createdAt: sampleTime,
-      note: "Seed demo local: đồ uống APlus",
+      note: 'Dữ liệu mẫu local: đồ uống',
       items: [
-        {itemId: "sample_coca", name: "Coca-Cola", price: 25000, quantity: 2},
-        {itemId: "sample_pepsi", name: "Pepsi", price: 25000, quantity: 1},
+        {itemId: 'sample_coca', name: 'Coca-Cola', price: 25000, quantity: 2},
+        {itemId: 'sample_pepsi', name: 'Pepsi', price: 25000, quantity: 1},
       ],
     });
     return {
       orders: [order],
       billSessions: [
         createLocalDemoBillSession({
-          id: "seed_local_bill_aplus_01",
+          id: 'seed_local_bill_aplus_01',
           restaurantId,
           branchId: DEFAULT_LOCAL_BRANCH_ID,
           tableId: DEFAULT_LOCAL_TABLE_ID,
-          tableNumber: "APlus 01",
-          guestSessionId: "seed_local_guest_aplus_01",
+          tableNumber: 'APlus 01',
+          guestSessionId: 'seed_local_guest_aplus_01',
           orders: [order],
-          note: "Seed Batch 24 local: bill APlus.",
+          note: 'Dữ liệu mẫu local: hóa đơn.',
           openedAt: sampleTime,
         }),
       ],
@@ -1609,26 +1587,34 @@ const getSeedBillSessionsForRestaurant = (
   return {orders: [], billSessions: []};
 };
 
-const getLegacyLocalOrderMigrationGroupKey = (order: RestaurantOrder) => [
-  order.restaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
-  order.branchId || "no_branch",
-  order.tableId || "no_table_id",
-  order.tableNumber || "Bàn chưa rõ",
-  order.guestSessionId || "legacy_guest",
-].join("|");
+const getLegacyLocalOrderMigrationGroupKey = (order: RestaurantOrder) =>
+  [
+    order.restaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
+    order.branchId || 'no_branch',
+    order.tableId || 'no_table_id',
+    order.tableNumber || 'Bàn chưa rõ',
+    order.guestSessionId || 'legacy_guest',
+  ].join('|');
 
 const migrateLegacyLocalOrdersToBillSessions = async (
   restaurantId: string,
   orders: RestaurantOrder[],
   billSessions: RawRestaurantBillSession[],
-): Promise<{orders: RestaurantOrder[]; billSessions: RawRestaurantBillSession[]; changed: boolean}> => {
+): Promise<{
+  orders: RestaurantOrder[];
+  billSessions: RawRestaurantBillSession[];
+  changed: boolean;
+}> => {
   const legacyOrders = orders.filter(order => !order.billSessionId);
   if (legacyOrders.length === 0) {
     return {orders, billSessions, changed: false};
   }
 
   const billSessionsById = new Map(
-    billSessions.map(billSession => [String(billSession.id || billSession.billSessionId || ""), billSession]),
+    billSessions.map(billSession => [
+      String(billSession.id || billSession.billSessionId || ''),
+      billSession,
+    ]),
   );
   const groups = new Map<string, RestaurantOrder[]>();
   legacyOrders.forEach(order => {
@@ -1653,13 +1639,17 @@ const migrateLegacyLocalOrdersToBillSessions = async (
           restaurantId,
           branchId: first.branchId,
           tableId: first.tableId,
-          tableNumber: first.tableNumber || "Bàn chưa rõ",
+          tableNumber: first.tableNumber || 'Bàn chưa rõ',
           guestSessionId: first.guestSessionId,
-          status: groupOrders.every(order => order.paymentStatus === "PAID") ? "PAID" : "OPEN",
+          status: groupOrders.every(order => order.paymentStatus === 'PAID')
+            ? 'PAID'
+            : 'OPEN',
           orderIds: groupOrders.map(order => order.id),
-          note: "Batch 24 migration local: tạo BillSession tạm cho order cũ.",
-          openedAt: groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
-          createdAt: groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
+          note: 'Batch 24 migration local: tạo BillSession tạm cho order cũ.',
+          openedAt:
+            groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
+          createdAt:
+            groupOrders.map(order => order.createdAt).sort()[0] || timestamp,
           updatedAt: timestamp,
           orders: groupOrders,
         },
@@ -1675,7 +1665,8 @@ const migrateLegacyLocalOrdersToBillSessions = async (
         order.branchId = billSession?.branchId || order.branchId;
         order.tableId = billSession?.tableId || order.tableId;
         order.tableNumber = billSession?.tableNumber || order.tableNumber;
-        order.guestSessionId = billSession?.guestSessionId || order.guestSessionId;
+        order.guestSessionId =
+          billSession?.guestSessionId || order.guestSessionId;
         order.updatedAt = timestamp;
       }
     });
@@ -1689,9 +1680,10 @@ export const loadOrders = async (
 ): Promise<RestaurantOrder[]> => {
   const scopedKeys = getScopedKeys(restaurantId);
   const scopedOrders = await readArray<RawRestaurantOrder>(scopedKeys.orders);
-  const legacyOrders = scopedOrders.length > 0
-    ? []
-    : await readArray<RawRestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
+  const legacyOrders =
+    scopedOrders.length > 0
+      ? []
+      : await readArray<RawRestaurantOrder>(RESTAURANT_STORAGE_KEYS.orders);
   const rawOrders = scopedOrders.length > 0 ? scopedOrders : legacyOrders;
   const orders = rawOrders.map(order =>
     normaliseRestaurantOrder(order, scopedKeys.restaurantId),
@@ -1707,7 +1699,7 @@ export const loadOrders = async (
         order.status !== undefined ||
         order.restaurantId !== scopedKeys.restaurantId ||
         order.orderStatus !== normalised.orderStatus ||
-        String(order.paymentStatus || "UNPAID").toUpperCase() !==
+        String(order.paymentStatus || 'UNPAID').toUpperCase() !==
           normalised.paymentStatus
       );
     });
@@ -1751,7 +1743,10 @@ export const loadBillSessions = async (
       scopedBillSessions = seed.billSessions;
       await saveOrders(orders, scopedKeys.restaurantId);
       await saveBillSessions(seed.billSessions, scopedKeys.restaurantId);
-      await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+      await AsyncStorage.setItem(
+        scopedKeys.schemaVersion,
+        CURRENT_SCHEMA_VERSION,
+      );
     }
   }
 
@@ -1770,12 +1765,16 @@ export const loadBillSessions = async (
       ),
       scopedKeys.restaurantId,
     );
-    await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+    await AsyncStorage.setItem(
+      scopedKeys.schemaVersion,
+      CURRENT_SCHEMA_VERSION,
+    );
   }
 
   const normalised = scopedBillSessions.map(billSession => {
-    const billOrders = orders.filter(order =>
-      order.billSessionId === (billSession.id || billSession.billSessionId),
+    const billOrders = orders.filter(
+      order =>
+        order.billSessionId === (billSession.id || billSession.billSessionId),
     );
     return normaliseRestaurantBillSession(
       {
@@ -1806,7 +1805,14 @@ export const saveBillSessions = async (
         },
         scopedKeys.restaurantId,
       );
-      const {orders, orderSummaries, billSessionId, billTotal, summary, ...stored} = normalised;
+      const {
+        orders,
+        orderSummaries,
+        billSessionId,
+        billTotal,
+        summary,
+        ...stored
+      } = normalised;
       return stored;
     }),
   );
@@ -1816,11 +1822,15 @@ const recalculateLocalBillSession = (
   billSession: RestaurantBillSessionDetail,
   orders: RestaurantOrder[],
 ): RestaurantBillSessionDetail => {
-  const billOrders = orders.filter(order => order.billSessionId === billSession.id);
+  const billOrders = orders.filter(
+    order => order.billSessionId === billSession.id,
+  );
   const subtotal = calculateRestaurantBillSubtotal(billOrders);
   const total = Math.max(
     0,
-    subtotal - Number(billSession.discountTotal || 0) + Number(billSession.serviceFeeTotal || 0),
+    subtotal -
+      Number(billSession.discountTotal || 0) +
+      Number(billSession.serviceFeeTotal || 0),
   );
   const updatedAt = nowIso();
   return normaliseRestaurantBillSession(
@@ -1873,7 +1883,7 @@ export const loadCurrentBillSession = async (
 const resolveLocalBillSessionForOrder = async (
   payload: Omit<
     RestaurantOrder,
-    "id" | "orderStatus" | "paymentStatus" | "createdAt" | "updatedAt"
+    'id' | 'orderStatus' | 'paymentStatus' | 'createdAt' | 'updatedAt'
   > & {
     paymentStatus?: RestaurantPaymentStatus;
     paymentMethod?: RestaurantPaymentMethod;
@@ -1881,7 +1891,9 @@ const resolveLocalBillSessionForOrder = async (
   restaurantId: string,
 ): Promise<RestaurantBillSessionDetail | null> => {
   const shouldUseBillSession = Boolean(
-    payload.billSessionId || payload.guestSessionId || payload.orderSource === "customer",
+    payload.billSessionId ||
+    payload.guestSessionId ||
+    payload.orderSource === 'customer',
   );
 
   if (!shouldUseBillSession) {
@@ -1897,30 +1909,34 @@ const resolveLocalBillSessionForOrder = async (
     : undefined;
 
   if (payload.billSessionId && !existing) {
-    throw new Error("Không tìm thấy hóa đơn bàn hiện tại. Vui lòng gọi nhân viên hoặc quét lại QR.");
+    throw new Error(
+      'Không tìm thấy hóa đơn bàn hiện tại. Vui lòng gọi nhân viên hoặc quét lại QR.',
+    );
   }
 
   if (existing) {
     if (isFinalBillSessionStatus(existing.status)) {
-      throw new Error("Hóa đơn này đã đóng/thanh toán, không thể gọi thêm món.");
+      throw new Error(
+        'Hóa đơn này đã đóng/thanh toán, không thể gọi thêm món.',
+      );
     }
     return existing;
   }
 
-  const tableNumber = String(payload.tableNumber || "").trim();
+  const tableNumber = String(payload.tableNumber || '').trim();
   if (!tableNumber) {
-    throw new Error("Vui lòng chọn bàn trước khi gửi đơn.");
+    throw new Error('Vui lòng chọn bàn trước khi gửi đơn.');
   }
 
   const billSession = normaliseRestaurantBillSession(
     {
-      id: createId("bill"),
+      id: createId('bill'),
       restaurantId,
       branchId: payload.branchId,
       tableId: payload.tableId,
       tableNumber,
       guestSessionId: payload.guestSessionId,
-      status: "OPEN",
+      status: 'OPEN',
       orderIds: [],
       orderCount: 0,
       subtotal: 0,
@@ -1940,7 +1956,7 @@ const resolveLocalBillSessionForOrder = async (
 export const createRestaurantOrder = async (
   payload: Omit<
     RestaurantOrder,
-    "id" | "orderStatus" | "paymentStatus" | "createdAt" | "updatedAt"
+    'id' | 'orderStatus' | 'paymentStatus' | 'createdAt' | 'updatedAt'
   > & {
     paymentStatus?: RestaurantPaymentStatus;
     paymentMethod?: RestaurantPaymentMethod;
@@ -1950,7 +1966,10 @@ export const createRestaurantOrder = async (
   const current = await loadOrders(restaurantId);
   const timestamp = nowIso();
   const orderItems = Array.isArray(payload.items) ? payload.items : [];
-  const billSession = await resolveLocalBillSessionForOrder(payload, restaurantId);
+  const billSession = await resolveLocalBillSessionForOrder(
+    payload,
+    restaurantId,
+  );
   const order: RestaurantOrder = {
     ...payload,
     branchId: billSession?.branchId || payload.branchId,
@@ -1961,9 +1980,9 @@ export const createRestaurantOrder = async (
     items: orderItems,
     total: calculateRestaurantOrderTotal(orderItems),
     restaurantId,
-    id: createId("order"),
-    orderStatus: "NEW",
-    paymentStatus: payload.paymentStatus || "UNPAID",
+    id: createId('order'),
+    orderStatus: 'NEW',
+    paymentStatus: payload.paymentStatus || 'UNPAID',
     paymentMethod: normalisePaymentMethod(payload.paymentMethod),
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -2004,19 +2023,25 @@ export const updateRestaurantBillSessionTable = async (
   const billSession = billSessions.find(item => item.id === billSessionId);
 
   if (!billSession) {
-    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+    throw new Error('Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.');
   }
   if (isFinalBillSessionStatus(billSession.status)) {
-    throw new Error("Hóa đơn đã thanh toán/đóng/hủy nên không thể đổi bàn.");
+    throw new Error('Hóa đơn đã thanh toán/đóng/hủy nên không thể đổi bàn.');
   }
 
-  const targetTableId = String(payload.tableId || "").trim();
-  const targetTableNumber = String(payload.tableNumber || "").trim();
+  const targetTableId = String(payload.tableId || '').trim();
+  const targetTableNumber = String(payload.tableNumber || '').trim();
   if (!targetTableNumber) {
-    throw new Error("Vui lòng chọn bàn đích trước khi chuyển bill.");
+    throw new Error('Vui lòng chọn bàn đích trước khi chuyển bill.');
   }
-  if (billSession.branchId && payload.branchId && payload.branchId !== billSession.branchId) {
-    throw new Error("Chỉ được chuyển bill sang bàn trong cùng chi nhánh để QR khách không bị lẫn phiên.");
+  if (
+    billSession.branchId &&
+    payload.branchId &&
+    payload.branchId !== billSession.branchId
+  ) {
+    throw new Error(
+      'Chỉ được chuyển bill sang bàn trong cùng chi nhánh để QR khách không bị lẫn phiên.',
+    );
   }
 
   const occupiedBill = billSessions.find(
@@ -2027,12 +2052,14 @@ export const updateRestaurantBillSessionTable = async (
       item.tableId === targetTableId,
   );
   if (occupiedBill) {
-    throw new Error("Bàn đích đang có hóa đơn mở. Vui lòng đóng bill đó hoặc xử lý gộp bill trước.");
+    throw new Error(
+      'Bàn đích đang có hóa đơn mở. Vui lòng đóng bill đó hoặc xử lý gộp bill trước.',
+    );
   }
 
   const timestamp = nowIso();
   const changeLog: RestaurantBillTableChangeLog = {
-    id: createId("table_change"),
+    id: createId('table_change'),
     fromBranchId: billSession.branchId,
     fromTableId: billSession.tableId,
     fromTableNumber: billSession.tableNumber,
@@ -2041,7 +2068,7 @@ export const updateRestaurantBillSessionTable = async (
     toTableNumber: targetTableNumber,
     changedByUsername: payload.changedByUsername,
     changedByRole: payload.changedByRole,
-    reason: String(payload.reason || ""),
+    reason: String(payload.reason || ''),
     changedAt: timestamp,
   };
 
@@ -2081,11 +2108,10 @@ export const updateRestaurantBillSessionTable = async (
 
   const updated = nextBillSessions.find(item => item.id === billSession.id);
   if (!updated) {
-    throw new Error("Không thể cập nhật hóa đơn sau khi đổi bàn.");
+    throw new Error('Không thể cập nhật hóa đơn sau khi đổi bàn.');
   }
   return updated;
 };
-
 
 export const updateRestaurantBillSessionPayment = async (
   billSessionId: string,
@@ -2100,18 +2126,20 @@ export const updateRestaurantBillSessionPayment = async (
   const billSession = billSessions.find(item => item.id === billSessionId);
 
   if (!billSession) {
-    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+    throw new Error('Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.');
   }
-  if (billSession.status === "CLOSED" || billSession.status === "CANCELLED") {
-    throw new Error("Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.");
+  if (billSession.status === 'CLOSED' || billSession.status === 'CANCELLED') {
+    throw new Error('Hóa đơn đã đóng/hủy nên không thể cập nhật thanh toán.');
   }
 
   const timestamp = nowIso();
   const nextPaymentStatus: RestaurantBillPaymentStatus =
-    payload.status === "PAID" || payload.paymentStatus === "PAID"
-      ? "PAID"
-      : "PAYMENT_REQUESTED";
-  const nextPaymentMethod = normalisePaymentMethod(payload.paymentMethod || billSession.paymentMethod);
+    payload.status === 'PAID' || payload.paymentStatus === 'PAID'
+      ? 'PAID'
+      : 'PAYMENT_REQUESTED';
+  const nextPaymentMethod = normalisePaymentMethod(
+    payload.paymentMethod || billSession.paymentMethod,
+  );
   const discountTotal = Number.isFinite(Number(payload.discountTotal))
     ? Math.max(0, Number(payload.discountTotal))
     : billSession.discountTotal;
@@ -2119,20 +2147,22 @@ export const updateRestaurantBillSessionPayment = async (
     ? Math.max(0, Number(payload.serviceFeeTotal))
     : billSession.serviceFeeTotal;
 
-  const nextOrders = nextPaymentStatus === "PAID"
-    ? orders.map(order =>
-        order.billSessionId === billSession.id && order.orderStatus !== "CANCELLED"
-          ? {
-              ...order,
-              paymentStatus: "PAID" as RestaurantPaymentStatus,
-              paymentMethod: nextPaymentMethod,
-              updatedAt: timestamp,
-            }
-          : order,
-      )
-    : orders;
+  const nextOrders =
+    nextPaymentStatus === 'PAID'
+      ? orders.map(order =>
+          order.billSessionId === billSession.id &&
+          order.orderStatus !== 'CANCELLED'
+            ? {
+                ...order,
+                paymentStatus: 'PAID' as RestaurantPaymentStatus,
+                paymentMethod: nextPaymentMethod,
+                updatedAt: timestamp,
+              }
+            : order,
+        )
+      : orders;
 
-  if (nextPaymentStatus === "PAID") {
+  if (nextPaymentStatus === 'PAID') {
     await saveOrders(nextOrders, scopedRestaurantId);
   }
 
@@ -2145,12 +2175,15 @@ export const updateRestaurantBillSessionPayment = async (
       {
         ...item,
         status: nextPaymentStatus,
-        paymentMethod: nextPaymentStatus === "PAID" ? nextPaymentMethod : item.paymentMethod,
+        paymentMethod:
+          nextPaymentStatus === 'PAID' ? nextPaymentMethod : item.paymentMethod,
         discountTotal,
         serviceFeeTotal,
-        note: payload.note !== undefined ? String(payload.note || "") : item.note,
+        note:
+          payload.note !== undefined ? String(payload.note || '') : item.note,
         paymentRequestedAt: item.paymentRequestedAt || timestamp,
-        paidAt: nextPaymentStatus === "PAID" ? item.paidAt || timestamp : item.paidAt,
+        paidAt:
+          nextPaymentStatus === 'PAID' ? item.paidAt || timestamp : item.paidAt,
         updatedAt: timestamp,
       },
       nextOrders,
@@ -2160,7 +2193,7 @@ export const updateRestaurantBillSessionPayment = async (
 
   const updated = nextBillSessions.find(item => item.id === billSession.id);
   if (!updated) {
-    throw new Error("Không thể cập nhật thanh toán hóa đơn.");
+    throw new Error('Không thể cập nhật thanh toán hóa đơn.');
   }
   return updated;
 };
@@ -2178,13 +2211,13 @@ export const closeRestaurantBillSession = async (
   const billSession = billSessions.find(item => item.id === billSessionId);
 
   if (!billSession) {
-    throw new Error("Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.");
+    throw new Error('Không tìm thấy hóa đơn bàn trong nhà hàng hiện tại.');
   }
-  if (billSession.status === "CANCELLED") {
-    throw new Error("Hóa đơn đã hủy nên không thể đóng.");
+  if (billSession.status === 'CANCELLED') {
+    throw new Error('Hóa đơn đã hủy nên không thể đóng.');
   }
-  if (billSession.status !== "PAID" && billSession.status !== "CLOSED") {
-    throw new Error("Chỉ đóng hóa đơn sau khi đã đánh dấu thanh toán.");
+  if (billSession.status !== 'PAID' && billSession.status !== 'CLOSED') {
+    throw new Error('Chỉ đóng hóa đơn sau khi đã đánh dấu thanh toán.');
   }
 
   const timestamp = nowIso();
@@ -2196,8 +2229,9 @@ export const closeRestaurantBillSession = async (
     return recalculateLocalBillSession(
       {
         ...item,
-        status: "CLOSED",
-        note: payload.note !== undefined ? String(payload.note || "") : item.note,
+        status: 'CLOSED',
+        note:
+          payload.note !== undefined ? String(payload.note || '') : item.note,
         closedAt: item.closedAt || timestamp,
         updatedAt: timestamp,
       },
@@ -2208,7 +2242,7 @@ export const closeRestaurantBillSession = async (
 
   const updated = nextBillSessions.find(item => item.id === billSession.id);
   if (!updated) {
-    throw new Error("Không thể đóng hóa đơn.");
+    throw new Error('Không thể đóng hóa đơn.');
   }
   return updated;
 };
@@ -2227,7 +2261,9 @@ export const updateRestaurantOrderStatus = async (
       return order;
     }
 
-    if (!isRestaurantOrderStatusTransitionAllowed(order.orderStatus, nextStatus)) {
+    if (
+      !isRestaurantOrderStatusTransitionAllowed(order.orderStatus, nextStatus)
+    ) {
       return order;
     }
 
@@ -2271,7 +2307,9 @@ export const updateRestaurantOrderPaymentStatus = async (
       ? {
           ...order,
           paymentStatus,
-          paymentMethod: normalisePaymentMethod(paymentMethod || order.paymentMethod),
+          paymentMethod: normalisePaymentMethod(
+            paymentMethod || order.paymentMethod,
+          ),
           updatedAt: timestamp,
         }
       : order,
@@ -2311,13 +2349,13 @@ export const loadCurrentCart = async (
     restaurantId: scopedKeys.restaurantId,
     branchId: undefined,
     tableId: undefined,
-    tableNumber: "",
+    tableNumber: '',
     guestSessionId: undefined,
     billSessionId: undefined,
     lockedTableId: undefined,
     lockedTableNumber: undefined,
     billStatus: undefined,
-    note: "",
+    note: '',
     items: [],
   });
 
@@ -2328,7 +2366,7 @@ export const loadCurrentCart = async (
   const items = Array.isArray(parsed.value.items)
     ? parsed.value.items
         .map(item => ({
-          itemId: String(item.itemId || ""),
+          itemId: String(item.itemId || ''),
           quantity: Math.max(0, Number(item.quantity) || 0),
         }))
         .filter(item => item.itemId && item.quantity > 0)
@@ -2338,7 +2376,7 @@ export const loadCurrentCart = async (
     restaurantId: scopedKeys.restaurantId,
     branchId: parsed.value.branchId,
     tableId: parsed.value.tableId,
-    tableNumber: parsed.value.tableNumber || "",
+    tableNumber: parsed.value.tableNumber || '',
     guestSessionId: parsed.value.guestSessionId,
     billSessionId: parsed.value.billSessionId,
     lockedTableId: parsed.value.lockedTableId,
@@ -2346,7 +2384,7 @@ export const loadCurrentCart = async (
     billStatus: parsed.value.billStatus
       ? normaliseBillSessionStatus(parsed.value.billStatus)
       : undefined,
-    note: parsed.value.note || "",
+    note: parsed.value.note || '',
     items,
   };
 };
@@ -2362,7 +2400,7 @@ export const saveCurrentCart = async (
       restaurantId: cart.restaurantId || scopedKeys.restaurantId,
       branchId: cart.branchId,
       tableId: cart.tableId,
-      tableNumber: cart.tableNumber || "",
+      tableNumber: cart.tableNumber || '',
       guestSessionId: cart.guestSessionId,
       billSessionId: cart.billSessionId,
       lockedTableId: cart.lockedTableId,
@@ -2370,7 +2408,7 @@ export const saveCurrentCart = async (
       billStatus: cart.billStatus
         ? normaliseBillSessionStatus(cart.billStatus)
         : undefined,
-      note: cart.note || "",
+      note: cart.note || '',
       items: Array.isArray(cart.items) ? cart.items : [],
     }),
   );
@@ -2420,7 +2458,7 @@ export const registerRestaurantAdmin = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return { ok: false, message: "Vui lòng nhập tên tài khoản và mật khẩu" };
+    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
   }
 
   const accounts = await loadAdminAccounts();
@@ -2429,11 +2467,11 @@ export const registerRestaurantAdmin = async (
   );
 
   if (existed) {
-    return { ok: false, message: "Tài khoản admin đã tồn tại" };
+    return {ok: false, message: 'Tài khoản admin đã tồn tại'};
   }
 
-  // DEMO LOCAL ONLY: password is stored in AsyncStorage for the first offline version.
-  // Replace this with backend auth + hashed password/session before production restaurant deployment.
+  // password is stored in AsyncStorage for the first offline version.
+  // This offline build stores credentials on device. Use a server-backed login only when enabling shared multi-device accounts.
   const nextAccounts = [
     ...accounts,
     {
@@ -2441,7 +2479,7 @@ export const registerRestaurantAdmin = async (
       password: cleanPassword,
       restaurantIds: [resolveRestaurantScopeId(restaurantId)],
       activeRestaurantId: resolveRestaurantScopeId(restaurantId),
-      role: "OWNER" as const,
+      role: 'OWNER' as const,
       createdAt: nowIso(),
     },
   ];
@@ -2450,9 +2488,9 @@ export const registerRestaurantAdmin = async (
   const scopedRestaurantId = resolveRestaurantScopeId(restaurantId);
   return {
     ok: true,
-    message: "Đăng ký admin local thành công",
+    message: 'Đăng ký admin local thành công',
     userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
-    role: "OWNER",
+    role: 'OWNER',
     restaurantId: scopedRestaurantId,
     restaurantIds: [scopedRestaurantId],
   };
@@ -2474,25 +2512,26 @@ export const verifyRestaurantAdmin = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return { ok: false, message: "Vui lòng nhập tên tài khoản và mật khẩu" };
+    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
   }
 
   const accounts = await loadAdminAccounts();
   const targetRestaurantId = resolveRestaurantScopeId(restaurantId);
   const matchedAccount = accounts.find(account => {
-    const usernameMatched = normalise(account.username) === normalise(cleanUsername);
+    const usernameMatched =
+      normalise(account.username) === normalise(cleanUsername);
     const passwordMatched = account.password === cleanPassword;
     return usernameMatched && passwordMatched;
   });
 
   if (!matchedAccount) {
-    return { ok: false, message: "Tên tài khoản hoặc mật khẩu chưa đúng" };
+    return {ok: false, message: 'Tên tài khoản hoặc mật khẩu chưa đúng'};
   }
 
   const accountRestaurantIds = matchedAccount.restaurantIds || [
     matchedAccount.activeRestaurantId || DEFAULT_LOCAL_RESTAURANT_ID,
   ];
-  const role = matchedAccount.role || "OWNER";
+  const role = matchedAccount.role || 'OWNER';
   const preferredRestaurantId =
     matchedAccount.activeRestaurantId ||
     accountRestaurantIds[0] ||
@@ -2512,7 +2551,7 @@ export const verifyRestaurantAdmin = async (
 
   return {
     ok: true,
-    message: "Đăng nhập admin thành công",
+    message: 'Đăng nhập admin thành công',
     userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
     role,
     restaurantId: scopedRestaurantId,

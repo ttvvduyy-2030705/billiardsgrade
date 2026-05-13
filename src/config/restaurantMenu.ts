@@ -1,5 +1,18 @@
+declare const __DEV__: boolean | undefined;
+
+/**
+ * Public API URL for the deployed ScoreMenu backend on Render.
+ * Keep this aligned with the Render service name in render.yaml.
+ * If Render assigns a different slug, replace this value and rebuild the app.
+ */
+export const SCOREMENU_RENDER_API_BASE_URL = 'https://scoremenu-api.onrender.com';
+
 export type RestaurantMenuRepositoryMode = 'local' | 'api';
-export type RestaurantMenuEnvironmentName = 'local' | 'dev-api' | 'staging' | 'prod';
+export type RestaurantMenuEnvironmentName =
+  | 'local'
+  | 'dev-api'
+  | 'staging'
+  | 'prod';
 
 export type RestaurantMenuEnvironmentConfig = {
   /** Human-readable environment key used for diagnostics and test notes. */
@@ -16,9 +29,8 @@ export type RestaurantMenuEnvironmentConfig = {
    */
   defaultMenuQrToken?: string;
   /**
-   * @deprecated Batch 1 keeps this only for old demo/table-QR compatibility.
-   * New customer menu entry should use defaultMenuQrToken and scanner/deep-link
-   * params instead of a hard-coded default.
+   * @deprecated Dev/test compatibility only. New customer entry should come
+   * from a scanned QR/deep link, not from a hard-coded default.
    */
   defaultTableToken?: string;
 };
@@ -27,14 +39,22 @@ type RuntimeRestaurantMenuConfig = Partial<RestaurantMenuEnvironmentConfig> & {
   envName?: RestaurantMenuEnvironmentName;
 };
 
-const DEFAULT_RESTAURANT_MENU_ENV_NAME: RestaurantMenuEnvironmentName = 'local';
+const isReactNativeDevBuild = () => {
+  try {
+    return typeof __DEV__ !== 'undefined' && !!__DEV__;
+  } catch (_error) {
+    return false;
+  }
+};
+
+const DEFAULT_RESTAURANT_MENU_ENV_NAME: RestaurantMenuEnvironmentName = 'prod';
 
 const getGlobalConfig = (): RuntimeRestaurantMenuConfig => {
-  const globalConfig = (globalThis as unknown as {
+  const globalConfig = globalThis as unknown as {
     __SCOREMENU_CONFIG__?: RuntimeRestaurantMenuConfig;
     __SCOREMENU_MENU_ENV__?: RestaurantMenuEnvironmentName;
     process?: {env?: Record<string, string | undefined>};
-  });
+  };
   const env = globalConfig.process?.env || {};
   const envName =
     globalConfig.__SCOREMENU_MENU_ENV__ ||
@@ -44,7 +64,9 @@ const getGlobalConfig = (): RuntimeRestaurantMenuConfig => {
   return {
     ...(globalConfig.__SCOREMENU_CONFIG__ || {}),
     ...(envName ? {envName} : {}),
-    ...(env.SCOREMENU_API_BASE_URL ? {apiBaseUrl: env.SCOREMENU_API_BASE_URL} : {}),
+    ...(env.SCOREMENU_API_BASE_URL
+      ? {apiBaseUrl: env.SCOREMENU_API_BASE_URL}
+      : {}),
     ...(env.SCOREMENU_DEFAULT_RESTAURANT_ID
       ? {defaultRestaurantId: env.SCOREMENU_DEFAULT_RESTAURANT_ID}
       : {}),
@@ -68,40 +90,37 @@ export const RESTAURANT_MENU_ENV_PRESETS: Record<
     name: 'local',
     mode: 'local',
     apiBaseUrl: '',
-    apiTimeoutMs: 15000,
-    apiRetryCount: 1,
-    defaultRestaurantId: 'haidilao_local_demo',
-    defaultMenuQrToken: 'qr_haidilao_main_menu',
-    defaultTableToken: 'qr_haidilao_local_01',
+    apiTimeoutMs: 10000,
+    apiRetryCount: 0,
+    defaultRestaurantId: undefined,
+    defaultMenuQrToken: undefined,
+    defaultTableToken: undefined,
   },
   'dev-api': {
     name: 'dev-api',
     mode: 'api',
-    // Android emulator reaches the host machine at 10.0.2.2.
-    // For a real phone, override this with the backend LAN IP, for example
-    // http://192.168.1.10:4012.
-    apiBaseUrl: 'http://10.0.2.2:4012',
-    apiTimeoutMs: 15000,
-    apiRetryCount: 1,
-    defaultRestaurantId: 'haidilao_demo',
-    defaultMenuQrToken: 'qr_haidilao_main_menu',
-    defaultTableToken: 'qr_haidilao_main_01',
+    apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
+    apiTimeoutMs: 30000,
+    apiRetryCount: 0,
+    defaultRestaurantId: undefined,
+    defaultMenuQrToken: undefined,
+    defaultTableToken: undefined,
   },
   staging: {
     name: 'staging',
     mode: 'api',
-    apiBaseUrl: '',
-    apiTimeoutMs: 15000,
-    apiRetryCount: 1,
-    defaultRestaurantId: 'haidilao_demo',
-    defaultMenuQrToken: 'qr_haidilao_main_menu',
-    defaultTableToken: 'qr_haidilao_main_01',
+    apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
+    apiTimeoutMs: 30000,
+    apiRetryCount: 0,
+    defaultRestaurantId: undefined,
+    defaultMenuQrToken: undefined,
+    defaultTableToken: undefined,
   },
   prod: {
     name: 'prod',
     mode: 'api',
-    apiBaseUrl: '',
-    apiTimeoutMs: 15000,
+    apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
+    apiTimeoutMs: 30000,
     apiRetryCount: 0,
     defaultRestaurantId: undefined,
     defaultMenuQrToken: undefined,
@@ -130,7 +149,9 @@ const sanitizeNumber = (value: unknown, fallback: number) => {
 export const getRestaurantMenuEnvironmentConfig = (
   runtimeOverride: RuntimeRestaurantMenuConfig = getGlobalConfig(),
 ): RestaurantMenuEnvironmentConfig => {
-  const envName = normalizeEnvName(runtimeOverride.envName || runtimeOverride.name);
+  const envName = normalizeEnvName(
+    runtimeOverride.envName || runtimeOverride.name,
+  );
   const preset = RESTAURANT_MENU_ENV_PRESETS[envName];
 
   return {
@@ -142,32 +163,41 @@ export const getRestaurantMenuEnvironmentConfig = (
       typeof runtimeOverride.apiBaseUrl === 'string'
         ? runtimeOverride.apiBaseUrl.trim().replace(/\/$/, '')
         : preset.apiBaseUrl,
-    apiTimeoutMs: sanitizeNumber(runtimeOverride.apiTimeoutMs, preset.apiTimeoutMs),
-    apiRetryCount: sanitizeNumber(runtimeOverride.apiRetryCount, preset.apiRetryCount),
+    apiTimeoutMs: sanitizeNumber(
+      runtimeOverride.apiTimeoutMs,
+      preset.apiTimeoutMs,
+    ),
+    apiRetryCount: sanitizeNumber(
+      runtimeOverride.apiRetryCount,
+      preset.apiRetryCount,
+    ),
   };
 };
 
-export const RESTAURANT_MENU_ENV_CONFIG =
-  getRestaurantMenuEnvironmentConfig();
+export const RESTAURANT_MENU_ENV_CONFIG = getRestaurantMenuEnvironmentConfig();
 
 export const isRestaurantMenuApiMode = (
   config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
 ) => config.mode === 'api';
 
+export const isRestaurantMenuProductionRuntime = (
+  config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
+) => config.name === 'prod' || !isReactNativeDevBuild();
+
+export const isRestaurantMenuDevToolsEnabled = (
+  _config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
+) => false;
+
 export const getRestaurantMenuEnvironmentLabel = (
   config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
 ) => {
   if (config.mode === 'api') {
-    return `${config.name} · API${config.apiBaseUrl ? ` · ${config.apiBaseUrl}` : ' · thiếu baseUrl'}`;
+    return 'Kết nối máy chủ Render';
   }
 
-  return `${config.name} · local demo`;
+  return 'Dữ liệu lưu trên thiết bị';
 };
 
-export const getDefaultCustomerMenuQrToken = () => {
-  return (
-    RESTAURANT_MENU_ENV_CONFIG.defaultMenuQrToken ||
-    RESTAURANT_MENU_ENV_CONFIG.defaultTableToken ||
-    ''
-  ).trim();
-};
+export const getDefaultCustomerMenuQrToken = (
+  _config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
+) => '';

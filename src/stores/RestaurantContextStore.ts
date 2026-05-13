@@ -115,7 +115,7 @@ const resolveAllowedRestaurantIds = (
   }
 
   if (session.role === 'OWNER') {
-    // Local demo accounts without explicit restaurantIds can still manage all
+    // Local accounts without explicit restaurantIds can still manage all
     // workspaces, but seeded accounts such as haidilao/staff stay isolated.
     return restaurants.map(restaurant => restaurant.id);
   }

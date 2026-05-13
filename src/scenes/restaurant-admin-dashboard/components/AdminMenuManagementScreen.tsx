@@ -602,7 +602,7 @@ const AdminMenuManagementScreen = ({
           }
         } catch (uploadError) {
           devWarn('[AdminMenuImage] server upload failed', uploadError);
-          setError('Không thể upload ảnh lên server. Vui lòng kiểm tra backend/API rồi thử lại.');
+          setError('Không thể lưu ảnh. Vui lòng thử lại hoặc chọn ảnh khác.');
           return;
         } finally {
           setImageUploading(false);
@@ -1211,7 +1211,7 @@ const AdminMenuManagementScreen = ({
               <RNText style={styles.editModalTitle}>{formTitle}</RNText>
               <RNText style={styles.editModalHint}>
                 Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng
-                API.
+                hệ thống.
               </RNText>
             </RNView>
           </RNView>
@@ -1288,7 +1288,7 @@ const AdminMenuManagementScreen = ({
                   : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                API mode sẽ upload ảnh lên server/storage và lưu URL vào imageUrl. Local mode vẫn lưu ảnh trong máy để demo.
+                Ảnh được lưu trên thiết bị này để app dùng trực tiếp.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
@@ -1376,7 +1376,7 @@ const AdminMenuManagementScreen = ({
           <RNText style={styles.sectionTitle}>Quản lý món / sản phẩm</RNText>
           <RNText style={styles.sectionHint}>
             {menuItems.length} món · {categories.length} danh mục · Dữ liệu lưu
-            local để sau này thay bằng API.
+            trên thiết bị này.
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>

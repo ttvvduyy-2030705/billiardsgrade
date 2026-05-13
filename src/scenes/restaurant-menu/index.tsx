@@ -1058,10 +1058,8 @@ const RestaurantMenuScreen = (props: Props) => {
     ],
   );
 
-  useEffect(() => {
-    void refreshData('mount');
-  }, [refreshData]);
-
+  // `useFocusEffect` also runs on the first mount. Avoid a second mount
+  // refresh here once because QR entry already resolved the same token.
   useFocusEffect(
     useCallback(() => {
       void refreshData('focus');

@@ -53,8 +53,7 @@ class MainApplication : Application(), ReactApplication {
       MlKit.initialize(this)
       Log.d("ScoreMenuQR", "ML Kit initialized for VisionCamera QR scanner")
     } catch (error: Throwable) {
-      // Do not block the whole app if ML Kit is unavailable on a particular build/device.
-      // The QR screen still has demo buttons and manual token input as a safe fallback.
+      // Do not block the whole app if QR scanning is unavailable on a device.
       Log.w("ScoreMenuQR", "Failed to initialize ML Kit for QR scanner", error)
     }
   }

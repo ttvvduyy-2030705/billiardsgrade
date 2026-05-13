@@ -412,6 +412,9 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
+          // Required by free ngrok tunnels so API requests are not intercepted by
+          // the browser-warning HTML page before reaching the backend.
+          'ngrok-skip-browser-warning': 'true',
           ...(token ? {Authorization: `Bearer ${token}`} : {}),
           ...(init.headers || {}),
         },
@@ -468,8 +471,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       const apiError = new RestaurantMenuApiError({
         code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
-          ? 'Kết nối API menu quá lâu. Vui lòng thử lại.'
-          : 'Không thể kết nối API menu. Kiểm tra mạng hoặc backend.',
+          ? 'Không kết nối được API menu. Kiểm tra backend/ngrok còn chạy và điện thoại có mạng, rồi thử lại.'
+          : 'Không thể kết nối API menu. Kiểm tra mạng, backend hoặc địa chỉ API.',
         details: error,
       });
       devModuleWarn('API', timedOut ? 'request:timeout' : 'request:network-error', {

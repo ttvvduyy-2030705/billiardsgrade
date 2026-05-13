@@ -82,8 +82,6 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
       loadMenuItems(context.restaurantId),
       loadOrders(context.restaurantId),
       loadBillSessions(context.restaurantId),
-      loadBillSessions('local_demo_restaurant'),
-      loadBillSessions('haidilao_local_demo'),
     ]);
   }
 
@@ -154,7 +152,6 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
   deleteTable(tableId: string): Promise<RestaurantTable[]> {
     return deleteRestaurantTable(tableId);
   }
-
 
   async getPublicTablesByQrToken(token: string): Promise<RestaurantTable[]> {
     const cleanToken = String(token || '').trim();
@@ -317,7 +314,9 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     const billSessions = await loadBillSessions(context.restaurantId);
 
     return context.branchId
-      ? billSessions.filter(billSession => billSession.branchId === context.branchId)
+      ? billSessions.filter(
+          billSession => billSession.branchId === context.branchId,
+        )
       : billSessions;
   }
 
@@ -331,7 +330,7 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
       branchId: payload.branchId || context.branchId,
       tableId: payload.tableId || context.tableId,
       tableNumber: payload.tableNumber || context.tableNumber || '',
-      orderSource: payload.orderSource || context.source || 'local-demo',
+      orderSource: payload.orderSource || context.source || 'local',
     });
     return context.branchId
       ? orders.filter(order => order.branchId === context.branchId)
@@ -342,7 +341,10 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     query: RestaurantCurrentBillSessionQuery = {},
   ): Promise<RestaurantBillSessionDetail | null> {
     const context = await this.getActiveContext();
-    const billSession = await loadCurrentBillSession(query, context.restaurantId);
+    const billSession = await loadCurrentBillSession(
+      query,
+      context.restaurantId,
+    );
 
     if (!billSession) {
       return null;

@@ -56,7 +56,10 @@ const OrderCard = ({
 }: Props) => {
   const nextStatus = getAdminOrderNextStatus(order);
   const canMarkPaid = order.status !== 'CANCELLED';
-  const sourceLabel = order.orderSource === 'customer' ? 'Khách QR' : order.orderSource || 'Admin';
+  const sourceLabel =
+    order.orderSource === 'customer'
+      ? 'Khách QR'
+      : order.orderSource || 'Admin';
 
   return (
     <RNView style={styles.orderCard}>
@@ -174,7 +177,9 @@ const OrderCard = ({
                 onChangePaymentStatus(
                   order.id,
                   status,
-                  order.paymentMethod || 'MOCK',
+                  order.paymentMethod === 'MOCK'
+                    ? 'CASH'
+                    : order.paymentMethod || 'CASH',
                 )
               }
               style={[
@@ -202,7 +207,10 @@ const OrderCard = ({
       <RNText style={styles.actionLabel}>Phương thức</RNText>
       <RNView style={styles.actionChipWrap}>
         {ADMIN_PAYMENT_METHODS.map(method => {
-          const active = (order.paymentMethod || 'MOCK') === method;
+          const active =
+            (order.paymentMethod === 'MOCK'
+              ? 'CASH'
+              : order.paymentMethod || 'CASH') === method;
           return (
             <Pressable
               key={method}

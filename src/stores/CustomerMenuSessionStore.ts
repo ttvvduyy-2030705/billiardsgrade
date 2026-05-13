@@ -32,6 +32,10 @@ const FINAL_CUSTOMER_BILL_STATUSES: RestaurantBillSessionStatus[] = [
   'CANCELLED',
 ];
 
+let activeEnterQrRequest:
+  | {token: string; promise: Promise<CustomerMenuSessionSnapshot>}
+  | null = null;
+
 type CustomerBillSessionFields = {
   guestSessionId?: string;
   billSessionId?: string;
@@ -459,7 +463,7 @@ const restoreCustomerMenuSessionSnapshot = async () => {
   }
 };
 
-const enterCustomerMenuQrSession = async (qrToken: string) => {
+const enterCustomerMenuQrSessionInternal = async (qrToken: string) => {
   const cleanToken = normalizeQrToken(qrToken);
   const requestId = storeState.requestId + 1;
   storeState.requestId = requestId;
@@ -664,6 +668,25 @@ export const clearCustomerBillSession = async () => {
   }
   emitChange();
   return getSnapshot();
+};
+
+const enterCustomerMenuQrSession = async (qrToken: string) => {
+  const cleanToken = normalizeQrToken(qrToken);
+
+  if (activeEnterQrRequest?.token === cleanToken) {
+    return activeEnterQrRequest.promise;
+  }
+
+  const promise = enterCustomerMenuQrSessionInternal(qrToken);
+  activeEnterQrRequest = {token: cleanToken, promise};
+
+  try {
+    return await promise;
+  } finally {
+    if (activeEnterQrRequest?.promise === promise) {
+      activeEnterQrRequest = null;
+    }
+  }
 };
 
 export const restoreCustomerMenuSession = restoreCustomerMenuSessionSnapshot;

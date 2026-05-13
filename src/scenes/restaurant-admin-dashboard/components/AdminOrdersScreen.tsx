@@ -613,7 +613,7 @@ const AdminOrdersScreen = ({
                       <RNView style={styles.billTransferPanel}>
                         <RNText style={styles.billTransferHint}>
                           Chỉ nhân viên/admin được đổi bàn. Nếu bàn đích đang có bill mở,
-                          backend sẽ chặn để tránh gộp nhầm hóa đơn.
+                          app sẽ chặn để tránh gộp nhầm hóa đơn.
                         </RNText>
                         <RNView style={styles.billTransferChipWrap}>
                           {getTransferableTables(tables, billSession).length === 0 ? (

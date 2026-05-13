@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: scoremenu-api
+    runtime: node
+    rootDir: backend/scoremenu-server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCOREMENU_HOST
+        value: 0.0.0.0
+      - key: SCOREMENU_AUTH_GUARD
+        value: "1"
+      - key: SCOREMENU_TOKEN_SECRET
+        generateValue: true
+      - key: SCOREMENU_DB_FILE
+        value: /var/data/scoremenu/db.json
+      - key: SCOREMENU_UPLOAD_DIR
+        value: /var/data/scoremenu/uploads

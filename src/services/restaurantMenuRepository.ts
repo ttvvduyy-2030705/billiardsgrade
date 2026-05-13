@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   RESTAURANT_MENU_ENV_CONFIG,
   getRestaurantMenuEnvironmentLabel,
@@ -102,6 +103,69 @@ export {
 const localRepository = new LocalRestaurantMenuRepository();
 let activeRepository: RestaurantMenuRepository = localRepository;
 let activeRepositoryMode: 'local' | 'api' | 'custom' = 'local';
+let activeApiBaseUrl = RESTAURANT_MENU_ENV_CONFIG.mode === 'api'
+  ? RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl
+  : '';
+
+const API_BASE_URL_OVERRIDE_KEY = 'scoremenu_api_base_url_override_v1';
+
+const normalizeApiBaseUrl = (value?: string) =>
+  String(value || '').trim().replace(/\/$/, '');
+
+export const getRestaurantMenuApiBaseUrl = () => activeApiBaseUrl;
+
+export const getRestaurantMenuDefaultApiBaseUrl = () =>
+  RESTAURANT_MENU_ENV_CONFIG.mode === 'api'
+    ? RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl
+    : '';
+
+export const loadRestaurantMenuApiBaseUrlOverride = async () => {
+  try {
+    return normalizeApiBaseUrl(
+      (await AsyncStorage.getItem(API_BASE_URL_OVERRIDE_KEY)) || '',
+    );
+  } catch (_error) {
+    return '';
+  }
+};
+
+export const saveRestaurantMenuApiBaseUrlOverride = async (baseUrl: string) => {
+  const cleanBaseUrl = normalizeApiBaseUrl(baseUrl);
+  if (!cleanBaseUrl) {
+    await AsyncStorage.removeItem(API_BASE_URL_OVERRIDE_KEY);
+    return '';
+  }
+  await AsyncStorage.setItem(API_BASE_URL_OVERRIDE_KEY, cleanBaseUrl);
+  return cleanBaseUrl;
+};
+
+export const applyRestaurantMenuApiBaseUrl = (baseUrl: string) => {
+  const cleanBaseUrl = normalizeApiBaseUrl(baseUrl);
+  activeApiBaseUrl = cleanBaseUrl;
+  configureRestaurantMenuRepository({
+    mode: 'api',
+    baseUrl: cleanBaseUrl,
+    timeoutMs: RESTAURANT_MENU_ENV_CONFIG.apiTimeoutMs,
+    retryCount: RESTAURANT_MENU_ENV_CONFIG.apiRetryCount,
+  });
+  return cleanBaseUrl;
+};
+
+export const bootstrapRestaurantMenuApiConnection = async () => {
+  if (RESTAURANT_MENU_ENV_CONFIG.mode !== 'api') {
+    activeApiBaseUrl = '';
+    activeRepository = localRepository;
+    activeRepositoryMode = 'local';
+    return '';
+  }
+
+  const overrideBaseUrl = await loadRestaurantMenuApiBaseUrlOverride();
+  if (overrideBaseUrl) {
+    return applyRestaurantMenuApiBaseUrl(overrideBaseUrl);
+  }
+  activeApiBaseUrl = RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl;
+  return activeApiBaseUrl;
+};
 
 export type ConfigureRestaurantMenuRepositoryOptions = {
   mode?: 'local' | 'api';
@@ -131,12 +195,11 @@ export const configureRestaurantMenuRepository = (
   const mode = options.mode || RESTAURANT_MENU_ENV_CONFIG.mode;
 
   if (mode === 'api') {
-    const baseUrl = options.baseUrl || RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl;
+    const baseUrl = normalizeApiBaseUrl(
+      options.baseUrl || RESTAURANT_MENU_ENV_CONFIG.apiBaseUrl,
+    );
+    activeApiBaseUrl = baseUrl;
 
-    // Batch 9: never silently fall back to local data when API mode is selected.
-    // If baseUrl is missing, the API repository will surface a clear
-    // configuration error on the first request. This prevents real-device tests
-    // from looking successful while actually reading AsyncStorage/local seed.
     activeRepository = new ApiRestaurantMenuRepository({
       baseUrl,
       defaultRestaurantId:

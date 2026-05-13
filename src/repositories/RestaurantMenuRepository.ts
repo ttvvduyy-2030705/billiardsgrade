@@ -98,7 +98,7 @@ export type RestaurantOrderPayload = Omit<
   /** Optional until Batch 17 creates/locks the session server-side. */
   billSessionId?: string;
   guestSessionId?: string;
-  orderSource?: 'admin' | 'customer' | 'local-demo';
+  orderSource?: 'admin' | 'customer' | 'local';
   paymentStatus?: RestaurantPaymentStatus;
 };
 
@@ -162,7 +162,7 @@ export type CategoryMutationResult = {
 export interface RestaurantMenuRepository {
   /**
    * Runs lightweight migrations/bootstrap for the selected data source.
-   * Local implementation keeps old AsyncStorage demo data readable.
+   * Local implementation keeps old AsyncStorage local data readable.
    * API implementation can use it to hydrate the active restaurant context.
    */
   bootstrap(): Promise<void>;
@@ -225,7 +225,7 @@ export interface RestaurantMenuRepository {
   resolveMenuQrToken(token: string): Promise<RestaurantQrResolveContext | null>;
 
   /**
-   * @deprecated Use resolveMenuQrToken. Kept so the old table-QR demo keeps
+   * @deprecated Use resolveMenuQrToken. Kept so the old table QR keeps
    * working until Batch 4 migrates seed/API to branch/menu QR tokens.
    */
   resolveTableToken(token: string): Promise<RestaurantQrResolveContext | null>;

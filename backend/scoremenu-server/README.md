@@ -207,3 +207,23 @@ npm run scoremenu:test:acceptance
 ```
 
 Batch 25 acceptance script kiểm tra tự động: order lần đầu tạo BillSession, order lần hai khóa bàn, admin dashboard thấy bill tổng/order con, staff chuyển bàn, bill PAID/CLOSED chặn gọi thêm, và dữ liệu không lẫn giữa APlus/Haidilao/chi nhánh.
+
+
+## Deploy lên Render
+
+Backend này có thể deploy trực tiếp bằng `render.yaml` ở repo root. Render Web Service nên dùng tên `scoremenu-api` để URL mặc định của app là `https://scoremenu-api.onrender.com`.
+
+Cấu hình chính:
+
+- Root Directory: `backend/scoremenu-server`
+- Build Command: `npm install`
+- Start Command: `npm start`
+- Health Check Path: `/health`
+- Env: `SCOREMENU_HOST=0.0.0.0`, `SCOREMENU_AUTH_GUARD=1`, `SCOREMENU_TOKEN_SECRET` generated secret.
+
+Nếu dùng JSON file làm database thật, hãy gắn Render Persistent Disk mount path `/var/data` và đặt:
+
+- `SCOREMENU_DB_FILE=/var/data/scoremenu/db.json`
+- `SCOREMENU_UPLOAD_DIR=/var/data/scoremenu/uploads`
+
+Không gắn disk thì dữ liệu file có thể mất khi Render restart/redeploy.

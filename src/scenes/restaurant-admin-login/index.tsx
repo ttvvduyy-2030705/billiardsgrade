@@ -55,6 +55,14 @@ let adminAuthDraftVersion = 0;
 const AuthInputModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
 
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  return fallback;
+};
+
 const AUTH_SESSION_CHECK_TIMEOUT_MS = 2500;
 
 const withTimeout = async <T,>(
@@ -253,21 +261,6 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     [syncDraftToUi],
   );
 
-  const fillDemoAccount = (username: string, password: string) => {
-    const nextValues: AuthFormValues = {
-      username,
-      password,
-      confirmPassword: password,
-    };
-    adminAuthModeSession = 'login';
-    setAuthModeState('login');
-    replaceDraftSession(nextValues);
-    setFormValues(nextValues);
-    setDraftVersion(adminAuthDraftVersion);
-    setErrorMessage('');
-    setInfoMessage(`Đã điền tài khoản demo: ${username}`);
-  };
-
   const switchMode = (nextMode: AuthMode) => {
     adminAuthModeSession = nextMode;
     resetDraftSession();
@@ -369,7 +362,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       syncDraftToUi();
     } catch (error) {
       console.warn('[RestaurantAdminLogin] login failed', error);
-      setErrorMessage('Không thể đăng nhập Admin. Vui lòng thử lại.');
+      setErrorMessage(
+        getErrorMessage(error, 'Không thể đăng nhập Admin. Vui lòng thử lại.'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -419,7 +414,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       requestAnimationFrame(syncDraftToUi);
     } catch (error) {
       console.warn('[RestaurantAdminLogin] register failed', error);
-      setErrorMessage('Không thể đăng ký Admin. Vui lòng thử lại.');
+      setErrorMessage(
+        getErrorMessage(error, 'Không thể đăng ký Admin. Vui lòng thử lại.'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -503,29 +500,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           <RNText style={styles.hint}>
             {isLogin
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
-              : 'Tạo tài khoản quản trị cho nhà hàng. Phần đăng nhập đã được tách thành service riêng để sau này chuyển sang backend thật.'}
+              : 'Tạo tài khoản quản trị trên thiết bị này. Dữ liệu được lưu trực tiếp trong app.'}
           </RNText>
-
-          {isLogin ? (
-            <RNView style={styles.demoAccountBox}>
-              <RNText style={styles.demoAccountTitle}>Tài khoản demo có sẵn</RNText>
-              <RNText style={styles.demoAccountHint}>
-                Dùng admin/admin123 để quản trị local demo. Không cần đăng ký nick mới.
-              </RNText>
-              <RNView style={styles.demoAccountActions}>
-                <Pressable
-                  onPress={() => fillDemoAccount('admin', 'admin123')}
-                  style={styles.demoAccountButton}>
-                  <RNText style={styles.demoAccountButtonText}>admin / admin123</RNText>
-                </Pressable>
-                <Pressable
-                  onPress={() => fillDemoAccount('haidilao', 'admin123')}
-                  style={styles.demoAccountButton}>
-                  <RNText style={styles.demoAccountButtonText}>haidilao / admin123</RNText>
-                </Pressable>
-              </RNView>
-            </RNView>
-          ) : null}
 
           {renderNativeInputField(
             'username',
