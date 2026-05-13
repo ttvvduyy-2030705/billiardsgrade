@@ -8,12 +8,50 @@ const {createSeedDatabase, clone} = require('./data/seed');
 
 const PORT = Number(process.env.SCOREMENU_PORT || process.env.PORT || 4012);
 const HOST = process.env.SCOREMENU_HOST || '0.0.0.0';
-const DATA_FILE = process.env.SCOREMENU_DB_FILE || path.join(__dirname, 'data', 'db.json');
+
+const resolveStoragePath = (configuredPath, fallbackPath, options = {}) => {
+  const label = options.label || 'storage';
+  const isDirectory = Boolean(options.isDirectory);
+  const normalizePath = value => (path.isAbsolute(value) ? value : path.join(__dirname, value));
+  const fallback = normalizePath(fallbackPath);
+  const requested = normalizePath(configuredPath || fallbackPath);
+
+  const isWritable = targetPath => {
+    try {
+      const directory = isDirectory ? targetPath : path.dirname(targetPath);
+      fs.mkdirSync(directory, {recursive: true});
+      const probeFile = path.join(directory, `.scoremenu-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-write-test`);
+      fs.writeFileSync(probeFile, 'ok');
+      fs.unlinkSync(probeFile);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  if (isWritable(requested)) {
+    return requested;
+  }
+
+  if (requested !== fallback && isWritable(fallback)) {
+    console.warn(`[ScoreMenu] ${label} path is not writable; falling back to ${fallback}`);
+    return fallback;
+  }
+
+  return requested;
+};
+
+const DATA_FILE = resolveStoragePath(process.env.SCOREMENU_DB_FILE, path.join('data', 'db.json'), {
+  label: 'Database',
+});
 const SCHEMA_FILE = path.join(__dirname, 'data', 'schema.json');
 const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD === '1';
 const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret_change_me';
 const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24);
-const UPLOAD_DIR = process.env.SCOREMENU_UPLOAD_DIR || path.join(__dirname, 'data', 'uploads');
+const UPLOAD_DIR = resolveStoragePath(process.env.SCOREMENU_UPLOAD_DIR, path.join('data', 'uploads'), {
+  label: 'Uploads',
+  isDirectory: true,
+});
 const PUBLIC_UPLOAD_PREFIX = '/uploads/menu-images';
 const MAX_BODY_BYTES = Number(process.env.SCOREMENU_MAX_BODY_BYTES || 1024 * 1024 * 12);
 const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1024 * 6);
@@ -46,6 +84,52 @@ const BRANCH_STATUSES = ['ACTIVE', 'LOCKED', 'HIDDEN'];
 const nowIso = () => new Date().toISOString();
 const createId = prefix => `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
+const PRODUCTION_DEMO_ADMIN_IDS = new Set([
+  'admin_aplus_owner',
+  'admin_aplus_staff',
+  'admin_haidilao_owner',
+  'admin_demo_owner',
+]);
+const PRODUCTION_DEMO_ADMIN_SALTS = new Set([
+  'admin_aplus_owner_salt',
+  'admin_aplus_staff_salt',
+  'admin_haidilao_owner_salt',
+  'admin_demo_owner_salt',
+]);
+const PRODUCTION_DEMO_ADMIN_USERNAMES = new Set(['admin', 'staff', 'haidilao']);
+
+const normalizeUsernameKey = value => String(value || '').trim().toLowerCase();
+
+const isProductionDemoAdminUser = user => {
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+
+  if (PRODUCTION_DEMO_ADMIN_IDS.has(String(user.id || ''))) {
+    return true;
+  }
+
+  if (PRODUCTION_DEMO_ADMIN_SALTS.has(String(user.passwordSalt || ''))) {
+    return true;
+  }
+
+  const username = normalizeUsernameKey(user.username);
+  return (
+    PRODUCTION_DEMO_ADMIN_USERNAMES.has(username) &&
+    String(user.createdAt || '').startsWith('2026-05-09')
+  );
+};
+
+const purgeProductionDemoAdmins = db => {
+  if (!db || !Array.isArray(db.adminUsers)) {
+    return false;
+  }
+
+  const before = db.adminUsers.length;
+  db.adminUsers = db.adminUsers.filter(user => !isProductionDemoAdminUser(user));
+  return db.adminUsers.length !== before;
+};
+
 const safeJsonParse = (raw, fallback) => {
   try {
     return raw ? JSON.parse(raw) : fallback;
@@ -66,7 +150,7 @@ const ensureDataFile = () => {
 const loadDb = () => {
   ensureDataFile();
   const db = safeJsonParse(fs.readFileSync(DATA_FILE, 'utf8'), createSeedDatabase());
-  return {
+  const nextDb = {
     ...createSeedDatabase(),
     ...db,
     meta: {...createSeedDatabase().meta, ...(db.meta && typeof db.meta === 'object' ? db.meta : {})},
@@ -83,9 +167,16 @@ const loadDb = () => {
     adminUsers: Array.isArray(db.adminUsers) ? db.adminUsers : [],
     imageUploads: Array.isArray(db.imageUploads) ? db.imageUploads : [],
   };
+
+  if (purgeProductionDemoAdmins(nextDb)) {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(nextDb, null, 2));
+  }
+
+  return nextDb;
 };
 
 const saveDb = db => {
+  purgeProductionDemoAdmins(db);
   fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 };
 
@@ -1809,8 +1900,26 @@ const routeAuth = async (req, res, db, parts) => {
       fail(res, 400, 'Mật khẩu Admin nên có tối thiểu 6 ký tự.');
       return true;
     }
-    if (db.adminUsers.some(item => normalizeKey(item.username) === normalizeKey(username))) {
-      fail(res, 409, 'Tài khoản Admin này đã tồn tại.');
+    const existingUser = db.adminUsers.find(item => normalizeKey(item.username) === normalizeKey(username));
+    if (existingUser) {
+      if (!verifyPassword(existingUser, password)) {
+        fail(res, 409, 'Tài khoản Admin này đã tồn tại. Hãy đăng nhập bằng đúng mật khẩu đã tạo, hoặc dùng tài khoản khác.');
+        return true;
+      }
+      if (migratePlainPasswordIfNeeded(existingUser, password)) {
+        saveDb(db);
+      }
+      ok(res, {
+        ok: true,
+        message: 'Tài khoản Admin đã tồn tại, đã đăng nhập bằng tài khoản này.',
+        token: createToken(existingUser),
+        userId: existingUser.id,
+        role: existingUser.role,
+        restaurantId: existingUser.activeRestaurantId || existingUser.restaurantIds?.[0],
+        restaurantIds: existingUser.restaurantIds || [],
+        branchIds: existingUser.branchIds || [],
+        activeBranchId: existingUser.activeBranchId,
+      });
       return true;
     }
 
@@ -2923,7 +3032,20 @@ const handleRequest = async (req, res) => {
     return;
   }
 
-  const {parts, query, pathname} = getPathParts(req.url);
+  const requestPath = getPathParts(req.url);
+  let {parts, pathname} = requestPath;
+  const {query} = requestPath;
+
+  // Render/proxy/app configs sometimes append an `/api` prefix to the base URL.
+  // The ScoreMenu backend routes are rooted at `/`, so accept both forms:
+  //   /auth/admin/register and /api/auth/admin/register
+  //   /public/menu/:qrToken and /api/public/menu/:qrToken
+  // This keeps old mobile builds working even if the saved API URL includes /api.
+  if (parts[0] === 'api') {
+    parts = parts.slice(1);
+    pathname = `/${parts.join('/')}` || '/';
+  }
+
   if ((req.method === 'GET' || req.method === 'HEAD') && sendStaticUploadFile(req, res, pathname)) {
     return;
   }

@@ -51,17 +51,10 @@ const EMPTY_FORM_VALUES: AuthFormValues = {
 let adminAuthDraftSession: AuthFormValues = {...EMPTY_FORM_VALUES};
 let adminAuthModeSession: AuthMode = 'login';
 let adminAuthDraftVersion = 0;
+let handledAuthResetKey = '';
 
 const AuthInputModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
-
-
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
-  }
-  return fallback;
-};
 
 const AUTH_SESSION_CHECK_TIMEOUT_MS = 2500;
 
@@ -193,6 +186,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       return;
     }
 
+    const resetKey = String(props.logoutAt || 'manual-reset');
+    if (handledAuthResetKey === resetKey) {
+      return;
+    }
+    handledAuthResetKey = resetKey;
+
     adminAuthModeSession = 'login';
     resetDraftSession();
     setAuthModeState('login');
@@ -202,7 +201,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     setSubmitting(false);
     setFormValues(cloneDraftSession());
     setDraftVersion(adminAuthDraftVersion);
-  }, [props.resetAuthDraft]);
+  }, [props.logoutAt, props.resetAuthDraft]);
 
   useEffect(() => {
     let isMounted = true;
@@ -362,9 +361,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       syncDraftToUi();
     } catch (error) {
       console.warn('[RestaurantAdminLogin] login failed', error);
-      setErrorMessage(
-        getErrorMessage(error, 'Không thể đăng nhập Admin. Vui lòng thử lại.'),
-      );
+      setErrorMessage('Không thể đăng nhập Admin. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
     }
@@ -391,17 +388,20 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     setErrorMessage('');
     setInfoMessage('');
 
+    let nextDashboardUsername = '';
+
     try {
       const result = await registerRestaurantAdminAccount(
         currentValues.username,
         currentValues.password,
       );
 
-      if (!result.ok) {
+      if (!result.ok || !result.session) {
         setErrorMessage(result.message);
         return;
       }
 
+      nextDashboardUsername = result.session.username;
       setInfoMessage(result.message);
       adminAuthModeSession = 'login';
       setAuthModeState('login');
@@ -414,11 +414,13 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       requestAnimationFrame(syncDraftToUi);
     } catch (error) {
       console.warn('[RestaurantAdminLogin] register failed', error);
-      setErrorMessage(
-        getErrorMessage(error, 'Không thể đăng ký Admin. Vui lòng thử lại.'),
-      );
+      setErrorMessage('Không thể đăng ký Admin. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
+    }
+
+    if (nextDashboardUsername) {
+      routeToDashboard(nextDashboardUsername);
     }
   };
 
@@ -500,7 +502,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           <RNText style={styles.hint}>
             {isLogin
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
-              : 'Tạo tài khoản quản trị trên thiết bị này. Dữ liệu được lưu trực tiếp trong app.'}
+              : 'Tạo tài khoản quản trị cho nhà hàng. Sau khi đăng ký thành công, app sẽ tự đăng nhập vào trang quản trị.'}
           </RNText>
 
           {renderNativeInputField(

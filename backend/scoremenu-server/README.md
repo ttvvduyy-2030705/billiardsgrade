@@ -42,12 +42,9 @@ Hoặc khi server đang chạy:
 curl -X POST http://localhost:4012/dev/reset
 ```
 
-## Tài khoản demo
+## Tài khoản Admin
 
-| Username | Password | Role | Nhà hàng |
-|---|---|---|---|
-| `admin` | `admin123` | OWNER | `aplus_billiards_hanoi`, `haidilao_demo` |
-| `staff` | `staff123` | STAFF | `aplus_billiards_hanoi` |
+Backend production không có tài khoản Admin dựng sẵn. Chủ quán tạo tài khoản thật từ màn đăng ký Admin trong app hoặc gọi API đăng ký. Các tài khoản nội bộ cũ như `admin/admin123`, `staff/staff123`, `haidilao/admin123` sẽ bị loại bỏ khi server khởi động để tránh lọt tài khoản test ra bản dùng thật.
 
 ## Dữ liệu seed
 
@@ -92,7 +89,7 @@ POST /auth/admin/register
 Body login:
 
 ```json
-{"username":"admin","password":"admin123"}
+{"username":"ten_quan_tri","password":"mat_khau_that"}
 ```
 
 ### Restaurant/branch/table
@@ -159,7 +156,7 @@ Khi bật guard, các route scope theo nhà hàng sẽ cần header:
 Authorization: Bearer <token>
 ```
 
-Token lấy từ `/auth/admin/login`.
+Token lấy từ `/auth/admin/login` sau khi đăng ký tài khoản Admin thật.
 
 ## Cấu hình app dùng API
 

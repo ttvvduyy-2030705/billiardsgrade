@@ -415,34 +415,9 @@ const createSeedDatabase = () => {
   publicOrderRateLimits: [],
   carts: {},
   imageUploads: [],
-  adminUsers: [
-    createSeedAdmin({
-      id: 'admin_aplus_owner',
-      username: 'admin',
-      password: 'admin123',
-      role: 'OWNER',
-      restaurantIds: ['aplus_billiards_hanoi', 'haidilao_demo'],
-      activeRestaurantId: 'aplus_billiards_hanoi',
-    }),
-    createSeedAdmin({
-      id: 'admin_aplus_staff',
-      username: 'staff',
-      password: 'staff123',
-      role: 'STAFF',
-      restaurantIds: ['aplus_billiards_hanoi'],
-      activeRestaurantId: 'aplus_billiards_hanoi',
-      branchIds: ['aplus_hanoi_main'],
-      activeBranchId: 'aplus_hanoi_main',
-    }),
-    createSeedAdmin({
-      id: 'admin_haidilao_owner',
-      username: 'haidilao',
-      password: 'admin123',
-      role: 'OWNER',
-      restaurantIds: ['haidilao_demo'],
-      activeRestaurantId: 'haidilao_demo',
-    }),
-  ],
+  // Production seed intentionally contains no built-in admin account.
+  // The first real owner must register from the app or API.
+  adminUsers: [],
 });
   return addDemoBillSessions(db);
 };

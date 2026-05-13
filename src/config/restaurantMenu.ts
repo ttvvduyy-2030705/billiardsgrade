@@ -5,7 +5,7 @@ declare const __DEV__: boolean | undefined;
  * Keep this aligned with the Render service name in render.yaml.
  * If Render assigns a different slug, replace this value and rebuild the app.
  */
-export const SCOREMENU_RENDER_API_BASE_URL = 'https://scoremenu-api.onrender.com';
+export const SCOREMENU_RENDER_API_BASE_URL = 'https://billiardsgrade.onrender.com';
 
 export type RestaurantMenuRepositoryMode = 'local' | 'api';
 export type RestaurantMenuEnvironmentName =

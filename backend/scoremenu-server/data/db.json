@@ -397,52 +397,5 @@
   "publicOrderRateLimits": [],
   "carts": {},
   "imageUploads": [],
-  "adminUsers": [
-    {
-      "id": "admin_aplus_owner",
-      "username": "admin",
-      "passwordSalt": "admin_aplus_owner_salt",
-      "passwordHash": "894e2901e27adc62fe7586b08abdbce9c2e714a2aa613aac27a42ab73e0c8fed",
-      "role": "OWNER",
-      "restaurantIds": [
-        "aplus_billiards_hanoi",
-        "haidilao_demo"
-      ],
-      "activeRestaurantId": "aplus_billiards_hanoi",
-      "branchIds": [],
-      "createdAt": "2026-05-09T00:00:00.000Z",
-      "updatedAt": "2026-05-09T00:00:00.000Z"
-    },
-    {
-      "id": "admin_aplus_staff",
-      "username": "staff",
-      "passwordSalt": "admin_aplus_staff_salt",
-      "passwordHash": "ef32ab551d8512dfe8574787a019df2e3648772819974622b063f1eb431aa238",
-      "role": "STAFF",
-      "restaurantIds": [
-        "aplus_billiards_hanoi"
-      ],
-      "activeRestaurantId": "aplus_billiards_hanoi",
-      "branchIds": [
-        "aplus_hanoi_main"
-      ],
-      "activeBranchId": "aplus_hanoi_main",
-      "createdAt": "2026-05-09T00:00:00.000Z",
-      "updatedAt": "2026-05-09T00:00:00.000Z"
-    },
-    {
-      "id": "admin_haidilao_owner",
-      "username": "haidilao",
-      "passwordSalt": "admin_haidilao_owner_salt",
-      "passwordHash": "9b9f15b43cd1ea69d6d0d5c825c26c509410779c9643a09f5ce2644b1e4fd9bd",
-      "role": "OWNER",
-      "restaurantIds": [
-        "haidilao_demo"
-      ],
-      "activeRestaurantId": "haidilao_demo",
-      "branchIds": [],
-      "createdAt": "2026-05-09T00:00:00.000Z",
-      "updatedAt": "2026-05-09T00:00:00.000Z"
-    }
-  ]
+  "adminUsers": []
 }

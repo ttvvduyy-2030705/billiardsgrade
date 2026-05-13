@@ -126,7 +126,7 @@ const toReadableApiMessage = (status: number, fallback: string) => {
     case 400:
       return fallback || 'Dữ liệu gửi lên chưa hợp lệ.';
     case 401:
-      return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+      return fallback || 'Tài khoản hoặc mật khẩu chưa đúng. Vui lòng kiểm tra lại.';
     case 403:
       return 'Tài khoản không có quyền thao tác dữ liệu này.';
     case 404:
@@ -412,9 +412,6 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          // Required by free ngrok tunnels so API requests are not intercepted by
-          // the browser-warning HTML page before reaching the backend.
-          'ngrok-skip-browser-warning': 'true',
           ...(token ? {Authorization: `Bearer ${token}`} : {}),
           ...(init.headers || {}),
         },
@@ -471,8 +468,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       const apiError = new RestaurantMenuApiError({
         code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
-          ? 'Không kết nối được API menu. Kiểm tra backend/ngrok còn chạy và điện thoại có mạng, rồi thử lại.'
-          : 'Không thể kết nối API menu. Kiểm tra mạng, backend hoặc địa chỉ API.',
+          ? 'Kết nối API menu quá lâu. Vui lòng thử lại.'
+          : 'Không thể kết nối API menu. Kiểm tra mạng hoặc backend.',
         details: error,
       });
       devModuleWarn('API', timedOut ? 'request:timeout' : 'request:network-error', {

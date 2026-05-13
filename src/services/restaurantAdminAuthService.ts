@@ -268,9 +268,33 @@ export const registerRestaurantAdminAccount = async (
     return {ok: false, message: result.message};
   }
 
+  if (result.restaurantId) {
+    await setActiveRestaurantContext({
+      restaurantId: result.restaurantId,
+      branchId: result.activeBranchId,
+      source: 'admin',
+      role: result.role,
+      allowedRestaurantIds: result.restaurantIds,
+    });
+  }
+
+  const session = await createAdminSession({
+    username: cleanUsername,
+    provider: result.token ? 'api' : 'local',
+    token: result.token,
+    userId: result.userId,
+    role: result.role,
+    restaurantId: result.restaurantId,
+    restaurantIds: result.restaurantIds,
+    branchIds: result.branchIds,
+    activeBranchId: result.activeBranchId,
+  });
+  await saveAdminSession(session);
+
   return {
     ok: true,
-    message: 'Đăng ký Admin thành công. Bạn có thể đăng nhập ngay.',
+    message: 'Đăng ký Admin thành công.',
+    session,
   };
 };
 

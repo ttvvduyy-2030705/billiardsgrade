@@ -16,6 +16,6 @@ services:
       - key: SCOREMENU_TOKEN_SECRET
         generateValue: true
       - key: SCOREMENU_DB_FILE
-        value: /var/data/scoremenu/db.json
+        value: data/db.json
       - key: SCOREMENU_UPLOAD_DIR
-        value: /var/data/scoremenu/uploads
+        value: data/uploads

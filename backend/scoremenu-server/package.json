@@ -10,6 +10,6 @@
     "reset": "node scripts/reset-db.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   }
 }
