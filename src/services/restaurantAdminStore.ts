@@ -705,6 +705,20 @@ export const loadRestaurantAdminData = async () => {
   };
 };
 
+
+export const loadRestaurantAdminMenuData = async () => {
+  const scope = await ensureAdminScope();
+  const [categories, menuItems] = await Promise.all([
+    loadMenuCategories(scope.restaurantId),
+    loadMenuItems(scope.restaurantId),
+  ]);
+
+  return {
+    categories: filterCategoriesByScope(categories, scope),
+    menuItems: filterMenuItemsByScope(menuItems, scope),
+  };
+};
+
 export const loadAdminTables = async () => {
   const scope = await ensureAdminScope();
   const tables = await loadRestaurantTables(scope.restaurantId);

@@ -35,6 +35,7 @@ import {
   loadAdminOrderDashboard,
   loadAdminTables,
   loadRestaurantAdminData,
+  loadRestaurantAdminMenuData,
   saveAdminMenuCategory,
   saveAdminMenuItem,
   uploadAdminMenuImage,
@@ -790,7 +791,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       return;
     }
 
-    void reloadMenuData().catch(error => {
+    void reloadMenuData({
+      categories,
+      menuItems,
+      preserveExistingOnEmpty: true,
+    }).catch(error => {
       devWarn('[RestaurantAdminDashboard] reload menu data failed', error);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -871,26 +876,65 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
   };
 
-  const reloadMenuData = async () => {
-    const next = await loadRestaurantAdminData();
-    setCategories(next.categories);
-    setMenuItems(next.menuItems);
-    return next;
+  const reloadMenuData = async (fallback?: {
+    categories?: MenuCategory[];
+    menuItems?: RestaurantMenuItem[];
+    preserveExistingOnEmpty?: boolean;
+  }) => {
+    const fallbackCategories =
+      fallback?.categories ??
+      (fallback?.preserveExistingOnEmpty ? categories : undefined);
+    const fallbackMenuItems =
+      fallback?.menuItems ??
+      (fallback?.preserveExistingOnEmpty ? menuItems : undefined);
+
+    try {
+      const next = await loadRestaurantAdminMenuData();
+      const categoriesSnapshot =
+        next.categories.length > 0 || !fallbackCategories?.length
+          ? next.categories
+          : fallbackCategories;
+      const menuItemsSnapshot =
+        next.menuItems.length > 0 || !fallbackMenuItems?.length
+          ? next.menuItems
+          : fallbackMenuItems;
+
+      setCategories(categoriesSnapshot);
+      setMenuItems(menuItemsSnapshot);
+      return {
+        categories: categoriesSnapshot,
+        menuItems: menuItemsSnapshot,
+      };
+    } catch (error) {
+      if (fallbackCategories) {
+        setCategories(fallbackCategories);
+      }
+      if (fallbackMenuItems) {
+        setMenuItems(fallbackMenuItems);
+      }
+      throw error;
+    }
   };
 
   const onSaveMenuItem = async (
     input: Parameters<typeof saveAdminMenuItem>[0],
   ) => {
-    await saveAdminMenuItem(input);
-    const next = await reloadMenuData();
+    const savedItems = await saveAdminMenuItem(input);
+    setMenuItems(savedItems);
+    const next = await reloadMenuData({menuItems: savedItems, categories});
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
     return next.menuItems;
   };
 
   const onDeleteMenuItem = async (itemId: string) => {
-    await deleteAdminMenuItem(itemId);
-    const next = await reloadMenuData();
+    const deletedItems = await deleteAdminMenuItem(itemId);
+    setMenuItems(deletedItems);
+    const next = await reloadMenuData({
+      categories,
+      menuItems: deletedItems,
+      preserveExistingOnEmpty: false,
+    });
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
     return next.menuItems;
@@ -906,12 +950,17 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     input: Parameters<typeof saveAdminMenuCategory>[0],
   ) => {
     const result = await saveAdminMenuCategory(input);
-    const next = await reloadMenuData();
-    const categories = next.categories.length > 0 ? next.categories : result.categories;
-    setCategories(categories);
+    setCategories(result.categories);
+    const next = await reloadMenuData({
+      categories: result.categories,
+      menuItems,
+    });
+    const categoriesSnapshot =
+      next.categories.length > 0 ? next.categories : result.categories;
+    setCategories(categoriesSnapshot);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return {...result, categories};
+    return {...result, categories: categoriesSnapshot};
   };
 
   const onDeleteMenuCategory = async (
@@ -922,14 +971,23 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       categoryId,
       moveItemsToCategoryId,
     );
-    const next = await reloadMenuData();
-    const categories = next.categories.length > 0 ? next.categories : result.categories;
-    const menuItems = next.menuItems.length > 0 ? next.menuItems : result.menuItems;
-    setCategories(categories);
-    setMenuItems(menuItems);
+    setCategories(result.categories);
+    setMenuItems(result.menuItems);
+    const next = await reloadMenuData({
+      categories: result.categories,
+      menuItems: result.menuItems,
+    });
+    const categoriesSnapshot = next.categories;
+    const menuItemsSnapshot = next.menuItems;
+    setCategories(categoriesSnapshot);
+    setMenuItems(menuItemsSnapshot);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return {...result, categories, menuItems};
+    return {
+      ...result,
+      categories: categoriesSnapshot,
+      menuItems: menuItemsSnapshot,
+    };
   };
 
   const reloadTables = async () => {
