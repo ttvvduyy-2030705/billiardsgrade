@@ -1088,7 +1088,7 @@ const RestaurantMenuScreen = (props: Props) => {
         setBranchTables(
           tables.filter(
             table =>
-              table.branchId === restaurantContext.branchId &&
+              (!table.branchId || table.branchId === restaurantContext.branchId) &&
               table.status !== 'HIDDEN',
           ),
         );

@@ -10,6 +10,7 @@ import DeviceInfo from 'react-native-device-info';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 
 import {StackScreens} from 'scenes';
+import {screens} from 'scenes/screens';
 import {LanguageContext} from 'context/language';
 import {loadLanguage, setLanguage} from 'i18n';
 import {navigationRef} from 'utils/navigation';
@@ -26,6 +27,7 @@ import {
   PlayerGoalSchema,
 } from 'data/realm/models/player';
 import RemoteControl from 'utils/remote';
+import {SCOREMENU_RENDER_API_BASE_URL} from 'config/restaurantMenu';
 
 
 const installTextScalingGuard = () => {
@@ -96,6 +98,51 @@ GoogleSignin.configure({
     '378804694906-259gm8ni9ub5q27jb9796l16djd8clva.apps.googleusercontent.com',
 });
 
+
+const wakeScoreMenuApi = () => {
+  const baseUrl = String(SCOREMENU_RENDER_API_BASE_URL || '').trim().replace(/\/$/, '');
+  if (!baseUrl || baseUrl.startsWith('http://localhost')) {
+    return;
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+
+  if (controller) {
+    timeoutId = setTimeout(() => controller.abort(), 90000);
+  }
+
+  fetch(`${baseUrl}/health`, {
+    method: 'GET',
+    ...(controller ? {signal: controller.signal} : {}),
+  }).catch(error => {
+    if (__DEV__) {
+      console.log('[ScoreMenu] API wake skipped:', error?.message || error);
+    }
+  }).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+};
+
+const restaurantMenuLinking = {
+  prefixes: ['scoremenu://'],
+  config: {
+    screens: {
+      [screens.restaurantMenu]: {
+        path: 'menu',
+        parse: {
+          qrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
+          menuQrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
+          tableQrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
+          token: (value: string) => decodeURIComponent(String(value || '').trim()),
+        },
+      },
+    },
+  },
+};
+
 const App = (): React.JSX.Element => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentLanguage, setCurrentLanguage] = useState('vi');
@@ -106,6 +153,7 @@ const App = (): React.JSX.Element => {
     await DeviceInfo.getInstanceId();
     const language = await loadLanguage();
     setCurrentLanguage(language);
+    void wakeScoreMenuApi();
   }, []);
 
   useEffect(() => {
@@ -153,7 +201,7 @@ const App = (): React.JSX.Element => {
         ]}>
         <Provider store={storage}>
           <PersistGate loading={null} persistor={persistor}>
-            <NavigationContainer ref={navigationRef}>
+            <NavigationContainer ref={navigationRef} linking={restaurantMenuLinking}>
               <LanguageContext.Provider
                 value={{
                   language: currentLanguage,

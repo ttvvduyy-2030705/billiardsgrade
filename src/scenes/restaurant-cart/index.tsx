@@ -191,7 +191,7 @@ const RestaurantCartScreen = (props: Props) => {
         setBranchTables(
           tables.filter(
             table =>
-              table.branchId === customerContext.branchId &&
+              (!table.branchId || table.branchId === customerContext.branchId) &&
               table.status !== 'HIDDEN',
           ),
         );

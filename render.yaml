@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: scoremenu-api
+    name: billiardsgrade
     runtime: node
     rootDir: backend/scoremenu-server
     buildCommand: npm install

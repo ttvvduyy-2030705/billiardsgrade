@@ -362,7 +362,11 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       syncDraftToUi();
     } catch (error) {
       console.warn('[RestaurantAdminLogin] login failed', error);
-      setErrorMessage('Không thể đăng nhập Admin. Vui lòng thử lại.');
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : 'Không thể đăng nhập Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.';
+      setErrorMessage(message);
     } finally {
       setSubmitting(false);
     }
@@ -410,12 +414,16 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         username: currentValues.username,
         password: '',
         confirmPassword: '',
-            });
+      });
       syncDraftToUi();
       requestAnimationFrame(syncDraftToUi);
     } catch (error) {
       console.warn('[RestaurantAdminLogin] register failed', error);
-      setErrorMessage('Không thể đăng ký Admin. Vui lòng thử lại.');
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : 'Không thể đăng ký Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.';
+      setErrorMessage(message);
     } finally {
       setSubmitting(false);
     }

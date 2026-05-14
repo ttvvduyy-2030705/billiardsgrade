@@ -1,5 +1,13 @@
-import React, {memo, useMemo} from 'react';
-import {Pressable, View as RNView} from 'react-native';
+import React, {memo, useCallback, useMemo} from 'react';
+import {
+  Alert,
+  NativeModules,
+  Platform,
+  Pressable,
+  TextInput,
+  ToastAndroid,
+  View as RNView,
+} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import RNText from './AdminText';
@@ -15,6 +23,7 @@ type Props = {
   branches: RestaurantBranch[];
   activeBranchId?: string;
   activeRestaurantId?: string;
+  pendingTableCount?: number;
   styles: any;
   onSaveTable: (input: {
     id?: string;
@@ -39,11 +48,20 @@ type Props = {
 const getQrPrintValue = (token: string) =>
   `scoremenu://menu?qrToken=${encodeURIComponent(token)}`;
 
+type AplusClipboardModule = {
+  setString?: (value: string) => Promise<boolean>;
+};
+
+const NativeClipboard = (
+  NativeModules.AplusClipboardModule || NativeModules.AplusClipboard
+) as AplusClipboardModule | undefined;
+
 const AdminTablesScreen = ({
   tables,
   branches,
   activeBranchId,
   activeRestaurantId,
+  pendingTableCount,
   styles,
   onReloadTables,
 }: Props) => {
@@ -57,13 +75,40 @@ const AdminTablesScreen = ({
 
   const visibleTableCount = useMemo(() => {
     return tables.filter(table => {
-      const sameBranch = activeBranch?.id ? table.branchId === activeBranch.id : true;
+      const sameBranch = activeBranch?.id ? !table.branchId || table.branchId === activeBranch.id : true;
       return sameBranch && table.status !== 'HIDDEN';
     }).length;
   }, [activeBranch?.id, tables]);
 
   const qrToken = String(activeBranch?.menuQrToken || '').trim();
   const qrValue = qrToken ? getQrPrintValue(qrToken) : '';
+
+  const handleCopyQrText = useCallback(async (label: string, value: string) => {
+    const textToCopy = String(value || '').trim();
+    if (!textToCopy) {
+      Alert.alert('Chưa có dữ liệu để copy', `${label} hiện đang trống.`);
+      return;
+    }
+
+    try {
+      if (NativeClipboard?.setString) {
+        await NativeClipboard.setString(textToCopy);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(`Đã copy ${label}`, ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Đã copy', `${label} đã được lưu vào bộ nhớ tạm.`);
+        }
+        return;
+      }
+    } catch (error) {
+      // Fall through to the selectable-text hint below.
+    }
+
+    Alert.alert(
+      'Chưa copy tự động được',
+      `Bạn có thể bấm giữ vào dòng ${label} để chọn và copy thủ công.`,
+    );
+  }, []);
 
   return (
     <RNView style={styles.sectionCard}>
@@ -94,9 +139,36 @@ const AdminTablesScreen = ({
 
           <RNView style={styles.qrTokenBox}>
             <RNText style={styles.qrTokenLabel}>Mã QR menu</RNText>
-            <RNText selectable style={styles.qrTokenValue}>
-              {qrToken}
-            </RNText>
+            <TextInput
+              value={qrToken}
+              selectTextOnFocus
+              showSoftInputOnFocus={false}
+              multiline
+              style={[styles.qrTokenValue, styles.qrCopyTextInput]}
+            />
+            <RNView style={styles.qrCopyActions}>
+              <Pressable
+                onPress={() => handleCopyQrText('mã QR menu', qrToken)}
+                style={styles.qrCopyButton}>
+                <RNText style={styles.qrCopyButtonText}>Copy mã QR</RNText>
+              </Pressable>
+              <Pressable
+                onPress={() => handleCopyQrText('link QR menu', qrValue)}
+                style={styles.qrCopyButton}>
+                <RNText style={styles.qrCopyButtonText}>Copy link QR</RNText>
+              </Pressable>
+            </RNView>
+          </RNView>
+
+          <RNView style={styles.qrTokenBox}>
+            <RNText style={styles.qrTokenLabel}>Link QR menu</RNText>
+            <TextInput
+              value={qrValue}
+              selectTextOnFocus
+              showSoftInputOnFocus={false}
+              multiline
+              style={[styles.qrTokenValue, styles.qrCopyTextInput]}
+            />
           </RNView>
 
           <RNView style={styles.qrTokenBox}>
@@ -104,7 +176,9 @@ const AdminTablesScreen = ({
             <RNText style={styles.qrTokenValue}>
               {visibleTableCount > 0
                 ? `Bàn 1 đến Bàn ${visibleTableCount}`
-                : 'Chưa cấu hình số bàn'}
+                : pendingTableCount && pendingTableCount > 0
+                  ? `Đã nhập ${pendingTableCount} bàn, bấm Lưu cấu hình nếu chưa tự cập nhật`
+                  : 'Chưa cấu hình số bàn'}
             </RNText>
           </RNView>
         </RNView>

@@ -341,10 +341,27 @@ const createId = (prefix: string) => {
 
 const sampleTime = nowIso();
 
-export const DEFAULT_DRINK_CATEGORY_ID = 'drink';
-export const DEFAULT_FOOD_CATEGORY_ID = 'food';
+export const DEFAULT_DRINK_CATEGORY_ID = 'menu_drink';
+export const DEFAULT_FOOD_CATEGORY_ID = 'menu_food';
 
-export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [];
+export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
+  {
+    id: DEFAULT_DRINK_CATEGORY_ID,
+    restaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
+    name: 'Đồ uống',
+    sortOrder: 1,
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+  {
+    id: DEFAULT_FOOD_CATEGORY_ID,
+    restaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
+    name: 'Đồ ăn',
+    sortOrder: 2,
+    createdAt: sampleTime,
+    updatedAt: sampleTime,
+  },
+];
 
 export const defaultMenuItems: RestaurantMenuItem[] = [];
 
@@ -352,7 +369,7 @@ const HAIDILAO_LOCAL_CATEGORIES: MenuCategory[] = [];
 
 const HAIDILAO_LOCAL_MENU_ITEMS: RestaurantMenuItem[] = [];
 
-const getSeedCategoriesForRestaurant = (_restaurantId: string) => [];
+const getSeedCategoriesForRestaurant = (_restaurantId: string) => DEFAULT_MENU_CATEGORIES;
 
 const getSeedItemsForRestaurant = (_restaurantId: string) => [];
 
@@ -376,8 +393,8 @@ const legacySeedItemIds = [
 ];
 
 const builtInSeedCategoryIds = new Set([
-  DEFAULT_DRINK_CATEGORY_ID,
-  DEFAULT_FOOD_CATEGORY_ID,
+  'drink',
+  'food',
   'haidilao_hotpot',
   'haidilao_meat',
   'haidilao_side',
@@ -878,7 +895,11 @@ export const loadMenuCategories = async (
       );
     }
 
-    return [];
+    const defaultCategories = DEFAULT_MENU_CATEGORIES.map(category =>
+      cleanCategory(category, scopedKeys.restaurantId),
+    );
+    await writeArray(scopedKeys.categories, defaultCategories);
+    return defaultCategories;
   }
 
   const storedWithoutSeeds = stored.filter(category => !isBuiltInSeedCategory(category));
@@ -2632,16 +2653,25 @@ export const verifyRestaurantAdmin = async (
 
   const accounts = await loadAdminAccounts();
   const targetRestaurantId = resolveRestaurantScopeId(restaurantId);
-  const matchedAccount = accounts.find(account => {
-    const usernameMatched =
-      normalise(account.username) === normalise(cleanUsername);
-    const passwordMatched = account.password === cleanPassword;
-    return usernameMatched && passwordMatched;
-  });
+  const matchedUsernameAccount = accounts.find(
+    account => normalise(account.username) === normalise(cleanUsername),
+  );
 
-  if (!matchedAccount) {
-    return {ok: false, message: 'Tên tài khoản hoặc mật khẩu chưa đúng'};
+  if (!matchedUsernameAccount) {
+    return {
+      ok: false,
+      message: 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.',
+    };
   }
+
+  if (matchedUsernameAccount.password !== cleanPassword) {
+    return {
+      ok: false,
+      message: 'Mật khẩu Admin chưa đúng. Vui lòng nhập lại mật khẩu.',
+    };
+  }
+
+  const matchedAccount = matchedUsernameAccount;
 
   const privateScope = await ensurePrivateLocalWorkspaceForAdmin(
     matchedAccount,

@@ -504,8 +504,17 @@ export const upsertMenuCategory = async (
 export const upsertMenuItem = async (
   input: RestaurantMenuItemPayload,
 ): Promise<RestaurantMenuItem[]> => {
-  if (input.id) {
-    return activeRepository.updateItem(input.id, input);
+  // In API mode, new items must be sent through POST. Older admin forms could
+  // generate temporary client ids such as admin_dish_* before saving; sending
+  // those ids through PATCH makes the server answer “Không tìm thấy món”.
+  const cleanId = String(input.id || '').trim();
+  const looksLikeTemporaryClientId = /^admin_dish_|^local_|^new_dish/i.test(cleanId);
+
+  if (cleanId && !(activeRepositoryMode === 'api' && looksLikeTemporaryClientId)) {
+    return activeRepository.updateItem(cleanId, input);
   }
-  return activeRepository.createItem(input);
+  return activeRepository.createItem({
+    ...input,
+    id: activeRepositoryMode === 'api' && looksLikeTemporaryClientId ? undefined : input.id,
+  });
 };

@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.aplus.score.BuildConfig
 import com.aplus.score.billing.AplusBillingPackage
+import com.aplus.score.clipboard.AplusClipboardPackage
 import com.aplus.score.deviceconfig.ScreenMetricsPackage
 import com.aplus.score.immersive.CartImmersivePackage
 import com.aplus.score.youtube.YouTubeLiveModulePackage
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
       add(YouTubeLiveModulePackage())
       add(YouTubeLivePreviewViewPackage())
       add(AplusBillingPackage())
+      add(AplusClipboardPackage())
     }
 
     override fun getJSMainModuleName(): String = "index"

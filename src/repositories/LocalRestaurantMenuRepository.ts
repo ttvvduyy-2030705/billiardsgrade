@@ -172,12 +172,25 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     }
 
     const tables = await loadRestaurantTables(context.restaurantId);
-    return tables.filter(table => {
-      const sameBranch = context.branchId
-        ? table.branchId === context.branchId
-        : true;
-      return sameBranch && table.status !== 'HIDDEN';
-    });
+    const visibleTables = tables.filter(table => table.status !== 'HIDDEN');
+    if (!context.branchId) {
+      return visibleTables;
+    }
+
+    const branchTables = visibleTables.filter(
+      table => table.branchId === context.branchId,
+    );
+    const legacyBranchlessTables = visibleTables.filter(table => !table.branchId);
+
+    return [
+      ...branchTables,
+      ...legacyBranchlessTables.filter(
+        table => !branchTables.some(item => item.id === table.id),
+      ),
+    ].map(table => ({
+      ...table,
+      branchId: table.branchId || context.branchId,
+    }));
   }
 
   async getPublicMenuByQrToken(

@@ -177,7 +177,7 @@ const resolveCustomerTableForOrder = async ({
   const tables = await loadPublicTablesByQrToken(qrToken);
   const matchedTable = tables.find(
     table =>
-      table.branchId === context.branchId &&
+      (!table.branchId || table.branchId === context.branchId) &&
       normalizeTableCompareKey(table.tableNumber) ===
         normalizeTableCompareKey(normalizedTableNumber),
   );

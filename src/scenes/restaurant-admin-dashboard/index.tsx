@@ -83,6 +83,22 @@ type OrderSyncStatus = 'idle' | 'syncing' | 'online' | 'error' | 'paused';
 
 let adminDashboardActiveTabSession: AdminDashboardTab = 'orders';
 
+type AdminSettingsDraftSession = {
+  restaurantId: string;
+  restaurantNameDraft: string;
+  tableCountDraft: string;
+  restaurantNameDirty: boolean;
+  tableCountDirty: boolean;
+};
+
+let adminSettingsDraftSession: AdminSettingsDraftSession = {
+  restaurantId: '',
+  restaurantNameDraft: '',
+  tableCountDraft: '',
+  restaurantNameDirty: false,
+  tableCountDirty: false,
+};
+
 const ADMIN_SESSION_CHECK_TIMEOUT_MS = 2500;
 const ADMIN_ORDER_POLL_INTERVAL_MS = 3000;
 
@@ -105,6 +121,28 @@ const ADMIN_PAGE_ICONS: Record<AdminDashboardTab, string> = {
   orders: 'Đ',
   menu: 'M',
   tables: 'Q',
+};
+
+const getVisibleAdminTablesForBranch = (
+  tables: AdminRestaurantTable[],
+  branchId?: string,
+) => {
+  return tables.filter(table => {
+    const sameBranch = branchId
+      ? !table.branchId || table.branchId === branchId
+      : true;
+    return sameBranch && table.status !== 'HIDDEN';
+  });
+};
+
+const resolvePositiveInteger = (value: string) => {
+  const cleanValue = String(value || '').trim();
+  if (!cleanValue) {
+    return undefined;
+  }
+
+  const parsed = Number(cleanValue);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 const withTimeout = async <T,>(
@@ -175,11 +213,23 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     props.adminUsername || '',
   );
   const contextSwitching = false;
-  const [restaurantNameDraft, setRestaurantNameDraft] = useState('');
-  const [tableCountDraft, setTableCountDraft] = useState('');
+  const [restaurantNameDraft, setRestaurantNameDraftState] = useState(
+    adminSettingsDraftSession.restaurantNameDraft,
+  );
+  const [tableCountDraft, setTableCountDraftState] = useState(
+    adminSettingsDraftSession.tableCountDraft,
+  );
   const [restaurantNameMessage, setRestaurantNameMessage] = useState('');
   const [savingRestaurantName, setSavingRestaurantName] = useState(false);
   const settingsInputFocusedRef = useRef(false);
+  const restaurantNameDraftRef = useRef(
+    adminSettingsDraftSession.restaurantNameDraft,
+  );
+  const tableCountDraftRef = useRef(adminSettingsDraftSession.tableCountDraft);
+  const restaurantNameDirtyRef = useRef(
+    adminSettingsDraftSession.restaurantNameDirty,
+  );
+  const tableCountDirtyRef = useRef(adminSettingsDraftSession.tableCountDirty);
   const dashboardInitialLoadKeyRef = useRef('');
   const [orderSyncStatus, setOrderSyncStatus] =
     useState<OrderSyncStatus>('idle');
@@ -194,26 +244,168 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     hydrateRestaurantContext,
   } = useRestaurantContextStore();
 
+  const configuredTableCount = useMemo(
+    () => getVisibleAdminTablesForBranch(tables, context?.branchId).length,
+    [context?.branchId, tables],
+  );
+  const pendingTableCount = useMemo(() => {
+    if (!tableCountDirtyRef.current) {
+      return undefined;
+    }
+
+    return resolvePositiveInteger(tableCountDraft);
+  }, [tableCountDraft]);
+
+  const persistAdminSettingsDraft = useCallback(
+    (patch: Partial<AdminSettingsDraftSession> = {}) => {
+      const restaurantId =
+        patch.restaurantId ??
+        context?.restaurantId ??
+        adminSettingsDraftSession.restaurantId ??
+        '';
+
+      adminSettingsDraftSession = {
+        restaurantNameDraft: restaurantNameDraftRef.current,
+        tableCountDraft: tableCountDraftRef.current,
+        restaurantNameDirty: restaurantNameDirtyRef.current,
+        tableCountDirty: tableCountDirtyRef.current,
+        ...patch,
+        restaurantId,
+      };
+    },
+    [context?.restaurantId],
+  );
+
+  const setRestaurantNameDraft = useCallback(
+    (
+      nextValue: string,
+      options: {dirty?: boolean; restaurantId?: string} = {},
+    ) => {
+      restaurantNameDraftRef.current = nextValue;
+      if (typeof options.dirty === 'boolean') {
+        restaurantNameDirtyRef.current = options.dirty;
+      }
+      setRestaurantNameDraftState(nextValue);
+      persistAdminSettingsDraft({
+        restaurantId: options.restaurantId,
+        restaurantNameDraft: nextValue,
+        restaurantNameDirty: restaurantNameDirtyRef.current,
+      });
+    },
+    [persistAdminSettingsDraft],
+  );
+
+  const setTableCountDraft = useCallback(
+    (
+      nextValue: string,
+      options: {dirty?: boolean; restaurantId?: string} = {},
+    ) => {
+      tableCountDraftRef.current = nextValue;
+      if (typeof options.dirty === 'boolean') {
+        tableCountDirtyRef.current = options.dirty;
+      }
+      setTableCountDraftState(nextValue);
+      persistAdminSettingsDraft({
+        restaurantId: options.restaurantId,
+        tableCountDraft: nextValue,
+        tableCountDirty: tableCountDirtyRef.current,
+      });
+    },
+    [persistAdminSettingsDraft],
+  );
+
   useEffect(() => {
     if (settingsInputFocusedRef.current || savingRestaurantName) {
       return;
     }
 
-    setRestaurantNameDraft(context?.restaurantName || '');
+    const restaurantId = context?.restaurantId || '';
+
+    if (
+      !restaurantId &&
+      adminSettingsDraftSession.restaurantId &&
+      restaurantNameDirtyRef.current
+    ) {
+      return;
+    }
+
+    const cachedForCurrentRestaurant =
+      Boolean(restaurantId) &&
+      adminSettingsDraftSession.restaurantId === restaurantId;
+
+    if (cachedForCurrentRestaurant && restaurantNameDirtyRef.current) {
+      if (restaurantNameDraft !== adminSettingsDraftSession.restaurantNameDraft) {
+        setRestaurantNameDraftState(
+          adminSettingsDraftSession.restaurantNameDraft,
+        );
+        restaurantNameDraftRef.current = adminSettingsDraftSession.restaurantNameDraft;
+      }
+      return;
+    }
+
+    restaurantNameDirtyRef.current = false;
+    setRestaurantNameDraft(context?.restaurantName || '', {
+      dirty: false,
+      restaurantId,
+    });
     setRestaurantNameMessage('');
-  }, [context?.restaurantId, context?.restaurantName, savingRestaurantName]);
+  }, [
+    context?.restaurantId,
+    context?.restaurantName,
+    restaurantNameDraft,
+    savingRestaurantName,
+    setRestaurantNameDraft,
+  ]);
 
   useEffect(() => {
     if (settingsInputFocusedRef.current || savingRestaurantName) {
+      return;
+    }
+
+    const restaurantId = context?.restaurantId || '';
+
+    if (
+      !restaurantId &&
+      adminSettingsDraftSession.restaurantId &&
+      tableCountDirtyRef.current
+    ) {
+      return;
+    }
+
+    const cachedForCurrentRestaurant =
+      Boolean(restaurantId) &&
+      adminSettingsDraftSession.restaurantId === restaurantId;
+
+    if (cachedForCurrentRestaurant && tableCountDirtyRef.current) {
+      if (tableCountDraft !== adminSettingsDraftSession.tableCountDraft) {
+        setTableCountDraftState(adminSettingsDraftSession.tableCountDraft);
+        tableCountDraftRef.current = adminSettingsDraftSession.tableCountDraft;
+      }
       return;
     }
 
     const activeTables = tables.filter(table => {
-      const sameBranch = context?.branchId ? table.branchId === context.branchId : true;
+      const sameBranch = context?.branchId
+        ? !table.branchId || table.branchId === context.branchId
+        : true;
       return sameBranch && table.status !== 'HIDDEN';
     });
-    setTableCountDraft(activeTables.length > 0 ? String(activeTables.length) : '');
-  }, [context?.branchId, context?.restaurantId, savingRestaurantName, tables]);
+    tableCountDirtyRef.current = false;
+    setTableCountDraft(
+      activeTables.length > 0 ? String(activeTables.length) : '',
+      {
+        dirty: false,
+        restaurantId,
+      },
+    );
+  }, [
+    context?.branchId,
+    context?.restaurantId,
+    savingRestaurantName,
+    setTableCountDraft,
+    tableCountDraft,
+    tables,
+  ]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1033,6 +1225,135 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     [],
   );
 
+  const saveRestaurantNameValue = useCallback(
+    async (rawName: string) => {
+      if (savingRestaurantName || contextSwitching) {
+        return;
+      }
+
+      const name = String(rawName || '').trim();
+      if (!name) {
+        setRestaurantNameMessage('Vui lòng nhập tên quán.');
+        return;
+      }
+
+      if (!context?.restaurantId) {
+        setRestaurantNameMessage('Chưa có quán để lưu tên quán.');
+        return;
+      }
+
+      setSavingRestaurantName(true);
+      setAuthErrorMessage('');
+
+      try {
+        const restaurant = await saveAdminRestaurantName({
+          restaurantId: context.restaurantId,
+          name,
+        });
+        setRestaurantNameDraft(restaurant.name, {
+          dirty: false,
+          restaurantId: context.restaurantId,
+        });
+        setRestaurantNameMessage('Đã lưu tên quán.');
+        await hydrateRestaurantContext({source: 'admin'});
+      } catch (error) {
+        logScoreMenuError(
+          {
+            module: 'ADMIN',
+            action: 'save restaurant name from input failed',
+            restaurantId: context.restaurantId,
+            branchId: context.branchId,
+          },
+          error,
+        );
+        setRestaurantNameMessage(
+          getScoreMenuErrorMessage(
+            error,
+            'Không thể lưu tên quán. Vui lòng thử lại.',
+          ),
+        );
+      } finally {
+        setSavingRestaurantName(false);
+      }
+    },
+    [
+      context?.branchId,
+      context?.restaurantId,
+      contextSwitching,
+      hydrateRestaurantContext,
+      savingRestaurantName,
+      setRestaurantNameDraft,
+    ],
+  );
+
+  const applyTableCountValue = useCallback(
+    async (rawTableCount: string) => {
+      if (savingRestaurantName || contextSwitching) {
+        return;
+      }
+
+      const cleanTableCount = String(rawTableCount || '').replace(/[^0-9]/g, '');
+      const tableCount = resolvePositiveInteger(cleanTableCount);
+
+      if (!cleanTableCount) {
+        setRestaurantNameMessage('Đã xoá số bàn tạm nhập.');
+        return;
+      }
+
+      if (!tableCount || tableCount > 200) {
+        setRestaurantNameMessage('Số bàn chỉ được nhập số từ 1 đến 200.');
+        return;
+      }
+
+      if (!context?.restaurantId) {
+        setRestaurantNameMessage('Chưa có quán để tạo danh sách bàn.');
+        return;
+      }
+
+      setSavingRestaurantName(true);
+      setAuthErrorMessage('');
+
+      try {
+        const nextTables = await syncAdminTableCount(tableCount);
+        setTables(nextTables);
+        setTableCountDraft(String(tableCount), {
+          dirty: false,
+          restaurantId: context.restaurantId,
+        });
+        setRestaurantNameMessage(
+          `Đã tạo lựa chọn Bàn 1 đến Bàn ${tableCount} cho khách.`,
+        );
+        await hydrateRestaurantContext({source: 'admin'});
+      } catch (error) {
+        logScoreMenuError(
+          {
+            module: 'ADMIN',
+            action: 'apply table count from input failed',
+            restaurantId: context.restaurantId,
+            branchId: context.branchId,
+          },
+          error,
+        );
+        setRestaurantNameMessage(
+          getScoreMenuErrorMessage(
+            error,
+            'Không thể tạo danh sách bàn. Vui lòng thử lại.',
+          ),
+        );
+      } finally {
+        setSavingRestaurantName(false);
+      }
+    },
+    [
+      context?.branchId,
+      context?.restaurantId,
+      contextSwitching,
+      hydrateRestaurantContext,
+      savingRestaurantName,
+      setTableCountDraft,
+    ],
+  );
+
   const openRestaurantNameInput = useCallback(async () => {
     setRestaurantNameMessage('');
     const nextValue = await showNativeSettingsInput({
@@ -1044,9 +1365,19 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     });
 
     if (typeof nextValue === 'string') {
-      setRestaurantNameDraft(nextValue);
+      setRestaurantNameDraft(nextValue, {
+        dirty: true,
+        restaurantId: context?.restaurantId || '',
+      });
+      await saveRestaurantNameValue(nextValue);
     }
-  }, [restaurantNameDraft, showNativeSettingsInput]);
+  }, [
+    context?.restaurantId,
+    restaurantNameDraft,
+    saveRestaurantNameValue,
+    setRestaurantNameDraft,
+    showNativeSettingsInput,
+  ]);
 
   const openTableCountInput = useCallback(async () => {
     setRestaurantNameMessage('');
@@ -1059,9 +1390,20 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     });
 
     if (typeof nextValue === 'string') {
-      setTableCountDraft(nextValue.replace(/[^0-9]/g, ''));
+      const cleanValue = nextValue.replace(/[^0-9]/g, '');
+      setTableCountDraft(cleanValue, {
+        dirty: true,
+        restaurantId: context?.restaurantId || '',
+      });
+      await applyTableCountValue(cleanValue);
     }
-  }, [showNativeSettingsInput, tableCountDraft]);
+  }, [
+    applyTableCountValue,
+    context?.restaurantId,
+    setTableCountDraft,
+    showNativeSettingsInput,
+    tableCountDraft,
+  ]);
 
   const handleSettingsInputFocus = useCallback(() => {
     settingsInputFocusedRef.current = true;
@@ -1088,8 +1430,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       return;
     }
 
-    const name = restaurantNameDraft.trim();
-    const cleanTableCount = tableCountDraft.trim();
+    const name = restaurantNameDraftRef.current.trim();
+    const cleanTableCount = tableCountDraftRef.current.trim();
     const tableCount = cleanTableCount ? Number(cleanTableCount) : undefined;
 
     if (!name) {
@@ -1123,8 +1465,19 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         const nextTables = await syncAdminTableCount(tableCount);
         setTables(nextTables);
       }
-      setRestaurantNameDraft(restaurant.name);
-      setTableCountDraft(tableCount !== undefined ? String(tableCount) : tableCountDraft);
+      setRestaurantNameDraft(restaurant.name, {
+        dirty: false,
+        restaurantId: context.restaurantId,
+      });
+      setTableCountDraft(
+        tableCount !== undefined
+          ? String(tableCount)
+          : tableCountDraftRef.current,
+        {
+          dirty: false,
+          restaurantId: context.restaurantId,
+        },
+      );
       setRestaurantNameMessage(
         tableCount !== undefined
           ? `Đã lưu tên quán và tạo lựa chọn Bàn 1 đến Bàn ${tableCount}.`
@@ -1170,8 +1523,13 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       },
       {
         tab: 'tables',
-        count: tables.length,
-        meta: `QR riêng · ${tables.length} bàn đang cấu hình`,
+        count: configuredTableCount,
+        meta:
+          configuredTableCount > 0
+            ? `QR riêng · Bàn 1 đến Bàn ${configuredTableCount}`
+            : pendingTableCount
+              ? `QR riêng · Đã nhập ${pendingTableCount} bàn, đang chờ áp dụng`
+              : 'QR riêng · Chưa cấu hình số bàn',
       },
     ];
 
@@ -1462,6 +1820,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
                   branches={branches as RestaurantBranch[]}
                   activeBranchId={context?.branchId}
                   activeRestaurantId={context?.restaurantId}
+                  pendingTableCount={pendingTableCount}
                   styles={styles}
                   onSaveTable={onSaveTable}
                   onDeleteTable={onDeleteTable}

@@ -1113,6 +1113,66 @@ const sortByOrderAndName = (a, b) => {
 const getRestaurantCategories = (db, restaurantId) =>
   db.categories.filter(item => item.restaurantId === restaurantId).sort(sortByOrderAndName);
 
+const DEFAULT_RESTAURANT_CATEGORIES = [
+  {id: 'menu_drink', name: 'Đồ uống', sortOrder: 1},
+  {id: 'menu_food', name: 'Đồ ăn', sortOrder: 2},
+];
+
+const ensureDefaultCategoriesForRestaurant = (db, restaurantId) => {
+  if (!restaurantId || getRestaurantCategories(db, restaurantId).length > 0) {
+    return false;
+  }
+
+  const timestamp = nowIso();
+  DEFAULT_RESTAURANT_CATEGORIES.forEach(category => {
+    db.categories.push({
+      ...category,
+      restaurantId,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  });
+  return true;
+};
+
+const resolveRestaurantCategoryId = (db, restaurantId, categoryId) => {
+  ensureDefaultCategoriesForRestaurant(db, restaurantId);
+  const categories = getRestaurantCategories(db, restaurantId);
+  const cleanCategoryId = cleanString(categoryId);
+
+  if (cleanCategoryId && categories.some(category => category.id === cleanCategoryId)) {
+    return cleanCategoryId;
+  }
+
+  const normalizedCategory = normalizeKey(cleanCategoryId);
+  if (normalizedCategory) {
+    const byName = categories.find(category => normalizeKey(category.name) === normalizedCategory);
+    if (byName) {
+      return byName.id;
+    }
+
+    if (normalizedCategory.includes('drink') || normalizedCategory.includes('uong') || normalizedCategory.includes('nuoc')) {
+      return (
+        categories.find(category => category.id === 'menu_drink')?.id ||
+        categories.find(category => normalizeKey(category.name).includes('uong'))?.id ||
+        categories[0]?.id ||
+        ''
+      );
+    }
+
+    if (normalizedCategory.includes('food') || normalizedCategory.includes('an')) {
+      return (
+        categories.find(category => category.id === 'menu_food')?.id ||
+        categories.find(category => normalizeKey(category.name).includes('an'))?.id ||
+        categories[0]?.id ||
+        ''
+      );
+    }
+  }
+
+  return categories[0]?.id || '';
+};
+
 const getRestaurantItems = (db, restaurantId) =>
   db.items.filter(item => item.restaurantId === restaurantId).sort(sortByOrderAndName);
 
@@ -1389,6 +1449,59 @@ const migrateLegacyOrdersToBillSessions = db => {
   return {changed: true, migratedOrderCount, migratedBillSessionCount};
 };
 
+const buildBackfilledBranchMenuQrToken = (branch, usedTokens) => {
+  const restaurantKey = normalizeKey(branch?.restaurantId || 'restaurant')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'restaurant';
+  const branchKey = normalizeKey(branch?.name || branch?.id || 'main')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'main';
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const randomPart = crypto.randomBytes(4).toString('hex');
+    const token = `qr_${restaurantKey}_${branchKey}_${randomPart}_menu`;
+    if (!usedTokens.has(token)) {
+      return token;
+    }
+  }
+
+  return `qr_${restaurantKey}_${branchKey}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}_menu`;
+};
+
+const ensureBranchMenuQrTokens = db => {
+  if (!Array.isArray(db.branches) || db.branches.length === 0) {
+    return {changed: false, backfilledBranchCount: 0};
+  }
+
+  const usedTokens = new Set(
+    db.branches
+      .map(branch => cleanString(branch?.menuQrToken))
+      .filter(Boolean),
+  );
+  let backfilledBranchCount = 0;
+
+  db.branches.forEach(branch => {
+    if (!branch || typeof branch !== 'object') {
+      return;
+    }
+
+    const currentToken = cleanString(branch.menuQrToken);
+    if (currentToken) {
+      branch.menuQrToken = currentToken;
+      usedTokens.add(currentToken);
+      return;
+    }
+
+    const token = buildBackfilledBranchMenuQrToken(branch, usedTokens);
+    branch.menuQrToken = token;
+    branch.updatedAt = nowIso();
+    usedTokens.add(token);
+    backfilledBranchCount += 1;
+  });
+
+  return {changed: backfilledBranchCount > 0, backfilledBranchCount};
+};
+
 const ensureBatch25DatabaseShape = db => {
   let changed = false;
   if (!db.meta || typeof db.meta !== 'object') {
@@ -1408,7 +1521,18 @@ const ensureBatch25DatabaseShape = db => {
       migratedAt: nowIso(),
     };
   }
-  return {changed, migration};
+
+  const qrTokenBackfill = ensureBranchMenuQrTokens(db);
+  if (qrTokenBackfill.changed) {
+    changed = true;
+    db.meta.lastQrTokenBackfill = {
+      name: 'branch_menu_qr_token_backfill',
+      backfilledBranchCount: qrTokenBackfill.backfilledBranchCount,
+      migratedAt: nowIso(),
+    };
+  }
+
+  return {changed, migration, qrTokenBackfill};
 };
 
 const createBillTableChangeLog = ({billSession, table, user, reason, auditLogId}) => ({
@@ -2006,11 +2130,23 @@ const findTableByBranchAndNumber = (db, restaurantId, branchId, tableNumber) => 
     return null;
   }
 
-  return db.tables.find(table => {
-    const sameRestaurant = table.restaurantId === restaurantId;
-    const sameBranch = branchId ? table.branchId === branchId : true;
-    return sameRestaurant && sameBranch && normalizeTableNumberKey(table.tableNumber) === tableNumberKey;
-  }) || null;
+  const candidates = db.tables.filter(table =>
+    table.restaurantId === restaurantId &&
+    normalizeTableNumberKey(table.tableNumber) === tableNumberKey
+  );
+
+  if (!branchId) {
+    return candidates[0] || null;
+  }
+
+  return (
+    candidates.find(table => table.branchId === branchId) ||
+    // Compatibility: older app builds could create tables before the
+    // admin context had a branchId, so those rows are restaurant-scoped.
+    // Keep them selectable from the current branch menu QR.
+    candidates.find(table => !table.branchId) ||
+    null
+  );
 };
 
 const findTableByQrToken = (db, token) => {
@@ -2074,6 +2210,7 @@ const createFreshRestaurantForAdmin = (db, {userId, username, timestamp}) => {
   db.restaurants.unshift(restaurant);
   db.branches.unshift(branch);
   clearRestaurantScopedRuntimeData(db, restaurant.id);
+  ensureDefaultCategoriesForRestaurant(db, restaurant.id);
 
   return {restaurant, branch};
 };
@@ -2266,7 +2403,7 @@ const resolvePublicOrderTable = (db, scope, body = {}) => {
         bodyTableNumber,
       );
 
-  if (!table || table.branchId !== scope.context.branchId) {
+  if (!table || (table.branchId && table.branchId !== scope.context.branchId)) {
     throw new Error('Số bàn không tồn tại trong chi nhánh này. Vui lòng kiểm tra lại.');
   }
 
@@ -2473,8 +2610,16 @@ const routeAuth = async (req, res, db, parts) => {
 
   if (parts[2] === 'login' && req.method === 'POST') {
     const user = db.adminUsers.find(item => normalizeKey(item.username) === normalizeKey(username));
+    if (!user) {
+      fail(res, 401, 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.', {
+        reason: 'USERNAME_NOT_FOUND',
+      });
+      return true;
+    }
     if (!verifyPassword(user, password)) {
-      fail(res, 401, 'Tài khoản hoặc mật khẩu chưa đúng.');
+      fail(res, 401, 'Mật khẩu Admin chưa đúng. Vui lòng nhập lại mật khẩu.', {
+        reason: 'WRONG_PASSWORD',
+      });
       return true;
     }
     const passwordMigrated = migratePlainPasswordIfNeeded(user, password);
@@ -2501,6 +2646,7 @@ const routeAuth = async (req, res, db, parts) => {
       branchIds: user.branchIds || [],
       activeBranchId: activeBranch?.id || user.activeBranchId,
       activeBranchName: activeBranch?.name,
+      menuQrToken: activeBranch ? inferBranchMenuQrToken(activeBranch) : undefined,
     });
     return true;
   }
@@ -2512,33 +2658,12 @@ const routeAuth = async (req, res, db, parts) => {
     }
     const existingUser = db.adminUsers.find(item => normalizeKey(item.username) === normalizeKey(username));
     if (existingUser) {
-      if (!verifyPassword(existingUser, password)) {
-        fail(res, 409, 'Tài khoản Admin này đã tồn tại. Hãy đăng nhập bằng đúng mật khẩu đã tạo, hoặc dùng tài khoản khác.');
-        return true;
-      }
-      const passwordMigrated = migratePlainPasswordIfNeeded(existingUser, password);
-      const scopeChanged = ensurePrivateRestaurantForOwner(db, existingUser);
-      if (passwordMigrated || scopeChanged) {
-        saveDb(db);
-      }
-      const activeRestaurantId = existingUser.activeRestaurantId || existingUser.restaurantIds?.[0];
-      const activeRestaurant = db.restaurants.find(item => item.id === activeRestaurantId);
-      const activeBranch =
-        db.branches.find(branch => branch.id === existingUser.activeBranchId && branch.restaurantId === activeRestaurantId) ||
-        db.branches.find(branch => branch.restaurantId === activeRestaurantId);
-
-      ok(res, {
-        ok: true,
-        message: 'Tài khoản Admin đã tồn tại, đã đăng nhập bằng tài khoản này.',
-        token: createToken(existingUser),
-        userId: existingUser.id,
-        role: existingUser.role,
-        restaurantId: activeRestaurantId,
-        restaurantName: activeRestaurant?.name,
-        restaurantIds: existingUser.restaurantIds || [],
-        branchIds: existingUser.branchIds || [],
-        activeBranchId: activeBranch?.id || existingUser.activeBranchId,
-        activeBranchName: activeBranch?.name,
+      // Register must be a pure "create new account" action. Even when the
+      // password is correct, do not silently log in here; otherwise the admin
+      // thinks a new account was created while the app reuses the old
+      // restaurant name/table configuration from the existing account.
+      fail(res, 409, 'Tài khoản Admin này đã tồn tại. Vui lòng bấm Đăng nhập, hoặc đăng ký bằng tài khoản khác.', {
+        reason: 'USERNAME_ALREADY_EXISTS',
       });
       return true;
     }
@@ -2976,6 +3101,9 @@ const routeTables = async (req, res, db, restaurantId, parts, user) => {
 
 const routeCategories = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 4 && req.method === 'GET') {
+    if (ensureDefaultCategoriesForRestaurant(db, restaurantId)) {
+      saveDb(db);
+    }
     ok(res, getRestaurantCategories(db, restaurantId));
     return true;
   }
@@ -3128,10 +3256,12 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     const body = await parseBody(req);
     try {
       const item = normalizeItemPayload(body, restaurantId);
-      if (!ensureCategory(db, restaurantId, item.categoryId)) {
-        fail(res, 400, 'Danh mục món không thuộc nhà hàng hiện tại.');
+      const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, item.categoryId);
+      if (!resolvedCategoryId) {
+        fail(res, 400, 'Nhà hàng chưa có danh mục món. Vui lòng tải lại trang quản lý món rồi thử lại.');
         return true;
       }
+      item.categoryId = resolvedCategoryId;
       db.items.push(item);
       saveDb(db);
       audit('item.create', {user, restaurantId, targetId: item.id});
@@ -3154,10 +3284,12 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     const body = await parseBody(req);
     try {
       const next = normalizeItemPayload(body, restaurantId, item);
-      if (!ensureCategory(db, restaurantId, next.categoryId)) {
-        fail(res, 400, 'Danh mục món không thuộc nhà hàng hiện tại.');
+      const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, next.categoryId);
+      if (!resolvedCategoryId) {
+        fail(res, 400, 'Nhà hàng chưa có danh mục món. Vui lòng tải lại trang quản lý món rồi thử lại.');
         return true;
       }
+      next.categoryId = resolvedCategoryId;
       Object.assign(item, next);
       saveDb(db);
       audit('item.update', {user, restaurantId, targetId: item.id});
@@ -3545,16 +3677,29 @@ const routePublicMenu = async (req, res, db, parts, query) => {
   }
 
   if (parts.length === 4 && parts[3] === 'tables' && req.method === 'GET') {
-    const tables = db.tables
-      .filter(table =>
+    const restaurantTables = db.tables.filter(
+      table =>
         table.restaurantId === scope.context.restaurantId &&
-        (!scope.context.branchId || table.branchId === scope.context.branchId) &&
         table.status !== 'HIDDEN',
-      )
-      .map(table => ({
-        ...table,
-        qrCodeToken: undefined,
-      }));
+    );
+    const branchTables = scope.context.branchId
+      ? restaurantTables.filter(table => table.branchId === scope.context.branchId)
+      : restaurantTables;
+    const legacyBranchlessTables = scope.context.branchId
+      ? restaurantTables.filter(table => !table.branchId)
+      : [];
+    const tables = [
+      ...branchTables,
+      ...legacyBranchlessTables.filter(
+        table => !branchTables.some(item => item.id === table.id),
+      ),
+    ].map(table => ({
+      ...table,
+      // Compatibility: expose old branchless rows as choices for the branch
+      // behind this menu QR, so the customer app does not filter them out.
+      branchId: table.branchId || scope.context.branchId,
+      qrCodeToken: undefined,
+    }));
     ok(res, tables);
     return true;
   }

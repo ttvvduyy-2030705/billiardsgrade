@@ -483,8 +483,8 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       const apiError = new RestaurantMenuApiError({
         code: timedOut ? 'TIMEOUT' : 'NETWORK_ERROR',
         message: timedOut
-          ? 'Kết nối API menu quá lâu. Vui lòng thử lại.'
-          : 'Không thể kết nối API menu. Kiểm tra mạng hoặc backend.',
+          ? 'Render/API menu đang khởi động hơi lâu. Vui lòng chờ thêm rồi bấm lại.'
+          : 'Không thể kết nối API menu. Kiểm tra mạng internet hoặc backend Render.',
         details: error,
       });
       devModuleWarn('API', timedOut ? 'request:timeout' : 'request:network-error', {

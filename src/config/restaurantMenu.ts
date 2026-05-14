@@ -1,9 +1,8 @@
 declare const __DEV__: boolean | undefined;
 
 /**
- * Public API URL for the deployed ScoreMenu backend on Render.
- * Keep this aligned with the Render service name in render.yaml.
- * If Render assigns a different slug, replace this value and rebuild the app.
+ * Public API URL for the deployed ScoreMenu backend.
+ * Replace this value before building the APK when moving between Render/VPS/domain/IP.
  */
 export const SCOREMENU_RENDER_API_BASE_URL = 'https://billiardsgrade.onrender.com';
 
@@ -100,8 +99,8 @@ export const RESTAURANT_MENU_ENV_PRESETS: Record<
     name: 'dev-api',
     mode: 'api',
     apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
-    apiTimeoutMs: 30000,
-    apiRetryCount: 0,
+    apiTimeoutMs: 90000,
+    apiRetryCount: 1,
     defaultRestaurantId: undefined,
     defaultMenuQrToken: undefined,
     defaultTableToken: undefined,
@@ -110,8 +109,8 @@ export const RESTAURANT_MENU_ENV_PRESETS: Record<
     name: 'staging',
     mode: 'api',
     apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
-    apiTimeoutMs: 30000,
-    apiRetryCount: 0,
+    apiTimeoutMs: 90000,
+    apiRetryCount: 1,
     defaultRestaurantId: undefined,
     defaultMenuQrToken: undefined,
     defaultTableToken: undefined,
@@ -120,8 +119,8 @@ export const RESTAURANT_MENU_ENV_PRESETS: Record<
     name: 'prod',
     mode: 'api',
     apiBaseUrl: SCOREMENU_RENDER_API_BASE_URL,
-    apiTimeoutMs: 30000,
-    apiRetryCount: 0,
+    apiTimeoutMs: 90000,
+    apiRetryCount: 1,
     defaultRestaurantId: undefined,
     defaultMenuQrToken: undefined,
     defaultTableToken: undefined,
@@ -192,7 +191,7 @@ export const getRestaurantMenuEnvironmentLabel = (
   config: RestaurantMenuEnvironmentConfig = RESTAURANT_MENU_ENV_CONFIG,
 ) => {
   if (config.mode === 'api') {
-    return 'Kết nối máy chủ Render';
+    return 'Kết nối máy chủ online';
   }
 
   return 'Dữ liệu lưu trên thiết bị';

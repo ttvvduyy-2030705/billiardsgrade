@@ -191,6 +191,13 @@ const pickAllowedBranchId = ({
   return branches[0]?.id;
 };
 
+const getBranchMenuQrToken = (branches: RestaurantBranch[], branchId?: string) => {
+  const branch = branchId
+    ? branches.find(item => item.id === branchId)
+    : branches[0];
+  return String(branch?.menuQrToken || '').trim() || undefined;
+};
+
 const filterBranchesByScope = (
   branches: RestaurantBranch[],
   allowedBranchIds: string[],
@@ -208,11 +215,13 @@ const filterTablesByScope = (
 ) => {
   if (allowedBranchIds.length > 0) {
     return tables.filter(table =>
-      table.branchId ? allowedBranchIds.includes(table.branchId) : false,
+      table.branchId ? allowedBranchIds.includes(table.branchId) : true,
     );
   }
 
-  return branchId ? tables.filter(table => table.branchId === branchId) : tables;
+  return branchId
+    ? tables.filter(table => !table.branchId || table.branchId === branchId)
+    : tables;
 };
 
 const applySnapshot = ({
@@ -313,7 +322,8 @@ const hydrateRestaurantContextSnapshot = async (
         tableId: undefined,
         tableNumber: undefined,
         qrCodeToken: undefined,
-        menuQrToken: undefined,
+        menuQrToken: session?.menuQrToken,
+        qrTokenScope: session?.menuQrToken ? 'BRANCH_MENU' : undefined,
         source: options.source || 'admin',
         role: session?.role,
         allowedRestaurantIds,
@@ -341,7 +351,8 @@ const hydrateRestaurantContextSnapshot = async (
         tableId: undefined,
         tableNumber: undefined,
         qrCodeToken: undefined,
-        menuQrToken: undefined,
+        menuQrToken: session?.menuQrToken,
+        qrTokenScope: session?.menuQrToken ? 'BRANCH_MENU' : undefined,
         source: options.source || 'admin',
         role: session?.role,
         allowedRestaurantIds,
@@ -353,6 +364,8 @@ const hydrateRestaurantContextSnapshot = async (
         restaurantId: context.restaurantId,
         branchId: context.branchId,
         tableId: context.tableId,
+        menuQrToken: context.menuQrToken || session.menuQrToken,
+        qrTokenScope: context.qrTokenScope,
         source: options.source || 'admin',
         role: session.role,
         allowedRestaurantIds,
@@ -370,20 +383,30 @@ const hydrateRestaurantContextSnapshot = async (
       allowedBranchIds,
     });
 
-    if (session && nextBranchId !== context.branchId) {
+    const nextBranchMenuQrToken = getBranchMenuQrToken(allBranches, nextBranchId);
+    const shouldRefreshBranchContext =
+      Boolean(session) &&
+      (nextBranchId !== context.branchId ||
+        (!context.menuQrToken && Boolean(nextBranchMenuQrToken || session?.menuQrToken)));
+
+    if (session && shouldRefreshBranchContext) {
+      const branchChanged = nextBranchId !== context.branchId;
       context = await setActiveRestaurantContext({
         restaurantId: context.restaurantId,
         branchId: nextBranchId,
-        tableId: undefined,
-        tableNumber: undefined,
-        qrCodeToken: undefined,
-        menuQrToken: undefined,
+        tableId: branchChanged ? undefined : context.tableId,
+        tableNumber: branchChanged ? undefined : context.tableNumber,
+        qrCodeToken: branchChanged ? undefined : context.qrCodeToken,
+        menuQrToken: nextBranchMenuQrToken || session.menuQrToken,
+        qrTokenScope: branchChanged ? 'BRANCH_MENU' : context.qrTokenScope || 'BRANCH_MENU',
         source: options.source || 'admin',
         role: session.role,
         allowedRestaurantIds,
       });
-      permissionMessage = permissionMessage ||
-        'Đã chuyển về chi nhánh mà tài khoản hiện tại có quyền.';
+      if (branchChanged) {
+        permissionMessage = permissionMessage ||
+          'Đã chuyển về chi nhánh mà tài khoản hiện tại có quyền.';
+      }
     }
 
     if (requestId !== storeState.requestId) {
@@ -476,7 +499,8 @@ const switchRestaurantContext = async (restaurantId: string) => {
     tableId: undefined,
     tableNumber: undefined,
     qrCodeToken: undefined,
-    menuQrToken: undefined,
+    menuQrToken: getBranchMenuQrToken(allBranches, nextBranchId) || session?.menuQrToken,
+    qrTokenScope: 'BRANCH_MENU',
     source: 'admin',
     role: session?.role,
     allowedRestaurantIds,
@@ -495,6 +519,7 @@ const switchRestaurantContext = async (restaurantId: string) => {
     restaurantId: context.restaurantId,
     restaurantName: context.restaurantName,
     branchId: context.branchId,
+    menuQrToken: context.menuQrToken || getBranchMenuQrToken(allBranches, context.branchId),
   });
 
   applySnapshot({
@@ -549,7 +574,8 @@ const switchBranchContext = async (branchId: string) => {
     tableId: undefined,
     tableNumber: undefined,
     qrCodeToken: undefined,
-    menuQrToken: undefined,
+    menuQrToken: String(targetBranch.menuQrToken || '').trim() || undefined,
+    qrTokenScope: 'BRANCH_MENU',
     source: 'admin',
     role: currentContext.role,
     allowedRestaurantIds: currentContext.allowedRestaurantIds,
@@ -561,6 +587,7 @@ const switchBranchContext = async (branchId: string) => {
     restaurantId: context.restaurantId,
     restaurantName: context.restaurantName,
     branchId: context.branchId,
+    menuQrToken: context.menuQrToken || String(targetBranch.menuQrToken || '').trim() || undefined,
   });
 
   applySnapshot({

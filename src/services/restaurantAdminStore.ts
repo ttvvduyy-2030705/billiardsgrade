@@ -232,6 +232,7 @@ type AdminScope = {
   session: RestaurantAdminSession;
   restaurantId: string;
   branchId?: string;
+  menuQrToken?: string;
   allowedRestaurantIds: string[];
   allowedBranchIds: string[];
 };
@@ -246,6 +247,36 @@ const getSessionBranchIds = (session: RestaurantAdminSession) =>
   normaliseIdList([...(session.branchIds || []), session.activeBranchId]).filter(
     id => !isLegacyDemoBranchId(id),
   );
+
+const getPrimaryBranchForScope = (
+  branches: RestaurantBranch[],
+  scope: Pick<AdminScope, 'restaurantId' | 'branchId' | 'allowedBranchIds'>,
+) => {
+  return (
+    (scope.branchId
+      ? branches.find(
+          branch =>
+            branch.id === scope.branchId &&
+            branch.restaurantId === scope.restaurantId,
+        )
+      : undefined) ||
+    (scope.allowedBranchIds.length > 0
+      ? branches.find(
+          branch =>
+            branch.restaurantId === scope.restaurantId &&
+            scope.allowedBranchIds.includes(branch.id),
+        )
+      : undefined) ||
+    branches.find(branch => branch.restaurantId === scope.restaurantId)
+  );
+};
+
+const getBranchMenuQrToken = (branches: RestaurantBranch[], branchId?: string) => {
+  const branch = branchId
+    ? branches.find(item => item.id === branchId)
+    : branches[0];
+  return String(branch?.menuQrToken || '').trim() || undefined;
+};
 
 const ensureAdminScope = async (): Promise<AdminScope> => {
   const session = await getRestaurantAdminSession();
@@ -283,7 +314,8 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
       tableId: undefined,
       tableNumber: undefined,
       qrCodeToken: undefined,
-      menuQrToken: undefined,
+      menuQrToken: session?.menuQrToken,
+      qrTokenScope: session?.menuQrToken ? 'BRANCH_MENU' : undefined,
       source: 'admin',
       role: session?.role,
       allowedRestaurantIds,
@@ -311,10 +343,12 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
         : allowedBranchIds[0];
   }
 
+  const branchMenuQrToken = getBranchMenuQrToken(branches, branchId) || session?.menuQrToken;
   const contextChanged =
     currentContext.restaurantId !== restaurantId ||
     currentContext.branchId !== branchId ||
-    currentContext.source !== 'admin';
+    currentContext.source !== 'admin' ||
+    currentContext.menuQrToken !== branchMenuQrToken;
 
   if (contextChanged) {
     await setActiveRestaurantContext({
@@ -323,7 +357,8 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
       tableId: undefined,
       tableNumber: undefined,
       qrCodeToken: undefined,
-      menuQrToken: undefined,
+      menuQrToken: branchMenuQrToken,
+      qrTokenScope: branchMenuQrToken ? 'BRANCH_MENU' : undefined,
       source: 'admin',
       role: session?.role,
       allowedRestaurantIds,
@@ -337,12 +372,14 @@ const ensureAdminScope = async (): Promise<AdminScope> => {
   await updateRestaurantAdminSessionContext({
     restaurantId,
     branchId,
+    menuQrToken: branchMenuQrToken,
   });
 
   return {
     session: session as RestaurantAdminSession,
     restaurantId,
     branchId,
+    menuQrToken: branchMenuQrToken,
     allowedRestaurantIds,
     allowedBranchIds,
   };
@@ -401,7 +438,7 @@ const filterTablesByScope = (tables: RestaurantTable[], scope: AdminScope) => {
 
   if (scope.allowedBranchIds.length > 0) {
     return scopedTables.filter(table =>
-      table.branchId ? scope.allowedBranchIds.includes(table.branchId) : false,
+      table.branchId ? scope.allowedBranchIds.includes(table.branchId) : true,
     );
   }
 
@@ -704,6 +741,8 @@ export const saveAdminRestaurantName = async (input: {
     restaurantId: scope.restaurantId,
     restaurantName: restaurant.name,
     branchId: scope.branchId,
+    menuQrToken: scope.menuQrToken,
+    qrTokenScope: scope.menuQrToken ? 'BRANCH_MENU' : undefined,
     source: 'admin',
     role: scope.session.role,
     allowedRestaurantIds: scope.allowedRestaurantIds,
@@ -712,6 +751,7 @@ export const saveAdminRestaurantName = async (input: {
     restaurantId: scope.restaurantId,
     restaurantName: restaurant.name,
     branchId: scope.branchId,
+    menuQrToken: scope.menuQrToken,
   });
 
   return restaurant;
@@ -756,9 +796,45 @@ export const syncAdminTableCount = async (tableCount: number) => {
     throw new Error('Số bàn chỉ được nhập số từ 1 đến 200.');
   }
 
+  const branches = await loadRestaurantBranches(scope.restaurantId);
+  const targetBranch = getPrimaryBranchForScope(branches, scope);
+  const targetBranchId = targetBranch?.id || scope.branchId;
+
+  if (!targetBranchId) {
+    throw new Error('Chưa có chi nhánh để gắn danh sách bàn. Vui lòng đăng xuất rồi đăng nhập lại.');
+  }
+
+  const tableScope: AdminScope = {
+    ...scope,
+    branchId: targetBranchId,
+    allowedBranchIds:
+      scope.allowedBranchIds.length > 0
+        ? scope.allowedBranchIds
+        : [targetBranchId],
+    menuQrToken: targetBranch?.menuQrToken || scope.menuQrToken,
+  };
+
+  await updateRestaurantAdminSessionContext({
+    restaurantId: scope.restaurantId,
+    branchId: targetBranchId,
+    menuQrToken: tableScope.menuQrToken,
+  });
+  await setActiveRestaurantContext({
+    restaurantId: scope.restaurantId,
+    branchId: targetBranchId,
+    tableId: undefined,
+    tableNumber: undefined,
+    qrCodeToken: undefined,
+    menuQrToken: tableScope.menuQrToken,
+    qrTokenScope: tableScope.menuQrToken ? 'BRANCH_MENU' : undefined,
+    source: 'admin',
+    role: scope.session.role,
+    allowedRestaurantIds: scope.allowedRestaurantIds,
+  });
+
   const allTables = await loadRestaurantTables(scope.restaurantId);
-  const scopedTables = filterTablesByScope(allTables, scope).filter(table =>
-    scope.branchId ? table.branchId === scope.branchId : true,
+  const scopedTables = filterTablesByScope(allTables, tableScope).filter(
+    table => !table.branchId || table.branchId === targetBranchId,
   );
   const tableByIndex = new Map<number, RestaurantTable>();
 
@@ -776,16 +852,16 @@ export const syncAdminTableCount = async (tableCount: number) => {
     if (existingTable) {
       const mustUpdate =
         existingTable.tableNumber !== expectedTableNumber ||
-        existingTable.branchId !== scope.branchId ||
+        existingTable.branchId !== targetBranchId ||
         existingTable.status !== 'AVAILABLE';
       if (mustUpdate) {
         await updateRestaurantTable(existingTable.id, {
           restaurantId: scope.restaurantId,
-          branchId: scope.branchId,
+          branchId: targetBranchId,
           tableNumber: expectedTableNumber,
           qrCodeToken:
             existingTable.qrCodeToken ||
-            createManagedTableToken(scope.restaurantId, scope.branchId, index),
+            createManagedTableToken(scope.restaurantId, targetBranchId, index),
           status: 'AVAILABLE',
         });
       }
@@ -794,9 +870,9 @@ export const syncAdminTableCount = async (tableCount: number) => {
 
     await createRestaurantTable({
       restaurantId: scope.restaurantId,
-      branchId: scope.branchId,
+      branchId: targetBranchId,
       tableNumber: expectedTableNumber,
-      qrCodeToken: createManagedTableToken(scope.restaurantId, scope.branchId, index),
+      qrCodeToken: createManagedTableToken(scope.restaurantId, targetBranchId, index),
       status: 'AVAILABLE',
     });
   }
@@ -810,7 +886,7 @@ export const syncAdminTableCount = async (tableCount: number) => {
     if (!keepVisible && table.status !== 'HIDDEN') {
       await updateRestaurantTable(table.id, {
         restaurantId: scope.restaurantId,
-        branchId: table.branchId,
+        branchId: table.branchId || targetBranchId,
         tableNumber: table.tableNumber,
         qrCodeToken: table.qrCodeToken,
         status: 'HIDDEN',
@@ -819,14 +895,23 @@ export const syncAdminTableCount = async (tableCount: number) => {
   }
 
   const nextTables = await loadRestaurantTables(scope.restaurantId);
-  return filterTablesByScope(nextTables, scope);
+  return filterTablesByScope(nextTables, tableScope);
 };
 
 export const saveAdminTable = async (input: AdminRestaurantTableForm) => {
   const scope = await ensureAdminScope();
   assertManagerPermission(scope);
   assertRestaurantScope(scope, input.restaurantId);
-  const branchId = input.branchId || scope.branchId;
+  const branches = await loadRestaurantBranches(scope.restaurantId);
+  const branchId =
+    input.branchId ||
+    scope.branchId ||
+    getPrimaryBranchForScope(branches, scope)?.id;
+
+  if (!branchId) {
+    throw new Error('Chưa có chi nhánh để gắn bàn. Vui lòng đăng xuất rồi đăng nhập lại.');
+  }
+
   assertBranchScope(scope, branchId);
 
   const payload: RestaurantTablePayload = {

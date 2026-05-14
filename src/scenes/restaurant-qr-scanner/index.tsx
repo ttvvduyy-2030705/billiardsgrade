@@ -39,34 +39,66 @@ type Props = Navigation & {
   initialQrToken?: string;
 };
 
-const extractQrToken = (rawValue?: string | null) => {
-  const cleanValue = String(rawValue || '').trim();
+const safeDecodeURIComponent = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch (_error) {
+    return value;
+  }
+};
+
+const normalizeQrTokenForManualEntry = (value: string) => {
+  const token = value.trim();
+  return /^qr_[a-z0-9_-]+_menu$/i.test(token) ? token.toLowerCase() : token;
+};
+
+export const extractQrToken = (rawValue?: string | null) => {
+  const cleanValue = String(rawValue || '')
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF]/g, '');
 
   if (!cleanValue) {
     return '';
   }
 
   const queryMatch = cleanValue.match(
-    /[?&](?:qrToken|menuQrToken|tableQrToken|token)=([^&]+)/i,
+    /[?&](?:qrToken|menuQrToken|tableQrToken|token|code)=([^&#]+)/i,
   );
 
   if (queryMatch?.[1]) {
-    return decodeURIComponent(queryMatch[1]).trim();
+    return normalizeQrTokenForManualEntry(safeDecodeURIComponent(queryMatch[1]));
+  }
+
+  const labelledTokenMatch = cleanValue.match(
+    /(?:mã|ma|code|qr|token)[\s:：#-]+([a-z0-9][a-z0-9_-]{5,})/i,
+  );
+
+  if (labelledTokenMatch?.[1]) {
+    return normalizeQrTokenForManualEntry(labelledTokenMatch[1]);
+  }
+
+  const menuTokenMatch = cleanValue.match(/\b(qr_[a-z0-9][a-z0-9_-]*_menu)\b/i);
+
+  if (menuTokenMatch?.[1]) {
+    return normalizeQrTokenForManualEntry(menuTokenMatch[1]);
   }
 
   const withoutHash = cleanValue.split('#')[0];
   const lastPathSegment = withoutHash
     .split('?')[0]
     .split('/')
-    .map(segment => segment.trim())
+    .map(segment => safeDecodeURIComponent(segment).trim())
     .filter(Boolean)
     .pop();
 
-  if (cleanValue.includes('://') && lastPathSegment) {
-    return lastPathSegment;
+  if (
+    (cleanValue.includes('://') || cleanValue.includes('/')) &&
+    lastPathSegment
+  ) {
+    return normalizeQrTokenForManualEntry(lastPathSegment);
   }
 
-  return cleanValue;
+  return normalizeQrTokenForManualEntry(cleanValue.replace(/\s+/g, ''));
 };
 
 const RestaurantQrScannerScreen = (props: Props) => {
@@ -336,7 +368,7 @@ const RestaurantQrScannerScreen = (props: Props) => {
           Quét QR để xem menu
         </Text>
         <Text maxFontSizeMultiplier={1} style={styles.brandHint}>
-          QR xác định quán hoặc chi nhánh. Số bàn sẽ nhập/chọn trong giỏ hàng.
+          QR xác định quán hoặc chi nhánh. Nếu camera không quét được, nhập mã QR in bên cạnh ảnh QR.
         </Text>
       </View>
 
@@ -376,8 +408,8 @@ const RestaurantQrScannerScreen = (props: Props) => {
               Không quét được QR?
             </Text>
             <Text maxFontSizeMultiplier={1} style={styles.manualQrHint}>
-              Nhập mã QR của quán/chi nhánh được in trên bàn hoặc hóa đơn để
-              mở menu.
+              Nhập mã QR menu của quán/chi nhánh. Có thể nhập mã thuần, dán link QR,
+              hoặc dán cả dòng “Mã QR: ...”.
             </Text>
             <TextInput
               autoCapitalize="none"
@@ -390,7 +422,7 @@ const RestaurantQrScannerScreen = (props: Props) => {
                 }
               }}
               onSubmitEditing={handleSubmitManualQrToken}
-              placeholder="Nhập mã QR"
+              placeholder="Nhập mã QR menu"
               placeholderTextColor="rgba(255,255,255,0.4)"
               returnKeyType="go"
               style={styles.manualQrInput}

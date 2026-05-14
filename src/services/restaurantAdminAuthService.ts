@@ -25,6 +25,7 @@ export type RestaurantAdminSession = {
   restaurantIds?: string[];
   branchIds?: string[];
   activeBranchId?: string;
+  menuQrToken?: string;
   signedInAt: string;
   expiresAt: string;
 };
@@ -108,6 +109,18 @@ const normalizeRole = (role?: string): RestaurantAdminRole => {
   return 'OWNER';
 };
 
+const getAuthErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+
+  return fallback;
+};
+
 const createAdminSession = async ({
   username,
   provider,
@@ -118,6 +131,7 @@ const createAdminSession = async ({
   restaurantIds,
   branchIds,
   activeBranchId,
+  menuQrToken,
   restaurantName,
 }: {
   username: string;
@@ -129,6 +143,7 @@ const createAdminSession = async ({
   restaurantIds?: string[];
   branchIds?: string[];
   activeBranchId?: string;
+  menuQrToken?: string;
   restaurantName?: string;
 }): Promise<RestaurantAdminSession> => {
   const now = Date.now();
@@ -144,6 +159,7 @@ const createAdminSession = async ({
   const safeRestaurantIds = sanitizeRestaurantIds(restaurantIds, safeRestaurantId);
   const safeBranchId = isLegacyDemoBranchId(activeBranchId) ? undefined : activeBranchId;
   const safeBranchIds = sanitizeBranchIds(branchIds, safeBranchId);
+  const safeMenuQrToken = String(menuQrToken || '').trim() || undefined;
 
   return {
     version: 1,
@@ -161,6 +177,7 @@ const createAdminSession = async ({
     restaurantIds: safeRestaurantIds.length > 0 ? safeRestaurantIds : undefined,
     branchIds: safeBranchIds.length > 0 ? safeBranchIds : undefined,
     activeBranchId: safeBranchId,
+    menuQrToken: safeMenuQrToken,
     signedInAt,
     expiresAt: new Date(now + ADMIN_SESSION_TTL_MS).toISOString(),
   };
@@ -222,6 +239,7 @@ const normalizeSession = (
     activeBranchId: isLegacyDemoBranchId(session.activeBranchId)
       ? undefined
       : session.activeBranchId,
+    menuQrToken: String(session.menuQrToken || '').trim() || undefined,
     signedInAt,
     expiresAt: session.expiresAt || nowIso(),
   };
@@ -313,6 +331,7 @@ const repairCredentialResultScope = async (
       restaurantIds: safeRestaurantIds,
       branchIds: safeBranchIds,
       activeBranchId: safeBranchIds[0],
+      menuQrToken: credential.menuQrToken,
       restaurantName: credential.restaurantName,
     });
     await saveAdminSession(provisionalSession);
@@ -362,11 +381,23 @@ export const loginRestaurantAdmin = async (
     return {ok: false, message: 'Vui lòng nhập tài khoản và mật khẩu Admin'};
   }
 
-  const rawResult = await verifyRestaurantAdminCredentials(
-    cleanUsername,
-    cleanPassword,
-  );
-  const result = await repairCredentialResultScope(cleanUsername, rawResult);
+  let result: any;
+
+  try {
+    const rawResult = await verifyRestaurantAdminCredentials(
+      cleanUsername,
+      cleanPassword,
+    );
+    result = await repairCredentialResultScope(cleanUsername, rawResult);
+  } catch (error) {
+    return {
+      ok: false,
+      message: getAuthErrorMessage(
+        error,
+        'Không thể đăng nhập Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.',
+      ),
+    };
+  }
 
   if (!result.ok) {
     return {
@@ -400,6 +431,7 @@ export const loginRestaurantAdmin = async (
     restaurantIds: result.restaurantIds,
     branchIds: result.branchIds,
     activeBranchId: result.activeBranchId,
+    menuQrToken: result.menuQrToken,
     restaurantName: result.restaurantName,
   });
   await saveAdminSession(session);
@@ -422,11 +454,23 @@ export const registerRestaurantAdminAccount = async (
     return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
   }
 
-  const rawResult = await registerRestaurantAdminCredentials(
-    cleanUsername,
-    cleanPassword,
-  );
-  const result = await repairCredentialResultScope(cleanUsername, rawResult);
+  let result: any;
+
+  try {
+    const rawResult = await registerRestaurantAdminCredentials(
+      cleanUsername,
+      cleanPassword,
+    );
+    result = await repairCredentialResultScope(cleanUsername, rawResult);
+  } catch (error) {
+    return {
+      ok: false,
+      message: getAuthErrorMessage(
+        error,
+        'Không thể đăng ký Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.',
+      ),
+    };
+  }
 
   if (!result.ok) {
     return {ok: false, message: result.message};
@@ -455,6 +499,7 @@ export const registerRestaurantAdminAccount = async (
     restaurantIds: result.restaurantIds,
     branchIds: result.branchIds,
     activeBranchId: result.activeBranchId,
+    menuQrToken: result.menuQrToken,
     restaurantName: result.restaurantName,
   });
   await saveAdminSession(session);
@@ -470,10 +515,12 @@ export const updateRestaurantAdminSessionContext = async ({
   restaurantId,
   restaurantName,
   branchId,
+  menuQrToken,
 }: {
   restaurantId?: string;
   restaurantName?: string;
   branchId?: string;
+  menuQrToken?: string;
 }) => {
   const current = await getRestaurantAdminSession();
 
@@ -487,6 +534,7 @@ export const updateRestaurantAdminSessionContext = async ({
   const safeBranchId = isLegacyDemoBranchId(branchId)
     ? current.activeBranchId
     : branchId || current.activeBranchId;
+  const safeMenuQrToken = String(menuQrToken || '').trim() || current.menuQrToken;
   const next: RestaurantAdminSession = {
     ...current,
     activeRestaurantId: safeRestaurantId,
@@ -494,6 +542,7 @@ export const updateRestaurantAdminSessionContext = async ({
     restaurantIds: sanitizeRestaurantIds(current.restaurantIds, safeRestaurantId),
     branchIds: sanitizeBranchIds(current.branchIds, safeBranchId),
     activeBranchId: safeBranchId,
+    menuQrToken: safeMenuQrToken,
   };
   await saveAdminSession(next);
   return next;
@@ -516,6 +565,7 @@ export const refreshRestaurantAdminSession = async () => {
     restaurantIds: current.restaurantIds,
     branchIds: current.branchIds,
     activeBranchId: current.activeBranchId,
+    menuQrToken: current.menuQrToken,
     restaurantName: current.activeRestaurantName,
   });
   await saveAdminSession(next);

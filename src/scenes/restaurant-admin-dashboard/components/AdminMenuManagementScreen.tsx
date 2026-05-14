@@ -17,6 +17,7 @@ import {
   getMenuItemStatusLabel,
 } from 'services/restaurantAdminStore';
 import {devWarn} from 'utils/devLogger';
+import {DEFAULT_DRINK_CATEGORY_ID} from 'services/restaurantMenuRepository';
 import type {
   MenuCategory,
   RestaurantMenuItem,
@@ -150,9 +151,6 @@ const getItemTimestamp = (item: RestaurantMenuItem) => {
 const formatCurrency = (value: number) =>
   `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 
-const createLocalMenuItemId = () => {
-  return `admin_dish_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-};
 
 type AdminMenuImageProps = {
   imageValue: string;
@@ -245,7 +243,7 @@ const AdminMenuManagementScreen = ({
   onDeleteCategory,
 }: Props) => {
   const defaultCategoryId = useMemo(
-    () => categories[0]?.id || 'drink',
+    () => categories[0]?.id || DEFAULT_DRINK_CATEGORY_ID,
     [categories],
   );
 
@@ -676,9 +674,7 @@ const AdminMenuManagementScreen = ({
     }
 
     const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
-    const itemId = isEdit
-      ? String(draftSelectedItemId)
-      : createLocalMenuItemId();
+    const itemId = isEdit ? String(draftSelectedItemId) : '';
     const cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
     const editingItem = isEdit
       ? menuItems.find(item => item.id === itemId) || selectedItem
@@ -689,8 +685,7 @@ const AdminMenuManagementScreen = ({
 
     try {
       await onSaveItem({
-        id: itemId,
-        createdAt: isEdit ? editingItem?.createdAt : undefined,
+        ...(isEdit ? {id: itemId, createdAt: editingItem?.createdAt} : {}),
         name: cleanName,
         price: priceValue,
         categoryId: cleanCategoryId,
@@ -703,7 +698,11 @@ const AdminMenuManagementScreen = ({
       replaceFormSession(createEmptyFormSession(defaultCategoryId));
     } catch (saveError) {
       devWarn('[AdminMenu] save failed', saveError);
-      setError('Không thể lưu món. Vui lòng thử lại.');
+      const message =
+        saveError instanceof Error && saveError.message.trim()
+          ? saveError.message.trim()
+          : 'Không thể lưu món. Vui lòng thử lại.';
+      setError(message);
     } finally {
       setSaving(false);
     }
