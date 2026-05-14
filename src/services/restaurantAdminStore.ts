@@ -993,6 +993,13 @@ export const uploadAdminMenuImage = async (input: AdminMenuImageUploadForm) => {
   });
 };
 
+const normalizeAdminComparableText = (value?: string | number | null) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
 export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
   const scope = await ensureAdminScope();
   assertManagerPermission(scope);
@@ -1012,21 +1019,50 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     available: input.status === 'SELLING',
   });
 
-  // Verify against the backend/server snapshot immediately after saving. This
-  // prevents one phone from showing a menu item that only lives in local UI
-  // cache while another phone logs in and sees an empty menu.
-  const serverItems = await loadMenuItems(scope.restaurantId);
+  // Verify against the backend/server snapshot immediately after saving. Use a
+  // tolerant match because the server can repair categoryId from categoryName
+  // when the app was holding an old category snapshot. A strict categoryId
+  // comparison caused false errors: "Món đã gửi nhưng chưa thấy..." even though
+  // the item had already been saved on Render under the repaired category id.
+  const [serverItems, serverCategories] = await Promise.all([
+    loadMenuItems(scope.restaurantId),
+    loadMenuCategories(scope.restaurantId).catch(() => [] as MenuCategory[]),
+  ]);
   const scopedServerItems = filterMenuItemsByScope(serverItems, scope);
-  const expectedName = String(input.name || '').trim().toLowerCase();
-  const itemVisibleOnServer = scopedServerItems.some(item => {
+  const scopedNextItems = filterMenuItemsByScope(nextItems, scope);
+  const scopedCategories = filterCategoriesByScope(serverCategories, scope);
+  const expectedName = normalizeAdminComparableText(input.name);
+  const expectedCategoryName = normalizeAdminComparableText(input.categoryName);
+  const expectedPrice = Number(input.price || 0);
+  const categoryNameById = scopedCategories.reduce<Record<string, string>>(
+    (result, category) => {
+      result[category.id] = normalizeAdminComparableText(category.name);
+      return result;
+    },
+    {},
+  );
+
+  const matchesSavedItem = (item: RestaurantMenuItem) => {
     if (input.id && item.id === input.id) {
       return true;
     }
-    return (
-      String(item.name || '').trim().toLowerCase() === expectedName &&
-      item.categoryId === input.categoryId
-    );
-  });
+
+    const sameName = normalizeAdminComparableText(item.name) === expectedName;
+    const samePrice = Math.abs(Number(item.price || 0) - expectedPrice) < 1;
+    const sameCategory =
+      !input.categoryId ||
+      item.categoryId === input.categoryId ||
+      (expectedCategoryName && categoryNameById[item.categoryId] === expectedCategoryName);
+
+    return sameName && samePrice && sameCategory;
+  };
+
+  const itemVisibleOnServer = scopedServerItems.some(matchesSavedItem);
+  if (!itemVisibleOnServer && scopedNextItems.some(matchesSavedItem)) {
+    // The mutation response already contains the saved item. Keep it on screen
+    // instead of throwing a false error when the follow-up Render GET is slow.
+    return scopedNextItems;
+  }
 
   if (!itemVisibleOnServer && nextItems.length > 0) {
     throw new Error(
@@ -1034,7 +1070,7 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     );
   }
 
-  return scopedServerItems;
+  return scopedServerItems.length > 0 ? scopedServerItems : scopedNextItems;
 };
 
 export const deleteAdminMenuItem = async (itemId: string) => {

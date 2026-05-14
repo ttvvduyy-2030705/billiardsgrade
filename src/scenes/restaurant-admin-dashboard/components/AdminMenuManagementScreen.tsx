@@ -101,6 +101,11 @@ type AdminMenuFormSession = {
   categoryName?: string;
   description: string;
   imageUrl: string;
+  pendingImageUri?: string;
+  pendingImageBase64?: string;
+  pendingImageDataUri?: string;
+  pendingImageFileName?: string;
+  pendingImageMimeType?: string;
   status: RestaurantMenuItemStatus;
 };
 
@@ -217,6 +222,11 @@ const createEmptyFormSession = (
   categoryId,
   description: '',
   imageUrl: '',
+  pendingImageUri: '',
+  pendingImageBase64: '',
+  pendingImageDataUri: '',
+  pendingImageFileName: '',
+  pendingImageMimeType: '',
   status: 'SELLING',
 });
 
@@ -531,7 +541,7 @@ const AdminMenuManagementScreen = ({
   };
 
   const pickMenuImage = async () => {
-    if (imagePicking) {
+    if (imagePicking || imageUploading || saving) {
       return;
     }
 
@@ -542,7 +552,9 @@ const AdminMenuManagementScreen = ({
       const response = await launchImageLibrary({
         mediaType: 'photo',
         selectionLimit: 1,
-        quality: 0.86,
+        quality: 0.72,
+        maxWidth: 1280,
+        maxHeight: 1280,
         includeBase64: true,
       });
 
@@ -560,9 +572,9 @@ const AdminMenuManagementScreen = ({
       const pickedAsset = response.assets?.[0];
       const pickedUri = pickedAsset?.uri || '';
 
-      if (!pickedUri) {
-        devWarn('[AdminMenuImage] image pick error=missing-uri');
-        setError('Không lấy được đường dẫn ảnh đã chọn.');
+      if (!pickedUri && !pickedAsset?.base64) {
+        devWarn('[AdminMenuImage] image pick error=missing-uri-base64');
+        setError('Không lấy được ảnh đã chọn. Vui lòng chọn ảnh khác.');
         return;
       }
 
@@ -573,64 +585,25 @@ const AdminMenuManagementScreen = ({
         base64: pickedAsset?.base64,
         type: pickedAsset?.type,
       });
+      const nextPreviewUri = instantPreviewUri || pickedUri;
 
-      // Show the exact image just picked immediately in the edit form. Do not
-      // wait for RNFS to copy/persist it, and do not replace the preview with
-      // the persisted file URI afterwards. Android can keep the previous Image
-      // surface/cache for one frame, which made the admin think the first pick
-      // did nothing until selecting a second time.
-      setImagePreviewUrl(instantPreviewUri || pickedUri);
+      // Chọn ảnh chỉ cập nhật preview + draft. Không upload ngay ở bước chọn ảnh.
+      // Upload ngay lúc chọn làm món mới bị gắn với id tạm "new_dish", dễ lệch
+      // state nếu Render chậm: lần đầu nhìn như chưa chọn ảnh, bấm Lưu bị kẹt,
+      // hoặc lưu món xong server không thấy đúng món/category.
+      setImagePreviewUrl(nextPreviewUri);
       setImagePreviewRevision(revision => revision + 1);
-      updateDraft({imageUrl: pickedUri}, {syncImagePreview: false});
-
-      if (onUploadImage) {
-        try {
-          setImageUploading(true);
-          const uploadResult = await onUploadImage({
-            uri: pickedUri,
-            base64: pickedAsset?.base64,
-            dataUri: instantPreviewUri,
-            itemId: selectedItemId || 'new_dish',
-            dishId: selectedItemId || 'new_dish',
-            mimeType: pickedAsset?.type || 'image/jpeg',
-            fileName: pickedAsset?.fileName,
-          });
-          const serverImageUrl = getMenuItemImageValue({
-            imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
-          });
-
-          if (serverImageUrl) {
-            if (imagePickRequestIdRef.current === requestId) {
-              updateDraft(
-                {imageUrl: serverImageUrl},
-                {syncImagePreview: false},
-              );
-            }
-            return;
-          }
-        } catch (uploadError) {
-          devWarn('[AdminMenuImage] server upload failed', uploadError);
-          setError('Không thể lưu ảnh. Vui lòng thử lại hoặc chọn ảnh khác.');
-          return;
-        } finally {
-          setImageUploading(false);
-        }
-      }
-
-      const persistedUri = await persistRestaurantMenuImage({
-        uri: pickedUri,
-        base64: pickedAsset?.base64,
-        itemId: selectedItemId || 'new_dish',
-        type: pickedAsset?.type,
-        fileName: pickedAsset?.fileName,
-      });
-
-      if (imagePickRequestIdRef.current === requestId) {
-        updateDraft(
-          {imageUrl: persistedUri || pickedUri},
-          {syncImagePreview: false},
-        );
-      }
+      updateDraft(
+        {
+          imageUrl: nextPreviewUri,
+          pendingImageUri: pickedUri,
+          pendingImageBase64: pickedAsset?.base64 || '',
+          pendingImageDataUri: instantPreviewUri || '',
+          pendingImageFileName: pickedAsset?.fileName || '',
+          pendingImageMimeType: pickedAsset?.type || 'image/jpeg',
+        },
+        {syncImagePreview: false},
+      );
     } catch (pickError) {
       devWarn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -656,6 +629,11 @@ const AdminMenuManagementScreen = ({
     const draftCategoryId = draft.categoryId ?? categoryId;
     const draftDescription = draft.description ?? description;
     const draftImageUrl = draft.imageUrl ?? imageUrl;
+    const draftPendingImageUri = draft.pendingImageUri || '';
+    const draftPendingImageBase64 = draft.pendingImageBase64 || '';
+    const draftPendingImageDataUri = draft.pendingImageDataUri || '';
+    const draftPendingImageFileName = draft.pendingImageFileName || '';
+    const draftPendingImageMimeType = draft.pendingImageMimeType || 'image/jpeg';
     const draftStatus = draft.status ?? status;
     const draftViewMode = draft.viewMode ?? viewMode;
     const draftSelectedItemId = draft.selectedItemId ?? selectedItemId;
@@ -688,7 +666,7 @@ const AdminMenuManagementScreen = ({
 
     const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
     const itemId = isEdit ? String(draftSelectedItemId) : '';
-    const cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
+    let cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
     const editingItem = isEdit
       ? menuItems.find(item => item.id === itemId) || selectedItem
       : null;
@@ -697,6 +675,55 @@ const AdminMenuManagementScreen = ({
     setError('');
 
     try {
+      const hasPendingImage = Boolean(
+        draftPendingImageBase64 || draftPendingImageDataUri || draftPendingImageUri,
+      );
+
+      if (hasPendingImage) {
+        if (onUploadImage && (draftPendingImageBase64 || draftPendingImageDataUri)) {
+          setImageUploading(true);
+          const uploadResult = await onUploadImage({
+            uri: draftPendingImageUri,
+            base64: draftPendingImageBase64,
+            dataUri: draftPendingImageDataUri,
+            itemId: itemId || cleanName,
+            dishId: itemId || cleanName,
+            mimeType: draftPendingImageMimeType,
+            fileName: draftPendingImageFileName,
+          });
+          const serverImageUrl = getMenuItemImageValue({
+            imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
+          });
+
+          if (!serverImageUrl) {
+            throw new Error('Ảnh đã chọn chưa upload được lên máy chủ. Vui lòng chọn lại ảnh hoặc thử ảnh nhỏ hơn.');
+          }
+
+          cleanImageUrl = serverImageUrl;
+          updateDraft(
+            {
+              imageUrl: serverImageUrl,
+              pendingImageUri: '',
+              pendingImageBase64: '',
+              pendingImageDataUri: '',
+              pendingImageFileName: '',
+              pendingImageMimeType: '',
+            },
+            {syncImagePreview: true},
+          );
+        } else if (onUploadImage) {
+          throw new Error('Ảnh đã chọn chưa có dữ liệu để upload. Vui lòng chọn lại ảnh khác hoặc ảnh nhỏ hơn.');
+        } else {
+          cleanImageUrl = await persistRestaurantMenuImage({
+            uri: draftPendingImageUri,
+            base64: draftPendingImageBase64,
+            itemId: itemId || cleanName,
+            type: draftPendingImageMimeType,
+            fileName: draftPendingImageFileName,
+          });
+        }
+      }
+
       await onSaveItem({
         ...(isEdit ? {id: itemId, createdAt: editingItem?.createdAt} : {}),
         name: cleanName,
@@ -718,6 +745,7 @@ const AdminMenuManagementScreen = ({
           : 'Không thể lưu món. Vui lòng thử lại.';
       setError(message);
     } finally {
+      setImageUploading(false);
       setSaving(false);
     }
   };
@@ -1334,7 +1362,14 @@ const AdminMenuManagementScreen = ({
                   <Pressable
                     onPress={() => {
                       imagePickRequestIdRef.current += 1;
-                      updateDraft({imageUrl: ''});
+                      updateDraft({
+                        imageUrl: '',
+                        pendingImageUri: '',
+                        pendingImageBase64: '',
+                        pendingImageDataUri: '',
+                        pendingImageFileName: '',
+                        pendingImageMimeType: '',
+                      });
                     }}
                     style={styles.imageRemoveButton}
                     disabled={saving || imagePicking || imageUploading}>
@@ -1385,7 +1420,7 @@ const AdminMenuManagementScreen = ({
               style={styles.saveButton}
               disabled={saving || categories.length === 0}>
               <RNText style={styles.saveButtonText}>
-                {saving ? 'Đang lưu...' : 'Lưu'}
+                {imageUploading ? 'Đang tải ảnh...' : saving ? 'Đang lưu...' : 'Lưu'}
               </RNText>
             </Pressable>
           </RNView>
