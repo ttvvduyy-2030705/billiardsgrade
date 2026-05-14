@@ -108,6 +108,7 @@ export type AdminMenuItemForm = {
   name: string;
   price: number;
   categoryId: string;
+  categoryName?: string;
   description: string;
   imageUrl?: string;
   status: RestaurantMenuItemStatus;
@@ -990,6 +991,7 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     name: input.name,
     price: input.price,
     categoryId: input.categoryId,
+    categoryName: input.categoryName,
     description: input.description,
     imageUrl: cleanImageUrl,
     status: input.status,

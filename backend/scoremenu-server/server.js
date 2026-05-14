@@ -1164,7 +1164,7 @@ const resolveRestaurantCategoryId = (db, restaurantId, categoryId) => {
   // Compatibility only for very old app builds that submitted fixed legacy ids.
   // Avoid broad "contains" matching because a custom category id/name can
   // include words like "an" or "nuoc" and must still be preserved.
-  const drinkAliases = new Set(['drink', 'drinks', 'menu_drink', 'do_uong', 'douong', 'nuoc', 'uong']);
+  const drinkAliases = new Set(['drink', 'drinks', 'menu_drink', 'do_uong', 'douong']);
   const foodAliases = new Set(['food', 'foods', 'menu_food', 'do_an', 'doan', 'mon_an', 'monan']);
 
   if (drinkAliases.has(normalizedCategory)) {
@@ -1184,6 +1184,48 @@ const resolveRestaurantCategoryId = (db, restaurantId, categoryId) => {
   }
 
   return '';
+};
+
+const isSafeClientCategoryId = value => {
+  const clean = cleanString(value);
+  return Boolean(clean) && /^[A-Za-z0-9_:-]{1,96}$/.test(clean);
+};
+
+const resolveOrCreateRestaurantCategoryId = (db, restaurantId, categoryId, categoryName) => {
+  const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, categoryId);
+  if (resolvedCategoryId) {
+    return {categoryId: resolvedCategoryId, created: false};
+  }
+
+  const cleanCategoryId = cleanString(categoryId);
+  const cleanCategoryName = cleanString(categoryName);
+  const nameForRepair = cleanCategoryName || cleanCategoryId;
+  if (!nameForRepair) {
+    return {categoryId: '', created: false};
+  }
+
+  const categories = getRestaurantCategories(db, restaurantId);
+  const byRepairName = categories.find(category => normalizeKey(category.name) === normalizeKey(nameForRepair));
+  if (byRepairName) {
+    return {categoryId: byRepairName.id, created: false};
+  }
+
+  const timestamp = nowIso();
+  let nextId = isSafeClientCategoryId(cleanCategoryId) ? cleanCategoryId : createId('category');
+  if (categories.some(category => category.id === nextId)) {
+    nextId = createId('category');
+  }
+
+  db.categories.push({
+    id: nextId,
+    restaurantId,
+    name: nameForRepair,
+    sortOrder: categories.length + 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+
+  return {categoryId: nextId, created: true};
 };
 
 const getRestaurantItems = (db, restaurantId) =>
@@ -3269,15 +3311,15 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     const body = await parseBody(req);
     try {
       const item = normalizeItemPayload(body, restaurantId);
-      const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, item.categoryId);
-      if (!resolvedCategoryId) {
+      const resolvedCategory = resolveOrCreateRestaurantCategoryId(db, restaurantId, item.categoryId, body.categoryName || body.categoryLabel || body.category);
+      if (!resolvedCategory.categoryId) {
         fail(res, 400, 'Danh mục đã chọn không tồn tại hoặc chưa đồng bộ. Vui lòng tải lại trang quản lý món rồi chọn lại danh mục.');
         return true;
       }
-      item.categoryId = resolvedCategoryId;
+      item.categoryId = resolvedCategory.categoryId;
       db.items.push(item);
       saveDb(db);
-      audit('item.create', {user, restaurantId, targetId: item.id});
+      audit('item.create', {user, restaurantId, targetId: item.id, categoryId: item.categoryId, categoryRepaired: resolvedCategory.created});
       created(res, getRestaurantItems(db, restaurantId));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu món chưa hợp lệ.');
@@ -3297,15 +3339,15 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     const body = await parseBody(req);
     try {
       const next = normalizeItemPayload(body, restaurantId, item);
-      const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, next.categoryId);
-      if (!resolvedCategoryId) {
+      const resolvedCategory = resolveOrCreateRestaurantCategoryId(db, restaurantId, next.categoryId, body.categoryName || body.categoryLabel || body.category);
+      if (!resolvedCategory.categoryId) {
         fail(res, 400, 'Danh mục đã chọn không tồn tại hoặc chưa đồng bộ. Vui lòng tải lại trang quản lý món rồi chọn lại danh mục.');
         return true;
       }
-      next.categoryId = resolvedCategoryId;
+      next.categoryId = resolvedCategory.categoryId;
       Object.assign(item, next);
       saveDb(db);
-      audit('item.update', {user, restaurantId, targetId: item.id});
+      audit('item.update', {user, restaurantId, targetId: item.id, categoryId: item.categoryId, categoryRepaired: resolvedCategory.created});
       ok(res, getRestaurantItems(db, restaurantId));
     } catch (error) {
       fail(res, 400, error.message || 'Dữ liệu món chưa hợp lệ.');

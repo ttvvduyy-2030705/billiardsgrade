@@ -41,6 +41,8 @@ export type RestaurantMenuItemPayload = {
   name: string;
   price: number;
   categoryId: string;
+  /** Optional category label sent with item saves so the API can repair a missing custom category on Render. */
+  categoryName?: string;
   description: string;
   imageUrl?: string;
   status?: RestaurantMenuItemStatus;

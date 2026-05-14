@@ -39,6 +39,7 @@ type MenuItemFormInput = {
   name: string;
   price: number;
   categoryId: string;
+  categoryName?: string;
   description: string;
   imageUrl?: string;
   status: RestaurantMenuItemStatus;
@@ -98,6 +99,7 @@ type AdminMenuFormSession = {
   name: string;
   price: string;
   categoryId: string;
+  categoryName?: string;
   description: string;
   imageUrl: string;
   status: RestaurantMenuItemStatus;
@@ -657,6 +659,9 @@ const AdminMenuManagementScreen = ({
       .replace(/,/g, '');
     const priceValue = Number(cleanPriceText);
     const cleanCategoryId = draftCategoryId.trim();
+    const selectedCategoryForSubmit = categories.find(
+      category => category.id === cleanCategoryId,
+    );
 
     if (!cleanName) {
       setError('Vui lòng nhập tên món');
@@ -689,6 +694,7 @@ const AdminMenuManagementScreen = ({
         name: cleanName,
         price: priceValue,
         categoryId: cleanCategoryId,
+        categoryName: selectedCategoryForSubmit?.name || cleanCategoryId,
         description: draftDescription.trim(),
         imageUrl: cleanImageUrl,
         status: draftStatus,
