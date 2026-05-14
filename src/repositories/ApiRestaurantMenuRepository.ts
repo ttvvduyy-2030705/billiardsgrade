@@ -359,10 +359,10 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
       });
     }
 
-    if (this.publicMenuCache?.token === cleanToken) {
-      return this.publicMenuCache.payload;
-    }
-
+    // Do not reuse a stale public menu payload here. QR/customer devices must
+    // always see the latest menu that admin just saved on Render. A short-term
+    // cache made other phones keep showing "Chưa có món nào" after the menu
+    // had already been edited from the admin device.
     const payload = await this.request<ApiPublicMenuPayload>(
       `/public/menu/${encodeURIComponent(cleanToken)}`,
     );

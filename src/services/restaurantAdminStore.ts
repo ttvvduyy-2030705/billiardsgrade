@@ -1012,7 +1012,29 @@ export const saveAdminMenuItem = async (input: AdminMenuItemForm) => {
     available: input.status === 'SELLING',
   });
 
-  return nextItems;
+  // Verify against the backend/server snapshot immediately after saving. This
+  // prevents one phone from showing a menu item that only lives in local UI
+  // cache while another phone logs in and sees an empty menu.
+  const serverItems = await loadMenuItems(scope.restaurantId);
+  const scopedServerItems = filterMenuItemsByScope(serverItems, scope);
+  const expectedName = String(input.name || '').trim().toLowerCase();
+  const itemVisibleOnServer = scopedServerItems.some(item => {
+    if (input.id && item.id === input.id) {
+      return true;
+    }
+    return (
+      String(item.name || '').trim().toLowerCase() === expectedName &&
+      item.categoryId === input.categoryId
+    );
+  });
+
+  if (!itemVisibleOnServer && nextItems.length > 0) {
+    throw new Error(
+      'Món đã gửi nhưng chưa thấy trong dữ liệu máy chủ. Vui lòng bấm Lưu lại sau vài giây hoặc kiểm tra Render đã deploy backend mới.',
+    );
+  }
+
+  return scopedServerItems;
 };
 
 export const deleteAdminMenuItem = async (itemId: string) => {
@@ -1032,7 +1054,27 @@ export const saveAdminMenuCategory = async (
     ...input,
     restaurantId: scope.restaurantId,
   });
-  return result;
+
+  const serverCategories = await loadMenuCategories(scope.restaurantId);
+  const scopedServerCategories = filterCategoriesByScope(
+    serverCategories,
+    scope,
+  );
+  const expectedName = String(input.name || '').trim().toLowerCase();
+  const categoryVisibleOnServer = scopedServerCategories.some(category => {
+    if (input.id && category.id === input.id) {
+      return true;
+    }
+    return String(category.name || '').trim().toLowerCase() === expectedName;
+  });
+
+  if (!categoryVisibleOnServer && result.categories.length > 0) {
+    throw new Error(
+      'Danh mục đã gửi nhưng chưa thấy trong dữ liệu máy chủ. Vui lòng thử lại sau vài giây hoặc kiểm tra Render đã deploy backend mới.',
+    );
+  }
+
+  return {...result, categories: scopedServerCategories};
 };
 
 export const deleteAdminMenuCategory = async (

@@ -758,9 +758,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       const next = await loadRestaurantAdminData();
       applyOrdersSnapshot(next.orders, {announceNew: false});
       setOrderSyncStatus('online');
-      applyMenuSnapshot(next.categories, next.menuItems, {
-        preserveExistingOnEmpty: true,
-      });
+      applyMenuSnapshot(next.categories, next.menuItems);
       setTables(next.tables || []);
       setBillSessions(next.billSessions || []);
     } catch (error) {
@@ -985,16 +983,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
     try {
       const next = await loadRestaurantAdminMenuData();
-      const categoriesSnapshot =
-        next.categories.length > 0 || !fallbackCategories?.length
-          ? next.categories
-          : fallbackCategories;
-      const menuItemsSnapshot =
-        next.menuItems.length > 0 || !fallbackMenuItems?.length
-          ? next.menuItems
-          : fallbackMenuItems;
 
-      return applyMenuSnapshot(categoriesSnapshot, menuItemsSnapshot);
+      // Successful API response is the source of truth. Do not keep a local
+      // snapshot when Render says the menu is empty; otherwise device A can
+      // show cached items while device B logs in and correctly sees none.
+      return applyMenuSnapshot(next.categories, next.menuItems);
     } catch (error) {
       if (fallbackCategories || fallbackMenuItems) {
         applyMenuSnapshot(

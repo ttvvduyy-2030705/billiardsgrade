@@ -3709,6 +3709,129 @@ const routeCart = async (req, res, db, restaurantId, parts, user) => {
   return false;
 };
 
+
+const escapeHtml = value =>
+  cleanString(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const sendHtml = (res, status, html) => {
+  res.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store',
+  });
+  res.end(html);
+};
+
+const buildPublicMenuHtml = (req, db, scope, token) => {
+  const context = scope.context || {};
+  const categories = getRestaurantCategories(db, context.restaurantId);
+  const items = getRestaurantItems(db, context.restaurantId).filter(item => item.status !== 'HIDDEN');
+  const tables = db.tables
+    .filter(table => table.restaurantId === context.restaurantId && table.status !== 'HIDDEN')
+    .filter(table => !context.branchId || !table.branchId || table.branchId === context.branchId)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || cleanString(a.tableNumber).localeCompare(cleanString(b.tableNumber), 'vi'));
+  const itemsByCategory = new Map();
+  items.forEach(item => {
+    const list = itemsByCategory.get(item.categoryId) || [];
+    list.push(item);
+    itemsByCategory.set(item.categoryId, list);
+  });
+  const baseUrl = getRequestBaseUrl(req).replace(/\/$/, '');
+  const deepLink = `scoremenu://menu?qrToken=${encodeURIComponent(token)}`;
+  const categoriesHtml = categories.length
+    ? categories.map(category => {
+        const categoryItems = itemsByCategory.get(category.id) || [];
+        const itemHtml = categoryItems.length
+          ? categoryItems.map(item => `
+              <li class="item">
+                <div>
+                  <strong>${escapeHtml(item.name)}</strong>
+                  ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+                </div>
+                <span>${Number(item.price || 0).toLocaleString('vi-VN')}đ</span>
+              </li>`).join('')
+          : '<li class="empty-line">Chưa có món trong danh mục này.</li>';
+        return `
+          <section class="card">
+            <h2>${escapeHtml(category.name)}</h2>
+            <ul>${itemHtml}</ul>
+          </section>`;
+      }).join('')
+    : '<section class="card"><h2>Chưa có danh mục</h2><p>Quán chưa cấu hình menu. Vui lòng báo admin kiểm tra lại.</p></section>';
+  const tablesHtml = tables.length
+    ? tables.map(table => `<span>${escapeHtml(table.tableNumber)}</span>`).join('')
+    : '<em>Chưa cấu hình số bàn</em>';
+
+  return `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(context.restaurantName || 'Menu quán')}</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #10141f; color: #f8fafc; }
+    body { margin: 0; padding: 20px; background: radial-gradient(circle at top, #25304a, #10141f 62%); }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    .hero, .card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 22px; padding: 18px; margin-bottom: 16px; box-shadow: 0 16px 50px rgba(0,0,0,.22); }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    h2 { margin: 0 0 12px; font-size: 20px; }
+    p { color: #cbd5e1; line-height: 1.5; }
+    a.button { display: inline-block; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: #22c55e; color: #07130b; font-weight: 800; text-decoration: none; }
+    .token { overflow-wrap: anywhere; color: #93c5fd; font-size: 13px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    .item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.1); }
+    .item:first-child { border-top: 0; }
+    .item p { margin: 4px 0 0; font-size: 13px; }
+    .item span { white-space: nowrap; font-weight: 800; color: #fde68a; }
+    .tables { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tables span { padding: 8px 10px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.12); }
+    .empty-line { color: #cbd5e1; padding: 10px 0; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>${escapeHtml(context.restaurantName || 'Menu quán')}</h1>
+      <p>QR menu online của quán. Nếu đã cài app, bấm nút dưới để mở trong app.</p>
+      <a class="button" href="${deepLink}">Mở menu trong app</a>
+      <p class="token">Mã QR: ${escapeHtml(token)}</p>
+      <p class="token">Link: ${escapeHtml(`${baseUrl}/m/${token}`)}</p>
+    </section>
+    <section class="card">
+      <h2>Bàn khách có thể chọn</h2>
+      <div class="tables">${tablesHtml}</div>
+    </section>
+    ${categoriesHtml}
+  </main>
+</body>
+</html>`;
+};
+
+const routePublicMenuLanding = (req, res, db, parts) => {
+  if (req.method !== 'GET') {
+    return false;
+  }
+
+  const token = parts[0] === 'm' && parts.length >= 2 ? parts[1] : '';
+  if (!token) {
+    return false;
+  }
+
+  const scope = getPublicMenuScope(db, token);
+  if (!scope) {
+    sendHtml(res, 404, '<!doctype html><meta charset="utf-8"><title>QR không tồn tại</title><body style="font-family:sans-serif;background:#111827;color:#fff;padding:24px"><h1>QR menu không tồn tại hoặc đang bị khóa.</h1></body>');
+    return true;
+  }
+
+  sendHtml(res, 200, buildPublicMenuHtml(req, db, scope, token));
+  return true;
+};
+
 const routeQrToken = (req, res, db, parts) => {
   if (req.method !== 'GET' || parts.length !== 3) {
     return false;
@@ -3735,6 +3858,12 @@ const routePublicMenu = async (req, res, db, parts, query) => {
   }
 
   if (parts.length === 3 && req.method === 'GET') {
+    const acceptsHtml = /text\/html/i.test(cleanString(req.headers.accept));
+    if (acceptsHtml) {
+      sendHtml(res, 200, buildPublicMenuHtml(req, db, scope, token));
+      return true;
+    }
+
     ok(res, {
       context: scope.context,
       categories: getRestaurantCategories(db, scope.context.restaurantId),
@@ -4001,6 +4130,10 @@ const handleRequest = async (req, res) => {
     }
 
     if (parts[0] === 'menu' && ['qr-tokens', 'table-tokens'].includes(parts[1]) && routeQrToken(req, res, db, parts)) {
+      return;
+    }
+
+    if (routePublicMenuLanding(req, res, db, parts)) {
       return;
     }
 

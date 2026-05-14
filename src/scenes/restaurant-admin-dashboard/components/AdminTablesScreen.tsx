@@ -11,6 +11,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 
 import RNText from './AdminText';
+import {getRestaurantMenuApiBaseUrl} from 'services/restaurantMenuRepository';
 import type {
   RestaurantBranch,
   RestaurantBranchStatus,
@@ -45,8 +46,26 @@ type Props = {
   onReloadTables: () => Promise<void>;
 };
 
-const getQrPrintValue = (token: string) =>
+const getQrDeepLinkValue = (token: string) =>
   `scoremenu://menu?qrToken=${encodeURIComponent(token)}`;
+
+const getQrPrintValue = (token: string) => {
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) {
+    return '';
+  }
+
+  const baseUrl = String(getRestaurantMenuApiBaseUrl() || '')
+    .trim()
+    .replace(/\/$/, '');
+
+  // In release, print an HTTPS QR instead of only scoremenu://.
+  // Android/iOS cameras understand HTTPS links much more reliably, while the
+  // app scanner still extracts the token from the last path segment.
+  return baseUrl
+    ? `${baseUrl}/m/${encodeURIComponent(cleanToken)}`
+    : getQrDeepLinkValue(cleanToken);
+};
 
 type AplusClipboardModule = {
   setString?: (value: string) => Promise<boolean>;
@@ -82,6 +101,7 @@ const AdminTablesScreen = ({
 
   const qrToken = String(activeBranch?.menuQrToken || '').trim();
   const qrValue = qrToken ? getQrPrintValue(qrToken) : '';
+  const qrDeepLinkValue = qrToken ? getQrDeepLinkValue(qrToken) : '';
 
   const handleCopyQrText = useCallback(async (label: string, value: string) => {
     const textToCopy = String(value || '').trim();
@@ -157,11 +177,16 @@ const AdminTablesScreen = ({
                 style={styles.qrCopyButton}>
                 <RNText style={styles.qrCopyButtonText}>Copy link QR</RNText>
               </Pressable>
+              <Pressable
+                onPress={() => handleCopyQrText('deep link app', qrDeepLinkValue)}
+                style={styles.qrCopyButton}>
+                <RNText style={styles.qrCopyButtonText}>Copy link app</RNText>
+              </Pressable>
             </RNView>
           </RNView>
 
           <RNView style={styles.qrTokenBox}>
-            <RNText style={styles.qrTokenLabel}>Link QR menu</RNText>
+            <RNText style={styles.qrTokenLabel}>Link QR menu HTTPS</RNText>
             <TextInput
               value={qrValue}
               selectTextOnFocus

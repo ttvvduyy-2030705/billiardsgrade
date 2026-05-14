@@ -5,7 +5,7 @@ import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {RealmProvider} from '@realm/react';
 import {Provider} from 'react-redux';
 import {PersistGate} from 'redux-persist/integration/react';
-import {NavigationContainer} from '@react-navigation/native';
+import {NavigationContainer, getStateFromPath} from '@react-navigation/native';
 import DeviceInfo from 'react-native-device-info';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 
@@ -126,20 +126,79 @@ const wakeScoreMenuApi = () => {
   });
 };
 
+const safeDecodeScoreMenuLinkPart = (value: string) => {
+  try {
+    return decodeURIComponent(String(value || '').trim());
+  } catch (_error) {
+    return String(value || '').trim();
+  }
+};
+
+const extractScoreMenuTokenFromPath = (path: string) => {
+  const cleanPath = String(path || '').trim();
+  const queryMatch = cleanPath.match(
+    /[?&](?:qrToken|menuQrToken|tableQrToken|token|code)=([^&#]+)/i,
+  );
+
+  if (queryMatch?.[1]) {
+    return safeDecodeScoreMenuLinkPart(queryMatch[1]);
+  }
+
+  const pathOnly = cleanPath.split('#')[0].split('?')[0];
+  const match = pathOnly.match(
+    /(?:^|\/)(?:m|menu|public\/menu)\/([^/?#]+)/i,
+  );
+
+  if (match?.[1]) {
+    return safeDecodeScoreMenuLinkPart(match[1]);
+  }
+
+  return '';
+};
+
+const scoreMenuHttpsPrefix = String(SCOREMENU_RENDER_API_BASE_URL || '')
+  .trim()
+  .replace(/\/$/, '');
+
 const restaurantMenuLinking = {
-  prefixes: ['scoremenu://'],
+  prefixes: [
+    'scoremenu://',
+    ...(scoreMenuHttpsPrefix ? [scoreMenuHttpsPrefix] : []),
+  ],
   config: {
     screens: {
       [screens.restaurantMenu]: {
         path: 'menu',
         parse: {
-          qrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
-          menuQrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
-          tableQrToken: (value: string) => decodeURIComponent(String(value || '').trim()),
-          token: (value: string) => decodeURIComponent(String(value || '').trim()),
+          qrToken: safeDecodeScoreMenuLinkPart,
+          menuQrToken: safeDecodeScoreMenuLinkPart,
+          tableQrToken: safeDecodeScoreMenuLinkPart,
+          token: safeDecodeScoreMenuLinkPart,
         },
       },
     },
+  },
+  getStateFromPath(path: string, options: any) {
+    const qrToken = extractScoreMenuTokenFromPath(path);
+
+    if (qrToken) {
+      return {
+        routes: [
+          {
+            name: screens.restaurantMenu,
+            params: {
+              qrToken,
+              menuQrToken: qrToken,
+              tableQrToken: qrToken,
+              source: 'deep-link',
+              openedAt: Date.now(),
+            },
+          },
+        ],
+      };
+    }
+
+    return getStateFromPath(path, options);
   },
 };
 

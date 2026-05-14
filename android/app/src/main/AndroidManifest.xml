@@ -79,6 +79,20 @@
           android:scheme="scoremenu"
           android:host="menu" />
       </intent-filter>
+
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data
+          android:scheme="https"
+          android:host="billiardsgrade.onrender.com"
+          android:pathPrefix="/m" />
+        <data
+          android:scheme="https"
+          android:host="billiardsgrade.onrender.com"
+          android:pathPrefix="/public/menu" />
+      </intent-filter>
     </activity>
 
     <activity
