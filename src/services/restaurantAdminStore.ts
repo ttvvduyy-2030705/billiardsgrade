@@ -1105,12 +1105,24 @@ export const saveAdminMenuCategory = async (
   });
 
   if (!categoryVisibleOnServer && result.categories.length > 0) {
-    throw new Error(
-      'Danh mục đã gửi nhưng chưa thấy trong dữ liệu máy chủ. Vui lòng thử lại sau vài giây hoặc kiểm tra Render đã deploy backend mới.',
+    // Render free can answer the mutation correctly but the follow-up GET may
+    // still be stale/empty for a moment. Keep the mutation response instead of
+    // throwing, otherwise the admin screen looks like the just-created category
+    // vanished when the user moves on to add an item.
+    const scopedResultCategories = filterCategoriesByScope(
+      result.categories as MenuCategory[],
+      scope,
     );
+    return {...result, categories: scopedResultCategories};
   }
 
-  return {...result, categories: scopedServerCategories};
+  return {
+    ...result,
+    categories:
+      scopedServerCategories.length > 0
+        ? scopedServerCategories
+        : filterCategoriesByScope(result.categories as MenuCategory[], scope),
+  };
 };
 
 export const deleteAdminMenuCategory = async (

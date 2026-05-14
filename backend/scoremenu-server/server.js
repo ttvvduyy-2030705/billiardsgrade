@@ -53,8 +53,10 @@ const UPLOAD_DIR = resolveStoragePath(process.env.SCOREMENU_UPLOAD_DIR, path.joi
   isDirectory: true,
 });
 const PUBLIC_UPLOAD_PREFIX = '/uploads/menu-images';
-const MAX_BODY_BYTES = Number(process.env.SCOREMENU_MAX_BODY_BYTES || 1024 * 1024 * 12);
-const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1024 * 6);
+// Menu photos are uploaded as JSON/base64 from React Native. Keep a generous
+// default so one compressed photo does not make Render close the connection.
+const MAX_BODY_BYTES = Number(process.env.SCOREMENU_MAX_BODY_BYTES || 1024 * 1024 * 24);
+const MAX_IMAGE_BYTES = Number(process.env.SCOREMENU_MAX_IMAGE_BYTES || 1024 * 1024 * 10);
 const PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS = Number(
   process.env.SCOREMENU_PUBLIC_ORDER_RATE_LIMIT_WINDOW_MS || 1000 * 60,
 );

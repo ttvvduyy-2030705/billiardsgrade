@@ -157,6 +157,43 @@ const getItemTimestamp = (item: RestaurantMenuItem) => {
 const formatCurrency = (value: number) =>
   `${Number(value || 0).toLocaleString('vi-VN')}đ`;
 
+const findSavedMenuItemForPayload = (
+  items: RestaurantMenuItem[],
+  payload: {
+    id?: string;
+    name: string;
+    price: number;
+    categoryId: string;
+    categoryName?: string;
+  },
+  categories: MenuCategory[],
+) => {
+  const expectedName = normaliseSearchTerm(payload.name);
+  const expectedCategoryName = normaliseSearchTerm(payload.categoryName);
+  const categoryNameById = categories.reduce<Record<string, string>>(
+    (result, category) => {
+      result[category.id] = normaliseSearchTerm(category.name);
+      return result;
+    },
+    {},
+  );
+
+  return (
+    (payload.id ? items.find(item => item.id === payload.id) : undefined) ||
+    items.find(item => {
+      const sameName = normaliseSearchTerm(item.name) === expectedName;
+      const samePrice = Math.abs(Number(item.price || 0) - payload.price) < 1;
+      const sameCategory =
+        item.categoryId === payload.categoryId ||
+        (!!expectedCategoryName &&
+          categoryNameById[item.categoryId] === expectedCategoryName);
+
+      return sameName && samePrice && sameCategory;
+    }) ||
+    null
+  );
+};
+
 
 type AdminMenuImageProps = {
   imageValue: string;
@@ -552,9 +589,11 @@ const AdminMenuManagementScreen = ({
       const response = await launchImageLibrary({
         mediaType: 'photo',
         selectionLimit: 1,
-        quality: 0.72,
-        maxWidth: 1280,
-        maxHeight: 1280,
+        // Ảnh món chỉ cần đủ rõ trên menu. Giảm kích thước để Android preview
+        // mượt hơn và tránh upload base64 quá lớn làm Render/ngăn mạng bị treo.
+        quality: 0.55,
+        maxWidth: 960,
+        maxHeight: 960,
         includeBase64: true,
       });
 
@@ -580,12 +619,15 @@ const AdminMenuManagementScreen = ({
 
       const requestId = imagePickRequestIdRef.current + 1;
       imagePickRequestIdRef.current = requestId;
-      const instantPreviewUri = createRestaurantMenuImagePreviewUri({
-        uri: pickedUri,
+      const inlineDataUri = createRestaurantMenuImagePreviewUri({
+        uri: '',
         base64: pickedAsset?.base64,
         type: pickedAsset?.type,
       });
-      const nextPreviewUri = instantPreviewUri || pickedUri;
+      // Preview bằng uri gốc trước vì data:image;base64 rất dài, Android release
+      // dễ render chậm nên nhìn như phải bấm chọn ảnh 2 lần mới nhận. Base64 vẫn
+      // được giữ riêng trong draft để upload lên server khi bấm Lưu món.
+      const nextPreviewUri = pickedUri || inlineDataUri;
 
       // Chọn ảnh chỉ cập nhật preview + draft. Không upload ngay ở bước chọn ảnh.
       // Upload ngay lúc chọn làm món mới bị gắn với id tạm "new_dish", dễ lệch
@@ -598,12 +640,38 @@ const AdminMenuManagementScreen = ({
           imageUrl: nextPreviewUri,
           pendingImageUri: pickedUri,
           pendingImageBase64: pickedAsset?.base64 || '',
-          pendingImageDataUri: instantPreviewUri || '',
+          pendingImageDataUri: inlineDataUri || '',
           pendingImageFileName: pickedAsset?.fileName || '',
           pendingImageMimeType: pickedAsset?.type || 'image/jpeg',
         },
         {syncImagePreview: false},
       );
+
+      if (pickedAsset?.base64) {
+        void persistRestaurantMenuImage({
+          uri: pickedUri,
+          base64: pickedAsset.base64,
+          itemId: selectedItemId || 'menu_draft_preview',
+          type: pickedAsset?.type || 'image/jpeg',
+          fileName: pickedAsset?.fileName || '',
+        })
+          .then(stablePreviewUri => {
+            if (
+              stablePreviewUri &&
+              imagePickRequestIdRef.current === requestId
+            ) {
+              setImagePreviewUrl(stablePreviewUri);
+              setImagePreviewRevision(revision => revision + 1);
+              updateDraft(
+                {imageUrl: stablePreviewUri},
+                {syncImagePreview: false},
+              );
+            }
+          })
+          .catch(error => {
+            devWarn('[AdminMenuImage] stable preview persist failed', error);
+          });
+      }
     } catch (pickError) {
       devWarn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
@@ -648,6 +716,7 @@ const AdminMenuManagementScreen = ({
     const selectedCategoryForSubmit = categories.find(
       category => category.id === cleanCategoryId,
     );
+    const cleanCategoryName = selectedCategoryForSubmit?.name || cleanCategoryId;
 
     if (!cleanName) {
       setError('Vui lòng nhập tên món');
@@ -666,77 +735,123 @@ const AdminMenuManagementScreen = ({
 
     const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
     const itemId = isEdit ? String(draftSelectedItemId) : '';
-    let cleanImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
     const editingItem = isEdit
       ? menuItems.find(item => item.id === itemId) || selectedItem
       : null;
+    const hasPendingImage = Boolean(
+      draftPendingImageBase64 || draftPendingImageDataUri || draftPendingImageUri,
+    );
+    const existingServerImageUrl = getMenuItemImageValue(editingItem || undefined);
+    const cleanDraftImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
 
     setSaving(true);
     setError('');
+    setListError('');
 
     try {
-      const hasPendingImage = Boolean(
-        draftPendingImageBase64 || draftPendingImageDataUri || draftPendingImageUri,
-      );
-
-      if (hasPendingImage) {
-        if (onUploadImage && (draftPendingImageBase64 || draftPendingImageDataUri)) {
-          setImageUploading(true);
-          const uploadResult = await onUploadImage({
-            uri: draftPendingImageUri,
-            base64: draftPendingImageBase64,
-            dataUri: draftPendingImageDataUri,
-            itemId: itemId || cleanName,
-            dishId: itemId || cleanName,
-            mimeType: draftPendingImageMimeType,
-            fileName: draftPendingImageFileName,
-          });
-          const serverImageUrl = getMenuItemImageValue({
-            imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
-          });
-
-          if (!serverImageUrl) {
-            throw new Error('Ảnh đã chọn chưa upload được lên máy chủ. Vui lòng chọn lại ảnh hoặc thử ảnh nhỏ hơn.');
-          }
-
-          cleanImageUrl = serverImageUrl;
-          updateDraft(
-            {
-              imageUrl: serverImageUrl,
-              pendingImageUri: '',
-              pendingImageBase64: '',
-              pendingImageDataUri: '',
-              pendingImageFileName: '',
-              pendingImageMimeType: '',
-            },
-            {syncImagePreview: true},
-          );
-        } else if (onUploadImage) {
-          throw new Error('Ảnh đã chọn chưa có dữ liệu để upload. Vui lòng chọn lại ảnh khác hoặc ảnh nhỏ hơn.');
-        } else {
-          cleanImageUrl = await persistRestaurantMenuImage({
-            uri: draftPendingImageUri,
-            base64: draftPendingImageBase64,
-            itemId: itemId || cleanName,
-            type: draftPendingImageMimeType,
-            fileName: draftPendingImageFileName,
-          });
-        }
-      }
-
-      await onSaveItem({
+      const basePayload: MenuItemFormInput = {
         ...(isEdit ? {id: itemId, createdAt: editingItem?.createdAt} : {}),
         name: cleanName,
         price: priceValue,
         categoryId: cleanCategoryId,
-        categoryName: selectedCategoryForSubmit?.name || cleanCategoryId,
+        categoryName: cleanCategoryName,
         description: draftDescription.trim(),
-        imageUrl: cleanImageUrl,
+        // Với món mới có ảnh pending, lưu món trước không kèm ảnh. Sau khi server
+        // trả id thật của món, mới upload ảnh và PATCH lại imageUrl. Như vậy nếu
+        // upload ảnh lỗi thì món/danh mục vẫn không bị mất.
+        imageUrl: hasPendingImage
+          ? isEdit
+            ? existingServerImageUrl
+            : ''
+          : cleanDraftImageUrl,
         status: draftStatus,
         available: draftStatus === 'SELLING',
-      });
+      };
+
+      let savedItems = await onSaveItem(basePayload);
+      let savedItem = findSavedMenuItemForPayload(
+        savedItems,
+        {
+          id: basePayload.id,
+          name: cleanName,
+          price: priceValue,
+          categoryId: cleanCategoryId,
+          categoryName: cleanCategoryName,
+        },
+        categories,
+      );
+      const savedItemId = savedItem?.id || itemId;
+      let imageWarning = '';
+
+      if (hasPendingImage) {
+        if (!savedItemId) {
+          imageWarning =
+            'Món đã lưu nhưng chưa lấy được mã món để gắn ảnh. Vào lại Quản lý món rồi bấm Sửa món để chọn ảnh lại.';
+        } else {
+          try {
+            setImageUploading(true);
+            let serverImageUrl = '';
+
+            if (onUploadImage && (draftPendingImageBase64 || draftPendingImageDataUri)) {
+              const uploadResult = await onUploadImage({
+                uri: draftPendingImageUri,
+                base64: draftPendingImageBase64,
+                dataUri: draftPendingImageDataUri,
+                itemId: savedItemId,
+                dishId: savedItemId,
+                mimeType: draftPendingImageMimeType,
+                fileName: draftPendingImageFileName,
+              });
+              serverImageUrl = getMenuItemImageValue({
+                imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
+              });
+            }
+
+            if (!serverImageUrl && !onUploadImage) {
+              serverImageUrl = await persistRestaurantMenuImage({
+                uri: draftPendingImageUri,
+                base64: draftPendingImageBase64,
+                itemId: savedItemId,
+                type: draftPendingImageMimeType,
+                fileName: draftPendingImageFileName,
+              });
+            }
+
+            if (serverImageUrl) {
+              const imagePayload: MenuItemFormInput = {
+                ...basePayload,
+                id: savedItemId,
+                createdAt: savedItem?.createdAt || editingItem?.createdAt,
+                imageUrl: serverImageUrl,
+              };
+              savedItems = await onSaveItem(imagePayload);
+              savedItem = findSavedMenuItemForPayload(
+                savedItems,
+                {
+                  id: savedItemId,
+                  name: cleanName,
+                  price: priceValue,
+                  categoryId: cleanCategoryId,
+                  categoryName: cleanCategoryName,
+                },
+                categories,
+              );
+            } else {
+              imageWarning =
+                'Món đã lưu, nhưng ảnh chưa upload được. Ảnh có thể quá lớn hoặc máy chưa cấp dữ liệu ảnh; hãy sửa món và chọn lại ảnh nhỏ hơn.';
+            }
+          } catch (uploadError) {
+            devWarn('[AdminMenu] image upload failed after item save', uploadError);
+            imageWarning =
+              'Món đã lưu, nhưng ảnh chưa upload được. Hãy vào Sửa món và chọn lại ảnh nhỏ hơn nếu cần.';
+          }
+        }
+      }
 
       replaceFormSession(createEmptyFormSession(defaultCategoryId));
+      if (imageWarning) {
+        setListError(imageWarning);
+      }
     } catch (saveError) {
       devWarn('[AdminMenu] save failed', saveError);
       const message =
@@ -1341,7 +1456,7 @@ const AdminMenuManagementScreen = ({
                   : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Ảnh được lưu trên thiết bị này để app dùng trực tiếp.
+                Chọn ảnh xong bấm Lưu món, ảnh sẽ được tải lên server nếu có mạng.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable

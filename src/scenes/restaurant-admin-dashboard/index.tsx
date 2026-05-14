@@ -758,7 +758,10 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       const next = await loadRestaurantAdminData();
       applyOrdersSnapshot(next.orders, {announceNew: false});
       setOrderSyncStatus('online');
-      applyMenuSnapshot(next.categories, next.menuItems);
+      applyMenuSnapshot(next.categories, next.menuItems, {
+        preserveExistingOnEmpty:
+          Date.now() - adminDashboardMenuSnapshot.updatedAt < 1000 * 60 * 2,
+      });
       setTables(next.tables || []);
       setBillSessions(next.billSessions || []);
     } catch (error) {
@@ -984,10 +987,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     try {
       const next = await loadRestaurantAdminMenuData();
 
-      // Successful API response is the source of truth. Do not keep a local
-      // snapshot when Render says the menu is empty; otherwise device A can
-      // show cached items while device B logs in and correctly sees none.
-      return applyMenuSnapshot(next.categories, next.menuItems);
+      // Regular reloads still use the server as source of truth. For mutation
+      // flows (save category/item), preserve the mutation response if the
+      // immediate follow-up GET returns empty because Render is still waking up.
+      return applyMenuSnapshot(next.categories, next.menuItems, {
+        preserveExistingOnEmpty: Boolean(fallback?.preserveExistingOnEmpty),
+      });
     } catch (error) {
       if (fallbackCategories || fallbackMenuItems) {
         applyMenuSnapshot(
@@ -1004,7 +1009,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   ) => {
     const savedItems = await saveAdminMenuItem(input);
     setMenuItems(savedItems);
-    const next = await reloadMenuData({menuItems: savedItems, categories});
+    const next = await reloadMenuData({
+      menuItems: savedItems,
+      categories,
+      preserveExistingOnEmpty: true,
+    });
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
     return next.menuItems;
@@ -1037,6 +1046,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     const next = await reloadMenuData({
       categories: result.categories,
       menuItems,
+      preserveExistingOnEmpty: true,
     });
     const categoriesSnapshot =
       next.categories.length > 0 ? next.categories : result.categories;
