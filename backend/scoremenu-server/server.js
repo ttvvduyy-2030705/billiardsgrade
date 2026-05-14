@@ -1140,37 +1140,50 @@ const resolveRestaurantCategoryId = (db, restaurantId, categoryId) => {
   const categories = getRestaurantCategories(db, restaurantId);
   const cleanCategoryId = cleanString(categoryId);
 
-  if (cleanCategoryId && categories.some(category => category.id === cleanCategoryId)) {
+  if (!cleanCategoryId) {
+    return '';
+  }
+
+  // Exact id wins first. This is the normal path for admin-created categories
+  // such as "Bia", "Cafe", "Đồ ăn vặt"... Do not remap those to the default
+  // Đồ uống/Đồ ăn buckets.
+  if (categories.some(category => category.id === cleanCategoryId)) {
     return cleanCategoryId;
   }
 
   const normalizedCategory = normalizeKey(cleanCategoryId);
-  if (normalizedCategory) {
-    const byName = categories.find(category => normalizeKey(category.name) === normalizedCategory);
-    if (byName) {
-      return byName.id;
-    }
-
-    if (normalizedCategory.includes('drink') || normalizedCategory.includes('uong') || normalizedCategory.includes('nuoc')) {
-      return (
-        categories.find(category => category.id === 'menu_drink')?.id ||
-        categories.find(category => normalizeKey(category.name).includes('uong'))?.id ||
-        categories[0]?.id ||
-        ''
-      );
-    }
-
-    if (normalizedCategory.includes('food') || normalizedCategory.includes('an')) {
-      return (
-        categories.find(category => category.id === 'menu_food')?.id ||
-        categories.find(category => normalizeKey(category.name).includes('an'))?.id ||
-        categories[0]?.id ||
-        ''
-      );
-    }
+  if (!normalizedCategory) {
+    return '';
   }
 
-  return categories[0]?.id || '';
+  const byName = categories.find(category => normalizeKey(category.name) === normalizedCategory);
+  if (byName) {
+    return byName.id;
+  }
+
+  // Compatibility only for very old app builds that submitted fixed legacy ids.
+  // Avoid broad "contains" matching because a custom category id/name can
+  // include words like "an" or "nuoc" and must still be preserved.
+  const drinkAliases = new Set(['drink', 'drinks', 'menu_drink', 'do_uong', 'douong', 'nuoc', 'uong']);
+  const foodAliases = new Set(['food', 'foods', 'menu_food', 'do_an', 'doan', 'mon_an', 'monan']);
+
+  if (drinkAliases.has(normalizedCategory)) {
+    return (
+      categories.find(category => category.id === 'menu_drink')?.id ||
+      categories.find(category => normalizeKey(category.name) === 'do_uong')?.id ||
+      ''
+    );
+  }
+
+  if (foodAliases.has(normalizedCategory)) {
+    return (
+      categories.find(category => category.id === 'menu_food')?.id ||
+      categories.find(category => normalizeKey(category.name) === 'do_an')?.id ||
+      ''
+    );
+  }
+
+  return '';
 };
 
 const getRestaurantItems = (db, restaurantId) =>
@@ -3258,7 +3271,7 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
       const item = normalizeItemPayload(body, restaurantId);
       const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, item.categoryId);
       if (!resolvedCategoryId) {
-        fail(res, 400, 'Nhà hàng chưa có danh mục món. Vui lòng tải lại trang quản lý món rồi thử lại.');
+        fail(res, 400, 'Danh mục đã chọn không tồn tại hoặc chưa đồng bộ. Vui lòng tải lại trang quản lý món rồi chọn lại danh mục.');
         return true;
       }
       item.categoryId = resolvedCategoryId;
@@ -3286,7 +3299,7 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
       const next = normalizeItemPayload(body, restaurantId, item);
       const resolvedCategoryId = resolveRestaurantCategoryId(db, restaurantId, next.categoryId);
       if (!resolvedCategoryId) {
-        fail(res, 400, 'Nhà hàng chưa có danh mục món. Vui lòng tải lại trang quản lý món rồi thử lại.');
+        fail(res, 400, 'Danh mục đã chọn không tồn tại hoặc chưa đồng bộ. Vui lòng tải lại trang quản lý món rồi chọn lại danh mục.');
         return true;
       }
       next.categoryId = resolvedCategoryId;

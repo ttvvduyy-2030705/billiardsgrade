@@ -207,7 +207,7 @@ const getInitialStatus = (
 };
 
 const createEmptyFormSession = (
-  categoryId = 'drink',
+  categoryId = DEFAULT_DRINK_CATEGORY_ID,
 ): AdminMenuFormSession => ({
   viewMode: 'list',
   selectedItemId: null,
@@ -966,10 +966,17 @@ const AdminMenuManagementScreen = ({
         return;
       }
 
-      const nextDefaultCategoryId =
-        result.categories[0]?.id || defaultCategoryId;
-      if (!categoryId && nextDefaultCategoryId) {
-        updateDraft({categoryId: nextDefaultCategoryId});
+      const savedCategory = result.categories.find(
+        category => category.id === categoryDraftId || normaliseSearchTerm(category.name) === normaliseSearchTerm(cleanName),
+      );
+      const nextCategoryId = savedCategory?.id || result.categories[0]?.id || defaultCategoryId;
+      if (nextCategoryId) {
+        updateDraft({categoryId: nextCategoryId});
+        setCategoryFilter(current =>
+          current !== 'ALL' && categoryDraftId && current === categoryDraftId
+            ? nextCategoryId
+            : current,
+        );
       }
 
       resetCategoryDraft();
