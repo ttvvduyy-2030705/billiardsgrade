@@ -1,4 +1,11 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   NativeModules,
@@ -100,6 +107,18 @@ let adminSettingsDraftSession: AdminSettingsDraftSession = {
   tableCountDirty: false,
 };
 
+type AdminDashboardMenuSnapshot = {
+  categories: MenuCategory[];
+  menuItems: RestaurantMenuItem[];
+  updatedAt: number;
+};
+
+let adminDashboardMenuSnapshot: AdminDashboardMenuSnapshot = {
+  categories: [],
+  menuItems: [],
+  updatedAt: 0,
+};
+
 const ADMIN_SESSION_CHECK_TIMEOUT_MS = 2500;
 const ADMIN_ORDER_POLL_INTERVAL_MS = 3000;
 
@@ -183,6 +202,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const reset = props.reset;
   const isFocused = props.isFocused;
   const addListener = props.addListener;
+  const routeAdminUsername = String(props.adminUsername || '').trim();
   const singlePageMode = props.adminPageMode === 'single';
   const initialAdminTab = props.initialAdminTab || 'orders';
   const headerTitle = singlePageMode
@@ -204,14 +224,69 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   );
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [billSessions, setBillSessions] = useState<AdminBillSession[]>([]);
-  const [menuItems, setMenuItems] = useState<RestaurantMenuItem[]>([]);
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItemsState] = useState<RestaurantMenuItem[]>(
+    () => adminDashboardMenuSnapshot.menuItems,
+  );
+  const [categories, setCategoriesState] = useState<MenuCategory[]>(
+    () => adminDashboardMenuSnapshot.categories,
+  );
   const [tables, setTables] = useState<AdminRestaurantTable[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [authChecking, setAuthChecking] = useState(true);
+  const [authChecking, setAuthChecking] = useState(() => !routeAdminUsername);
   const [authErrorMessage, setAuthErrorMessage] = useState('');
-  const [sessionUsername, setSessionUsername] = useState(
-    props.adminUsername || '',
+  const [sessionUsername, setSessionUsername] = useState(routeAdminUsername);
+  const setMenuItems = useCallback((nextItems: RestaurantMenuItem[]) => {
+    adminDashboardMenuSnapshot = {
+      ...adminDashboardMenuSnapshot,
+      menuItems: nextItems,
+      updatedAt: Date.now(),
+    };
+    setMenuItemsState(nextItems);
+  }, []);
+  const setCategories = useCallback((nextCategories: MenuCategory[]) => {
+    adminDashboardMenuSnapshot = {
+      ...adminDashboardMenuSnapshot,
+      categories: nextCategories,
+      updatedAt: Date.now(),
+    };
+    setCategoriesState(nextCategories);
+  }, []);
+  const applyMenuSnapshot = useCallback(
+    (
+      nextCategories: MenuCategory[],
+      nextMenuItems: RestaurantMenuItem[],
+      options: {preserveExistingOnEmpty?: boolean} = {},
+    ) => {
+      const preserveExistingOnEmpty = Boolean(options.preserveExistingOnEmpty);
+      const cachedCategories = adminDashboardMenuSnapshot.categories;
+      const cachedMenuItems = adminDashboardMenuSnapshot.menuItems;
+      const categoriesSnapshot =
+        nextCategories.length > 0 ||
+        !preserveExistingOnEmpty ||
+        cachedCategories.length === 0
+          ? nextCategories
+          : cachedCategories;
+      const menuItemsSnapshot =
+        nextMenuItems.length > 0 ||
+        !preserveExistingOnEmpty ||
+        cachedMenuItems.length === 0
+          ? nextMenuItems
+          : cachedMenuItems;
+
+      adminDashboardMenuSnapshot = {
+        categories: categoriesSnapshot,
+        menuItems: menuItemsSnapshot,
+        updatedAt: Date.now(),
+      };
+      setCategoriesState(categoriesSnapshot);
+      setMenuItemsState(menuItemsSnapshot);
+
+      return {
+        categories: categoriesSnapshot,
+        menuItems: menuItemsSnapshot,
+      };
+    },
+    [],
   );
   const contextSwitching = false;
   const [restaurantNameDraft, setRestaurantNameDraftState] = useState(
@@ -335,11 +410,14 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       adminSettingsDraftSession.restaurantId === restaurantId;
 
     if (cachedForCurrentRestaurant && restaurantNameDirtyRef.current) {
-      if (restaurantNameDraft !== adminSettingsDraftSession.restaurantNameDraft) {
+      if (
+        restaurantNameDraft !== adminSettingsDraftSession.restaurantNameDraft
+      ) {
         setRestaurantNameDraftState(
           adminSettingsDraftSession.restaurantNameDraft,
         );
-        restaurantNameDraftRef.current = adminSettingsDraftSession.restaurantNameDraft;
+        restaurantNameDraftRef.current =
+          adminSettingsDraftSession.restaurantNameDraft;
       }
       return;
     }
@@ -478,10 +556,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, []);
 
   const applyOrdersSnapshot = useCallback(
-    (
-      nextOrders: AdminOrder[],
-      options: {announceNew?: boolean} = {},
-    ) => {
+    (nextOrders: AdminOrder[], options: {announceNew?: boolean} = {}) => {
       if (!isMountedRef.current || loggingOutRef.current) {
         return;
       }
@@ -502,11 +577,11 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       const nextIds = new Set(uniqueOrders.map(order => order.id));
 
       if (options.announceNew && previousIds.size > 0) {
-        const newOrders = uniqueOrders.filter(order => !previousIds.has(order.id));
+        const newOrders = uniqueOrders.filter(
+          order => !previousIds.has(order.id),
+        );
         if (newOrders.length > 0) {
-          setNewOrderNotice(
-            `${newOrders.length} đơn mới vừa vào khu quản trị`,
-          );
+          setNewOrderNotice(`${newOrders.length} đơn mới vừa vào khu quản trị`);
         }
       }
 
@@ -532,6 +607,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const resetSensitiveData = useCallback(() => {
     setOrders([]);
     setBillSessions([]);
+    adminDashboardMenuSnapshot = {categories: [], menuItems: [], updatedAt: 0};
     setMenuItems([]);
     setCategories([]);
     setTables([]);
@@ -668,17 +744,23 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
       setSessionUsername(session.username);
       setRefreshing(true);
-      const snapshot = await hydrateRestaurantContext({session, source: 'admin'});
+      const snapshot = await hydrateRestaurantContext({
+        session,
+        source: 'admin',
+      });
 
       if (!snapshot.context?.restaurantId) {
-        throw new Error('Tài khoản Admin chưa có quán riêng. Vui lòng đăng nhập lại.');
+        throw new Error(
+          'Tài khoản Admin chưa có quán riêng. Vui lòng đăng nhập lại.',
+        );
       }
 
       const next = await loadRestaurantAdminData();
       applyOrdersSnapshot(next.orders, {announceNew: false});
       setOrderSyncStatus('online');
-      setMenuItems(next.menuItems);
-      setCategories(next.categories);
+      applyMenuSnapshot(next.categories, next.menuItems, {
+        preserveExistingOnEmpty: true,
+      });
       setTables(next.tables || []);
       setBillSessions(next.billSessions || []);
     } catch (error) {
@@ -706,6 +788,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       setRefreshing(false);
     }
   }, [
+    applyMenuSnapshot,
     applyOrdersSnapshot,
     hydrateRestaurantContext,
     redirectToLogin,
@@ -735,9 +818,20 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         }
 
         setSessionUsername(session.username);
-        const snapshot = await hydrateRestaurantContext({session, source: 'admin'});
+
+        if (routeAdminUsername) {
+          setAuthChecking(false);
+          return;
+        }
+
+        const snapshot = await hydrateRestaurantContext({
+          session,
+          source: 'admin',
+        });
         if (!snapshot.context?.restaurantId) {
-          throw new Error('Tài khoản Admin chưa có quán riêng. Vui lòng đăng nhập lại.');
+          throw new Error(
+            'Tài khoản Admin chưa có quán riêng. Vui lòng đăng nhập lại.',
+          );
         }
         setAuthChecking(false);
       } catch (error) {
@@ -764,6 +858,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     hydrateRestaurantContext,
     redirectToLogin,
     resetSensitiveData,
+    routeAdminUsername,
   ]);
 
   useEffect(() => {
@@ -899,18 +994,13 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           ? next.menuItems
           : fallbackMenuItems;
 
-      setCategories(categoriesSnapshot);
-      setMenuItems(menuItemsSnapshot);
-      return {
-        categories: categoriesSnapshot,
-        menuItems: menuItemsSnapshot,
-      };
+      return applyMenuSnapshot(categoriesSnapshot, menuItemsSnapshot);
     } catch (error) {
-      if (fallbackCategories) {
-        setCategories(fallbackCategories);
-      }
-      if (fallbackMenuItems) {
-        setMenuItems(fallbackMenuItems);
+      if (fallbackCategories || fallbackMenuItems) {
+        applyMenuSnapshot(
+          fallbackCategories || categories,
+          fallbackMenuItems || menuItems,
+        );
       }
       throw error;
     }
@@ -993,8 +1083,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   const reloadTables = async () => {
     const next = await loadRestaurantAdminData();
     setTables(next.tables || []);
-    setMenuItems(next.menuItems);
-    setCategories(next.categories);
+    applyMenuSnapshot(next.categories, next.menuItems, {
+      preserveExistingOnEmpty: true,
+    });
     setBillSessions(next.billSessions || []);
     applyOrdersSnapshot(next.orders, {announceNew: false});
   };
@@ -1023,7 +1114,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     return nextTables;
   };
 
-  const onSaveBranchQr = async (input: Parameters<typeof saveAdminBranchQr>[0]) => {
+  const onSaveBranchQr = async (
+    input: Parameters<typeof saveAdminBranchQr>[0],
+  ) => {
     const nextBranch = await saveAdminBranchQr(input);
     await hydrateRestaurantContext({source: 'admin'});
     adminDashboardActiveTabSession = 'tables';
@@ -1189,7 +1282,10 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
   };
 
-  const onTransferBillTable = async (billSessionId: string, tableId: string) => {
+  const onTransferBillTable = async (
+    billSessionId: string,
+    tableId: string,
+  ) => {
     setAuthErrorMessage('');
     try {
       await transferAdminBillSessionTable({
@@ -1228,7 +1324,6 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       );
     }
   };
-
 
   const getPageScreenName = useCallback((tab: AdminDashboardTab) => {
     switch (tab) {
@@ -1379,7 +1474,10 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         return;
       }
 
-      const cleanTableCount = String(rawTableCount || '').replace(/[^0-9]/g, '');
+      const cleanTableCount = String(rawTableCount || '').replace(
+        /[^0-9]/g,
+        '',
+      );
       const tableCount = resolvePositiveInteger(cleanTableCount);
 
       if (!cleanTableCount) {
@@ -1528,7 +1626,9 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
 
     if (
       cleanTableCount &&
-      (!Number.isInteger(tableCount) || Number(tableCount) < 1 || Number(tableCount) > 200)
+      (!Number.isInteger(tableCount) ||
+        Number(tableCount) < 1 ||
+        Number(tableCount) > 200)
     ) {
       setRestaurantNameMessage('Số bàn chỉ được nhập số từ 1 đến 200.');
       return;
@@ -1639,8 +1739,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
             Chọn một khu vực để quản lý
           </RNText>
           <RNText style={styles.homeIntroHint}>
-            Mỗi phần admin đã được tách thành một trang riêng để tránh vỡ layout,
-            chữ đè nhau hoặc không nhìn hết nội dung trên Android.
+            Mỗi phần admin đã được tách thành một trang riêng để tránh vỡ
+            layout, chữ đè nhau hoặc không nhìn hết nội dung trên Android.
           </RNText>
         </RNView>
 
@@ -1753,7 +1853,8 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
               </RNText>
             </Pressable>
             <RNText style={styles.workspaceHint}>
-              Nhập 10 thì giỏ hàng sẽ tự hiện các nút Bàn 1, Bàn 2,... Bàn 10 cho khách chọn.
+              Nhập 10 thì giỏ hàng sẽ tự hiện các nút Bàn 1, Bàn 2,... Bàn 10
+              cho khách chọn.
             </RNText>
             {restaurantNameMessage ? (
               <RNText
