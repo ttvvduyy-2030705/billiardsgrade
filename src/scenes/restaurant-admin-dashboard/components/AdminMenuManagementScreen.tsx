@@ -17,7 +17,6 @@ import {
   getMenuItemStatusLabel,
 } from 'services/restaurantAdminStore';
 import {devWarn} from 'utils/devLogger';
-import {DEFAULT_DRINK_CATEGORY_ID} from 'services/restaurantMenuRepository';
 import type {
   MenuCategory,
   RestaurantMenuItem,
@@ -209,7 +208,7 @@ const getInitialStatus = (
 };
 
 const createEmptyFormSession = (
-  categoryId = DEFAULT_DRINK_CATEGORY_ID,
+  categoryId = '',
 ): AdminMenuFormSession => ({
   viewMode: 'list',
   selectedItemId: null,
@@ -245,7 +244,7 @@ const AdminMenuManagementScreen = ({
   onDeleteCategory,
 }: Props) => {
   const defaultCategoryId = useMemo(
-    () => categories[0]?.id || DEFAULT_DRINK_CATEGORY_ID,
+    () => categories[0]?.id || '',
     [categories],
   );
 
@@ -484,6 +483,15 @@ const AdminMenuManagementScreen = ({
   }, [categories, categoryId, defaultCategoryId]);
 
   const openCreate = () => {
+    if (categories.length === 0) {
+      setListError('Bạn cần thêm ít nhất 1 danh mục trước khi thêm món.');
+      replaceFormSession({
+        ...createEmptyFormSession(defaultCategoryId),
+        viewMode: 'categories',
+      });
+      return;
+    }
+
     setListError('');
     replaceFormSession({
       ...createEmptyFormSession(defaultCategoryId),
@@ -1242,6 +1250,11 @@ const AdminMenuManagementScreen = ({
           })}
 
           <RNText style={styles.inputLabel}>Danh mục</RNText>
+          {categories.length === 0 ? (
+            <RNText style={styles.formError}>
+              Chưa có danh mục. Bấm “+ Thêm danh mục” để tạo danh mục trước.
+            </RNText>
+          ) : null}
           <RNView style={styles.categoryPickerWrap}>
             {categories.map(category => {
               const active = category.id === categoryId;
@@ -1370,7 +1383,7 @@ const AdminMenuManagementScreen = ({
             <Pressable
               onPress={submitForm}
               style={styles.saveButton}
-              disabled={saving}>
+              disabled={saving || categories.length === 0}>
               <RNText style={styles.saveButtonText}>
                 {saving ? 'Đang lưu...' : 'Lưu'}
               </RNText>
@@ -1387,8 +1400,8 @@ const AdminMenuManagementScreen = ({
         <RNView>
           <RNText style={styles.sectionTitle}>Quản lý món / sản phẩm</RNText>
           <RNText style={styles.sectionHint}>
-            {menuItems.length} món · {categories.length} danh mục · Dữ liệu lưu
-            trên thiết bị này.
+            {menuItems.length} món · {categories.length} danh mục · Dữ liệu đồng bộ
+            theo tài khoản/quán hiện tại.
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>

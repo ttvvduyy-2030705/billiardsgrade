@@ -1113,27 +1113,38 @@ const sortByOrderAndName = (a, b) => {
 const getRestaurantCategories = (db, restaurantId) =>
   db.categories.filter(item => item.restaurantId === restaurantId).sort(sortByOrderAndName);
 
-const DEFAULT_RESTAURANT_CATEGORIES = [
-  {id: 'menu_drink', name: 'Đồ uống', sortOrder: 1},
-  {id: 'menu_food', name: 'Đồ ăn', sortOrder: 2},
-];
+const DEFAULT_RESTAURANT_CATEGORY_IDS = new Set(['menu_drink', 'menu_food']);
 
-const ensureDefaultCategoriesForRestaurant = (db, restaurantId) => {
-  if (!restaurantId || getRestaurantCategories(db, restaurantId).length > 0) {
+const DEFAULT_RESTAURANT_CATEGORY_NAMES = new Set(['đồ uống', 'đồ ăn', 'do uong', 'do an']);
+
+const isDefaultRestaurantCategory = category =>
+  DEFAULT_RESTAURANT_CATEGORY_IDS.has(String(category?.id || '')) &&
+  DEFAULT_RESTAURANT_CATEGORY_NAMES.has(normalizeKey(category?.name));
+
+const removeUnusedDefaultCategoriesForRestaurant = (db, restaurantId) => {
+  if (!restaurantId) {
     return false;
   }
 
-  const timestamp = nowIso();
-  DEFAULT_RESTAURANT_CATEGORIES.forEach(category => {
-    db.categories.push({
-      ...category,
-      restaurantId,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
+  const usedCategoryIds = new Set(
+    db.items
+      .filter(item => item.restaurantId === restaurantId && cleanString(item.categoryId))
+      .map(item => item.categoryId),
+  );
+  const beforeCount = db.categories.length;
+  db.categories = db.categories.filter(category => {
+    if (category.restaurantId !== restaurantId) {
+      return true;
+    }
+    if (!isDefaultRestaurantCategory(category)) {
+      return true;
+    }
+    return usedCategoryIds.has(category.id);
   });
-  return true;
+  return db.categories.length !== beforeCount;
 };
+
+const ensureDefaultCategoriesForRestaurant = (_db, _restaurantId) => false;
 
 const resolveRestaurantCategoryId = (db, restaurantId, categoryId) => {
   ensureDefaultCategoriesForRestaurant(db, restaurantId);
@@ -3156,7 +3167,7 @@ const routeTables = async (req, res, db, restaurantId, parts, user) => {
 
 const routeCategories = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length === 4 && req.method === 'GET') {
-    if (ensureDefaultCategoriesForRestaurant(db, restaurantId)) {
+    if (removeUnusedDefaultCategoriesForRestaurant(db, restaurantId)) {
       saveDb(db);
     }
     ok(res, getRestaurantCategories(db, restaurantId));
@@ -3169,6 +3180,7 @@ const routeCategories = async (req, res, db, restaurantId, parts, user) => {
     }
     const body = await parseBody(req);
     try {
+      removeUnusedDefaultCategoriesForRestaurant(db, restaurantId);
       const category = normalizeCategoryPayload(body, restaurantId);
       if (db.categories.some(item => item.restaurantId === restaurantId && normalizeKey(item.name) === normalizeKey(category.name))) {
         fail(res, 409, 'Tên danh mục đã tồn tại.');

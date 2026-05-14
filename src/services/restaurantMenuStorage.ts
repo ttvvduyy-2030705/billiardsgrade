@@ -344,24 +344,11 @@ const sampleTime = nowIso();
 export const DEFAULT_DRINK_CATEGORY_ID = 'menu_drink';
 export const DEFAULT_FOOD_CATEGORY_ID = 'menu_food';
 
-export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [
-  {
-    id: DEFAULT_DRINK_CATEGORY_ID,
-    restaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
-    name: 'Đồ uống',
-    sortOrder: 1,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-  {
-    id: DEFAULT_FOOD_CATEGORY_ID,
-    restaurantId: DEFAULT_LOCAL_RESTAURANT_ID,
-    name: 'Đồ ăn',
-    sortOrder: 2,
-    createdAt: sampleTime,
-    updatedAt: sampleTime,
-  },
-];
+// New admin restaurants start with an empty menu category list.
+// Admin-created categories such as “Nước”, “Bia”, “Cafe” must be the source
+// of truth; do not auto-seed Đồ uống/Đồ ăn because that made custom-category
+// saves look inconsistent after leaving and re-opening Quản lý món.
+export const DEFAULT_MENU_CATEGORIES: MenuCategory[] = [];
 
 export const defaultMenuItems: RestaurantMenuItem[] = [];
 
@@ -659,7 +646,7 @@ const cleanCategory = (
   restaurantId = DEFAULT_LOCAL_RESTAURANT_ID,
 ): MenuCategory => {
   const timestamp = nowIso();
-  const cleanName = (category.name || '').trim() || 'Đồ uống';
+  const cleanName = (category.name || '').trim() || 'Danh mục';
 
   return {
     id: category.id || createId('cat'),
@@ -709,22 +696,11 @@ const resolveCategoryId = (
   value: string | undefined,
   categories: MenuCategory[],
 ) => {
-  const raw = normalise(value);
-  const drinkCategory =
-    categories.find(category => category.id === DEFAULT_DRINK_CATEGORY_ID) ||
-    categories.find(
-      category => normalise(category.name) === normalise('Đồ uống'),
-    ) ||
-    categories[0];
-  const foodCategory =
-    categories.find(category => category.id === DEFAULT_FOOD_CATEGORY_ID) ||
-    categories.find(
-      category => normalise(category.name) === normalise('Đồ ăn'),
-    ) ||
-    drinkCategory;
+  const cleanValue = String(value || '').trim();
+  const raw = normalise(cleanValue);
 
   if (!raw) {
-    return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
+    return categories[0]?.id || '';
   }
 
   const byId = categories.find(category => normalise(category.id) === raw);
@@ -737,20 +713,10 @@ const resolveCategoryId = (
     return byName.id;
   }
 
-  if (
-    raw.includes('uong') ||
-    raw.includes('drink') ||
-    raw.includes('coca') ||
-    raw.includes('pepsi') ||
-    raw.includes('fanta') ||
-    raw.includes('mirinda') ||
-    raw.includes('tra') ||
-    raw.includes('nuoc')
-  ) {
-    return drinkCategory?.id || DEFAULT_DRINK_CATEGORY_ID;
-  }
-
-  return foodCategory?.id || drinkCategory?.id || DEFAULT_FOOD_CATEGORY_ID;
+  // Preserve the selected category id instead of silently remapping to
+  // Đồ uống/Đồ ăn. In API mode the server can repair by categoryName; in local
+  // mode this makes invalid category data visible instead of jumping buckets.
+  return cleanValue;
 };
 
 const normaliseMenuItemStatus = (
@@ -895,11 +861,8 @@ export const loadMenuCategories = async (
       );
     }
 
-    const defaultCategories = DEFAULT_MENU_CATEGORIES.map(category =>
-      cleanCategory(category, scopedKeys.restaurantId),
-    );
-    await writeArray(scopedKeys.categories, defaultCategories);
-    return defaultCategories;
+    await AsyncStorage.setItem(scopedKeys.schemaVersion, CURRENT_SCHEMA_VERSION);
+    return [];
   }
 
   const storedWithoutSeeds = stored.filter(category => !isBuiltInSeedCategory(category));
@@ -1067,7 +1030,6 @@ export const getCategoryNameById = (
 ) => {
   return (
     categories.find(category => category.id === categoryId)?.name ||
-    categories[0]?.name ||
     'Chưa phân loại'
   );
 };

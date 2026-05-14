@@ -780,6 +780,23 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, [authChecking, context?.restaurantId, loadData, sessionUsername]);
 
   useEffect(() => {
+    if (
+      authChecking ||
+      !sessionUsername ||
+      !screenFocused ||
+      activeTab !== 'menu' ||
+      loggingOutRef.current
+    ) {
+      return;
+    }
+
+    void reloadMenuData().catch(error => {
+      devWarn('[RestaurantAdminDashboard] reload menu data failed', error);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, authChecking, screenFocused, sessionUsername]);
+
+  useEffect(() => {
     const shouldPollOrders =
       singlePageMode &&
       activeTab === 'orders' &&
@@ -854,22 +871,29 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     }
   };
 
+  const reloadMenuData = async () => {
+    const next = await loadRestaurantAdminData();
+    setCategories(next.categories);
+    setMenuItems(next.menuItems);
+    return next;
+  };
+
   const onSaveMenuItem = async (
     input: Parameters<typeof saveAdminMenuItem>[0],
   ) => {
-    const nextItems = await saveAdminMenuItem(input);
-    setMenuItems(nextItems);
+    await saveAdminMenuItem(input);
+    const next = await reloadMenuData();
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return nextItems;
+    return next.menuItems;
   };
 
   const onDeleteMenuItem = async (itemId: string) => {
-    const nextItems = await deleteAdminMenuItem(itemId);
-    setMenuItems(nextItems);
+    await deleteAdminMenuItem(itemId);
+    const next = await reloadMenuData();
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return nextItems;
+    return next.menuItems;
   };
 
   const onUploadMenuImage = async (
@@ -882,10 +906,12 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     input: Parameters<typeof saveAdminMenuCategory>[0],
   ) => {
     const result = await saveAdminMenuCategory(input);
-    setCategories(result.categories);
+    const next = await reloadMenuData();
+    const categories = next.categories.length > 0 ? next.categories : result.categories;
+    setCategories(categories);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return result;
+    return {...result, categories};
   };
 
   const onDeleteMenuCategory = async (
@@ -896,11 +922,14 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
       categoryId,
       moveItemsToCategoryId,
     );
-    setCategories(result.categories);
-    setMenuItems(result.menuItems);
+    const next = await reloadMenuData();
+    const categories = next.categories.length > 0 ? next.categories : result.categories;
+    const menuItems = next.menuItems.length > 0 ? next.menuItems : result.menuItems;
+    setCategories(categories);
+    setMenuItems(menuItems);
     adminDashboardActiveTabSession = 'menu';
     setActiveTabState('menu');
-    return result;
+    return {...result, categories, menuItems};
   };
 
   const reloadTables = async () => {
