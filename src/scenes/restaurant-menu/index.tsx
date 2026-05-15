@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -27,6 +28,7 @@ import type {
   ImageStyle,
   ListRenderItem,
   StyleProp,
+  ViewStyle,
 } from 'react-native';
 import images from 'assets';
 import Image from 'components/Image';
@@ -34,7 +36,10 @@ import View from 'components/View';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {screens} from 'scenes/screens';
+import i18n from 'i18n';
+import {LanguageContext} from 'context/language';
 import {devWarn} from 'utils/devLogger';
+import {formatVnd} from 'utils/appI18n';
 import {
   getScoreMenuErrorMessage,
   logScoreMenuError,
@@ -73,6 +78,11 @@ type Props = Navigation & {
   tableQrToken?: string;
 };
 
+type RestaurantMenuTranslate = (
+  key: string,
+  options?: Record<string, string | number>,
+) => string;
+
 type CartFieldDraft = {
   tableNumber: string;
   note: string;
@@ -90,6 +100,8 @@ type RestaurantDishCardProps = {
   categoryName: string;
   quantity: number;
   styles: ReturnType<typeof createStyles>;
+  t: RestaurantMenuTranslate;
+  cardStyle?: StyleProp<ViewStyle>;
   onChangeQuantity: (itemId: string, delta: number) => void;
 };
 
@@ -112,6 +124,7 @@ type RestaurantCartOverlayProps = {
   restaurantName?: string;
   branchName?: string;
   styles: ReturnType<typeof createStyles>;
+  t: RestaurantMenuTranslate;
   onClose: (draft: CartFieldDraft) => void;
   onSubmit: (draft: CartFieldDraft) => void;
   onContinueOrdering: (draft: CartFieldDraft) => void;
@@ -120,9 +133,7 @@ type RestaurantCartOverlayProps = {
   onClearTableError: () => void;
 };
 
-const formatCurrency = (value: number) => {
-  return `${Math.max(0, value || 0).toLocaleString('vi-VN')}đ`;
-};
+const formatCurrency = formatVnd;
 
 const normalizeTableInput = normalizeRestaurantTableNumber;
 
@@ -179,6 +190,8 @@ const RestaurantDishCard = memo(
     categoryName,
     quantity,
     styles,
+    t,
+    cardStyle,
     onChangeQuantity,
   }: RestaurantDishCardProps) => {
     const itemImageValue = useMemo(() => getMenuItemImageValue(item), [item]);
@@ -201,7 +214,9 @@ const RestaurantDishCard = memo(
       if (isOutOfStock) {
         return (
           <RNText style={styles.disabledText}>
-            {item.status === 'OUT_OF_STOCK' ? 'Hết hàng' : 'Tạm ẩn'}
+            {item.status === 'OUT_OF_STOCK'
+              ? t('restaurantMenu.outOfStock')
+              : t('restaurantMenu.hidden')}
           </RNText>
         );
       }
@@ -209,7 +224,7 @@ const RestaurantDishCard = memo(
       if (quantity <= 0) {
         return (
           <Pressable onPress={handleAdd} style={styles.addButton}>
-            <RNText style={styles.addButtonText}>+ Thêm</RNText>
+            <RNText style={styles.addButtonText}>+ {t('restaurantMenu.add')}</RNText>
           </Pressable>
         );
       }
@@ -228,7 +243,7 @@ const RestaurantDishCard = memo(
     };
 
     return (
-      <RNView style={styles.dishCard}>
+      <RNView style={[styles.dishCard, cardStyle]}>
         <RNView style={styles.dishImageWrap}>
           <MenuDishImage
             itemId={item.id}
@@ -264,6 +279,7 @@ const RestaurantDishCard = memo(
       prev.categoryName === next.categoryName &&
       prev.quantity === next.quantity &&
       prev.styles === next.styles &&
+      prev.cardStyle === next.cardStyle &&
       prev.onChangeQuantity === next.onChangeQuantity
     );
   },
@@ -289,6 +305,7 @@ const RestaurantCartOverlay = memo(
     restaurantName,
     branchName,
     styles,
+    t,
     onClose,
     onSubmit,
     onContinueOrdering,
@@ -314,9 +331,9 @@ const RestaurantCartOverlay = memo(
     const estimatedBillTotal = lockedByBill ? activeBillTotal + total : total;
     const billStatusText =
       billStatus === 'PAYMENT_REQUESTED'
-        ? 'Đang yêu cầu thanh toán'
+        ? t('restaurantMenu.paymentRequested')
         : billStatus === 'OPEN'
-          ? 'Đang mở'
+          ? t('restaurantMenu.open')
           : billStatus || '';
 
     useEffect(() => {
@@ -445,8 +462,8 @@ const RestaurantCartOverlay = memo(
 
       try {
         const nextValue = await showNativeCartInput({
-          title: 'Nhập số bàn',
-          placeholder: 'VD: Bàn 08, VIP1, A12',
+          title: t('restaurantMenu.enterTableNumber'),
+          placeholder: t('restaurantMenu.tablePlaceholder'),
           initialValue: tableNumberRef.current,
           keyboardType: 'text',
           source: 'restaurant-cart-table',
@@ -458,13 +475,13 @@ const RestaurantCartOverlay = memo(
       } catch (error) {
         devWarn('[RestaurantCartOverlay] native table input failed', error);
       }
-    }, [handleTableChange, lockedByBill, showNativeCartInput, tableLocked]);
+    }, [handleTableChange, lockedByBill, showNativeCartInput, tableLocked, t]);
 
     const openNoteInput = useCallback(async () => {
       try {
         const nextValue = await showNativeCartInput({
-          title: 'Nhập ghi chú',
-          placeholder: 'Thêm ghi chú cho đơn hàng',
+          title: t('restaurantMenu.enterNote'),
+          placeholder: t('restaurantMenu.notePlaceholder'),
           initialValue: noteRef.current,
           keyboardType: 'note',
           source: 'restaurant-cart-note',
@@ -476,7 +493,7 @@ const RestaurantCartOverlay = memo(
       } catch (error) {
         devWarn('[RestaurantCartOverlay] native note input failed', error);
       }
-    }, [handleNoteChange, showNativeCartInput]);
+    }, [handleNoteChange, showNativeCartInput, t]);
 
     const handleSubmit = useCallback(() => {
       Keyboard.dismiss();
@@ -501,7 +518,7 @@ const RestaurantCartOverlay = memo(
             </RNText>
             {!canIncrease ? (
               <RNText style={styles.fieldErrorText}>
-                Món này hiện không thể đặt thêm.
+                {t('restaurantMenu.cannotOrderMore')}
               </RNText>
             ) : null}
           </RNView>
@@ -548,11 +565,16 @@ const RestaurantCartOverlay = memo(
           <RNView style={styles.cartModalCard}>
             <RNView style={styles.cartModalHeader}>
               <RNView>
-                <RNText style={styles.cartModalTitle}>Giỏ hàng</RNText>
+                <RNText style={styles.cartModalTitle}>{t('restaurantMenu.cart')}</RNText>
                 <RNText style={styles.cartModalSubTitle}>
                   {lockedByBill
-                    ? `Hóa đơn đang mở · ${formatCurrency(estimatedBillTotal)}`
-                    : `${badgeCount} loại món · ${formatCurrency(total)}`}
+                    ? t('restaurantMenu.openBillSummary', {
+                        total: formatCurrency(estimatedBillTotal),
+                      })
+                    : t('restaurantMenu.cartTypeSummary', {
+                        count: badgeCount,
+                        total: formatCurrency(total),
+                      })}
                 </RNText>
               </RNView>
               <Pressable onPress={handleClose} style={styles.closeButton}>
@@ -572,20 +594,22 @@ const RestaurantCartOverlay = memo(
                   <RNText style={styles.emptyIcon}>🧺</RNText>
                   <RNText style={styles.emptyText}>
                     {lockedByBill
-                      ? 'Giỏ gọi thêm đang trống'
-                      : 'Giỏ hàng đang trống'}
+                      ? t('restaurantMenu.addOnCartEmpty')
+                      : t('restaurantMenu.cartEmpty')}
                   </RNText>
                   <RNText style={styles.emptySubText}>
                     {lockedByBill
-                      ? `Bàn ${lockedBillTableNumber || ''} đã khóa theo hóa đơn. Chọn thêm món từ menu khi cần gọi tiếp.`
-                      : 'Chọn món trong menu để tạo đơn gọi món.'}
+                      ? t('restaurantMenu.lockedBillEmptyHint', {
+                          table: lockedBillTableNumber || '',
+                        })
+                      : t('restaurantMenu.cartEmptyHint')}
                   </RNText>
                   {lockedByBill ? (
                     <Pressable
                       onPress={handleContinueOrdering}
                       style={styles.emptyActionButton}>
                       <RNText style={styles.emptyActionText}>
-                        Gọi thêm món
+                        {t('restaurantMenu.orderMore')}
                       </RNText>
                     </Pressable>
                   ) : null}
@@ -599,10 +623,10 @@ const RestaurantCartOverlay = memo(
                   <RNView style={styles.billSummaryHeader}>
                     <RNView style={styles.billSummaryTitleWrap}>
                       <RNText style={styles.billSummaryLabel}>
-                        HÓA ĐƠN ĐANG MỞ
+                        {t('restaurantMenu.openBillUpper')}
                       </RNText>
                       <RNText style={styles.billSummaryTitle}>
-                        Bàn {lockedBillTableNumber || 'đã khóa'}
+                        {t('restaurantMenu.tablePrefix')} {lockedBillTableNumber || t('restaurantMenu.locked')}
                       </RNText>
                     </RNView>
                     {billStatusText ? (
@@ -615,7 +639,7 @@ const RestaurantCartOverlay = memo(
                   </RNView>
                   <RNView style={styles.billTotalRow}>
                     <RNText style={styles.billTotalLabel}>
-                      Tạm tính hiện tại
+                      {t('restaurantMenu.currentSubtotal')}
                     </RNText>
                     <RNText style={styles.billTotalValue}>
                       {formatCurrency(activeBillTotal)}
@@ -623,7 +647,7 @@ const RestaurantCartOverlay = memo(
                   </RNView>
                   <RNView style={styles.billTotalRow}>
                     <RNText style={styles.billTotalLabel}>
-                      Món đang gọi thêm
+                      {t('restaurantMenu.addingItems')}
                     </RNText>
                     <RNText style={styles.billTotalValue}>
                       {formatCurrency(total)}
@@ -632,7 +656,7 @@ const RestaurantCartOverlay = memo(
                   <RNView
                     style={[styles.billTotalRow, styles.billGrandTotalRow]}>
                     <RNText style={styles.billGrandTotalLabel}>
-                      Dự kiến sau đơn này
+                      {t('restaurantMenu.estimatedAfterOrder')}
                     </RNText>
                     <RNText style={styles.billGrandTotalValue}>
                       {formatCurrency(estimatedBillTotal)}
@@ -641,7 +665,7 @@ const RestaurantCartOverlay = memo(
                 </RNView>
               ) : (
                 <RNView style={styles.totalRow}>
-                  <RNText style={styles.totalLabel}>Tổng món trong giỏ</RNText>
+                  <RNText style={styles.totalLabel}>{t('restaurantMenu.cartTotal')}</RNText>
                   <RNText style={styles.totalValue}>
                     {formatCurrency(total)}
                   </RNText>
@@ -650,24 +674,23 @@ const RestaurantCartOverlay = memo(
 
               <RNView style={styles.cartInfoSection}>
                 <RNView style={styles.cartScopeCard}>
-                  <RNText style={styles.cartScopeLabel}>MENU ĐANG GỌI</RNText>
+                  <RNText style={styles.cartScopeLabel}>{t('restaurantMenu.activeMenuUpper')}</RNText>
                   <RNText numberOfLines={1} style={styles.cartScopeTitle}>
-                    {restaurantName || 'Nhà hàng từ QR'}
+                    {restaurantName || t('restaurantMenu.restaurantFromQr')}
                   </RNText>
                   <RNText numberOfLines={1} style={styles.cartScopeSubTitle}>
-                    {branchName || 'Chi nhánh từ QR'}
+                    {branchName || t('restaurantMenu.branchFromQr')}
                   </RNText>
                 </RNView>
 
                 {lockedByBill ? (
                   <RNView style={styles.lockedTableCard}>
-                    <RNText style={styles.lockedTableLabel}>BÀN ĐÃ KHÓA</RNText>
+                    <RNText style={styles.lockedTableLabel}>{t('restaurantMenu.lockedTableUpper')}</RNText>
                     <RNText style={styles.lockedTableNumber}>
-                      {lockedBillTableNumber || 'Đã nhận theo hóa đơn'}
+                      {lockedBillTableNumber || t('restaurantMenu.receivedByBill')}
                     </RNText>
                     <RNText style={styles.lockedTableHint}>
-                      Bàn được khóa sau lần gọi đầu. Khách không thể đổi bàn từ
-                      giỏ hàng; nếu cần chuyển bàn hãy gọi nhân viên.
+                      {t('restaurantMenu.lockedTableHint')}
                     </RNText>
                   </RNView>
                 ) : (
@@ -675,7 +698,7 @@ const RestaurantCartOverlay = memo(
                     {visibleTables.length > 0 && !tableLocked ? (
                       <RNView style={styles.tablePickerSection}>
                         <RNText style={styles.tablePickerTitle}>
-                          Chọn nhanh bàn trong chi nhánh
+                          {t('restaurantMenu.quickChooseTable')}
                         </RNText>
                         <ScrollView
                           horizontal
@@ -719,11 +742,11 @@ const RestaurantCartOverlay = memo(
                       </RNView>
                     ) : branchTablesLoading && !tableLocked ? (
                       <RNText style={styles.tablePickerHint}>
-                        Đang tải danh sách bàn...
+                        {t('restaurantMenu.loadingTables')}
                       </RNText>
                     ) : tableLocked ? null : (
                       <RNText style={styles.tablePickerHint}>
-                        Nhập số bàn được nhân viên/biển bàn cung cấp.
+                        {t('restaurantMenu.tableManualHint')}
                       </RNText>
                     )}
 
@@ -737,7 +760,9 @@ const RestaurantCartOverlay = memo(
                           tableError ? styles.inputWrapError : null,
                         ]}>
                         <RNText style={styles.inputLabel}>
-                          {tableLocked ? 'BÀN TỪ QR' : 'SỐ BÀN'}
+                          {tableLocked
+                            ? t('restaurantMenu.tableFromQrUpper')
+                            : t('restaurantMenu.tableNumberUpper')}
                         </RNText>
                         <RNText
                           numberOfLines={1}
@@ -749,8 +774,8 @@ const RestaurantCartOverlay = memo(
                           ]}>
                           {effectiveTableNumber ||
                             (tableLocked
-                              ? 'Đã nhận từ QR bàn'
-                              : 'VD: Bàn 08, VIP1, A12')}
+                              ? t('restaurantMenu.receivedFromTableQr')
+                              : t('restaurantMenu.tablePlaceholder'))}
                         </RNText>
                       </Pressable>
                     ) : (
@@ -760,7 +785,9 @@ const RestaurantCartOverlay = memo(
                           tableError ? styles.inputWrapError : null,
                         ]}>
                         <RNText style={styles.inputLabel}>
-                          {tableLocked ? 'BÀN TỪ QR' : 'SỐ BÀN'}
+                          {tableLocked
+                            ? t('restaurantMenu.tableFromQrUpper')
+                            : t('restaurantMenu.tableNumberUpper')}
                         </RNText>
                         <TextInput
                           value={effectiveTableNumber}
@@ -768,8 +795,8 @@ const RestaurantCartOverlay = memo(
                           editable={!submitting && !tableLocked}
                           placeholder={
                             tableLocked
-                              ? 'Đã nhận từ QR bàn'
-                              : 'VD: Bàn 08, VIP1, A12'
+                              ? t('restaurantMenu.receivedFromTableQr')
+                              : t('restaurantMenu.tablePlaceholder')
                           }
                           placeholderTextColor="rgba(255,255,255,0.42)"
                           keyboardType="default"
@@ -801,7 +828,7 @@ const RestaurantCartOverlay = memo(
                       styles.cartDisplayField,
                       styles.cartDisplayFieldMultiline,
                     ]}>
-                    <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
+                    <RNText style={styles.inputLabel}>{t('restaurantMenu.noteUpper')}</RNText>
                     <RNText
                       numberOfLines={3}
                       style={[
@@ -809,17 +836,17 @@ const RestaurantCartOverlay = memo(
                         styles.cartDisplayValueMultiline,
                         !note ? styles.cartDisplayPlaceholder : null,
                       ]}>
-                      {note || 'Thêm ghi chú cho đơn hàng'}
+                      {note || t('restaurantMenu.notePlaceholder')}
                     </RNText>
                   </Pressable>
                 ) : (
                   <RNView style={styles.inputWrap}>
-                    <RNText style={styles.inputLabel}>GHI CHÚ</RNText>
+                    <RNText style={styles.inputLabel}>{t('restaurantMenu.noteUpper')}</RNText>
                     <TextInput
                       value={note}
                       onChangeText={handleNoteChange}
                       editable={!submitting}
-                      placeholder="Thêm ghi chú cho đơn hàng"
+                      placeholder={t('restaurantMenu.notePlaceholder')}
                       placeholderTextColor="rgba(255,255,255,0.42)"
                       keyboardType="default"
                       returnKeyType="default"
@@ -860,18 +887,18 @@ const RestaurantCartOverlay = memo(
                     }}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
                     <RNText style={styles.primaryButtonText}>
-                      Đang gửi đơn...
+                      {t('restaurantMenu.submittingOrder')}
                     </RNText>
                   </RNView>
                 ) : (
                   <RNText style={styles.primaryButtonText}>
                     {rows.length === 0
                       ? lockedByBill
-                        ? 'Gọi thêm món'
-                        : 'Chọn món từ menu'
+                        ? t('restaurantMenu.orderMore')
+                        : t('restaurantMenu.chooseFromMenu')
                       : lockedByBill
-                        ? 'Gửi món gọi thêm'
-                        : 'Gửi đơn'}
+                        ? t('restaurantMenu.submitAddOnOrder')
+                        : t('restaurantMenu.submitOrder')}
                   </RNText>
                 )}
               </Pressable>
@@ -885,6 +912,12 @@ const RestaurantCartOverlay = memo(
 
 const RestaurantMenuScreen = (props: Props) => {
   useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
+
+  const {language} = useContext(LanguageContext);
+  const t = useCallback<RestaurantMenuTranslate>(
+    (key, options) => String(i18n.t(key, options as any)),
+    [language],
+  );
 
   const {adaptive, design} = useDesignSystem();
   const styles = useMemo(
@@ -983,7 +1016,7 @@ const RestaurantMenuScreen = (props: Props) => {
           showError(
             contextSnapshot.errorMessage ||
               customerSessionError ||
-              'Không xác định được menu nhà hàng. Vui lòng quét lại QR của quán/chi nhánh.',
+              t('restaurantMenu.menuContextMissing'),
           );
           logScoreMenuError(
             {
@@ -1037,7 +1070,7 @@ const RestaurantMenuScreen = (props: Props) => {
         showError(
           getScoreMenuErrorMessage(
             error,
-            'Không thể tải menu. Vui lòng kiểm tra QR hoặc thử lại.',
+            t('restaurantMenu.menuLoadError'),
           ),
         );
       }
@@ -1054,6 +1087,7 @@ const RestaurantMenuScreen = (props: Props) => {
       restaurantContext?.restaurantId,
       restaurantContext?.branchId,
       showError,
+      t,
       updateMenuItemSnapshot,
     ],
   );
@@ -1176,14 +1210,7 @@ const RestaurantMenuScreen = (props: Props) => {
     }, {});
   }, [categories]);
 
-  const isWideCustomerGrid = adaptive.width >= 980;
-  const isTwoColumnCustomerGrid =
-    adaptive.width >= 560 || (isMenuSidebarLayout && adaptive.width >= 640);
-  const customerMenuColumnCount = isWideCustomerGrid
-    ? 3
-    : isTwoColumnCustomerGrid
-      ? 2
-      : 1;
+  const customerMenuColumnCount = adaptive.width < 380 ? 1 : 2;
 
   const cartItemMap = useMemo(() => {
     return cart.items.reduce<Record<string, RestaurantCartItem>>(
@@ -1315,8 +1342,13 @@ const RestaurantMenuScreen = (props: Props) => {
       setCartModalVisible(false);
       showMessage(
         shortOrderId
-          ? `Đã gửi đơn #${shortOrderId} cho bàn ${result.tableNumber || tableNumber}.`
-          : `Đã gửi đơn cho bàn ${result.tableNumber || tableNumber}.`,
+          ? t('restaurantMenu.orderSubmittedWithId', {
+              orderId: shortOrderId,
+              table: result.tableNumber || tableNumber,
+            })
+          : t('restaurantMenu.orderSubmitted', {
+              table: result.tableNumber || tableNumber,
+            }),
       );
     },
     [
@@ -1327,6 +1359,7 @@ const RestaurantMenuScreen = (props: Props) => {
       showError,
       showMessage,
       submitCurrentCartOrder,
+      t,
     ],
   );
 
@@ -1342,7 +1375,7 @@ const RestaurantMenuScreen = (props: Props) => {
           <Pressable
             onPress={() => void refreshData('retry')}
             style={styles.noticeRetryButton}>
-            <RNText style={styles.noticeRetryText}>Thử lại</RNText>
+            <RNText style={styles.noticeRetryText}>{t('txtRetry')}</RNText>
           </Pressable>
         ) : null}
       </View>
@@ -1384,21 +1417,23 @@ const RestaurantMenuScreen = (props: Props) => {
       <View style={styles.topBar}>
         <View style={styles.headerSide}>
           <Pressable onPress={props.goBack} style={styles.backButton}>
-            <RNText style={styles.backText}>‹ Về Home</RNText>
+            <RNText style={styles.backText}>‹ {t('restaurantMenu.backHome')}</RNText>
           </Pressable>
         </View>
 
         <View style={styles.headerAuthCenter}>
           <View style={styles.headerTitleWrap}>
             <RNText numberOfLines={1} style={styles.headerTitle}>
-              {restaurantContext?.restaurantName || 'Menu nhà hàng'}
+              {restaurantContext?.restaurantName || t('restaurantMenu.restaurantMenu')}
             </RNText>
             <RNText numberOfLines={1} style={styles.headerSubTitle}>
               {restaurantContext?.tableNumber
-                ? `Bàn ${restaurantContext.tableNumber}`
+                ? t('restaurantMenu.tableWithNumber', {
+                    table: restaurantContext.tableNumber,
+                  })
                 : restaurantContext?.branchName
                   ? restaurantContext.branchName
-                  : 'Chọn món và gửi đơn theo đúng nhà hàng'}
+                  : t('restaurantMenu.headerHint')}
             </RNText>
           </View>
           <Pressable
@@ -1409,7 +1444,9 @@ const RestaurantMenuScreen = (props: Props) => {
               checkingAdminRoute ? {opacity: 0.65} : null,
             ]}>
             <RNText style={styles.headerAuthText}>
-              {checkingAdminRoute ? 'Đang kiểm tra...' : 'Quản trị'}
+              {checkingAdminRoute
+                ? t('restaurantMenu.checking')
+                : t('restaurantMenu.admin')}
             </RNText>
           </Pressable>
         </View>
@@ -1431,8 +1468,8 @@ const RestaurantMenuScreen = (props: Props) => {
     return (
       <View style={styles.categoryColumn}>
         <View style={styles.categoryHeader}>
-          <RNText style={styles.categoryTitle}>Danh mục</RNText>
-          <RNText style={styles.categorySubtitle}>Chọn nhóm món</RNText>
+          <RNText style={styles.categoryTitle}>{t('restaurantMenu.categories')}</RNText>
+          <RNText style={styles.categorySubtitle}>{t('restaurantMenu.chooseCategory')}</RNText>
         </View>
         <ScrollView
           horizontal={isCustomerStacked}
@@ -1457,7 +1494,9 @@ const RestaurantMenuScreen = (props: Props) => {
                 ]}>
                 <RNText style={styles.categoryItemText}>{category.name}</RNText>
                 <RNText style={styles.categoryCountText}>
-                  {categoryCounts[category.id] || 0} món
+                  {t('restaurantMenu.itemCount', {
+                    count: categoryCounts[category.id] || 0,
+                  })}
                 </RNText>
               </Pressable>
             );
@@ -1467,11 +1506,10 @@ const RestaurantMenuScreen = (props: Props) => {
     );
   };
 
-  const menuListKey = isWideCustomerGrid
-    ? 'menu-grid-wide'
-    : isTwoColumnCustomerGrid
-      ? 'menu-grid-two'
-      : 'menu-grid-one';
+  const effectiveCustomerMenuColumnCount =
+    visibleItems.length <= 1 ? 1 : customerMenuColumnCount;
+
+  const menuListKey = `menu-grid-${effectiveCustomerMenuColumnCount}`;
 
   const dishCardKeyExtractor = useCallback(
     (item: RestaurantMenuItem) => item.id,
@@ -1483,27 +1521,40 @@ const RestaurantMenuScreen = (props: Props) => {
       return (
         <RestaurantDishCard
           item={item}
-          categoryName={categoryNameById[item.categoryId] || 'Khác'}
+          categoryName={categoryNameById[item.categoryId] || t('restaurantMenu.other')}
           quantity={cartItemMap[item.id]?.quantity || 0}
           styles={styles}
+          t={t}
+          cardStyle={
+            effectiveCustomerMenuColumnCount === 1
+              ? styles.dishCardSingleColumn
+              : styles.dishCardTwoColumn
+          }
           onChangeQuantity={changeQuantity}
         />
       );
     },
-    [cartItemMap, categoryNameById, changeQuantity, styles],
+    [
+      cartItemMap,
+      categoryNameById,
+      changeQuantity,
+      effectiveCustomerMenuColumnCount,
+      styles,
+      t,
+    ],
   );
 
   const renderEmptyMenuList = useCallback(() => {
     return (
       <RNView style={styles.emptyState}>
         <RNText style={styles.emptyIcon}>🍽️</RNText>
-        <RNText style={styles.emptyText}>Chưa có món trong danh mục này</RNText>
+        <RNText style={styles.emptyText}>{t('restaurantMenu.emptyCategory')}</RNText>
         <RNText style={styles.emptySubText}>
-          Admin có thể thêm món mới trong dashboard.
+          {t('restaurantMenu.emptyCategoryHint')}
         </RNText>
       </RNView>
     );
-  }, [styles]);
+  }, [styles, t]);
 
   const renderCustomerMenu = () => {
     return (
@@ -1516,20 +1567,20 @@ const RestaurantMenuScreen = (props: Props) => {
                 {selectedCategory?.name || 'Menu'}
               </RNText>
               <RNText style={styles.menuColumnHint}>
-                Chọn món nhanh như quầy nhà hàng lớn
+                {t('restaurantMenu.menuHint')}
               </RNText>
             </View>
             <RNText style={styles.menuCountPill}>
-              {visibleItems.length} món
+              {t('restaurantMenu.itemCount', {count: visibleItems.length})}
             </RNText>
           </View>
 
           <RNView style={styles.menuSearchWrap}>
-            <RNText style={styles.inputLabel}>TÌM KIẾM MÓN</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantMenu.searchUpper')}</RNText>
             <TextInput
               value={searchText}
               onChangeText={setSearchText}
-              placeholder="Nhập tên món, đồ uống..."
+              placeholder={t('restaurantMenu.searchPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.42)"
               autoCorrect={false}
               returnKeyType="search"
@@ -1544,9 +1595,9 @@ const RestaurantMenuScreen = (props: Props) => {
             data={visibleItems}
             renderItem={renderDishCard}
             keyExtractor={dishCardKeyExtractor}
-            numColumns={customerMenuColumnCount}
+            numColumns={effectiveCustomerMenuColumnCount}
             columnWrapperStyle={
-              customerMenuColumnCount > 1
+              effectiveCustomerMenuColumnCount > 1
                 ? styles.menuGridColumnWrapper
                 : undefined
             }
@@ -1572,12 +1623,17 @@ const RestaurantMenuScreen = (props: Props) => {
           </View>
           <View style={styles.cartBarMain}>
             <RNText style={styles.cartFloatingText}>
-              {hasOpenBillSession ? 'Gọi thêm món' : 'Giỏ hàng'}
+              {hasOpenBillSession
+                ? t('restaurantMenu.orderMore')
+                : t('restaurantMenu.cart')}
             </RNText>
             <RNText style={styles.cartBarSubText}>
               {hasOpenBillSession
-                ? `Bàn ${lockedBillTableNumber || 'đã khóa'} · ${cartBadgeCount} loại món`
-                : `${cartBadgeCount} loại món`}
+                ? t('restaurantMenu.cartBarBillSummary', {
+                    table: lockedBillTableNumber || t('restaurantMenu.locked'),
+                    count: cartBadgeCount,
+                  })
+                : t('restaurantMenu.cartBarSummary', {count: cartBadgeCount})}
             </RNText>
           </View>
           <RNText style={styles.cartBarTotal}>
@@ -1615,6 +1671,7 @@ const RestaurantMenuScreen = (props: Props) => {
         restaurantName={restaurantContext?.restaurantName}
         branchName={restaurantContext?.branchName}
         styles={styles}
+        t={t}
         onClose={closeCart}
         onSubmit={onSubmitOrder}
         onContinueOrdering={continueOrderingFromCart}

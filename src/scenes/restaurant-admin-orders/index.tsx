@@ -13,7 +13,6 @@ const RestaurantAdminOrdersScreen = (props: Props) => {
       {...props}
       initialAdminTab="orders"
       adminPageMode="single"
-      adminPageTitle="Đơn hàng"
     />
   );
 };

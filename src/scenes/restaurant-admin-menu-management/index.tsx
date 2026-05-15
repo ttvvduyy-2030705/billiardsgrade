@@ -13,7 +13,6 @@ const RestaurantAdminMenuManagementScreen = (props: Props) => {
       {...props}
       initialAdminTab="menu"
       adminPageMode="single"
-      adminPageTitle="Quản lý món"
     />
   );
 };

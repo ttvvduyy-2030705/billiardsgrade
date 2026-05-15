@@ -13,6 +13,7 @@ import Image from 'components/Image';
 import View from 'components/View';
 import {screens} from 'scenes/screens';
 import {
+  getRestaurantAdminAuthErrorMessage,
   getRestaurantAdminSession,
   loginRestaurantAdmin,
   registerRestaurantAdminAccount,
@@ -21,6 +22,8 @@ import {resetRestaurantContextStore} from '../../stores/RestaurantContextStore';
 import useScreenSystemUI from 'theme/systemUI';
 import useDesignSystem from 'theme/useDesignSystem';
 import {Navigation} from 'types/navigation';
+import type {AppTranslate} from 'utils/appI18n';
+import {useAppTranslation} from 'utils/appI18n';
 
 import createStyles from './styles';
 
@@ -108,16 +111,16 @@ const maskPassword = (value: string) => {
   return '•'.repeat(Math.max(4, value.length));
 };
 
-const getFieldTitle = (field: AuthField) => {
+const getFieldTitle = (field: AuthField, t: AppTranslate) => {
   switch (field) {
     case 'username':
-      return 'Tài khoản Admin';
+      return t('restaurantAdminAuth.usernameTitle');
     case 'password':
-      return 'Mật khẩu Admin';
+      return t('restaurantAdminAuth.passwordTitle');
     case 'confirmPassword':
-      return 'Nhập lại mật khẩu';
+      return t('restaurantAdminAuth.confirmPasswordTitle');
     default:
-      return 'Thông tin Admin';
+      return t('restaurantAdminAuth.adminInfoTitle');
   }
 };
 
@@ -126,6 +129,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
   const {design} = useDesignSystem();
   const styles = useMemo(() => createStyles({design}), [design]);
+  const t = useAppTranslation();
   const navigate = props.navigate;
   const replace = props.replace;
   const reset = props.reset;
@@ -275,18 +279,18 @@ const RestaurantAdminLoginScreen = (props: Props) => {
   const getFieldPlaceholder = (field: AuthField) => {
     if (field === 'username') {
       if (authMode === 'register') {
-        return 'Tạo tài khoản Admin';
+        return t('restaurantAdminAuth.createAdminAccount');
       }
-      return 'Nhập tài khoản Admin';
+      return t('restaurantAdminAuth.enterAdminAccount');
     }
 
     if (field === 'password') {
       return authMode === 'login'
-        ? 'Nhập mật khẩu Admin'
-        : 'Tạo mật khẩu tối thiểu 6 ký tự';
+        ? t('restaurantAdminAuth.enterAdminPassword')
+        : t('restaurantAdminAuth.createAdminPassword');
     }
 
-    return 'Nhập lại mật khẩu';
+    return t('restaurantAdminAuth.confirmPasswordTitle');
   };
 
   const showNativeInputDialog = useCallback(
@@ -305,12 +309,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         const nativeDialog = (AuthInputModule as any)?.showCartTextInputDialog;
 
         if (Platform.OS !== 'android' || typeof nativeDialog !== 'function') {
-          setErrorMessage('Không mở được ô nhập native trên thiết bị này.');
+          setErrorMessage(t('restaurantAdminAuth.nativeInputUnavailable'));
           return;
         }
 
         const nextValue = await nativeDialog(
-          getFieldTitle(field),
+          getFieldTitle(field, t),
           getFieldPlaceholder(field),
           adminAuthDraftSession[field],
           isPassword ? 'password' : 'text',
@@ -324,13 +328,13 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         }
       } catch (error) {
         console.warn('[RestaurantAdminLogin] native input failed', error);
-        setErrorMessage('Không thể mở ô nhập. Vui lòng thử lại.');
+        setErrorMessage(t('restaurantAdminAuth.nativeInputOpenError'));
       } finally {
         setActiveField(null);
         requestAnimationFrame(syncDraftToUi);
       }
     },
-    [authMode, commitFieldValue, submitting, syncDraftToUi],
+    [authMode, commitFieldValue, submitting, syncDraftToUi, t],
   );
 
   const onLogin = async () => {
@@ -353,7 +357,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       );
 
       if (!result.ok || !result.session) {
-        setErrorMessage(result.message);
+        setErrorMessage(
+          getRestaurantAdminAuthErrorMessage(
+            result.message,
+            t('restaurantAdminAuth.loginIncorrect'),
+          ),
+        );
         return;
       }
 
@@ -363,11 +372,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       syncDraftToUi();
     } catch (error) {
       console.warn('[RestaurantAdminLogin] login failed', error);
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message.trim()
-          : 'Không thể đăng nhập Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.';
-      setErrorMessage(message);
+      setErrorMessage(
+        getRestaurantAdminAuthErrorMessage(
+          error,
+          t('restaurantAdminAuth.loginFallbackError'),
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -386,7 +396,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     const currentValues = adminAuthDraftSession;
     const cleanPassword = currentValues.password.trim();
     if (cleanPassword !== currentValues.confirmPassword.trim()) {
-      setErrorMessage('Mật khẩu nhập lại chưa khớp');
+      setErrorMessage(t('restaurantAdminAuth.passwordMismatch'));
       return;
     }
 
@@ -403,7 +413,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       );
 
       if (!result.ok || !result.session) {
-        setErrorMessage(result.message);
+        setErrorMessage(
+          getRestaurantAdminAuthErrorMessage(
+            result.message,
+            t('restaurantAdminAuth.registerFallbackError'),
+          ),
+        );
         return;
       }
 
@@ -420,11 +435,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
       requestAnimationFrame(syncDraftToUi);
     } catch (error) {
       console.warn('[RestaurantAdminLogin] register failed', error);
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message.trim()
-          : 'Không thể đăng ký Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.';
-      setErrorMessage(message);
+      setErrorMessage(
+        getRestaurantAdminAuthErrorMessage(
+          error,
+          t('restaurantAdminAuth.registerFallbackError'),
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -490,7 +506,7 @@ const RestaurantAdminLoginScreen = (props: Props) => {
 
       <View style={styles.topRow}>
         <Pressable onPress={openCustomerMenu} style={styles.backButton}>
-          <RNText style={styles.backText}>‹ Về quét QR menu</RNText>
+          <RNText style={styles.backText}>{t('restaurantAdminAuth.backToQr')}</RNText>
         </Pressable>
         <Image
           source={images.logoSmall}
@@ -506,37 +522,37 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         keyboardDismissMode="none"
         showsVerticalScrollIndicator={false}>
         <RNView style={styles.card}>
-          <RNText style={styles.eyebrow}>APlus Restaurant Admin</RNText>
+          <RNText style={styles.eyebrow}>{t('restaurantAdminAuth.appName')}</RNText>
           <RNText style={styles.title}>
-            {isLogin ? 'Đăng nhập quản trị' : 'Đăng ký quản trị'}
+            {isLogin ? t('restaurantAdminAuth.loginTitle') : t('restaurantAdminAuth.registerTitle')}
           </RNText>
           <RNText style={styles.hint}>
             {isLogin
-              ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
-              : 'Tạo tài khoản quản trị cho nhà hàng. Sau khi đăng ký thành công, app sẽ tự đăng nhập vào trang quản trị.'}
+              ? t('restaurantAdminAuth.loginHint')
+              : t('restaurantAdminAuth.registerHint')}
           </RNText>
 
 
           {renderNativeInputField(
             'username',
-            'Tài khoản',
-            authMode === 'register' ? 'Tạo tài khoản Admin' : 'Nhập tài khoản Admin',
+            t('restaurantAdminAuth.account'),
+            authMode === 'register' ? t('restaurantAdminAuth.createAdminAccount') : t('restaurantAdminAuth.enterAdminAccount'),
           )}
 
           {renderNativeInputField(
             'password',
-            'Mật khẩu',
+            t('restaurantAdminAuth.password'),
             isLogin
-              ? 'Nhập mật khẩu Admin'
-              : 'Tạo mật khẩu tối thiểu 6 ký tự',
+              ? t('restaurantAdminAuth.enterAdminPassword')
+              : t('restaurantAdminAuth.createAdminPassword'),
             true,
           )}
 
           {!isLogin
             ? renderNativeInputField(
                 'confirmPassword',
-                'Nhập lại mật khẩu',
-                'Nhập lại mật khẩu',
+                t('restaurantAdminAuth.confirmPasswordTitle'),
+                t('restaurantAdminAuth.confirmPasswordTitle'),
                 true,
               )
             : null}
@@ -563,11 +579,11 @@ const RestaurantAdminLoginScreen = (props: Props) => {
             <RNText style={styles.loginText}>
               {submitting
                 ? isLogin
-                  ? 'Đang đăng nhập...'
-                  : 'Đang đăng ký...'
+                  ? t('restaurantAdminAuth.loggingIn')
+                  : t('restaurantAdminAuth.registering')
                 : isLogin
-                  ? 'Đăng nhập Admin'
-                  : 'Đăng ký Admin'}
+                  ? t('restaurantAdminAuth.loginAdmin')
+                  : t('restaurantAdminAuth.registerAdmin')}
             </RNText>
           </Pressable>
 
@@ -577,8 +593,8 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               style={styles.switchButton}>
               <RNText style={styles.switchText}>
                 {isLogin
-                  ? 'Chưa có tài khoản? Đăng ký'
-                  : 'Đã có tài khoản? Đăng nhập'}
+                  ? t('restaurantAdminAuth.switchRegister')
+                  : t('restaurantAdminAuth.switchLogin')}
               </RNText>
             </Pressable>
           </RNView>

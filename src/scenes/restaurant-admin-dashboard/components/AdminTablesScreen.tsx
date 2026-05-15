@@ -1,4 +1,11 @@
-import React, {memo, useCallback, useMemo} from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   NativeModules,
@@ -11,7 +18,7 @@ import {
 import QRCode from 'react-native-qrcode-svg';
 
 import RNText from './AdminText';
-import {getRestaurantMenuApiBaseUrl} from 'services/restaurantMenuRepository';
+import {useAppTranslation} from 'utils/appI18n';
 import type {
   RestaurantBranch,
   RestaurantBranchStatus,
@@ -46,34 +53,44 @@ type Props = {
   onReloadTables: () => Promise<void>;
 };
 
-const getQrDeepLinkValue = (token: string) =>
-  `scoremenu://menu?qrToken=${encodeURIComponent(token)}`;
+const getQrTextValue = (token: string) => String(token || '').trim();
 
-const getQrPrintValue = (token: string) => {
-  const cleanToken = String(token || '').trim();
-  if (!cleanToken) {
-    return '';
-  }
+const normaliseQrTokenPart = (value?: string, fallback = 'main') => {
+  const tokenPart = String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
 
-  const baseUrl = String(getRestaurantMenuApiBaseUrl() || '')
-    .trim()
-    .replace(/\/$/, '');
+  return tokenPart || fallback;
+};
 
-  // In release, print an HTTPS QR instead of only scoremenu://.
-  // Android/iOS cameras understand HTTPS links much more reliably, while the
-  // app scanner still extracts the token from the last path segment.
-  return baseUrl
-    ? `${baseUrl}/m/${encodeURIComponent(cleanToken)}`
-    : getQrDeepLinkValue(cleanToken);
+const createBranchMenuQrToken = (
+  restaurantId?: string,
+  branchName?: string,
+) => {
+  const restaurantKey = normaliseQrTokenPart(restaurantId, 'restaurant');
+  const branchKey = normaliseQrTokenPart(branchName, 'main');
+  const randomKey = Math.random().toString(36).slice(2, 8);
+
+  return `qr_${restaurantKey}_${branchKey}_${Date.now().toString(36)}_${randomKey}_menu`;
+};
+
+const getQrDeepLinkValue = (token: string) => {
+  const cleanToken = getQrTextValue(token);
+  return cleanToken
+    ? `scoremenu://menu?qrToken=${encodeURIComponent(cleanToken)}`
+    : '';
 };
 
 type AplusClipboardModule = {
   setString?: (value: string) => Promise<boolean>;
 };
 
-const NativeClipboard = (
-  NativeModules.AplusClipboardModule || NativeModules.AplusClipboard
-) as AplusClipboardModule | undefined;
+const NativeClipboard = (NativeModules.AplusClipboardModule ||
+  NativeModules.AplusClipboard) as AplusClipboardModule | undefined;
 
 const AdminTablesScreen = ({
   tables,
@@ -82,8 +99,14 @@ const AdminTablesScreen = ({
   activeRestaurantId,
   pendingTableCount,
   styles,
+  onSaveBranchQr,
   onReloadTables,
 }: Props) => {
+  const t = useAppTranslation();
+  const [qrRepairing, setQrRepairing] = useState(false);
+  const [qrRepairMessage, setQrRepairMessage] = useState('');
+  const autoCreateKeyRef = useRef('');
+
   const activeBranch = useMemo(() => {
     return (
       branches.find(branch => branch.id === activeBranchId) ||
@@ -94,19 +117,81 @@ const AdminTablesScreen = ({
 
   const visibleTableCount = useMemo(() => {
     return tables.filter(table => {
-      const sameBranch = activeBranch?.id ? !table.branchId || table.branchId === activeBranch.id : true;
+      const sameBranch = activeBranch?.id
+        ? !table.branchId || table.branchId === activeBranch.id
+        : true;
       return sameBranch && table.status !== 'HIDDEN';
     }).length;
   }, [activeBranch?.id, tables]);
 
-  const qrToken = String(activeBranch?.menuQrToken || '').trim();
-  const qrValue = qrToken ? getQrPrintValue(qrToken) : '';
-  const qrDeepLinkValue = qrToken ? getQrDeepLinkValue(qrToken) : '';
+  const qrToken = getQrTextValue(activeBranch?.menuQrToken || '');
+  const qrTextValue = qrToken;
+  const qrScanValue = getQrDeepLinkValue(qrToken);
+  const activeBranchRestaurantId = String(
+    activeBranch?.restaurantId || activeRestaurantId || '',
+  ).trim();
+
+  const persistGeneratedBranchQrToken = useCallback(async () => {
+    if (!activeBranch?.id || !activeBranchRestaurantId) {
+      setQrRepairMessage(
+        t('restaurantAdmin.qrMenu.noBranchToCreate'),
+      );
+      return;
+    }
+
+    const nextToken = createBranchMenuQrToken(
+      activeBranchRestaurantId,
+      activeBranch.name || activeBranch.id,
+    );
+
+    setQrRepairing(true);
+    setQrRepairMessage(t('restaurantAdmin.qrMenu.creatingPrivateQr'));
+
+    try {
+      await onSaveBranchQr({
+        id: activeBranch.id,
+        restaurantId: activeBranchRestaurantId,
+        name: activeBranch.name || t('restaurantAdmin.branchMain'),
+        address: activeBranch.address,
+        menuQrToken: nextToken,
+        status: activeBranch.status || 'ACTIVE',
+      });
+      await onReloadTables();
+      setQrRepairMessage(t('restaurantAdmin.qrMenu.createdPrivateQr'));
+    } catch (error) {
+      setQrRepairMessage(
+        t('restaurantAdmin.qrMenu.createPrivateQrError'),
+      );
+      autoCreateKeyRef.current = '';
+    } finally {
+      setQrRepairing(false);
+    }
+  }, [activeBranch, activeBranchRestaurantId, onReloadTables, onSaveBranchQr, t]);
+
+  useEffect(() => {
+    const autoCreateKey = `${activeBranchRestaurantId}:${activeBranch?.id || ''}`;
+
+    if (qrToken || !activeBranch?.id || !activeBranchRestaurantId) {
+      return;
+    }
+
+    if (autoCreateKeyRef.current === autoCreateKey) {
+      return;
+    }
+
+    autoCreateKeyRef.current = autoCreateKey;
+    void persistGeneratedBranchQrToken();
+  }, [
+    activeBranch?.id,
+    activeBranchRestaurantId,
+    persistGeneratedBranchQrToken,
+    qrToken,
+  ]);
 
   const handleCopyQrText = useCallback(async (label: string, value: string) => {
     const textToCopy = String(value || '').trim();
     if (!textToCopy) {
-      Alert.alert('Chưa có dữ liệu để copy', `${label} hiện đang trống.`);
+      Alert.alert(t('restaurantAdmin.qrMenu.copyEmptyTitle'), t('restaurantAdmin.qrMenu.copyEmptyMessage', {label}));
       return;
     }
 
@@ -114,9 +199,9 @@ const AdminTablesScreen = ({
       if (NativeClipboard?.setString) {
         await NativeClipboard.setString(textToCopy);
         if (Platform.OS === 'android') {
-          ToastAndroid.show(`Đã copy ${label}`, ToastAndroid.SHORT);
+          ToastAndroid.show(t('restaurantAdmin.qrMenu.copiedToast', {label}), ToastAndroid.SHORT);
         } else {
-          Alert.alert('Đã copy', `${label} đã được lưu vào bộ nhớ tạm.`);
+          Alert.alert(t('restaurantAdmin.qrMenu.copiedTitle'), t('restaurantAdmin.qrMenu.copiedMessage', {label}));
         }
         return;
       }
@@ -125,33 +210,32 @@ const AdminTablesScreen = ({
     }
 
     Alert.alert(
-      'Chưa copy tự động được',
-      `Bạn có thể bấm giữ vào dòng ${label} để chọn và copy thủ công.`,
+      t('restaurantAdmin.qrMenu.copyManualTitle'),
+      t('restaurantAdmin.qrMenu.copyManualMessage', {label}),
     );
-  }, []);
+  }, [t]);
 
   return (
     <RNView style={styles.sectionCard}>
       <RNView style={styles.sectionHeaderRow}>
         <RNView>
-          <RNText style={styles.sectionTitle}>QR menu</RNText>
+          <RNText style={styles.sectionTitle}>{t('restaurantAdmin.qrMenu.title')}</RNText>
           <RNText style={styles.sectionSubtitle}>
-            Mỗi tài khoản admin có một QR riêng. Khách quét QR này để mở menu,
-            sau đó chọn bàn trong giỏ hàng.
+            {t('restaurantAdmin.qrMenu.description')}
           </RNText>
         </RNView>
         <Pressable onPress={onReloadTables} style={styles.secondaryButton}>
-          <RNText style={styles.secondaryButtonText}>Làm mới</RNText>
+          <RNText style={styles.secondaryButtonText}>{t('restaurantAdmin.qrMenu.refresh')}</RNText>
         </Pressable>
       </RNView>
 
-      {qrValue ? (
+      {qrScanValue ? (
         <RNView style={styles.tableManagerPanel}>
           <RNView style={styles.branchQrPreviewCard}>
-            <RNText style={styles.inputLabel}>Ảnh QR để in/dán</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.qrMenu.scanImage')}</RNText>
             <RNView style={styles.branchQrCodeBox}>
               <QRCode
-                value={qrValue}
+                value={qrScanValue}
                 size={236}
                 quietZone={18}
                 ecl="M"
@@ -160,14 +244,14 @@ const AdminTablesScreen = ({
               />
             </RNView>
             <RNText style={styles.workspaceHint}>
-              QR này thuộc riêng nick admin hiện tại. Không cần tạo QR theo từng bàn.
+              {t('restaurantAdmin.qrMenu.generatedByAppLink')}
             </RNText>
           </RNView>
 
           <RNView style={styles.qrTokenBox}>
-            <RNText style={styles.qrTokenLabel}>Mã QR menu</RNText>
+            <RNText style={styles.qrTokenLabel}>{t('restaurantAdmin.qrMenu.qrText')}</RNText>
             <TextInput
-              value={qrToken}
+              value={qrTextValue}
               selectTextOnFocus
               showSoftInputOnFocus={false}
               multiline
@@ -175,27 +259,22 @@ const AdminTablesScreen = ({
             />
             <RNView style={styles.qrCopyActions}>
               <Pressable
-                onPress={() => handleCopyQrText('mã QR menu', qrToken)}
+                onPress={() => handleCopyQrText(t('restaurantAdmin.qrMenu.textCodeLabel'), qrTextValue)}
                 style={styles.qrCopyButton}>
-                <RNText style={styles.qrCopyButtonText}>Copy mã QR</RNText>
+                <RNText style={styles.qrCopyButtonText}>{t('restaurantAdmin.qrMenu.copyTextCode')}</RNText>
               </Pressable>
               <Pressable
-                onPress={() => handleCopyQrText('link QR menu', qrValue)}
+                onPress={() => handleCopyQrText(t('restaurantAdmin.qrMenu.appLinkLabel'), qrScanValue)}
                 style={styles.qrCopyButton}>
-                <RNText style={styles.qrCopyButtonText}>Copy link QR</RNText>
-              </Pressable>
-              <Pressable
-                onPress={() => handleCopyQrText('deep link app', qrDeepLinkValue)}
-                style={styles.qrCopyButton}>
-                <RNText style={styles.qrCopyButtonText}>Copy link app</RNText>
+                <RNText style={styles.qrCopyButtonText}>{t('restaurantAdmin.qrMenu.copyAppLink')}</RNText>
               </Pressable>
             </RNView>
           </RNView>
 
           <RNView style={styles.qrTokenBox}>
-            <RNText style={styles.qrTokenLabel}>Link QR menu HTTPS</RNText>
+            <RNText style={styles.qrTokenLabel}>{t('restaurantAdmin.qrMenu.appLink')}</RNText>
             <TextInput
-              value={qrValue}
+              value={qrScanValue}
               selectTextOnFocus
               showSoftInputOnFocus={false}
               multiline
@@ -204,24 +283,40 @@ const AdminTablesScreen = ({
           </RNView>
 
           <RNView style={styles.qrTokenBox}>
-            <RNText style={styles.qrTokenLabel}>Số bàn đang cho khách chọn</RNText>
+            <RNText style={styles.qrTokenLabel}>
+              {t('restaurantAdmin.qrMenu.tableCountForGuest')}
+            </RNText>
             <RNText style={styles.qrTokenValue}>
               {visibleTableCount > 0
-                ? `Bàn 1 đến Bàn ${visibleTableCount}`
+                ? t('restaurantAdmin.qrMenu.tableRange', {count: visibleTableCount})
                 : pendingTableCount && pendingTableCount > 0
-                  ? `Đã nhập ${pendingTableCount} bàn, bấm Lưu cấu hình nếu chưa tự cập nhật`
-                  : 'Chưa cấu hình số bàn'}
+                  ? t('restaurantAdmin.qrMenu.pendingTables', {count: pendingTableCount})
+                  : t('restaurantAdmin.qrMenu.noTableConfig')}
             </RNText>
           </RNView>
         </RNView>
       ) : (
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>Q</RNText>
-          <RNText style={styles.emptyText}>Chưa có QR cho tài khoản này</RNText>
-          <RNText style={styles.emptySubText}>
-            Hãy đăng xuất rồi đăng nhập lại để backend tạo QR riêng cho nick admin,
-            hoặc kiểm tra server đang chạy bản mới.
+          <RNText style={styles.emptyText}>
+            {qrRepairing
+              ? t('restaurantAdmin.qrMenu.creatingMenuQr')
+              : t('restaurantAdmin.qrMenu.noQrForAccount')}
           </RNText>
+          <RNText style={styles.emptySubText}>
+            {qrRepairMessage ||
+              t('restaurantAdmin.qrMenu.autoCreateHint')}
+          </RNText>
+          {activeBranch?.id ? (
+            <Pressable
+              disabled={qrRepairing}
+              onPress={() => void persistGeneratedBranchQrToken()}
+              style={styles.secondaryButton}>
+              <RNText style={styles.secondaryButtonText}>
+                {qrRepairing ? t('restaurantAdmin.qrMenu.creating') : t('restaurantAdmin.qrMenu.autoCreate')}
+              </RNText>
+            </Pressable>
+          ) : null}
         </RNView>
       )}
     </RNView>

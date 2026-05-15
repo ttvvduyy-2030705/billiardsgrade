@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {devWarn} from 'utils/devLogger';
+import {translateApp} from 'utils/appI18n';
 import {
   cleanupRestaurantMenuImageIfUnused,
   getMenuItemImageValue,
@@ -909,7 +910,7 @@ export const upsertMenuCategory = async (
   if (!cleanName) {
     return {
       ok: false,
-      message: 'Vui lòng nhập tên danh mục',
+      message: translateApp('restaurantAdmin.menu.categoryNameRequired'),
       categories: await loadMenuCategories(restaurantId),
     };
   }
@@ -924,7 +925,7 @@ export const upsertMenuCategory = async (
   if (existedName) {
     return {
       ok: false,
-      message: 'Danh mục này đã tồn tại',
+      message: translateApp('restaurantAdmin.menu.categoryExists'),
       categories: current,
     };
   }
@@ -949,7 +950,9 @@ export const upsertMenuCategory = async (
 
   return {
     ok: true,
-    message: input.id ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục mới',
+    message: input.id
+      ? translateApp('restaurantAdmin.menu.categoryUpdated')
+      : translateApp('restaurantAdmin.menu.categoryAdded'),
     categories,
   };
 };
@@ -970,7 +973,7 @@ export const deleteMenuCategory = async (
   if (!targetCategory) {
     return {
       ok: false,
-      message: 'Không tìm thấy danh mục cần xoá',
+      message: translateApp('restaurantAdmin.menu.categoryNotFound'),
       categories,
     };
   }
@@ -978,7 +981,7 @@ export const deleteMenuCategory = async (
   if (categories.length <= 1) {
     return {
       ok: false,
-      message: 'Menu cần ít nhất 1 danh mục.',
+      message: translateApp('restaurantAdmin.menu.needAtLeastOneCategory'),
       categories,
     };
   }
@@ -994,7 +997,7 @@ export const deleteMenuCategory = async (
   if (!fallbackCategory) {
     return {
       ok: false,
-      message: 'Không có danh mục thay thế để chuyển món.',
+      message: translateApp('restaurantAdmin.menu.noFallbackCategory'),
       categories,
     };
   }
@@ -1018,8 +1021,11 @@ export const deleteMenuCategory = async (
 
   const message =
     usedItems.length > 0
-      ? `Đã xoá danh mục và chuyển ${usedItems.length} món sang “${fallbackCategory.name}”`
-      : 'Đã xoá danh mục';
+      ? translateApp('restaurantAdmin.menu.categoryDeletedMoved', {
+          count: usedItems.length,
+          category: fallbackCategory.name,
+        })
+      : translateApp('restaurantAdmin.menu.categoryDeleted');
 
   return {ok: true, message, categories: savedCategories};
 };
@@ -1030,7 +1036,7 @@ export const getCategoryNameById = (
 ) => {
   return (
     categories.find(category => category.id === categoryId)?.name ||
-    'Chưa phân loại'
+    translateApp('restaurantAdmin.menu.uncategorized')
   );
 };
 
@@ -2461,7 +2467,9 @@ const ensurePrivateLocalWorkspaceForAdmin = async (
   }
 
   const userId = `local_admin_${normalise(account.username) || 'unknown'}`;
-  const desiredRestaurantName = `Quán của ${account.username.trim()}`;
+  const desiredRestaurantName = translateApp('restaurantAdminAuth.privateRestaurantName', {
+    username: account.username.trim(),
+  });
   let workspace: Awaited<ReturnType<typeof createRestaurantWorkspace>>;
 
   try {
@@ -2520,7 +2528,7 @@ export const registerRestaurantAdmin = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.usernamePasswordRequired')};
   }
 
   const accounts = await loadAdminAccounts();
@@ -2529,12 +2537,13 @@ export const registerRestaurantAdmin = async (
   );
 
   if (existed) {
-    return {ok: false, message: 'Tài khoản admin đã tồn tại'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.accountExists')};
   }
 
   const userId = `local_admin_${normalise(cleanUsername) || 'unknown'}`;
   const desiredRestaurantName =
-    restaurantName.trim() || `Quán của ${cleanUsername}`;
+    restaurantName.trim() ||
+    translateApp('restaurantAdminAuth.privateRestaurantName', {username: cleanUsername});
   let workspace: Awaited<ReturnType<typeof createRestaurantWorkspace>>;
 
   try {
@@ -2576,7 +2585,7 @@ export const registerRestaurantAdmin = async (
 
   return {
     ok: true,
-    message: 'Đăng ký admin local thành công',
+    message: translateApp('restaurantAdminAuth.localRegisterSuccess'),
     userId,
     role: 'OWNER',
     restaurantId: workspace.id,
@@ -2610,11 +2619,11 @@ export const resetRestaurantAdminPassword = async (
   const cleanPassword = newPassword.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu mới'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.usernameNewPasswordRequired')};
   }
 
   if (cleanPassword.length < 6) {
-    return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.passwordTooShort')};
   }
 
   const accounts = await loadAdminAccounts();
@@ -2625,7 +2634,7 @@ export const resetRestaurantAdminPassword = async (
   if (accountIndex < 0) {
     return {
       ok: false,
-      message: 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại tên tài khoản.',
+      message: translateApp('restaurantAdminAuth.accountNotFound'),
     };
   }
 
@@ -2664,7 +2673,7 @@ export const verifyRestaurantAdmin = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.usernamePasswordRequired')};
   }
 
   const accounts = await loadAdminAccounts();
@@ -2676,14 +2685,14 @@ export const verifyRestaurantAdmin = async (
   if (!matchedUsernameAccount) {
     return {
       ok: false,
-      message: 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.',
+      message: translateApp('restaurantAdminAuth.accountNotFoundRegister'),
     };
   }
 
   if (matchedUsernameAccount.password !== cleanPassword) {
     return {
       ok: false,
-      message: 'Mật khẩu Admin chưa đúng. Vui lòng nhập lại mật khẩu.',
+      message: translateApp('restaurantAdminAuth.wrongPassword'),
     };
   }
 
@@ -2723,7 +2732,7 @@ export const verifyRestaurantAdmin = async (
 
   return {
     ok: true,
-    message: 'Đăng nhập admin thành công',
+    message: translateApp('restaurantAdminAuth.localLoginSuccess'),
     userId: `local_admin_${normalise(cleanUsername) || 'unknown'}`,
     role,
     restaurantId: scopedRestaurantId,

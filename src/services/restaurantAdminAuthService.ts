@@ -9,6 +9,7 @@ import {
   verifyRestaurantAdminCredentials,
 } from './restaurantMenuRepository';
 import {devWarn} from 'utils/devLogger';
+import {translateApp} from 'utils/appI18n';
 
 export type RestaurantAdminAuthProvider = 'local' | 'api';
 export type RestaurantAdminRole = 'OWNER' | 'MANAGER' | 'STAFF';
@@ -109,7 +110,7 @@ const normalizeRole = (role?: string): RestaurantAdminRole => {
   return 'OWNER';
 };
 
-const getAuthErrorMessage = (error: unknown, fallback: string) => {
+const getRawErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message.trim()) {
     return error.message.trim();
   }
@@ -118,8 +119,94 @@ const getAuthErrorMessage = (error: unknown, fallback: string) => {
     return error.trim();
   }
 
-  return fallback;
+  if (error && typeof error === 'object') {
+    const message = (error as {message?: unknown}).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim();
+    }
+  }
+
+  return '';
 };
+
+export const getRestaurantAdminAuthErrorMessage = (
+  error: unknown,
+  fallback = translateApp('restaurantAdminAuth.loginFallbackError'),
+) => {
+  const status =
+    error && typeof error === 'object'
+      ? Number((error as {status?: unknown}).status || 0)
+      : 0;
+
+  if (status === 409) {
+    return translateApp('restaurantAdminAuth.accountExists');
+  }
+
+  if (status === 404) {
+    return translateApp('restaurantAdminAuth.accountNotFoundRegister');
+  }
+
+  if (status === 401) {
+    return translateApp('restaurantAdminAuth.loginIncorrect');
+  }
+
+  const raw = getRawErrorMessage(error);
+  const normalized = raw.toLowerCase();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (
+    /already\s+exists|duplicate|conflict|account\s+exists|user\s+exists/.test(normalized) ||
+    /đã\s+tồn\s+tại|tồn\s+tại|bị\s+trùng|trùng/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.accountExists');
+  }
+
+  if (
+    /not\s+found|not\s+exist|does\s+not\s+exist|no\s+account|unknown\s+account/.test(normalized) ||
+    /không\s+tìm\s+thấy|không\s+tồn\s+tại|chưa\s+có\s+tài\s+khoản/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.accountNotFoundRegister');
+  }
+
+  if (
+    /wrong\s+password|incorrect\s+password|invalid\s+password|password\s+incorrect/.test(normalized) ||
+    /mật\s+khẩu.*(sai|chưa\s+đúng|không\s+đúng)|sai\s+mật\s+khẩu/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.wrongPassword');
+  }
+
+  if (
+    /invalid\s+credential|invalid\s+login|unauthorized|401|account\s+or\s+password|username\s+or\s+password/.test(normalized) ||
+    /tài\s+khoản\s+hoặc\s+mật\s+khẩu|đăng\s+nhập.*(sai|không\s+đúng|thất\s+bại)/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.loginIncorrect');
+  }
+
+  if (
+    /required|missing|empty/.test(normalized) ||
+    /vui\s+lòng\s+nhập|bắt\s+buộc|không\s+được\s+trống/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.usernamePasswordRequired');
+  }
+
+  if (
+    /too\s+short|at\s+least\s+6|minimum\s+6/.test(normalized) ||
+    /tối\s+thiểu\s+6|ít\s+nhất\s+6|quá\s+ngắn/.test(normalized)
+  ) {
+    return translateApp('restaurantAdminAuth.passwordTooShort');
+  }
+
+  if (/network|fetch|timeout|timed\s+out|kết\s+nối|mạng/.test(normalized)) {
+    return fallback;
+  }
+
+  return raw;
+};
+
+const getAuthErrorMessage = getRestaurantAdminAuthErrorMessage;
 
 const createAdminSession = async ({
   username,
@@ -284,7 +371,7 @@ export const getRestaurantAdminSession = async () => {
 const createPrivateWorkspaceFromAdminToken = async (
   username: string,
 ) => {
-  const baseName = `Quán của ${normaliseUsername(username) || 'Admin'}`;
+  const baseName = translateApp('restaurantAdminAuth.privateRestaurantName', {username: normaliseUsername(username) || 'Admin'});
   try {
     return await createRestaurantWorkspace({name: baseName});
   } catch (error) {
@@ -366,7 +453,7 @@ const repairCredentialResultScope = async (
     ...credential,
     ok: false,
     message:
-      'Backend vẫn trả về quán demo/test cho tài khoản này. Vui lòng deploy backend mới rồi đăng nhập lại.',
+      translateApp('restaurantAdminAuth.backendDemoError'),
   };
 };
 
@@ -378,7 +465,7 @@ export const loginRestaurantAdmin = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tài khoản và mật khẩu Admin'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.usernamePasswordRequired')};
   }
 
   let result: any;
@@ -394,7 +481,7 @@ export const loginRestaurantAdmin = async (
       ok: false,
       message: getAuthErrorMessage(
         error,
-        'Không thể đăng nhập Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.',
+        translateApp('restaurantAdminAuth.loginFallbackError'),
       ),
     };
   }
@@ -402,9 +489,10 @@ export const loginRestaurantAdmin = async (
   if (!result.ok) {
     return {
       ok: false,
-      message:
-        result.message ||
-        'Tài khoản hoặc mật khẩu chưa đúng. Nếu chưa có tài khoản, hãy đăng ký Admin trước.',
+      message: getAuthErrorMessage(
+        result.message,
+        translateApp('restaurantAdminAuth.loginIncorrect'),
+      ),
     };
   }
 
@@ -436,7 +524,7 @@ export const loginRestaurantAdmin = async (
   });
   await saveAdminSession(session);
 
-  return {ok: true, message: 'Đăng nhập Admin thành công', session};
+  return {ok: true, message: translateApp('restaurantAdminAuth.loginSuccess'), session};
 };
 
 export const registerRestaurantAdminAccount = async (
@@ -447,11 +535,11 @@ export const registerRestaurantAdminAccount = async (
   const cleanPassword = password.trim();
 
   if (!cleanUsername || !cleanPassword) {
-    return {ok: false, message: 'Vui lòng nhập tài khoản và mật khẩu Admin'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.usernamePasswordRequired')};
   }
 
   if (cleanPassword.length < 6) {
-    return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
+    return {ok: false, message: translateApp('restaurantAdminAuth.passwordTooShort')};
   }
 
   let result: any;
@@ -467,13 +555,19 @@ export const registerRestaurantAdminAccount = async (
       ok: false,
       message: getAuthErrorMessage(
         error,
-        'Không thể đăng ký Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.',
+        translateApp('restaurantAdminAuth.registerFallbackError'),
       ),
     };
   }
 
   if (!result.ok) {
-    return {ok: false, message: result.message};
+    return {
+      ok: false,
+      message: getAuthErrorMessage(
+        result.message,
+        translateApp('restaurantAdminAuth.registerFallbackError'),
+      ),
+    };
   }
 
   if (result.restaurantId) {
@@ -506,7 +600,7 @@ export const registerRestaurantAdminAccount = async (
 
   return {
     ok: true,
-    message: 'Đăng ký Admin thành công.',
+    message: translateApp('restaurantAdminAuth.registerSuccess'),
     session,
   };
 };

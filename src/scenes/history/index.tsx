@@ -9,6 +9,7 @@ import Text from 'components/Text';
 import View from 'components/View';
 import colors from 'configuration/colors';
 import i18n from 'i18n';
+import {useAppTranslation} from 'utils/appI18n';
 import {Player} from 'types/player';
 import {GameSettings} from 'types/settings';
 import {DAY_FORMAT, TIME_FORMAT} from 'utils/date';
@@ -26,9 +27,10 @@ const getTextColor = (hex?: string) => {
 const History = (props: any) => {
   useScreenSystemUI({variant: 'fullscreen', barStyle: 'light-content'});
   const viewModel = HistoryViewModel();
+  const t = useAppTranslation();
   const adaptive = useAdaptiveLayout();
   const styles = useMemo(() => createStyles(adaptive), [adaptive.styleKey]);
-  const title = useMemo(() => { const t = i18n.t('history' as never); return t && t !== 'history' ? (t as string) : 'Lịch sử'; }, []);
+  const title = useMemo(() => { const translated = i18n.t('history' as never); return translated && translated !== 'history' ? (translated as string) : t('historyScreen.title'); }, [t]);
   const onBack = useCallback(() => { if (typeof props?.goBack === 'function') { props.goBack(); return; } if (typeof props?.navigation?.goBack === 'function') { props.navigation.goBack(); } }, [props]);
 
   const renderPlayer = useCallback((player: Player, index: number) => {
@@ -86,7 +88,7 @@ const History = (props: any) => {
           <Text color={'#FFFFFF'} style={styles.headerTitle}>{title}</Text>
         </View>
       </View>
-      <FlatList data={viewModel.games} renderItem={renderItem} removeClippedSubviews keyExtractor={(_item,index)=>`history-${index}`} contentContainerStyle={styles.listContent} ListEmptyComponent={<View style={styles.emptyWrap}><Text color={'#FFFFFF'} style={styles.emptyTitle}>Chưa có dữ liệu</Text><Text color={'#888888'} style={styles.emptyText}>Lịch sử trận đấu sẽ xuất hiện tại đây.</Text></View>} />
+      <FlatList data={viewModel.games} renderItem={renderItem} removeClippedSubviews keyExtractor={(_item,index)=>`history-${index}`} contentContainerStyle={styles.listContent} ListEmptyComponent={<View style={styles.emptyWrap}><Text color={'#FFFFFF'} style={styles.emptyTitle}>{t('historyScreen.emptyTitle')}</Text><Text color={'#888888'} style={styles.emptyText}>{t('historyScreen.emptyHint')}</Text></View>} />
     </Container>
   );
 };

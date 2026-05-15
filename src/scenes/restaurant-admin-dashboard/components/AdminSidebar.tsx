@@ -1,6 +1,7 @@
 import React, {memo} from 'react';
 import {Pressable, View as RNView} from 'react-native';
 import RNText from './AdminText';
+import {useAppTranslation} from 'utils/appI18n';
 
 export type AdminDashboardTab = 'orders' | 'menu' | 'tables';
 
@@ -12,21 +13,23 @@ type Props = {
 
 const tabs: Array<{
   id: AdminDashboardTab;
-  label: string;
-  icon: string;
-  hint: string;
+  labelKey: string;
+  iconKey: string;
+  hintKey: string;
 }> = [
-  {id: 'orders', label: 'Đơn hàng', icon: 'Đ', hint: 'Tiếp nhận & xử lý'},
-  {id: 'menu', label: 'Quản lý món', icon: 'M', hint: 'Sản phẩm & giá'},
-  {id: 'tables', label: 'QR', icon: 'Q', hint: 'QR menu'},
+  {id: 'orders', labelKey: 'restaurantAdmin.orders', iconKey: 'restaurantAdmin.ordersIcon', hintKey: 'restaurantAdmin.ordersHint'},
+  {id: 'menu', labelKey: 'restaurantAdmin.menuManagement', iconKey: 'restaurantAdmin.menuIcon', hintKey: 'restaurantAdmin.menuHint'},
+  {id: 'tables', labelKey: 'restaurantAdmin.qr', iconKey: 'restaurantAdmin.qrIcon', hintKey: 'restaurantAdmin.qrHint'},
 ];
 
 const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {
+  const t = useAppTranslation();
+
   return (
     <RNView style={styles.sidebar}>
       <RNView style={styles.sidebarHeader}>
-        <RNText style={styles.sidebarTitle}>Điều hướng</RNText>
-        <RNText style={styles.sidebarHint}>POS Admin</RNText>
+        <RNText style={styles.sidebarTitle}>{t('restaurantAdmin.navigation')}</RNText>
+        <RNText style={styles.sidebarHint}>{t('restaurantAdmin.posAdmin')}</RNText>
       </RNView>
 
       {tabs.map(tab => {
@@ -50,7 +53,7 @@ const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {
                 styles.sidebarIcon,
                 active ? styles.sidebarIconActive : null,
               ]}>
-              {tab.icon}
+              {t(tab.iconKey)}
             </RNText>
             <RNView style={styles.sidebarTextBlock}>
               <RNText
@@ -58,9 +61,9 @@ const AdminSidebar = ({activeTab, onChangeTab, styles}: Props) => {
                   styles.sidebarLabel,
                   active ? styles.sidebarLabelActive : null,
                 ]}>
-                {tab.label}
+                {t(tab.labelKey)}
               </RNText>
-              <RNText style={styles.sidebarItemHint}>{tab.hint}</RNText>
+              <RNText style={styles.sidebarItemHint}>{t(tab.hintKey)}</RNText>
             </RNView>
           </Pressable>
         );

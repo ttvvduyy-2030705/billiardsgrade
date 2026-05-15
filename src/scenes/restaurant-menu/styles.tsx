@@ -13,6 +13,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
   const useSidebarLayout =
     metrics.width >= 760 || (isLandscape && metrics.width >= 640);
   const isCompact = metrics.width < 560;
+  const isTiny = metrics.width < 380;
   const isShort = metrics.height < 620;
   const horizontalPadding = Math.max(spacing.md, safeArea.left + spacing.md);
   const categoryWidth = Math.min(268, Math.max(196, metrics.width * 0.26));
@@ -30,10 +31,16 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
   // The customer card uses the shared custom View component, whose default
   // alignItems is flex-start; without an explicit stretch/width the image area
   // can shrink and the image looks invisible.
-  const dishImageHeight = useSidebarLayout ? 130 : 150;
-  const dishCardWidth =
-    metrics.width >= 980 ? '31.7%' : isCompact ? '100%' : '48.5%';
-  const adminDishCardWidth = useSidebarLayout ? '32%' : '100%';
+  const dishImageHeight = metrics.width >= 980
+    ? 248
+    : useSidebarLayout
+      ? 220
+      : isTiny
+        ? 180
+        : 198;
+  const dishCardWidth = isTiny ? '100%' : '48.6%';
+  const adminDishCardWidth = useSidebarLayout ? '48.6%' : '100%';
+  const stackDishFooter = metrics.width < 980;
 
   return StyleSheet.create({
     screen: {
@@ -65,7 +72,10 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       minHeight: control.headerHeight,
       marginHorizontal: horizontalPadding,
       paddingHorizontal: spacing.sm,
+      paddingVertical: isCompact ? spacing.xs : 0,
       flexDirection: 'row',
+      flexWrap: isCompact ? 'wrap' : 'nowrap',
+      rowGap: spacing.xs,
       alignItems: 'center',
       justifyContent: 'space-between',
       borderRadius: radius.xl,
@@ -80,7 +90,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       zIndex: 5,
     },
     headerSide: {
-      width: useSidebarLayout ? 158 : 104,
+      width: isCompact ? 'auto' : useSidebarLayout ? 158 : 104,
       flexDirection: 'row',
       alignItems: 'center',
     },
@@ -108,6 +118,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     headerAuthCenter: {
       flex: 1,
+      flexBasis: isCompact ? '100%' : 0,
+      order: isCompact ? 3 : 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -193,7 +205,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     },
     noticeRetryText: {
       color: '#FFFFFF',
-      fontSize: font.caption,
+      fontSize: font.small,
       fontWeight: '900',
     },
     customerShell: {
@@ -343,7 +355,7 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     menuSearchInput: {
       minHeight: control.fieldHeight,
       color: '#FFFFFF',
-      fontSize: font.bodyLarge,
+      fontSize: isTiny ? font.body : font.bodyLarge,
       fontWeight: '800',
       paddingVertical: 0,
       width: '100%',
@@ -386,6 +398,13 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       shadowOffset: {width: 0, height: 12},
       shadowRadius: spacing.md,
       elevation: 8,
+    },
+    dishCardSingleColumn: {
+      width: '100%',
+      maxWidth: undefined,
+    },
+    dishCardTwoColumn: {
+      width: '48.6%',
     },
     adminDishCard: {
       width: adminDishCardWidth as any,
@@ -442,12 +461,12 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
     dishBody: {
       width: '100%',
       alignSelf: 'stretch',
-      padding: spacing.sm,
-      paddingTop: spacing.xs,
+      padding: isTiny ? spacing.xs : spacing.sm,
+      paddingTop: spacing.sm,
     },
     dishName: {
       color: '#FFFFFF',
-      fontSize: font.bodyLarge,
+      fontSize: isTiny ? font.body : font.bodyLarge,
       fontWeight: '900',
     },
     dishDescription: {
@@ -455,12 +474,12 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       fontSize: font.small,
       lineHeight: font.small * 1.42,
       marginTop: spacing.xxs,
-      minHeight: font.small * 2.8,
+      minHeight: stackDishFooter ? font.small * 2.7 : font.small * 2.4,
     },
     dishFooter: {
       marginTop: spacing.sm,
-      flexDirection: isCompact ? 'column' : 'row',
-      alignItems: isCompact ? 'stretch' : 'center',
+      flexDirection: stackDishFooter ? 'column' : 'row',
+      alignItems: stackDishFooter ? 'stretch' : 'center',
       justifyContent: 'space-between',
       rowGap: spacing.xs,
       columnGap: spacing.sm,
@@ -475,6 +494,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       borderRadius: radius.pill,
       backgroundColor: '#C91D24',
       paddingHorizontal: spacing.md,
+      minWidth: 112,
+      alignSelf: stackDishFooter ? 'stretch' : 'auto',
       alignItems: 'center',
       justifyContent: 'center',
       shadowColor: '#FF2B2B',
@@ -501,9 +522,10 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       backgroundColor: 'rgba(201,29,36,0.18)',
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: spacing.xs,
       columnGap: spacing.sm,
+      alignSelf: stackDishFooter ? 'stretch' : 'auto',
     },
     quantityButton: {
       width: control.minTouch - spacing.xs,
@@ -1522,8 +1544,8 @@ const createStyles = (design: DesignSystem, metrics: Metrics) => {
       borderColor: 'rgba(255,255,255,0.10)',
       backgroundColor: '#15151A',
       padding: spacing.sm,
-      flexDirection: isCompact ? 'column' : 'row',
-      alignItems: isCompact ? 'stretch' : 'center',
+      flexDirection: stackDishFooter ? 'column' : 'row',
+      alignItems: stackDishFooter ? 'stretch' : 'center',
       justifyContent: 'space-between',
       rowGap: spacing.sm,
       columnGap: spacing.md,

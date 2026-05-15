@@ -1311,8 +1311,8 @@ const createStyles = ({design, isWide}: Args) => {
       fontWeight: '800',
     },
     menuCard: {
-      width: isWide ? '31.8%' : '100%',
-      minWidth: isWide ? 260 : undefined,
+      width: isWide ? '48.6%' : '100%',
+      minWidth: isWide ? 300 : undefined,
       borderRadius: radius.xl,
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.09)',
@@ -1321,7 +1321,7 @@ const createStyles = ({design, isWide}: Args) => {
     },
     menuThumb: {
       width: '100%',
-      height: isWide ? 130 : 150,
+      height: isWide ? 188 : 168,
       backgroundColor: 'rgba(255,255,255,0.07)',
     },
     menuInfo: {

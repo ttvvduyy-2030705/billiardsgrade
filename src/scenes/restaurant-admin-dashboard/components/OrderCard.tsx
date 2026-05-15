@@ -1,6 +1,7 @@
 import React, {memo} from 'react';
 import {Pressable, View as RNView} from 'react-native';
 import RNText from './AdminText';
+import {formatVnd, getAppLocale, useAppTranslation} from 'utils/appI18n';
 
 import {
   ADMIN_ORDER_PRIMARY_ACTION_LABELS,
@@ -30,8 +31,7 @@ type Props = {
   ) => void;
 };
 
-const formatCurrency = (value: number) =>
-  `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+const formatCurrency = formatVnd;
 
 const formatDateTime = (value: string) => {
   const date = new Date(value);
@@ -40,7 +40,9 @@ const formatDateTime = (value: string) => {
     return value;
   }
 
-  return date.toLocaleString('vi-VN', {
+  const locale = getAppLocale().startsWith('en') ? 'en-US' : 'vi-VN';
+
+  return date.toLocaleString(locale, {
     hour: '2-digit',
     minute: '2-digit',
     day: '2-digit',
@@ -54,12 +56,13 @@ const OrderCard = ({
   onChangeStatus,
   onChangePaymentStatus,
 }: Props) => {
+  const t = useAppTranslation();
   const nextStatus = getAdminOrderNextStatus(order);
   const canMarkPaid = order.status !== 'CANCELLED';
   const sourceLabel =
     order.orderSource === 'customer'
-      ? 'Khách QR'
-      : order.orderSource || 'Admin';
+      ? t('restaurantAdmin.orderCard.customerQr')
+      : order.orderSource || t('restaurantAdmin.orderCard.adminSource');
 
   return (
     <RNView style={styles.orderCard}>
@@ -69,7 +72,7 @@ const OrderCard = ({
             {order.id}
           </RNText>
           <RNText style={styles.orderTable}>
-            Bàn {order.tableNumber || 'chưa nhập'}
+            {t('restaurantAdmin.tablePrefix')} {order.tableNumber || t('restaurantAdmin.tableNotEntered')}
           </RNText>
           <RNText style={styles.orderTime}>
             {formatDateTime(order.createdAt)}
@@ -90,7 +93,7 @@ const OrderCard = ({
 
       {order.note ? (
         <RNText style={styles.orderNote} numberOfLines={2}>
-          Ghi chú: {order.note}
+          {t('restaurantAdmin.orderCard.note', {note: order.note})}
         </RNText>
       ) : null}
 
@@ -110,7 +113,7 @@ const OrderCard = ({
       </RNView>
 
       <RNView style={styles.totalRow}>
-        <RNText style={styles.totalLabel}>Tổng tiền</RNText>
+        <RNText style={styles.totalLabel}>{t('restaurantAdmin.orderCard.total')}</RNText>
         <RNText style={styles.totalValue}>{formatCurrency(order.total)}</RNText>
       </RNView>
 
@@ -120,21 +123,21 @@ const OrderCard = ({
           style={styles.primaryOrderActionButton}
           accessibilityRole="button">
           <RNText style={styles.primaryOrderActionText}>
-            {ADMIN_ORDER_PRIMARY_ACTION_LABELS[order.status] ||
-              ADMIN_ORDER_STATUS_LABELS[nextStatus]}
+            {t(`restaurantAdmin.orderNextAction.${order.status}`) ||
+              t(`restaurantAdmin.orderStatus.${nextStatus}`)}
           </RNText>
         </Pressable>
       ) : (
         <RNView style={styles.orderTerminalNotice}>
           <RNText style={styles.orderTerminalNoticeText}>
             {order.status === 'COMPLETED'
-              ? 'Đơn đã hoàn thành, không thể chuyển ngược.'
-              : 'Đơn đã huỷ, chỉ còn xem lại thông tin.'}
+              ? t('restaurantAdmin.orderCard.completedLocked')
+              : t('restaurantAdmin.orderCard.cancelledLocked')}
           </RNText>
         </RNView>
       )}
 
-      <RNText style={styles.actionLabel}>Trạng thái đơn</RNText>
+      <RNText style={styles.actionLabel}>{t('restaurantAdmin.orderCard.orderStatus')}</RNText>
       <RNView style={styles.actionChipWrap}>
         {ADMIN_ORDER_STATUS_FLOW.map(status => {
           const active = order.status === status;
@@ -158,14 +161,14 @@ const OrderCard = ({
                   active ? styles.actionChipTextActive : null,
                   !enabled ? styles.actionChipTextDisabled : null,
                 ]}>
-                {ADMIN_ORDER_STATUS_LABELS[status]}
+                {t(`restaurantAdmin.orderStatus.${status}`)}
               </RNText>
             </Pressable>
           );
         })}
       </RNView>
 
-      <RNText style={styles.actionLabel}>Thanh toán</RNText>
+      <RNText style={styles.actionLabel}>{t('restaurantAdmin.orderCard.payment')}</RNText>
       <RNView style={styles.actionChipWrap}>
         {(['UNPAID', 'PAID'] as AdminPaymentStatus[]).map(status => {
           const active = order.paymentStatus === status;
@@ -197,14 +200,14 @@ const OrderCard = ({
                     ? styles.actionChipTextDisabled
                     : null,
                 ]}>
-                {ADMIN_PAYMENT_STATUS_LABELS[status]}
+                {t(`restaurantAdmin.paymentStatus.${status}`)}
               </RNText>
             </Pressable>
           );
         })}
       </RNView>
 
-      <RNText style={styles.actionLabel}>Phương thức</RNText>
+      <RNText style={styles.actionLabel}>{t('restaurantAdmin.orderCard.method')}</RNText>
       <RNView style={styles.actionChipWrap}>
         {ADMIN_PAYMENT_METHODS.map(method => {
           const active =
@@ -226,7 +229,7 @@ const OrderCard = ({
                   styles.actionChipText,
                   active ? styles.actionChipTextActive : null,
                 ]}>
-                {ADMIN_PAYMENT_METHOD_LABELS[method]}
+                {t(`restaurantAdmin.paymentMethod.${method}`)}
               </RNText>
             </Pressable>
           );

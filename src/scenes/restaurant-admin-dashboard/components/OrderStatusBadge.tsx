@@ -1,6 +1,7 @@
 import React, {memo} from 'react';
 import {View as RNView} from 'react-native';
 import RNText from './AdminText';
+import {useAppTranslation} from 'utils/appI18n';
 
 import {
   ADMIN_ORDER_STATUS_LABELS,
@@ -30,6 +31,7 @@ const paymentColors: Record<AdminPaymentStatus, {bg: string; border: string}> =
   };
 
 const OrderStatusBadge = ({status, paymentStatus, styles}: Props) => {
+  const t = useAppTranslation();
   if (paymentStatus) {
     const color = paymentColors[paymentStatus];
     return (
@@ -39,7 +41,7 @@ const OrderStatusBadge = ({status, paymentStatus, styles}: Props) => {
           {backgroundColor: color.bg, borderColor: color.border},
         ]}>
         <RNText style={styles.badgeText}>
-          {ADMIN_PAYMENT_STATUS_LABELS[paymentStatus]}
+          {t(`restaurantAdmin.paymentStatus.${paymentStatus}`)}
         </RNText>
       </RNView>
     );
@@ -57,7 +59,7 @@ const OrderStatusBadge = ({status, paymentStatus, styles}: Props) => {
         {backgroundColor: color.bg, borderColor: color.border},
       ]}>
       <RNText style={styles.badgeText}>
-        {ADMIN_ORDER_STATUS_LABELS[status]}
+        {t(`restaurantAdmin.orderStatus.${status}`)}
       </RNText>
     </RNView>
   );

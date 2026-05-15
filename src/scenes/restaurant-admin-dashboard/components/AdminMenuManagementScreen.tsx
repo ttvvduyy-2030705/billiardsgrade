@@ -9,6 +9,7 @@ import {
   View as RNView,
 } from 'react-native';
 import RNText from './AdminText';
+import {formatVnd, useAppTranslation} from 'utils/appI18n';
 import type {ImageResizeMode, ImageStyle, StyleProp} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 
@@ -174,24 +175,24 @@ type AdminMenuFormSession = {
 
 const STATUS_OPTIONS: Array<{
   value: RestaurantMenuItemStatus;
-  label: string;
+  labelKey: string;
 }> = [
-  {value: 'SELLING', label: 'Đang bán'},
-  {value: 'HIDDEN', label: 'Tạm ẩn'},
-  {value: 'OUT_OF_STOCK', label: 'Hết hàng'},
+  {value: 'SELLING', labelKey: 'restaurantAdmin.menu.statusSelling'},
+  {value: 'HIDDEN', labelKey: 'restaurantAdmin.menu.statusHidden'},
+  {value: 'OUT_OF_STOCK', labelKey: 'restaurantAdmin.menu.statusOutOfStock'},
 ];
 
-const STATUS_FILTER_OPTIONS: Array<{value: MenuStatusFilter; label: string}> = [
-  {value: 'ALL', label: 'Tất cả trạng thái'},
+const STATUS_FILTER_OPTIONS: Array<{value: MenuStatusFilter; labelKey: string}> = [
+  {value: 'ALL', labelKey: 'restaurantAdmin.menu.allStatuses'},
   ...STATUS_OPTIONS,
 ];
 
-const SORT_OPTIONS: Array<{value: MenuSortOption; label: string}> = [
-  {value: 'CREATED_DESC', label: 'Mới nhất'},
-  {value: 'NAME_ASC', label: 'Tên A-Z'},
-  {value: 'PRICE_ASC', label: 'Giá thấp-cao'},
-  {value: 'PRICE_DESC', label: 'Giá cao-thấp'},
-  {value: 'STATUS_ASC', label: 'Theo trạng thái'},
+const SORT_OPTIONS: Array<{value: MenuSortOption; labelKey: string}> = [
+  {value: 'CREATED_DESC', labelKey: 'restaurantAdmin.menu.sortNewest'},
+  {value: 'NAME_ASC', labelKey: 'restaurantAdmin.menu.sortName'},
+  {value: 'PRICE_ASC', labelKey: 'restaurantAdmin.menu.sortPriceAsc'},
+  {value: 'PRICE_DESC', labelKey: 'restaurantAdmin.menu.sortPriceDesc'},
+  {value: 'STATUS_ASC', labelKey: 'restaurantAdmin.menu.sortStatus'},
 ];
 
 const normaliseSearchTerm = (value?: string) =>
@@ -217,8 +218,7 @@ const getItemTimestamp = (item: RestaurantMenuItem) => {
   return Number.isFinite(value) ? value : 0;
 };
 
-const formatCurrency = (value: number) =>
-  `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+const formatCurrency = formatVnd;
 
 const findSavedMenuItemForPayload = (
   items: RestaurantMenuItem[],
@@ -350,6 +350,7 @@ const AdminMenuManagementScreen = ({
   onSaveCategory,
   onDeleteCategory,
 }: Props) => {
+  const t = useAppTranslation();
   const defaultCategoryId = useMemo(
     () => categories[0]?.id || '',
     [categories],
@@ -489,7 +490,7 @@ const AdminMenuManagementScreen = ({
   const isFilteringMenu =
     !!searchTerm.trim() || statusFilter !== 'ALL' || categoryFilter !== 'ALL';
 
-  const formTitle = viewMode === 'edit' ? 'Sửa món' : 'Thêm món mới';
+  const formTitle = viewMode === 'edit' ? t('restaurantAdmin.menu.editItem') : t('restaurantAdmin.menu.addItem');
   const isFormMode = viewMode === 'create' || viewMode === 'edit';
   const formPreviewImageUrl = imagePreviewUrl || imageUrl;
 
@@ -592,7 +593,7 @@ const AdminMenuManagementScreen = ({
 
   const openCreate = () => {
     if (categories.length === 0) {
-      setListError('Bạn cần thêm ít nhất 1 danh mục trước khi thêm món.');
+      setListError(t('restaurantAdmin.menu.needCategoryBeforeItem'));
       replaceFormSession({
         ...createEmptyFormSession(defaultCategoryId),
         viewMode: 'categories',
@@ -660,7 +661,7 @@ const AdminMenuManagementScreen = ({
       if (response.errorCode) {
         const message = response.errorMessage || response.errorCode;
         devWarn('[AdminMenuImage] image pick error=' + message);
-        setError('Không thể chọn ảnh. Vui lòng thử lại.');
+        setError(t('restaurantAdmin.menu.chooseImageError'));
         return;
       }
 
@@ -678,7 +679,7 @@ const AdminMenuManagementScreen = ({
 
       if (!pickedUri && !pickedBase64) {
         devWarn('[AdminMenuImage] image pick error=missing-uri-base64');
-        setError('Không lấy được ảnh đã chọn. Vui lòng chọn ảnh khác.');
+        setError(t('restaurantAdmin.menu.invalidImageError'));
         return;
       }
 
@@ -736,7 +737,7 @@ const AdminMenuManagementScreen = ({
       }
     } catch (pickError) {
       devWarn('[AdminMenuImage] image pick error=', pickError);
-      setError('Không thể mở thư viện ảnh trên thiết bị này.');
+      setError(t('restaurantAdmin.menu.openGalleryError'));
     } finally {
       if (imagePickRequestIdRef.current === requestId) {
         setImageProcessing(false);
@@ -786,17 +787,17 @@ const AdminMenuManagementScreen = ({
       selectedCategoryForSubmit?.name || cleanCategoryId;
 
     if (!cleanName) {
-      setError('Vui lòng nhập tên món');
+      setError(t('restaurantAdmin.menu.enterItemName'));
       return;
     }
 
     if (!cleanPriceText || Number.isNaN(priceValue) || priceValue < 0) {
-      setError('Vui lòng nhập giá hợp lệ và lớn hơn hoặc bằng 0');
+      setError(t('restaurantAdmin.menu.invalidPrice'));
       return;
     }
 
     if (!cleanCategoryId) {
-      setError('Vui lòng chọn danh mục');
+      setError(t('restaurantAdmin.menu.chooseCategory'));
       return;
     }
 
@@ -864,12 +865,12 @@ const AdminMenuManagementScreen = ({
 
           if (!uploadedImageUrl) {
             imageWarning =
-              'Ảnh chưa upload được, món vẫn sẽ được lưu không kèm ảnh. Sau đó bạn có thể sửa món và chọn lại ảnh nhỏ hơn.';
+              t('restaurantAdmin.menu.imageUploadWarning');
           }
         } catch (uploadError) {
           devWarn('[AdminMenu] image upload before item save failed', uploadError);
           imageWarning =
-            'Ảnh chưa upload được, món vẫn sẽ được lưu không kèm ảnh. Sau đó bạn có thể sửa món và chọn lại ảnh nhỏ hơn.';
+            t('restaurantAdmin.menu.imageUploadWarning');
         } finally {
           setImageUploading(false);
         }
@@ -902,7 +903,7 @@ const AdminMenuManagementScreen = ({
       const message =
         saveError instanceof Error && saveError.message.trim()
           ? saveError.message.trim()
-          : 'Không thể lưu món. Vui lòng thử lại.';
+          : t('restaurantAdmin.menu.saveItemError');
       setError(message);
     } finally {
       setImageUploading(false);
@@ -925,7 +926,7 @@ const AdminMenuManagementScreen = ({
       }
     } catch (deleteError) {
       devWarn('[AdminMenu] delete item failed', deleteError);
-      setListError('Không thể xoá món. Vui lòng thử lại.');
+      setListError(t('restaurantAdmin.menu.deleteItemError'));
     } finally {
       setDeletingItemId(null);
     }
@@ -933,12 +934,12 @@ const AdminMenuManagementScreen = ({
 
   const requestDeleteItem = (item: RestaurantMenuItem) => {
     Alert.alert(
-      'Xoá món',
-      `Bạn chắc chắn muốn xoá “${item.name}”? Đơn hàng cũ vẫn giữ tên và giá đã chốt, nhưng món này sẽ bị xoá khỏi menu hiện tại.`,
+      t('restaurantAdmin.menu.deleteItemTitle'),
+      t('restaurantAdmin.menu.deleteItemMessage', {name: item.name}),
       [
-        {text: 'Huỷ', style: 'cancel'},
+        {text: t('restaurantAdmin.menu.cancel'), style: 'cancel'},
         {
-          text: 'Xoá món',
+          text: t('restaurantAdmin.menu.confirmDeleteItem'),
           style: 'destructive',
           onPress: () => void performDeleteItem(item),
         },
@@ -977,8 +978,8 @@ const AdminMenuManagementScreen = ({
 
     try {
       const nextValue = await showNativeTextInput({
-        title: 'Tìm kiếm món',
-        placeholder: 'Nhập tên món, mô tả, mã hoặc danh mục',
+        title: t('restaurantAdmin.menu.searchTitle'),
+        placeholder: t('restaurantAdmin.menu.searchPlaceholder'),
         initialValue: searchTerm,
         keyboardType: 'text',
         source: 'admin-menu-search',
@@ -1005,7 +1006,7 @@ const AdminMenuManagementScreen = ({
                 : styles.adminInputPlaceholderText
             }
             numberOfLines={1}>
-            {searchTerm || 'Tìm tên món, mô tả, mã hoặc danh mục'}
+            {searchTerm || t('restaurantAdmin.menu.searchShortPlaceholder')}
           </RNText>
         </Pressable>
       );
@@ -1017,7 +1018,7 @@ const AdminMenuManagementScreen = ({
         onChangeText={setSearchTerm}
         onFocus={() => pauseAdminFormInputImmersive('menu-search')}
         onBlur={() => resumeAdminFormInputImmersive('menu-search')}
-        placeholder="Tìm tên món, mô tả, mã hoặc danh mục"
+        placeholder={t('restaurantAdmin.menu.searchShortPlaceholder')}
         placeholderTextColor="rgba(255,255,255,0.36)"
         style={styles.adminInput}
         returnKeyType="search"
@@ -1027,8 +1028,8 @@ const AdminMenuManagementScreen = ({
 
   const showNativeCategoryNameInput = async () => {
     return showNativeTextInput({
-      title: categoryDraftId ? 'Sửa tên danh mục' : 'Thêm danh mục',
-      placeholder: 'VD: Cơm / Lẩu / Hải sản / Combo',
+      title: categoryDraftId ? t('restaurantAdmin.menu.editCategoryName') : t('restaurantAdmin.menu.addCategory'),
+      placeholder: t('restaurantAdmin.menu.categoryPlaceholder'),
       initialValue: categoryDraftName,
       keyboardType: 'text',
       source: 'admin-category-name',
@@ -1051,20 +1052,20 @@ const AdminMenuManagementScreen = ({
   const openMenuFormInput = async (field: 'name' | 'price' | 'description') => {
     const config = {
       name: {
-        title: viewMode === 'edit' ? 'Sửa tên món' : 'Nhập tên món',
-        placeholder: 'Ví dụ: Coca lạnh',
+        title: viewMode === 'edit' ? t('restaurantAdmin.menu.editItemNameTitle') : t('restaurantAdmin.menu.itemNameTitle'),
+        placeholder: t('restaurantAdmin.menu.itemNamePlaceholder'),
         keyboardType: 'text' as const,
         initialValue: adminMenuFormSession.name,
       },
       price: {
-        title: 'Nhập giá món',
+        title: t('restaurantAdmin.menu.priceTitle'),
         placeholder: '25000',
         keyboardType: 'number' as const,
         initialValue: adminMenuFormSession.price,
       },
       description: {
-        title: 'Nhập mô tả / ghi chú món',
-        placeholder: 'Mô tả ngắn hiển thị cho nhân viên/khách',
+        title: t('restaurantAdmin.menu.descriptionTitle'),
+        placeholder: t('restaurantAdmin.menu.descriptionPlaceholder'),
         keyboardType: 'note' as const,
         initialValue: adminMenuFormSession.description,
       },
@@ -1149,7 +1150,7 @@ const AdminMenuManagementScreen = ({
     const cleanName = categoryDraftName.trim();
 
     if (!cleanName) {
-      setCategoryError('Vui lòng nhập tên danh mục');
+      setCategoryError(t('restaurantAdmin.menu.enterCategoryName'));
       return;
     }
 
@@ -1187,7 +1188,7 @@ const AdminMenuManagementScreen = ({
       resetCategoryDraft();
     } catch (saveCategoryError) {
       devWarn('[AdminCategory] save failed', saveCategoryError);
-      setCategoryError('Không thể lưu danh mục. Vui lòng thử lại.');
+      setCategoryError(t('restaurantAdmin.menu.saveCategoryError'));
     } finally {
       setCategorySaving(false);
     }
@@ -1206,7 +1207,7 @@ const AdminMenuManagementScreen = ({
     const fallbackCategory = categories.find(item => item.id !== category.id);
 
     if (!fallbackCategory) {
-      setCategoryError('Menu cần ít nhất 1 danh mục.');
+      setCategoryError(t('restaurantAdmin.menu.needOneCategory'));
       return;
     }
 
@@ -1232,7 +1233,7 @@ const AdminMenuManagementScreen = ({
       }
     } catch (deleteCategoryError) {
       devWarn('[AdminCategory] delete failed', deleteCategoryError);
-      setCategoryError('Không thể xoá danh mục. Vui lòng thử lại.');
+      setCategoryError(t('restaurantAdmin.menu.deleteCategoryError'));
     } finally {
       setCategorySaving(false);
     }
@@ -1243,19 +1244,19 @@ const AdminMenuManagementScreen = ({
     const fallbackCategory = categories.find(item => item.id !== category.id);
 
     if (!fallbackCategory) {
-      setCategoryError('Menu cần ít nhất 1 danh mục.');
+      setCategoryError(t('restaurantAdmin.menu.needOneCategory'));
       return;
     }
 
     const message =
       itemCount > 0
-        ? `Danh mục “${category.name}” đang có ${itemCount} món. Xoá danh mục này và chuyển các món sang “${fallbackCategory.name}”?`
-        : `Bạn chắc chắn muốn xoá danh mục “${category.name}”?`;
+        ? t('restaurantAdmin.menu.deleteCategoryWithItems', {name: category.name, count: itemCount, fallback: fallbackCategory.name})
+        : t('restaurantAdmin.menu.deleteCategoryMessage', {name: category.name});
 
-    Alert.alert('Xoá danh mục', message, [
-      {text: 'Huỷ', style: 'cancel'},
+    Alert.alert(t('restaurantAdmin.menu.deleteCategoryTitle'), message, [
+      {text: t('restaurantAdmin.menu.cancel'), style: 'cancel'},
       {
-        text: itemCount > 0 ? 'Xoá và chuyển món' : 'Xoá danh mục',
+        text: itemCount > 0 ? t('restaurantAdmin.menu.deleteAndMoveItems') : t('restaurantAdmin.menu.confirmDeleteCategory'),
         style: 'destructive',
         onPress: () => void performDeleteCategory(category),
       },
@@ -1276,7 +1277,7 @@ const AdminMenuManagementScreen = ({
                 : styles.adminInputPlaceholderText
             }
             numberOfLines={1}>
-            {categoryDraftName || 'Nhập tên danh mục'}
+            {categoryDraftName || t('restaurantAdmin.menu.categoryNameInput')}
           </RNText>
         </Pressable>
       );
@@ -1289,7 +1290,7 @@ const AdminMenuManagementScreen = ({
         onChangeText={text => updateCategoryDraft({name: text})}
         onFocus={() => pauseAdminFormInputImmersive('category-name')}
         onBlur={() => resumeAdminFormInputImmersive('category-name')}
-        placeholder="VD: Cơm / Lẩu / Món nướng"
+        placeholder={t('restaurantAdmin.menu.categoryPlaceholderShort')}
         placeholderTextColor="rgba(255,255,255,0.36)"
         style={styles.adminInput}
         returnKeyType="done"
@@ -1302,32 +1303,30 @@ const AdminMenuManagementScreen = ({
       <RNView>
         <RNView style={styles.sectionHeader}>
           <RNView>
-            <RNText style={styles.sectionTitle}>Quản lý danh mục</RNText>
+            <RNText style={styles.sectionTitle}>{t('restaurantAdmin.menu.categoryManagerTitle')}</RNText>
             <RNText style={styles.sectionHint}>
-              Thêm, sửa hoặc xoá danh mục. Menu khách hàng và form món sẽ lấy
-              trực tiếp từ danh sách này.
+              {t('restaurantAdmin.menu.categoryManagerHint')}
             </RNText>
           </RNView>
           <Pressable
             onPress={closeCategoryManager}
             style={styles.cancelButton}
             disabled={categorySaving}>
-            <RNText style={styles.cancelButtonText}>Quay lại</RNText>
+            <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.back')}</RNText>
           </Pressable>
         </RNView>
 
         <RNView style={styles.categoryManagerCard}>
           <RNText style={styles.editModalTitle}>
-            {categoryDraftId ? 'Sửa danh mục' : 'Thêm danh mục'}
+            {categoryDraftId ? t('restaurantAdmin.menu.editCategoryName') : t('restaurantAdmin.menu.addCategory')}
           </RNText>
           <RNText style={styles.editModalHint}>
-            Tên danh mục được lưu qua repository dùng chung cho Admin + Menu
-            khách hàng.
+            {t('restaurantAdmin.menu.categoryStoredHint')}
           </RNText>
 
           <RNView style={styles.categoryFormRow}>
             <RNView style={styles.categoryInputColumn}>
-              <RNText style={styles.inputLabel}>Tên danh mục</RNText>
+              <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.categoryName')}</RNText>
               {renderCategoryNameInput()}
             </RNView>
             <Pressable
@@ -1336,10 +1335,10 @@ const AdminMenuManagementScreen = ({
               disabled={categorySaving}>
               <RNText style={styles.saveButtonText}>
                 {categorySaving
-                  ? 'Đang lưu...'
+                  ? t('restaurantAdmin.menu.saving')
                   : categoryDraftId
-                    ? 'Lưu'
-                    : 'Thêm'}
+                    ? t('restaurantAdmin.menu.saveCategory')
+                    : t('restaurantAdmin.menu.add')}
               </RNText>
             </Pressable>
             {categoryDraftId ? (
@@ -1347,7 +1346,7 @@ const AdminMenuManagementScreen = ({
                 onPress={resetCategoryDraft}
                 style={styles.cancelButton}
                 disabled={categorySaving}>
-                <RNText style={styles.cancelButtonText}>Huỷ sửa</RNText>
+                <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.cancelEdit')}</RNText>
               </Pressable>
             ) : null}
           </RNView>
@@ -1371,7 +1370,7 @@ const AdminMenuManagementScreen = ({
                   <RNView style={styles.categoryInfo}>
                     <RNText style={styles.categoryName}>{category.name}</RNText>
                     <RNText style={styles.categoryMeta}>
-                      {itemCount} món · ID: {category.id}
+                      {t('restaurantAdmin.menu.itemsCountWithId', {count: itemCount, id: category.id})}
                     </RNText>
                   </RNView>
                   <RNView style={styles.categoryActions}>
@@ -1379,13 +1378,13 @@ const AdminMenuManagementScreen = ({
                       onPress={() => editCategory(category)}
                       style={styles.cancelButton}
                       disabled={categorySaving}>
-                      <RNText style={styles.cancelButtonText}>Sửa</RNText>
+                      <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.edit')}</RNText>
                     </Pressable>
                     <Pressable
                       onPress={() => requestDeleteCategory(category)}
                       style={styles.dangerButton}
                       disabled={categorySaving}>
-                      <RNText style={styles.dangerButtonText}>Xoá</RNText>
+                      <RNText style={styles.dangerButtonText}>{t('restaurantAdmin.menu.delete')}</RNText>
                     </Pressable>
                   </RNView>
                 </RNView>
@@ -1404,15 +1403,14 @@ const AdminMenuManagementScreen = ({
           <RNView>
             <RNText style={styles.sectionTitle}>{formTitle}</RNText>
             <RNText style={styles.sectionHint}>
-              Nhập thông tin món. Bấm Huỷ để quay lại danh sách Quản lý món,
-              không đổi sang Đơn hàng.
+              {t('restaurantAdmin.menu.itemFormHint')}
             </RNText>
           </RNView>
           <Pressable
             onPress={cancelForm}
             style={styles.cancelButton}
             disabled={saving}>
-            <RNText style={styles.cancelButtonText}>Quay lại</RNText>
+            <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.back')}</RNText>
           </Pressable>
         </RNView>
 
@@ -1421,29 +1419,28 @@ const AdminMenuManagementScreen = ({
             <RNView>
               <RNText style={styles.editModalTitle}>{formTitle}</RNText>
               <RNText style={styles.editModalHint}>
-                Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng hệ
-                thống.
+                {t('restaurantAdmin.menu.localDataHint')}
               </RNText>
             </RNView>
           </RNView>
 
-          <RNText style={styles.inputLabel}>Tên món</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.itemName')}</RNText>
           {renderMenuFormTextField({
             field: 'name',
-            placeholder: 'Ví dụ: Coca lạnh',
+            placeholder: t('restaurantAdmin.menu.itemNamePlaceholder'),
           })}
 
-          <RNText style={styles.inputLabel}>Giá</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.price')}</RNText>
           {renderMenuFormTextField({
             field: 'price',
             placeholder: '25000',
             keyboardType: 'number-pad',
           })}
 
-          <RNText style={styles.inputLabel}>Danh mục</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.category')}</RNText>
           {categories.length === 0 ? (
             <RNText style={styles.formError}>
-              Chưa có danh mục. Bấm “+ Thêm danh mục” để tạo danh mục trước.
+              {t('restaurantAdmin.menu.noCategoryHint')}
             </RNText>
           ) : null}
           <RNView style={styles.categoryPickerWrap}>
@@ -1469,14 +1466,14 @@ const AdminMenuManagementScreen = ({
             })}
           </RNView>
 
-          <RNText style={styles.inputLabel}>Mô tả / ghi chú món</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.description')}</RNText>
           {renderMenuFormTextField({
             field: 'description',
-            placeholder: 'Mô tả ngắn hiển thị cho nhân viên/khách',
+            placeholder: t('restaurantAdmin.menu.descriptionPlaceholder'),
             multiline: true,
           })}
 
-          <RNText style={styles.inputLabel}>Ảnh món</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.itemImage')}</RNText>
           <RNView style={styles.imagePickerCard}>
             {formPreviewImageUrl ? (
               <AdminMenuImage
@@ -1492,7 +1489,7 @@ const AdminMenuManagementScreen = ({
                   styles.imagePickerPlaceholder,
                 ]}>
                 <RNText style={styles.imagePickerPlaceholderText}>
-                  Chưa có ảnh
+                  {t('restaurantAdmin.menu.noImage')}
                 </RNText>
               </RNView>
             )}
@@ -1500,12 +1497,11 @@ const AdminMenuManagementScreen = ({
             <RNView style={styles.imagePickerInfo}>
               <RNText style={styles.imagePickerTitle}>
                 {formPreviewImageUrl
-                  ? 'Ảnh món đã chọn'
-                  : 'Chọn ảnh trực tiếp từ máy'}
+                  ? t('restaurantAdmin.menu.imageSelected')
+                  : t('restaurantAdmin.menu.chooseImageFromDevice')}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Chọn ảnh xong bấm Lưu món, ảnh sẽ được tải lên server nếu có
-                mạng.
+                {t('restaurantAdmin.menu.imageUploadHint')}
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
@@ -1516,14 +1512,14 @@ const AdminMenuManagementScreen = ({
                   }>
                   <RNText style={styles.imagePickerButtonText}>
                     {imageUploading
-                      ? 'Đang tải ảnh...'
+                      ? t('restaurantAdmin.menu.uploadingImage')
                       : imageProcessing
-                        ? 'Đang nhận ảnh...'
+                        ? t('restaurantAdmin.menu.receivingImage')
                         : imagePicking
-                          ? 'Đang mở...'
+                          ? t('restaurantAdmin.menu.opening')
                           : formPreviewImageUrl
-                            ? 'Đổi ảnh'
-                            : 'Chọn ảnh từ máy'}
+                            ? t('restaurantAdmin.menu.changeImage')
+                            : t('restaurantAdmin.menu.chooseImage')}
                   </RNText>
                 </Pressable>
                 {formPreviewImageUrl ? (
@@ -1547,7 +1543,7 @@ const AdminMenuManagementScreen = ({
                       imageUploading
                     }>
                     <RNText style={styles.imageRemoveButtonText}>
-                      Xoá ảnh
+                      {t('restaurantAdmin.menu.removeImage')}
                     </RNText>
                   </Pressable>
                 ) : null}
@@ -1555,7 +1551,7 @@ const AdminMenuManagementScreen = ({
             </RNView>
           </RNView>
 
-          <RNText style={styles.inputLabel}>Trạng thái</RNText>
+          <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.status')}</RNText>
           <RNView style={styles.categoryPickerWrap}>
             {STATUS_OPTIONS.map(option => {
               const active = option.value === status;
@@ -1572,7 +1568,7 @@ const AdminMenuManagementScreen = ({
                       styles.categoryPickText,
                       active ? styles.categoryPickTextActive : null,
                     ]}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </RNText>
                 </Pressable>
               );
@@ -1586,7 +1582,7 @@ const AdminMenuManagementScreen = ({
               onPress={cancelForm}
               style={styles.cancelButton}
               disabled={saving}>
-              <RNText style={styles.cancelButtonText}>Huỷ</RNText>
+              <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.cancel')}</RNText>
             </Pressable>
             <Pressable
               onPress={submitForm}
@@ -1594,12 +1590,12 @@ const AdminMenuManagementScreen = ({
               disabled={saving || imageProcessing || categories.length === 0}>
               <RNText style={styles.saveButtonText}>
                 {imageUploading
-                  ? 'Đang tải ảnh...'
+                  ? t('restaurantAdmin.menu.uploadingImage')
                   : imageProcessing
-                    ? 'Đang nhận ảnh...'
+                    ? t('restaurantAdmin.menu.receivingImage')
                     : saving
-                      ? 'Đang lưu...'
-                      : 'Lưu'}
+                      ? t('restaurantAdmin.menu.saving')
+                      : t('restaurantAdmin.menu.save')}
               </RNText>
             </Pressable>
           </RNView>
@@ -1612,10 +1608,9 @@ const AdminMenuManagementScreen = ({
     <RNView>
       <RNView style={styles.sectionHeader}>
         <RNView>
-          <RNText style={styles.sectionTitle}>Quản lý món / sản phẩm</RNText>
+          <RNText style={styles.sectionTitle}>{t('restaurantAdmin.menu.menuManagerTitle')}</RNText>
           <RNText style={styles.sectionHint}>
-            {menuItems.length} món · {categories.length} danh mục · Dữ liệu đồng
-            bộ theo tài khoản/quán hiện tại.
+            {t('restaurantAdmin.menu.menuManagerSubtitle', {itemCount: menuItems.length, categoryCount: categories.length})}
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>
@@ -1623,11 +1618,11 @@ const AdminMenuManagementScreen = ({
             onPress={openCategoryManager}
             style={styles.headerSecondaryButton}>
             <RNText style={styles.headerSecondaryButtonText}>
-              + Thêm danh mục
+              {t('restaurantAdmin.menu.addCategoryButton')}
             </RNText>
           </Pressable>
           <Pressable onPress={openCreate} style={styles.primaryButton}>
-            <RNText style={styles.primaryButtonText}>+ Thêm món</RNText>
+            <RNText style={styles.primaryButtonText}>{t('restaurantAdmin.menu.addItemButton')}</RNText>
           </Pressable>
         </RNView>
       </RNView>
@@ -1640,7 +1635,7 @@ const AdminMenuManagementScreen = ({
                 {statusCounts[option.value]}
               </RNText>
               <RNText style={styles.adminStatusSummaryLabel}>
-                {option.label}
+                {t(option.labelKey)}
               </RNText>
             </RNView>
           ))}
@@ -1648,19 +1643,19 @@ const AdminMenuManagementScreen = ({
 
         <RNView style={styles.adminSearchRow}>
           <RNView style={styles.adminSearchBox}>
-            <RNText style={styles.inputLabel}>Tìm kiếm món</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.searchLabel')}</RNText>
             {renderAdminSearchInput()}
           </RNView>
           {searchTerm ? (
             <Pressable
               onPress={() => setSearchTerm('')}
               style={styles.cancelButton}>
-              <RNText style={styles.cancelButtonText}>Xoá tìm kiếm</RNText>
+              <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.clearSearch')}</RNText>
             </Pressable>
           ) : null}
         </RNView>
 
-        <RNText style={styles.inputLabel}>Lọc danh mục</RNText>
+        <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.filterCategory')}</RNText>
         <RNView style={styles.categoryPickerWrap}>
           <Pressable
             onPress={() => setCategoryFilter('ALL')}
@@ -1673,7 +1668,7 @@ const AdminMenuManagementScreen = ({
                 styles.categoryPickText,
                 categoryFilter === 'ALL' ? styles.categoryPickTextActive : null,
               ]}>
-              Tất cả danh mục
+              {t('restaurantAdmin.menu.allCategories')}
             </RNText>
           </Pressable>
           {categories.map(category => {
@@ -1698,7 +1693,7 @@ const AdminMenuManagementScreen = ({
           })}
         </RNView>
 
-        <RNText style={styles.inputLabel}>Lọc trạng thái</RNText>
+        <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.filterStatus')}</RNText>
         <RNView style={styles.categoryPickerWrap}>
           {STATUS_FILTER_OPTIONS.map(option => {
             const active = option.value === statusFilter;
@@ -1715,14 +1710,14 @@ const AdminMenuManagementScreen = ({
                     styles.categoryPickText,
                     active ? styles.categoryPickTextActive : null,
                   ]}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </RNText>
               </Pressable>
             );
           })}
         </RNView>
 
-        <RNText style={styles.inputLabel}>Sắp xếp</RNText>
+        <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.sort')}</RNText>
         <RNView style={styles.categoryPickerWrap}>
           {SORT_OPTIONS.map(option => {
             const active = option.value === sortOption;
@@ -1739,7 +1734,7 @@ const AdminMenuManagementScreen = ({
                     styles.categoryPickText,
                     active ? styles.categoryPickTextActive : null,
                   ]}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </RNText>
               </Pressable>
             );
@@ -1748,7 +1743,7 @@ const AdminMenuManagementScreen = ({
 
         <RNView style={styles.adminFilterSummaryRow}>
           <RNText style={styles.adminFilterSummaryText}>
-            Đang hiển thị {filteredMenuItems.length}/{menuItems.length} món
+            {t('restaurantAdmin.menu.showingItems', {visible: filteredMenuItems.length, total: menuItems.length})}
           </RNText>
           {isFilteringMenu ? (
             <Pressable
@@ -1759,7 +1754,7 @@ const AdminMenuManagementScreen = ({
                 setSortOption('CREATED_DESC');
               }}
               style={styles.headerSecondaryButton}>
-              <RNText style={styles.headerSecondaryButtonText}>Bỏ lọc</RNText>
+              <RNText style={styles.headerSecondaryButtonText}>{t('restaurantAdmin.menu.clearFilter')}</RNText>
             </Pressable>
           ) : null}
         </RNView>
@@ -1770,17 +1765,17 @@ const AdminMenuManagementScreen = ({
       {menuItems.length === 0 ? (
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>🍽️</RNText>
-          <RNText style={styles.emptyText}>Chưa có món nào</RNText>
+          <RNText style={styles.emptyText}>{t('restaurantAdmin.menu.noItems')}</RNText>
           <RNText style={styles.emptySubText}>
-            Bấm “Thêm món” để tạo món local đầu tiên.
+            {t('restaurantAdmin.menu.noItemsHint')}
           </RNText>
         </RNView>
       ) : filteredMenuItems.length === 0 ? (
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>🔎</RNText>
-          <RNText style={styles.emptyText}>Không có món phù hợp</RNText>
+          <RNText style={styles.emptyText}>{t('restaurantAdmin.menu.noMatchingItems')}</RNText>
           <RNText style={styles.emptySubText}>
-            Thử bỏ tìm kiếm, đổi danh mục hoặc đổi trạng thái lọc.
+            {t('restaurantAdmin.menu.noMatchingItemsHint')}
           </RNText>
         </RNView>
       ) : (
@@ -1833,7 +1828,7 @@ const AdminMenuManagementScreen = ({
                       },
                     ]}>
                     <RNText style={styles.statusPillText}>
-                      {getMenuItemStatusLabel(item)}
+                      {t(`restaurantAdmin.menu.status${itemStatus === 'SELLING' ? 'Selling' : itemStatus === 'OUT_OF_STOCK' ? 'OutOfStock' : 'Hidden'}`)}
                     </RNText>
                   </RNView>
                   <RNView style={styles.menuCardActionRow}>
@@ -1845,7 +1840,7 @@ const AdminMenuManagementScreen = ({
                       ]}
                       disabled={!!deletingItemId}>
                       <RNText style={styles.secondaryButtonText}>
-                        Sửa món
+                        {t('restaurantAdmin.menu.editItem')}
                       </RNText>
                     </Pressable>
                     <Pressable
@@ -1853,7 +1848,7 @@ const AdminMenuManagementScreen = ({
                       style={[styles.dangerButton, styles.menuCardActionButton]}
                       disabled={deleting}>
                       <RNText style={styles.dangerButtonText}>
-                        {deleting ? 'Đang xoá...' : 'Xoá'}
+                        {deleting ? t('restaurantAdmin.menu.deleteInProgress') : t('restaurantAdmin.menu.delete')}
                       </RNText>
                     </Pressable>
                   </RNView>

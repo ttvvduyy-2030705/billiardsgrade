@@ -1,6 +1,7 @@
 import React, {memo, useMemo, useState} from 'react';
 import {Pressable, View as RNView} from 'react-native';
 import RNText from './AdminText';
+import {formatVnd, useAppTranslation} from 'utils/appI18n';
 
 import {
   ADMIN_BILL_SESSION_STATUS_LABELS,
@@ -58,19 +59,7 @@ type BillCardView = {
   isFallbackGroup?: boolean;
 };
 
-const filterLabels: Record<OrderFilter, string> = {
-  ALL: 'Tất cả',
-  NEW: 'Đơn mới',
-  ACCEPTED: 'Đã nhận',
-  PREPARING: 'Đang làm',
-  COMPLETED: 'Hoàn thành',
-  UNPAID: 'Chưa thanh toán',
-  PAID: 'Đã thanh toán',
-  CANCELLED: 'Đã huỷ',
-};
-
-const formatCurrency = (value: number) =>
-  `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+const formatCurrency = formatVnd;
 
 const formatDateTime = (value?: string) => {
   if (!value) {
@@ -123,7 +112,7 @@ const createFallbackBillSession = (
     restaurantId: firstOrder?.restaurantId || '',
     branchId: firstOrder?.branchId,
     tableId: firstOrder?.tableId,
-    tableNumber: firstOrder?.tableNumber || 'chưa nhập',
+    tableNumber: firstOrder?.tableNumber || '',
     guestSessionId: firstOrder?.guestSessionId,
     status: 'OPEN',
     orderIds: sortedOrders.map(order => order.id),
@@ -298,6 +287,7 @@ const AdminOrdersScreen = ({
   lastOrderSyncAt,
   newOrderNotice,
 }: Props) => {
+  const t = useAppTranslation();
   const [expandedTransferBillId, setExpandedTransferBillId] = useState('');
 
   const filteredOrders = useMemo(() => {
@@ -337,16 +327,16 @@ const AdminOrdersScreen = ({
   const syncLabel = (() => {
     switch (orderSyncStatus) {
       case 'syncing':
-        return 'Đang đồng bộ đơn...';
+        return t('restaurantAdmin.sync.syncing');
       case 'online':
-        return 'Tự cập nhật mỗi 3 giây khi đang mở trang';
+        return t('restaurantAdmin.sync.online');
       case 'error':
-        return 'Mất kết nối đơn hàng';
+        return t('restaurantAdmin.sync.error');
       case 'paused':
-        return 'Tạm dừng khi rời trang đơn';
+        return t('restaurantAdmin.sync.paused');
       case 'idle':
       default:
-        return 'Sẵn sàng đồng bộ';
+        return t('restaurantAdmin.sync.idle');
     }
   })();
 
@@ -355,29 +345,29 @@ const AdminOrdersScreen = ({
       <RNView style={styles.kpiRow}>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue}>{summary.totalOrders}</RNText>
-          <RNText style={styles.kpiLabel}>Tổng đơn</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.totalOrders')}</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue}>{openBillCount}</RNText>
-          <RNText style={styles.kpiLabel}>Bill đang mở</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.openBills')}</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue}>{summary.newOrders}</RNText>
-          <RNText style={styles.kpiLabel}>Đơn mới</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.newOrders')}</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue}>{summary.preparingOrders}</RNText>
-          <RNText style={styles.kpiLabel}>Đang làm</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.preparing')}</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue}>{summary.unpaidOrders}</RNText>
-          <RNText style={styles.kpiLabel}>Chưa thanh toán</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.unpaid')}</RNText>
         </RNView>
         <RNView style={styles.kpiCard}>
           <RNText style={styles.kpiValue} numberOfLines={1}>
             {formatCurrency(summary.paidRevenue)}
           </RNText>
-          <RNText style={styles.kpiLabel}>Đã thu</RNText>
+          <RNText style={styles.kpiLabel}>{t('restaurantAdmin.orderKpi.paidRevenue')}</RNText>
         </RNView>
       </RNView>
 
@@ -398,7 +388,7 @@ const AdminOrdersScreen = ({
                   {statusCounts[status] || 0}
                 </RNText>
                 <RNText style={styles.orderFlowStageLabel} numberOfLines={1}>
-                  {ADMIN_ORDER_STATUS_SHORT_LABELS[status]}
+                  {t(`restaurantAdmin.orderStatusShort.${status}`)}
                 </RNText>
               </Pressable>
             );
@@ -408,18 +398,18 @@ const AdminOrdersScreen = ({
 
       <RNView style={styles.paymentSummaryRow}>
         <RNText style={styles.paymentSummaryText}>
-          Đã thanh toán: {summary.paidOrders} đơn · {formatCurrency(summary.paidRevenue)}
+          {t('restaurantAdmin.paidSummary', {count: summary.paidOrders, amount: formatCurrency(summary.paidRevenue)})}
         </RNText>
         <RNText style={styles.paymentSummaryText}>
-          Chưa thanh toán: {summary.unpaidOrders} đơn · {formatCurrency(summary.unpaidRevenue)}
+          {t('restaurantAdmin.unpaidSummary', {count: summary.unpaidOrders, amount: formatCurrency(summary.unpaidRevenue)})}
         </RNText>
       </RNView>
 
       <RNView style={styles.sectionHeader}>
         <RNView style={styles.sectionTitleBlock}>
-          <RNText style={styles.sectionTitle}>Hóa đơn theo bàn</RNText>
+          <RNText style={styles.sectionTitle}>{t('restaurantAdmin.billsByTable')}</RNText>
           <RNText style={styles.sectionHint}>
-            Mỗi bill gom các order con của cùng BillSession/bàn; tổng tiền tự cập nhật khi khách gọi thêm.
+            {t('restaurantAdmin.billsByTableHint')}
           </RNText>
         </RNView>
 
@@ -430,11 +420,11 @@ const AdminOrdersScreen = ({
           <RNText style={styles.orderSyncStatus}>{syncLabel}</RNText>
           {lastOrderSyncAt ? (
             <RNText style={styles.orderSyncTime}>
-              Lần cuối: {lastOrderSyncAt}
+              {t('restaurantAdmin.lastSync', {time: lastOrderSyncAt})}
             </RNText>
           ) : null}
           <Pressable onPress={onRefreshOrders} style={styles.orderRefreshButton}>
-            <RNText style={styles.orderRefreshButtonText}>Làm mới bill</RNText>
+            <RNText style={styles.orderRefreshButtonText}>{t('restaurantAdmin.refreshBill')}</RNText>
           </Pressable>
         </RNView>
       </RNView>
@@ -455,8 +445,7 @@ const AdminOrdersScreen = ({
                   styles.filterText,
                   active ? styles.filterTextActive : null,
                 ]}>
-                {filterLabels[item] ||
-                  ADMIN_ORDER_STATUS_LABELS[item as AdminOrderStatus]}
+                {t(`restaurantAdmin.filters.${item}`)}
               </RNText>
             </Pressable>
           );
@@ -466,9 +455,9 @@ const AdminOrdersScreen = ({
       {billCards.length === 0 ? (
         <RNView style={styles.emptyState}>
           <RNText style={styles.emptyIcon}>🧾</RNText>
-          <RNText style={styles.emptyText}>Chưa có bill trong bộ lọc này</RNText>
+          <RNText style={styles.emptyText}>{t('restaurantAdmin.noBillInFilter')}</RNText>
           <RNText style={styles.emptySubText}>
-            Khi khách gửi giỏ hàng, bill của bàn và order con sẽ xuất hiện tại đây.
+            {t('restaurantAdmin.noBillHint')}
           </RNText>
         </RNView>
       ) : (
@@ -478,27 +467,27 @@ const AdminOrdersScreen = ({
             const billTotal = Number(billSession.total ?? billSession.billTotal ?? 0);
             const childCountLabel =
               filter === 'ALL'
-                ? `${allOrders.length} order con`
-                : `${visibleOrders.length}/${allOrders.length} order con trong lọc`;
+                ? t('restaurantAdmin.childOrders', {count: allOrders.length})
+                : t('restaurantAdmin.childOrdersInFilter', {visible: visibleOrders.length, total: allOrders.length});
 
             return (
               <RNView key={billSession.id} style={styles.billSessionCard}>
                 <RNView style={styles.billSessionHeader}>
                   <RNView style={styles.billSessionTitleBlock}>
                     <RNText style={styles.billSessionCode} numberOfLines={1}>
-                      {isFallbackGroup ? 'Đơn lẻ chưa gắn BillSession' : billSession.id}
+                      {isFallbackGroup ? t('restaurantAdmin.looseBill') : billSession.id}
                     </RNText>
                     <RNText style={styles.billSessionTable}>
-                      Bàn {billSession.tableNumber || 'chưa nhập'}
+                      {t('restaurantAdmin.tablePrefix')} {billSession.tableNumber || t('restaurantAdmin.tableNotEntered')}
                     </RNText>
                     <RNText style={styles.billSessionMeta} numberOfLines={1}>
-                      {billSession.branchId ? `Chi nhánh ${billSession.branchId} · ` : ''}
-                      Mở lúc {formatDateTime(billSession.openedAt || billSession.createdAt)}
+                      {billSession.branchId ? t('restaurantAdmin.branchPrefix', {branchId: billSession.branchId}) : ''}
+                      {t('restaurantAdmin.openedAt', {time: formatDateTime(billSession.openedAt || billSession.createdAt)})}
                     </RNText>
                   </RNView>
                   <RNView style={styles.billSessionStatusPill}>
                     <RNText style={styles.billSessionStatusText}>
-                      {ADMIN_BILL_SESSION_STATUS_LABELS[billSession.status] || billSession.status}
+                      {t(`restaurantAdmin.billStatus.${billSession.status}`)}
                     </RNText>
                   </RNView>
                 </RNView>
@@ -506,43 +495,43 @@ const AdminOrdersScreen = ({
                 <RNView style={styles.billSessionSummaryGrid}>
                   <RNView style={styles.billSessionSummaryItem}>
                     <RNText style={styles.billSessionSummaryValue}>{childCountLabel}</RNText>
-                    <RNText style={styles.billSessionSummaryLabel}>Số order</RNText>
+                    <RNText style={styles.billSessionSummaryLabel}>{t('restaurantAdmin.orderCount')}</RNText>
                   </RNView>
                   <RNView style={styles.billSessionSummaryItem}>
                     <RNText style={styles.billSessionSummaryValue} numberOfLines={1}>
                       {formatCurrency(billTotal)}
                     </RNText>
-                    <RNText style={styles.billSessionSummaryLabel}>Tổng bill</RNText>
+                    <RNText style={styles.billSessionSummaryLabel}>{t('restaurantAdmin.billTotal')}</RNText>
                   </RNView>
                   <RNView style={styles.billSessionSummaryItem}>
                     <RNText style={styles.billSessionSummaryValue} numberOfLines={1}>
                       {latestOrder?.status
-                        ? ADMIN_ORDER_STATUS_SHORT_LABELS[latestOrder.status]
+                        ? t(`restaurantAdmin.orderStatusShort.${latestOrder.status}`)
                         : '—'}
                     </RNText>
-                    <RNText style={styles.billSessionSummaryLabel}>Order mới nhất</RNText>
+                    <RNText style={styles.billSessionSummaryLabel}>{t('restaurantAdmin.latestOrder')}</RNText>
                   </RNView>
                 </RNView>
 
                 <RNView style={styles.billPaymentSummaryBox}>
                   <RNView style={styles.billPaymentSummaryRow}>
-                    <RNText style={styles.billPaymentSummaryLabel}>Tạm tính</RNText>
+                    <RNText style={styles.billPaymentSummaryLabel}>{t('restaurantAdmin.subtotal')}</RNText>
                     <RNText style={styles.billPaymentSummaryValue}>
                       {formatCurrency(Number(billSession.subtotal || 0))}
                     </RNText>
                   </RNView>
                   <RNView style={styles.billPaymentSummaryRow}>
-                    <RNText style={styles.billPaymentSummaryLabel}>Giảm giá / phí DV</RNText>
+                    <RNText style={styles.billPaymentSummaryLabel}>{t('restaurantAdmin.discountServiceFee')}</RNText>
                     <RNText style={styles.billPaymentSummaryValue}>
                       -{formatCurrency(Number(billSession.discountTotal || 0))} / +{formatCurrency(Number(billSession.serviceFeeTotal || 0))}
                     </RNText>
                   </RNView>
                   <RNView style={styles.billPaymentSummaryRow}>
-                    <RNText style={styles.billPaymentSummaryLabel}>Phương thức</RNText>
+                    <RNText style={styles.billPaymentSummaryLabel}>{t('restaurantAdmin.method')}</RNText>
                     <RNText style={styles.billPaymentSummaryValue}>
                       {billSession.paymentMethod
-                        ? ADMIN_PAYMENT_METHOD_LABELS[billSession.paymentMethod]
-                        : 'Chưa chọn'}
+                        ? t(`restaurantAdmin.paymentMethod.${billSession.paymentMethod}`)
+                        : t('restaurantAdmin.notSelected')}
                     </RNText>
                   </RNView>
                 </RNView>
@@ -550,9 +539,9 @@ const AdminOrdersScreen = ({
                 {hasBillPaymentActions(billSession, isFallbackGroup) ? (
                   <RNView style={styles.billPaymentActionBlock}>
                     <RNView style={styles.billPaymentActionHeader}>
-                      <RNText style={styles.billPaymentActionTitle}>Thanh toán hóa đơn</RNText>
+                      <RNText style={styles.billPaymentActionTitle}>{t('restaurantAdmin.billPayment')}</RNText>
                       <RNText style={styles.billPaymentActionHint}>
-                        Bill PAID/CLOSED sẽ khóa app khách, không gọi thêm vào phiên cũ.
+                        {t('restaurantAdmin.billPaymentHint')}
                       </RNText>
                     </RNView>
                     <RNView style={styles.billPaymentActionRow}>
@@ -562,7 +551,7 @@ const AdminOrdersScreen = ({
                           style={styles.billPaymentSecondaryButton}
                           accessibilityRole="button">
                           <RNText style={styles.billPaymentSecondaryButtonText}>
-                            Yêu cầu thanh toán
+                            {t('restaurantAdmin.requestPayment')}
                           </RNText>
                         </Pressable>
                       ) : null}
@@ -575,7 +564,7 @@ const AdminOrdersScreen = ({
                               style={styles.billPaymentPrimaryButton}
                               accessibilityRole="button">
                               <RNText style={styles.billPaymentPrimaryButtonText} numberOfLines={1}>
-                                Đã thanh toán · {ADMIN_PAYMENT_METHOD_LABELS[method]}
+                                {t('restaurantAdmin.paidWithMethod', {method: t(`restaurantAdmin.paymentMethod.${method}`)})}
                               </RNText>
                             </Pressable>
                           ))
@@ -587,7 +576,7 @@ const AdminOrdersScreen = ({
                           style={styles.billPaymentCloseButton}
                           accessibilityRole="button">
                           <RNText style={styles.billPaymentCloseButtonText}>
-                            Đóng hóa đơn
+                            {t('restaurantAdmin.closeBill')}
                           </RNText>
                         </Pressable>
                       ) : null}
@@ -606,19 +595,18 @@ const AdminOrdersScreen = ({
                       style={styles.billTransferButton}
                       accessibilityRole="button">
                       <RNText style={styles.billTransferButtonText}>
-                        Đổi bàn / chuyển bill
+                        {t('restaurantAdmin.transferBill')}
                       </RNText>
                     </Pressable>
                     {expandedTransferBillId === billSession.id ? (
                       <RNView style={styles.billTransferPanel}>
                         <RNText style={styles.billTransferHint}>
-                          Chỉ nhân viên/admin được đổi bàn. Nếu bàn đích đang có bill mở,
-                          app sẽ chặn để tránh gộp nhầm hóa đơn.
+                          {t('restaurantAdmin.transferHint')}
                         </RNText>
                         <RNView style={styles.billTransferChipWrap}>
                           {getTransferableTables(tables, billSession).length === 0 ? (
                             <RNText style={styles.billTransferEmpty}>
-                              Không còn bàn phù hợp trong chi nhánh này.
+                              {t('restaurantAdmin.noTransferTable')}
                             </RNText>
                           ) : (
                             getTransferableTables(tables, billSession).map(table => (
@@ -632,7 +620,7 @@ const AdminOrdersScreen = ({
                                 accessibilityRole="button">
                                 <RNText style={styles.billTransferChipText} numberOfLines={1}>
                                   {table.tableNumber}
-                                  {table.status === 'OCCUPIED' ? ' · đang dùng' : ''}
+                                  {table.status === 'OCCUPIED' ? ` · ${t('restaurantAdmin.tableInUse')}` : ''}
                                 </RNText>
                               </Pressable>
                             ))
@@ -644,9 +632,9 @@ const AdminOrdersScreen = ({
                 ) : null}
 
                 <RNView style={styles.billSessionChildHeader}>
-                  <RNText style={styles.billSessionChildTitle}>Order con</RNText>
+                  <RNText style={styles.billSessionChildTitle}>{t('restaurantAdmin.childOrdersTitle')}</RNText>
                   <RNText style={styles.billSessionChildHint}>
-                    Tổng bill vẫn tính từ toàn bộ order hợp lệ, order huỷ không cộng tiền.
+                    {t('restaurantAdmin.childOrdersHint')}
                   </RNText>
                 </RNView>
 

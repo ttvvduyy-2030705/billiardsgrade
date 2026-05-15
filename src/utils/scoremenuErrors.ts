@@ -1,5 +1,6 @@
 import {clearRestaurantAdminSession} from 'services/restaurantAdminAuthService';
 import {devModuleWarn, type DevLogModule} from './devLogger';
+import {getAppLocale, translateApp} from './appI18n';
 
 export type ScoreMenuErrorKind =
   | 'QR_INVALID'
@@ -86,33 +87,37 @@ export const classifyScoreMenuError = (error: unknown): ScoreMenuErrorKind => {
 
 export const getScoreMenuErrorMessage = (
   error: unknown,
-  fallback = 'Đã xảy ra lỗi. Vui lòng thử lại.',
+  fallback?: string,
 ) => {
   const kind = classifyScoreMenuError(error);
   const originalMessage = error instanceof Error ? error.message : '';
+  const useOriginalMessage = getAppLocale().startsWith('vi') && Boolean(originalMessage);
+  const translated = (key: string) => translateApp(`scoreMenuError.${key}`);
+  const translatedOrOriginal = (key: string) =>
+    useOriginalMessage ? originalMessage : translated(key);
 
   switch (kind) {
     case 'QR_INVALID':
-      return originalMessage || 'QR menu không hợp lệ, đã bị khóa hoặc không tồn tại. Vui lòng quét lại QR của quán.';
+      return translatedOrOriginal('qrInvalid');
     case 'TABLE_INVALID':
-      return originalMessage || 'Số bàn không hợp lệ hoặc không thuộc chi nhánh này. Vui lòng chọn/nhập lại bàn.';
+      return translatedOrOriginal('tableInvalid');
     case 'NETWORK':
-      return 'Không thể kết nối backend/menu server. Kiểm tra mạng hoặc thử lại sau.';
+      return translated('network');
     case 'TIMEOUT':
-      return 'Kết nối menu server quá lâu. Vui lòng thử lại.';
+      return translated('timeout');
     case 'UNAUTHORIZED':
-      return 'Phiên đăng nhập Admin đã hết hạn. Vui lòng đăng nhập lại.';
+      return translated('unauthorized');
     case 'FORBIDDEN':
-      return originalMessage || 'Tài khoản hiện tại không có quyền thao tác dữ liệu này.';
+      return translatedOrOriginal('forbidden');
     case 'SERVER':
-      return originalMessage || 'Server menu đang lỗi. Vui lòng thử lại sau.';
+      return translatedOrOriginal('server');
     case 'VALIDATION':
-      return originalMessage || 'Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại.';
+      return translatedOrOriginal('validation');
     case 'RATE_LIMIT':
-      return originalMessage || 'Bạn gửi yêu cầu quá nhanh. Vui lòng chờ vài phút rồi thử lại.';
+      return translatedOrOriginal('rateLimit');
     case 'UNKNOWN':
     default:
-      return originalMessage || fallback;
+      return useOriginalMessage ? originalMessage : fallback || translated('default');
   }
 };
 

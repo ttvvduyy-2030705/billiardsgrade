@@ -7,6 +7,7 @@ import {
   View as RNView,
 } from 'react-native';
 import RNText from './AdminText';
+import {useAppTranslation} from 'utils/appI18n';
 
 import type {
   MenuCategory,
@@ -40,6 +41,7 @@ const EditMenuItemModal = ({
   onClose,
   onSave,
 }: Props) => {
+  const t = useAppTranslation();
   const defaultCategoryId = categories[0]?.id || 'drink';
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -70,12 +72,12 @@ const EditMenuItemModal = ({
 
   const submit = () => {
     if (!name.trim()) {
-      setError('Vui lòng nhập tên món');
+      setError(t('restaurantAdmin.menu.enterItemName'));
       return;
     }
 
     if (!priceValue || priceValue < 0) {
-      setError('Vui lòng nhập giá hợp lệ');
+      setError(t('restaurantAdmin.menu.invalidPrice'));
       return;
     }
 
@@ -102,10 +104,10 @@ const EditMenuItemModal = ({
           <RNView style={styles.editModalHeader}>
             <RNView>
               <RNText style={styles.editModalTitle}>
-                {item ? 'Sửa món' : 'Thêm món mới'}
+                {item ? t('restaurantAdmin.menu.editItem') : t('restaurantAdmin.menu.addItem')}
               </RNText>
               <RNText style={styles.editModalHint}>
-                Dữ liệu lưu local, sau này thay bằng API admin.
+                {t('restaurantAdmin.menu.localDataHint')}
               </RNText>
             </RNView>
             <Pressable onPress={onClose} style={styles.modalCloseButton}>
@@ -116,16 +118,16 @@ const EditMenuItemModal = ({
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled">
-            <RNText style={styles.inputLabel}>Tên món</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.itemName')}</RNText>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Ví dụ: Coca lạnh"
+              placeholder={t('restaurantAdmin.menu.itemNamePlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.36)"
               style={styles.adminInput}
             />
 
-            <RNText style={styles.inputLabel}>Giá</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.price')}</RNText>
             <TextInput
               value={price}
               onChangeText={setPrice}
@@ -135,7 +137,7 @@ const EditMenuItemModal = ({
               style={styles.adminInput}
             />
 
-            <RNText style={styles.inputLabel}>Danh mục</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.category')}</RNText>
             <RNView style={styles.categoryPickerWrap}>
               {categories.map(category => {
                 const active = category.id === categoryId;
@@ -159,16 +161,16 @@ const EditMenuItemModal = ({
               })}
             </RNView>
 
-            <RNText style={styles.inputLabel}>Mô tả / ghi chú món</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.description')}</RNText>
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Mô tả ngắn hiển thị cho nhân viên/khách"
+              placeholder={t('restaurantAdmin.menu.descriptionPlaceholder')}
               placeholderTextColor="rgba(255,255,255,0.36)"
               multiline
               style={[styles.adminInput, styles.adminTextArea]}
             />
-            <RNText style={styles.inputLabel}>Trạng thái</RNText>
+            <RNText style={styles.inputLabel}>{t('restaurantAdmin.menu.status')}</RNText>
             <RNView style={styles.categoryPickerWrap}>
               <Pressable
                 onPress={() => setAvailable(true)}
@@ -181,7 +183,7 @@ const EditMenuItemModal = ({
                     styles.categoryPickText,
                     available ? styles.categoryPickTextActive : null,
                   ]}>
-                  Đang bán
+                  {t('restaurantAdmin.menu.statusSelling')}
                 </RNText>
               </Pressable>
               <Pressable
@@ -195,7 +197,7 @@ const EditMenuItemModal = ({
                     styles.categoryPickText,
                     !available ? styles.categoryPickTextActive : null,
                   ]}>
-                  Tạm ẩn / hết hàng
+                  {t('restaurantAdmin.menu.statusHidden')} / {t('restaurantAdmin.menu.statusOutOfStock')}
                 </RNText>
               </Pressable>
             </RNView>
@@ -205,10 +207,10 @@ const EditMenuItemModal = ({
 
           <RNView style={styles.editModalFooter}>
             <Pressable onPress={onClose} style={styles.cancelButton}>
-              <RNText style={styles.cancelButtonText}>Huỷ</RNText>
+              <RNText style={styles.cancelButtonText}>{t('restaurantAdmin.menu.cancel')}</RNText>
             </Pressable>
             <Pressable onPress={submit} style={styles.saveButton}>
-              <RNText style={styles.saveButtonText}>Lưu món</RNText>
+              <RNText style={styles.saveButtonText}>{t('restaurantAdmin.menu.saveItem')}</RNText>
             </Pressable>
           </RNView>
         </RNView>

@@ -13,7 +13,6 @@ const RestaurantAdminTablesScreen = (props: Props) => {
       {...props}
       initialAdminTab="tables"
       adminPageMode="single"
-      adminPageTitle="QR"
     />
   );
 };
