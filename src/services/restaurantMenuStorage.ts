@@ -2589,6 +2589,60 @@ export const registerRestaurantAdmin = async (
   };
 };
 
+
+export const resetRestaurantAdminPassword = async (
+  username: string,
+  newPassword: string,
+): Promise<{
+  ok: boolean;
+  message: string;
+  userId?: string;
+  role?: 'OWNER' | 'MANAGER' | 'STAFF';
+  restaurantId?: string;
+  restaurantName?: string;
+  restaurantIds?: string[];
+  branchIds?: string[];
+  activeBranchId?: string;
+  activeBranchName?: string;
+  menuQrToken?: string;
+}> => {
+  const cleanUsername = username.trim();
+  const cleanPassword = newPassword.trim();
+
+  if (!cleanUsername || !cleanPassword) {
+    return {ok: false, message: 'Vui lòng nhập tên tài khoản và mật khẩu mới'};
+  }
+
+  if (cleanPassword.length < 6) {
+    return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
+  }
+
+  const accounts = await loadAdminAccounts();
+  const accountIndex = accounts.findIndex(
+    account => normalise(account.username) === normalise(cleanUsername),
+  );
+
+  if (accountIndex < 0) {
+    return {
+      ok: false,
+      message: 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại tên tài khoản.',
+    };
+  }
+
+  const nextAccounts = accounts.map((account, index) =>
+    index === accountIndex
+      ? {
+          ...account,
+          password: cleanPassword,
+          updatedAt: nowIso(),
+        }
+      : account,
+  );
+  await writeArray(RESTAURANT_STORAGE_KEYS.adminAccounts, nextAccounts);
+
+  return verifyRestaurantAdmin(cleanUsername, cleanPassword);
+};
+
 export const verifyRestaurantAdmin = async (
   username: string,
   password: string,

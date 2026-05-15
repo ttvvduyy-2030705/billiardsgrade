@@ -255,6 +255,21 @@ export const registerRestaurantAdminCredentials = (
   return activeRepository.registerAdminAccount(username, password, restaurantName);
 };
 
+export const resetRestaurantAdminPasswordCredentials = (
+  username: string,
+  newPassword: string,
+  resetCode: string,
+): Promise<RestaurantAdminCredentialResult> => {
+  if (typeof activeRepository.resetAdminPassword !== 'function') {
+    return Promise.resolve({
+      ok: false,
+      message: 'Backend hiện tại chưa hỗ trợ đặt lại mật khẩu Admin.',
+    });
+  }
+
+  return activeRepository.resetAdminPassword(username, newPassword, resetCode);
+};
+
 export const createRestaurantWorkspace = (
   payload: RestaurantWorkspacePayload,
 ): Promise<RestaurantWorkspace> => {

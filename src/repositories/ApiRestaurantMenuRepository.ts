@@ -597,6 +597,22 @@ export class ApiRestaurantMenuRepository implements RestaurantMenuRepository {
     });
   }
 
+  async resetAdminPassword(
+    username: string,
+    newPassword: string,
+    resetCode: string,
+  ): Promise<RestaurantAdminCredentialResult> {
+    return this.request<RestaurantAdminCredentialResult>('/auth/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        newPassword,
+        resetCode,
+      }),
+      retryCount: 0,
+    });
+  }
+
   createRestaurant(
     payload: RestaurantWorkspacePayload,
   ): Promise<RestaurantWorkspace> {

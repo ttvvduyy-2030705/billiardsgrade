@@ -43,6 +43,7 @@ import {
   loadMenuItems,
   loadOrders,
   registerRestaurantAdmin,
+  resetRestaurantAdminPassword,
   saveCurrentCart,
   updateRestaurantBillSessionPayment,
   updateRestaurantBillSessionTable,
@@ -110,6 +111,14 @@ export class LocalRestaurantMenuRepository implements RestaurantMenuRepository {
     restaurantName?: string,
   ) {
     return registerRestaurantAdmin(username, password, undefined, restaurantName);
+  }
+
+  async resetAdminPassword(
+    username: string,
+    newPassword: string,
+    _resetCode: string,
+  ) {
+    return resetRestaurantAdminPassword(username, newPassword);
   }
 
   createRestaurant(
