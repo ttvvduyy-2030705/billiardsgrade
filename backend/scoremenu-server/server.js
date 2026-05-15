@@ -51,8 +51,6 @@ const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret
 // Short 24h tokens caused release builds to fall back to Login while the app
 // still believed the Admin session was valid.
 const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24 * 30);
-// Emergency password recovery for testing/deployment mistakes. Override this in Render env when the app is public.
-const ADMIN_PASSWORD_RESET_CODE = String(process.env.SCOREMENU_ADMIN_RESET_CODE || 'aplus-reset-2026');
 // Runtime menu/order data must never be auto-deleted on normal admin login/hydrate.
 // Older builds used this sanitizer to remove bundled demo data, but it could
 // also wipe real admin-created categories/items such as test drinks after
@@ -2847,61 +2845,6 @@ const routeAuth = async (req, res, db, parts) => {
   const body = await parseBody(req);
   const username = cleanString(body.username);
   const password = cleanString(body.password);
-
-  if (parts[2] === 'reset-password' && req.method === 'POST') {
-    const newPassword = cleanString(body.newPassword || body.password);
-    const resetCode = cleanString(body.resetCode);
-
-    if (!username || !newPassword || !resetCode) {
-      fail(res, 400, 'Vui lòng nhập tài khoản, mật khẩu mới và mã reset.');
-      return true;
-    }
-    if (newPassword.length < 6) {
-      fail(res, 400, 'Mật khẩu Admin nên có tối thiểu 6 ký tự.');
-      return true;
-    }
-    if (!ADMIN_PASSWORD_RESET_CODE || resetCode !== ADMIN_PASSWORD_RESET_CODE) {
-      fail(res, 403, 'Mã reset mật khẩu chưa đúng.');
-      return true;
-    }
-
-    const user = db.adminUsers.find(item => normalizeKey(item.username) === normalizeKey(username));
-    if (!user) {
-      fail(res, 404, 'Tài khoản Admin không tồn tại. Vui lòng kiểm tra lại tên tài khoản.', {
-        reason: 'USERNAME_NOT_FOUND',
-      });
-      return true;
-    }
-
-    Object.assign(user, createPasswordRecord(newPassword), {updatedAt: nowIso()});
-    delete user.password;
-    const scopeChanged = ensurePrivateRestaurantForOwner(db, user);
-    saveDb(db);
-
-    const activeRestaurantId = user.activeRestaurantId || user.restaurantIds?.[0];
-    const activeRestaurant = db.restaurants.find(item => item.id === activeRestaurantId);
-    const activeBranch =
-      db.branches.find(branch => branch.id === user.activeBranchId && branch.restaurantId === activeRestaurantId) ||
-      db.branches.find(branch => branch.restaurantId === activeRestaurantId);
-
-    ok(res, {
-      ok: true,
-      message: scopeChanged
-        ? 'Đã đặt lại mật khẩu Admin và khôi phục quán cho tài khoản này.'
-        : 'Đã đặt lại mật khẩu Admin thành công.',
-      token: createToken(user),
-      userId: user.id,
-      role: user.role,
-      restaurantId: activeRestaurantId,
-      restaurantName: activeRestaurant?.name,
-      restaurantIds: user.restaurantIds || [],
-      branchIds: user.branchIds || [],
-      activeBranchId: activeBranch?.id || user.activeBranchId,
-      activeBranchName: activeBranch?.name,
-      menuQrToken: activeBranch ? inferBranchMenuQrToken(activeBranch) : undefined,
-    });
-    return true;
-  }
 
   if (!username || !password) {
     fail(res, 400, 'Vui lòng nhập tài khoản và mật khẩu Admin.');

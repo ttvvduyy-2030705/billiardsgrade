@@ -195,11 +195,6 @@ export interface RestaurantMenuRepository {
     password: string,
     restaurantName?: string,
   ): Promise<RestaurantAdminCredentialResult>;
-  resetAdminPassword?(
-    username: string,
-    newPassword: string,
-    resetCode: string,
-  ): Promise<RestaurantAdminCredentialResult>;
   createRestaurant(
     payload: RestaurantWorkspacePayload,
   ): Promise<RestaurantWorkspace>;

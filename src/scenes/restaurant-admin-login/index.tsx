@@ -16,7 +16,6 @@ import {
   getRestaurantAdminSession,
   loginRestaurantAdmin,
   registerRestaurantAdminAccount,
-  resetRestaurantAdminPasswordAccount,
 } from '../../services/restaurantAdminAuthService';
 import {resetRestaurantContextStore} from '../../stores/RestaurantContextStore';
 import useScreenSystemUI from 'theme/systemUI';
@@ -25,8 +24,8 @@ import {Navigation} from 'types/navigation';
 
 import createStyles from './styles';
 
-type AuthMode = 'login' | 'register' | 'reset';
-type AuthField = 'username' | 'password' | 'confirmPassword' | 'resetCode';
+type AuthMode = 'login' | 'register';
+type AuthField = 'username' | 'password' | 'confirmPassword';
 type AuthFormValues = Record<AuthField, string>;
 
 type Props = Navigation & {
@@ -40,7 +39,6 @@ const EMPTY_FORM_VALUES: AuthFormValues = {
   username: '',
   password: '',
   confirmPassword: '',
-  resetCode: '',
 };
 
 /**
@@ -118,8 +116,6 @@ const getFieldTitle = (field: AuthField) => {
       return 'Mật khẩu Admin';
     case 'confirmPassword':
       return 'Nhập lại mật khẩu';
-    case 'resetCode':
-      return 'Mã reset mật khẩu';
     default:
       return 'Thông tin Admin';
   }
@@ -285,16 +281,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     }
 
     if (field === 'password') {
-      if (authMode === 'reset') {
-        return 'Nhập mật khẩu mới tối thiểu 6 ký tự';
-      }
       return authMode === 'login'
         ? 'Nhập mật khẩu Admin'
         : 'Tạo mật khẩu tối thiểu 6 ký tự';
-    }
-
-    if (field === 'resetCode') {
-      return 'Nhập mã reset: aplus-reset-2026';
     }
 
     return 'Nhập lại mật khẩu';
@@ -446,75 +435,11 @@ const RestaurantAdminLoginScreen = (props: Props) => {
     }
   };
 
-  const onResetPassword = async () => {
-    if (submitting) {
-      return;
-    }
-
-    const currentValues = adminAuthDraftSession;
-    const cleanPassword = currentValues.password.trim();
-    if (cleanPassword !== currentValues.confirmPassword.trim()) {
-      setErrorMessage('Mật khẩu nhập lại chưa khớp');
-      return;
-    }
-
-    setSubmitting(true);
-    setErrorMessage('');
-    setInfoMessage('');
-
-    let nextDashboardUsername = '';
-
-    try {
-      const result = await resetRestaurantAdminPasswordAccount(
-        currentValues.username,
-        currentValues.password,
-        currentValues.resetCode,
-      );
-
-      if (!result.ok || !result.session) {
-        setErrorMessage(result.message);
-        return;
-      }
-
-      nextDashboardUsername = result.session.username;
-      setInfoMessage(result.message);
-      adminAuthModeSession = 'login';
-      setAuthModeState('login');
-      replaceDraftSession({
-        username: currentValues.username,
-        password: '',
-        confirmPassword: '',
-        resetCode: '',
-      });
-      syncDraftToUi();
-      requestAnimationFrame(syncDraftToUi);
-    } catch (error) {
-      console.warn('[RestaurantAdminLogin] reset password failed', error);
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message.trim()
-          : 'Không thể đặt lại mật khẩu Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.';
-      setErrorMessage(message);
-    } finally {
-      setSubmitting(false);
-    }
-
-    if (nextDashboardUsername) {
-      resetRestaurantContextStore({resetScopedStores: true});
-      routeToDashboard(nextDashboardUsername);
-    }
-  };
-
   const submit = () => {
     syncDraftToUi();
 
     if (authMode === 'login') {
       void onLogin();
-      return;
-    }
-
-    if (authMode === 'reset') {
-      void onResetPassword();
       return;
     }
 
@@ -583,18 +508,12 @@ const RestaurantAdminLoginScreen = (props: Props) => {
         <RNView style={styles.card}>
           <RNText style={styles.eyebrow}>APlus Restaurant Admin</RNText>
           <RNText style={styles.title}>
-            {isLogin
-              ? 'Đăng nhập quản trị'
-              : authMode === 'reset'
-                ? 'Đặt lại mật khẩu Admin'
-                : 'Đăng ký quản trị'}
+            {isLogin ? 'Đăng nhập quản trị' : 'Đăng ký quản trị'}
           </RNText>
           <RNText style={styles.hint}>
             {isLogin
               ? 'Đăng nhập bằng tài khoản Admin đã tạo để tiếp nhận đơn, đổi trạng thái thanh toán và chỉnh sửa món.'
-              : authMode === 'reset'
-                ? 'Dùng khi tài khoản đã tồn tại nhưng bạn quên hoặc lệch mật khẩu sau khi đổi bản build/backend.'
-                : 'Tạo tài khoản quản trị cho nhà hàng. Sau khi đăng ký thành công, app sẽ tự đăng nhập vào trang quản trị.'}
+              : 'Tạo tài khoản quản trị cho nhà hàng. Sau khi đăng ký thành công, app sẽ tự đăng nhập vào trang quản trị.'}
           </RNText>
 
 
@@ -607,11 +526,9 @@ const RestaurantAdminLoginScreen = (props: Props) => {
           {renderNativeInputField(
             'password',
             'Mật khẩu',
-            authMode === 'reset'
-              ? 'Nhập mật khẩu mới'
-              : isLogin
-                ? 'Nhập mật khẩu Admin'
-                : 'Tạo mật khẩu tối thiểu 6 ký tự',
+            isLogin
+              ? 'Nhập mật khẩu Admin'
+              : 'Tạo mật khẩu tối thiểu 6 ký tự',
             true,
           )}
 
@@ -624,13 +541,6 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               )
             : null}
 
-          {authMode === 'reset'
-            ? renderNativeInputField(
-                'resetCode',
-                'Mã reset',
-                'Nhập mã reset: aplus-reset-2026',
-              )
-            : null}
 
           {errorMessage ? (
             <RNView style={styles.errorBox}>
@@ -654,14 +564,10 @@ const RestaurantAdminLoginScreen = (props: Props) => {
               {submitting
                 ? isLogin
                   ? 'Đang đăng nhập...'
-                  : authMode === 'reset'
-                    ? 'Đang đặt lại mật khẩu...'
-                    : 'Đang đăng ký...'
+                  : 'Đang đăng ký...'
                 : isLogin
                   ? 'Đăng nhập Admin'
-                  : authMode === 'reset'
-                    ? 'Đặt lại mật khẩu Admin'
-                    : 'Đăng ký Admin'}
+                  : 'Đăng ký Admin'}
             </RNText>
           </Pressable>
 
@@ -673,15 +579,6 @@ const RestaurantAdminLoginScreen = (props: Props) => {
                 {isLogin
                   ? 'Chưa có tài khoản? Đăng ký'
                   : 'Đã có tài khoản? Đăng nhập'}
-              </RNText>
-            </Pressable>
-            <Pressable
-              onPress={() => switchMode(authMode === 'reset' ? 'login' : 'reset')}
-              style={styles.switchButton}>
-              <RNText style={styles.switchText}>
-                {authMode === 'reset'
-                  ? 'Quay lại đăng nhập'
-                  : 'Quên/lệch mật khẩu? Đặt lại'}
               </RNText>
             </Pressable>
           </RNView>

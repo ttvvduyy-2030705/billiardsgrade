@@ -5,7 +5,6 @@ import {
   getActiveRestaurantContext,
   loadRestaurantBranches,
   registerRestaurantAdminCredentials,
-  resetRestaurantAdminPasswordCredentials,
   setActiveRestaurantContext,
   verifyRestaurantAdminCredentials,
 } from './restaurantMenuRepository';
@@ -513,81 +512,6 @@ export const registerRestaurantAdminAccount = async (
 };
 
 
-export const resetRestaurantAdminPasswordAccount = async (
-  username: string,
-  newPassword: string,
-  resetCode: string,
-): Promise<RestaurantAdminAuthResult> => {
-  const cleanUsername = normaliseUsername(username);
-  const cleanPassword = newPassword.trim();
-  const cleanResetCode = resetCode.trim();
-
-  if (!cleanUsername || !cleanPassword || !cleanResetCode) {
-    return {ok: false, message: 'Vui lòng nhập tài khoản, mật khẩu mới và mã reset'};
-  }
-
-  if (cleanPassword.length < 6) {
-    return {ok: false, message: 'Mật khẩu Admin nên có tối thiểu 6 ký tự'};
-  }
-
-  let result: any;
-
-  try {
-    const rawResult = await resetRestaurantAdminPasswordCredentials(
-      cleanUsername,
-      cleanPassword,
-      cleanResetCode,
-    );
-    result = await repairCredentialResultScope(cleanUsername, rawResult);
-  } catch (error) {
-    return {
-      ok: false,
-      message: getAuthErrorMessage(
-        error,
-        'Không thể đặt lại mật khẩu Admin. Vui lòng kiểm tra mạng/backend rồi thử lại.',
-      ),
-    };
-  }
-
-  if (!result.ok) {
-    return {ok: false, message: result.message};
-  }
-
-  if (result.restaurantId) {
-    await setActiveRestaurantContext({
-      restaurantId: result.restaurantId,
-      branchId: result.activeBranchId,
-      restaurantName: result.restaurantName,
-      branchName: result.activeBranchName,
-      menuQrToken: result.menuQrToken,
-      source: 'admin',
-      role: result.role,
-      allowedRestaurantIds: result.restaurantIds,
-    });
-  }
-
-  const session = await createAdminSession({
-    username: cleanUsername,
-    provider: result.token ? 'api' : 'local',
-    token: result.token,
-    userId: result.userId,
-    role: result.role,
-    restaurantId: result.restaurantId,
-    restaurantIds: result.restaurantIds,
-    branchIds: result.branchIds,
-    activeBranchId: result.activeBranchId,
-    menuQrToken: result.menuQrToken,
-    restaurantName: result.restaurantName,
-  });
-  await saveAdminSession(session);
-
-  return {
-    ok: true,
-    message: result.message || 'Đã đặt lại mật khẩu Admin thành công.',
-    session,
-  };
-};
-
 export const updateRestaurantAdminSessionContext = async ({
   restaurantId,
   restaurantName,
@@ -652,7 +576,6 @@ export const refreshRestaurantAdminSession = async () => {
 export const RestaurantAdminAuthService = {
   login: loginRestaurantAdmin,
   registerLocal: registerRestaurantAdminAccount,
-  resetPassword: resetRestaurantAdminPasswordAccount,
   getSession: getRestaurantAdminSession,
   clearSession: clearRestaurantAdminSession,
   refreshSession: refreshRestaurantAdminSession,
