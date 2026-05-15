@@ -800,11 +800,18 @@ const AdminMenuManagementScreen = ({
       return;
     }
 
-    const isEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
-    const itemId = isEdit ? String(draftSelectedItemId) : '';
-    const editingItem = isEdit
-      ? menuItems.find(item => item.id === itemId) || selectedItem
+    const requestedEdit = draftViewMode === 'edit' && !!draftSelectedItemId;
+    const requestedItemId = requestedEdit ? String(draftSelectedItemId) : '';
+    const editingItem = requestedEdit
+      ? menuItems.find(item => item.id === requestedItemId) ||
+        (selectedItem?.id === requestedItemId ? selectedItem : null)
       : null;
+    // Do not PATCH a phantom/stale item id. Android can restore an old form
+    // session after image picking; if that id is not in the current menu
+    // snapshot, treating the submit as an edit makes the API return
+    // “Không tìm thấy món”. In that case create a fresh item instead.
+    const isEdit = Boolean(requestedEdit && editingItem?.id);
+    const itemId = isEdit ? requestedItemId : '';
     const hasPendingImage = Boolean(
       draftPendingImageBase64 ||
       draftPendingImageDataUri ||
@@ -820,6 +827,58 @@ const AdminMenuManagementScreen = ({
     setListError('');
 
     try {
+      let imageWarning = '';
+      let uploadedImageUrl = '';
+
+      // Ảnh phải được xử lý TRƯỚC khi tạo món mới. Bản cũ tạo món trước,
+      // upload ảnh sau, rồi PATCH lại món để gắn ảnh; trên Render bước PATCH
+      // đôi khi trả 404 dù POST món và POST ảnh đã thành công. Luồng mới là:
+      // chọn ảnh -> upload ảnh lấy URL -> POST/PATCH món đúng 1 lần kèm imageUrl.
+      if (hasPendingImage) {
+        try {
+          setImageUploading(true);
+          if (onUploadImage && (draftPendingImageBase64 || draftPendingImageDataUri)) {
+            const uploadResult = await onUploadImage({
+              uri: draftPendingImageUri,
+              base64: draftPendingImageBase64,
+              dataUri: draftPendingImageDataUri,
+              // Khi sửa món thì đã có id thật, upload có thể tự gắn vào món.
+              // Khi thêm món mới thì chưa có id, chỉ upload lấy public URL trước.
+              itemId: isEdit ? itemId : undefined,
+              dishId: isEdit ? itemId : undefined,
+              mimeType: draftPendingImageMimeType,
+              fileName: draftPendingImageFileName,
+            });
+            uploadedImageUrl = getMenuItemImageValue({
+              imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
+            });
+          } else if (!onUploadImage) {
+            uploadedImageUrl = await persistRestaurantMenuImage({
+              uri: draftPendingImageUri,
+              base64: draftPendingImageBase64,
+              itemId: itemId || 'menu_draft_image',
+              type: draftPendingImageMimeType,
+              fileName: draftPendingImageFileName,
+            });
+          }
+
+          if (!uploadedImageUrl) {
+            imageWarning =
+              'Ảnh chưa upload được, món vẫn sẽ được lưu không kèm ảnh. Sau đó bạn có thể sửa món và chọn lại ảnh nhỏ hơn.';
+          }
+        } catch (uploadError) {
+          devWarn('[AdminMenu] image upload before item save failed', uploadError);
+          imageWarning =
+            'Ảnh chưa upload được, món vẫn sẽ được lưu không kèm ảnh. Sau đó bạn có thể sửa món và chọn lại ảnh nhỏ hơn.';
+        } finally {
+          setImageUploading(false);
+        }
+      }
+
+      const finalImageUrl = hasPendingImage
+        ? uploadedImageUrl || (isEdit ? existingServerImageUrl : '')
+        : cleanDraftImageUrl;
+
       const basePayload: MenuItemFormInput = {
         ...(isEdit ? {id: itemId, createdAt: editingItem?.createdAt} : {}),
         name: cleanName,
@@ -827,132 +886,12 @@ const AdminMenuManagementScreen = ({
         categoryId: cleanCategoryId,
         categoryName: cleanCategoryName,
         description: draftDescription.trim(),
-        // Với món mới có ảnh pending, lưu món trước không kèm ảnh. Sau khi server
-        // trả id thật của món, mới upload ảnh và PATCH lại imageUrl. Như vậy nếu
-        // upload ảnh lỗi thì món/danh mục vẫn không bị mất.
-        imageUrl: hasPendingImage
-          ? isEdit
-            ? existingServerImageUrl
-            : ''
-          : cleanDraftImageUrl,
+        imageUrl: finalImageUrl,
         status: draftStatus,
         available: draftStatus === 'SELLING',
       };
 
-      let savedItems = await onSaveItem(basePayload);
-      let savedItem = findSavedMenuItemForPayload(
-        savedItems,
-        {
-          id: basePayload.id,
-          name: cleanName,
-          price: priceValue,
-          categoryId: cleanCategoryId,
-          categoryName: cleanCategoryName,
-        },
-        categories,
-      );
-      const savedItemId = savedItem?.id || itemId;
-      let imageWarning = '';
-
-      if (hasPendingImage) {
-        if (!savedItemId) {
-          imageWarning =
-            'Món đã lưu nhưng chưa lấy được mã món để gắn ảnh. Vào lại Quản lý món rồi bấm Sửa món để chọn ảnh lại.';
-        } else {
-          try {
-            setImageUploading(true);
-            let serverImageUrl = '';
-
-            if (
-              onUploadImage &&
-              (draftPendingImageBase64 || draftPendingImageDataUri)
-            ) {
-              const uploadResult = await onUploadImage({
-                uri: draftPendingImageUri,
-                base64: draftPendingImageBase64,
-                dataUri: draftPendingImageDataUri,
-                itemId: savedItemId,
-                dishId: savedItemId,
-                mimeType: draftPendingImageMimeType,
-                fileName: draftPendingImageFileName,
-              });
-              serverImageUrl = getMenuItemImageValue({
-                imageUrl:
-                  uploadResult?.imageUrl || uploadResult?.publicUrl || '',
-              });
-              if (Array.isArray(uploadResult?.items)) {
-                savedItems = uploadResult.items;
-                savedItem =
-                  savedItems.find(item => item.id === savedItemId) ||
-                  findSavedMenuItemForPayload(
-                    savedItems,
-                    {
-                      id: savedItemId,
-                      name: cleanName,
-                      price: priceValue,
-                      categoryId: cleanCategoryId,
-                      categoryName: cleanCategoryName,
-                    },
-                    categories,
-                  );
-              }
-            }
-
-            if (!serverImageUrl && !onUploadImage) {
-              serverImageUrl = await persistRestaurantMenuImage({
-                uri: draftPendingImageUri,
-                base64: draftPendingImageBase64,
-                itemId: savedItemId,
-                type: draftPendingImageMimeType,
-                fileName: draftPendingImageFileName,
-              });
-            }
-
-            if (serverImageUrl) {
-              const imageAlreadyAttached = Boolean(
-                getMenuItemImageValue(savedItem || undefined) === serverImageUrl ||
-                  (Array.isArray(savedItems) &&
-                    savedItems.some(
-                      item =>
-                        item.id === savedItemId &&
-                        getMenuItemImageValue(item) === serverImageUrl,
-                    )),
-              );
-
-              if (!imageAlreadyAttached) {
-                const imagePayload: MenuItemFormInput = {
-                  ...basePayload,
-                  id: savedItemId,
-                  createdAt: savedItem?.createdAt || editingItem?.createdAt,
-                  imageUrl: serverImageUrl,
-                };
-                savedItems = await onSaveItem(imagePayload);
-                savedItem = findSavedMenuItemForPayload(
-                  savedItems,
-                  {
-                    id: savedItemId,
-                    name: cleanName,
-                    price: priceValue,
-                    categoryId: cleanCategoryId,
-                    categoryName: cleanCategoryName,
-                  },
-                  categories,
-                );
-              }
-            } else {
-              imageWarning =
-                'Món đã lưu, nhưng ảnh chưa upload được. Ảnh có thể quá lớn hoặc máy chưa cấp dữ liệu ảnh; hãy sửa món và chọn lại ảnh nhỏ hơn.';
-            }
-          } catch (uploadError) {
-            devWarn(
-              '[AdminMenu] image upload failed after item save',
-              uploadError,
-            );
-            imageWarning =
-              'Món đã lưu, nhưng ảnh chưa upload được. Hãy vào Sửa món và chọn lại ảnh nhỏ hơn nếu cần.';
-          }
-        }
-      }
+      await onSaveItem(basePayload);
 
       replaceFormSession(createEmptyFormSession(defaultCategoryId));
       if (imageWarning) {

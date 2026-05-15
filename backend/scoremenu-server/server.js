@@ -47,7 +47,15 @@ const DATA_FILE = resolveStoragePath(process.env.SCOREMENU_DB_FILE, path.join('d
 const SCHEMA_FILE = path.join(__dirname, 'data', 'schema.json');
 const ENABLE_AUTH_GUARD = process.env.SCOREMENU_AUTH_GUARD !== '0';
 const TOKEN_SECRET = process.env.SCOREMENU_TOKEN_SECRET || 'scoremenu_dev_secret_change_me';
-const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24);
+// Keep API token lifetime aligned with the mobile Admin session TTL.
+// Short 24h tokens caused release builds to fall back to Login while the app
+// still believed the Admin session was valid.
+const TOKEN_TTL_MS = Number(process.env.SCOREMENU_TOKEN_TTL_MS || 1000 * 60 * 60 * 24 * 30);
+// Runtime menu/order data must never be auto-deleted on normal admin login/hydrate.
+// Older builds used this sanitizer to remove bundled demo data, but it could
+// also wipe real admin-created categories/items such as test drinks after
+// logout/login. Keep it opt-in only for one-off maintenance.
+const ENABLE_RUNTIME_SANITIZER = process.env.SCOREMENU_RUNTIME_SANITIZER === '1';
 const UPLOAD_DIR = resolveStoragePath(process.env.SCOREMENU_UPLOAD_DIR, path.join('data', 'uploads'), {
   label: 'Uploads',
   isDirectory: true,
@@ -594,9 +602,18 @@ const sanitizeOwnerRestaurantRuntimeData = (db, user) => {
     return false;
   }
 
+  // IMPORTANT: Do not clean runtime data during normal login/hydrate. Admin-created
+  // menu categories/items are real business data and must survive logout/login.
+  // A previous heuristic treated names like "test", "coca", "đồ uống", etc. as
+  // demo data and could clear the whole restaurant runtime dataset right after the
+  // admin returned to the dashboard. If a one-off cleanup is ever needed, enable
+  // SCOREMENU_RUNTIME_SANITIZER=1 explicitly on the server.
+  if (!ENABLE_RUNTIME_SANITIZER) {
+    return false;
+  }
+
   // Data that already existed before the admin account was created cannot be that admin's own data.
-  // This is the main guard against the bundled test dataset leaking into every newly-created account.
-  if (hasRuntimeOlderThanAdmin(records, user) || hasBundledDemoFootprint(records)) {
+  if (hasRuntimeOlderThanAdmin(records, user)) {
     return clearRestaurantScopedRuntimeData(db, restaurantId);
   }
 
@@ -3558,6 +3575,17 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa món.')) {
       return true;
     }
+    // Render có thể xử lý request upload ảnh và update món sát nhau. Luôn đọc
+    // lại snapshot DB mới nhất trước khi kết luận item không tồn tại.
+    try {
+      const latestDb = loadDb();
+      ensureBatch25DatabaseShape(latestDb);
+      db.items = Array.isArray(latestDb.items) ? latestDb.items : db.items;
+      db.categories = Array.isArray(latestDb.categories) ? latestDb.categories : db.categories;
+      db.imageUploads = Array.isArray(latestDb.imageUploads) ? latestDb.imageUploads : db.imageUploads;
+    } catch (_error) {
+      // Giữ snapshot hiện tại nếu reload DB lỗi.
+    }
     let item = db.items.find(entry => entry.id === parts[4] && entry.restaurantId === restaurantId);
     const body = await parseBody(req);
     if (!item) {
@@ -4349,6 +4377,8 @@ const handleRequest = async (req, res) => {
         auditLogs: db.auditLogs.length,
         publicOrderRateLimits: db.publicOrderRateLimits.length,
         lastMigration: db.meta?.lastMigration,
+        storageFile: DATA_FILE,
+        runtimeSanitizerEnabled: ENABLE_RUNTIME_SANITIZER,
         billSessionStatuses: BILL_SESSION_MODEL.statuses,
       });
       return;

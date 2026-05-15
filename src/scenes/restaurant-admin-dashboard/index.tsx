@@ -21,8 +21,8 @@ import Image from 'components/Image';
 import {screens} from 'scenes/screens';
 import {devWarn} from 'utils/devLogger';
 import {
-  clearAdminSessionIfUnauthorized,
   getScoreMenuErrorMessage,
+  isAuthExpiredError,
   logScoreMenuError,
 } from 'utils/scoremenuErrors';
 import {
@@ -652,6 +652,29 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     navigate(screens.restaurantAdminLogin, params);
   }, [navigate, replace, reset]);
 
+  const keepAdminScreenOnAuthRefreshError = useCallback(
+    (error: unknown, options: {silent?: boolean} = {}) => {
+      if (!isAuthExpiredError(error)) {
+        return false;
+      }
+
+      // Render/free backend may occasionally reject one of many parallel admin
+      // refresh requests with 401 while the app is still holding a usable admin
+      // session. Never clear the local session or reset menu/category/table state
+      // from a background refresh failure. Let the user keep the current screen
+      // and re-login only when they explicitly choose to.
+      if (!options.silent) {
+        setAuthErrorMessage(
+          'Phiên Admin vừa bị máy chủ từ chối trong lúc đồng bộ nền. Dữ liệu trên màn vẫn được giữ lại; nếu thao tác tiếp vẫn lỗi thì đăng nhập lại.',
+        );
+      }
+      setAuthChecking(false);
+      setRefreshing(false);
+      return true;
+    },
+    [],
+  );
+
   const refreshOrdersOnly = useCallback(
     async (options: {silent?: boolean; announceNew?: boolean} = {}) => {
       if (
@@ -700,9 +723,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           error,
         );
         setOrderSyncStatus('error');
-        if (await clearAdminSessionIfUnauthorized(error)) {
-          resetSensitiveData();
-          redirectToLogin();
+        if (keepAdminScreenOnAuthRefreshError(error, {silent: Boolean(options.silent)})) {
           return;
         }
         if (!options.silent) {
@@ -722,7 +743,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         }
       }
     },
-    [applyOrdersSnapshot],
+    [applyOrdersSnapshot, keepAdminScreenOnAuthRefreshError],
   );
 
   const loadData = useCallback(async () => {
@@ -774,9 +795,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(
@@ -792,6 +811,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
     applyMenuSnapshot,
     applyOrdersSnapshot,
     hydrateRestaurantContext,
+    keepAdminScreenOnAuthRefreshError,
     redirectToLogin,
     resetSensitiveData,
   ]);
@@ -842,10 +862,16 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           return;
         }
 
-        await clearAdminSessionIfUnauthorized(error);
-        resetSensitiveData();
+        if (keepAdminScreenOnAuthRefreshError(error)) {
+          return;
+        }
         setAuthChecking(false);
-        redirectToLogin();
+        setAuthErrorMessage(
+          getScoreMenuErrorMessage(
+            error,
+            'Không thể kiểm tra phiên Admin. Vui lòng thử lại.',
+          ),
+        );
       }
     };
 
@@ -857,6 +883,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
   }, [
     applyOrdersSnapshot,
     hydrateRestaurantContext,
+    keepAdminScreenOnAuthRefreshError,
     redirectToLogin,
     resetSensitiveData,
     routeAdminUsername,
@@ -1149,9 +1176,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(
@@ -1190,9 +1215,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(
@@ -1238,9 +1261,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(
@@ -1271,9 +1292,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(
@@ -1314,9 +1333,7 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         },
         error,
       );
-      if (await clearAdminSessionIfUnauthorized(error)) {
-        resetSensitiveData();
-        redirectToLogin();
+      if (keepAdminScreenOnAuthRefreshError(error)) {
         return;
       }
       setAuthErrorMessage(

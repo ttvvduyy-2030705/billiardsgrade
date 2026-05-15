@@ -501,20 +501,47 @@ export const upsertMenuCategory = async (
   return activeRepository.createCategory(input);
 };
 
+const isMenuItemNotFoundError = (error: unknown) => {
+  const apiError = error as {status?: number; code?: string; message?: string};
+  return (
+    apiError?.status === 404 ||
+    apiError?.code === 'NOT_FOUND' ||
+    String(apiError?.message || '').toLowerCase().includes('không tìm thấy món')
+  );
+};
+
 export const upsertMenuItem = async (
   input: RestaurantMenuItemPayload,
 ): Promise<RestaurantMenuItem[]> => {
   // In API mode, new items must be sent through POST. Older admin forms could
-  // generate temporary client ids such as admin_dish_* before saving; sending
-  // those ids through PATCH makes the server answer “Không tìm thấy món”.
+  // generate temporary client ids such as admin_dish_*, local_* or stale
+  // item_* ids before saving; sending those ids through PATCH makes the server
+  // answer “Không tìm thấy món”.
   const cleanId = String(input.id || '').trim();
   const looksLikeTemporaryClientId = /^admin_dish_|^local_|^new_dish/i.test(cleanId);
+  const shouldCreateDirectly = activeRepositoryMode === 'api' && looksLikeTemporaryClientId;
 
-  if (cleanId && !(activeRepositoryMode === 'api' && looksLikeTemporaryClientId)) {
-    return activeRepository.updateItem(cleanId, input);
+  if (cleanId && !shouldCreateDirectly) {
+    try {
+      return await activeRepository.updateItem(cleanId, input);
+    } catch (error) {
+      // Release builds can restore a stale edit session after picking/uploading
+      // an image. If the server says that item id does not exist, recover by
+      // creating the item instead of surfacing “Không tìm thấy món” to the user.
+      // This is safe for the add-new flow and also recovers from lost Render
+      // JSON snapshots.
+      if (activeRepositoryMode === 'api' && isMenuItemNotFoundError(error)) {
+        return activeRepository.createItem({
+          ...input,
+          id: undefined,
+        });
+      }
+      throw error;
+    }
   }
+
   return activeRepository.createItem({
     ...input,
-    id: activeRepositoryMode === 'api' && looksLikeTemporaryClientId ? undefined : input.id,
+    id: shouldCreateDirectly ? undefined : input.id,
   });
 };
