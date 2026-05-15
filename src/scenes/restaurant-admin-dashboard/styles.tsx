@@ -1437,7 +1437,7 @@ const createStyles = ({design, isWide}: Args) => {
       marginTop: spacing.sm,
     },
     branchQrPreviewCard: {
-      width: isWide ? 230 : '100%',
+      width: isWide ? 300 : '100%',
       borderRadius: radius.xl,
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.1)',
@@ -1462,12 +1462,13 @@ const createStyles = ({design, isWide}: Args) => {
       textAlign: 'center',
     },
     branchQrCodeBox: {
-      width: 166,
-      height: 166,
+      width: 272,
+      height: 272,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.lg,
       backgroundColor: '#FFFFFF',
+      padding: spacing.sm,
       marginBottom: spacing.sm,
     },
     branchQrPrintUrl: {

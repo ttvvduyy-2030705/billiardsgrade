@@ -7,6 +7,7 @@ import com.aplus.score.billing.AplusBillingPackage
 import com.aplus.score.clipboard.AplusClipboardPackage
 import com.aplus.score.deviceconfig.ScreenMetricsPackage
 import com.aplus.score.immersive.CartImmersivePackage
+import com.aplus.score.imagepicker.AplusMenuImagePickerPackage
 import com.aplus.score.youtube.YouTubeLiveModulePackage
 import com.aplus.score.youtube.YouTubeLivePreviewViewPackage
 import com.billiards_management.RemoteControl.RemoteControlPackage
@@ -30,6 +31,7 @@ class MainApplication : Application(), ReactApplication {
       add(YouTubeLivePreviewViewPackage())
       add(AplusBillingPackage())
       add(AplusClipboardPackage())
+      add(AplusMenuImagePickerPackage())
     }
 
     override fun getJSMainModuleName(): String = "index"

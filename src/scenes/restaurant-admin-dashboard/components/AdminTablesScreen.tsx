@@ -150,7 +150,14 @@ const AdminTablesScreen = ({
           <RNView style={styles.branchQrPreviewCard}>
             <RNText style={styles.inputLabel}>Ảnh QR để in/dán</RNText>
             <RNView style={styles.branchQrCodeBox}>
-              <QRCode value={qrValue} size={180} />
+              <QRCode
+                value={qrValue}
+                size={236}
+                quietZone={18}
+                ecl="M"
+                backgroundColor="#FFFFFF"
+                color="#000000"
+              />
             </RNView>
             <RNText style={styles.workspaceHint}>
               QR này thuộc riêng nick admin hiện tại. Không cần tạo QR theo từng bàn.

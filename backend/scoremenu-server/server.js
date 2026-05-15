@@ -950,13 +950,60 @@ const readTokenPayload = token => {
   }
 };
 
+const recoverAdminUserFromTokenPayload = (db, payload) => {
+  if (!payload?.userId || !payload?.username) {
+    return null;
+  }
+
+  const timestamp = nowIso();
+  const cleanRestaurantIds = Array.isArray(payload.restaurantIds)
+    ? payload.restaurantIds.map(cleanString).filter(id => id && !isProductionDemoRestaurantId(id))
+    : [];
+  const activeRestaurantId = cleanString(payload.activeRestaurantId) || cleanRestaurantIds[0] || '';
+  const cleanBranchIds = Array.isArray(payload.branchIds)
+    ? payload.branchIds.map(cleanString).filter(id => id && !isProductionDemoBranchId(id))
+    : [];
+  const activeBranchId = cleanString(payload.activeBranchId) || cleanBranchIds[0] || '';
+
+  const user = {
+    id: cleanString(payload.userId),
+    username: cleanString(payload.username),
+    role: ['OWNER', 'MANAGER', 'STAFF'].includes(payload.role) ? payload.role : 'OWNER',
+    // This account was restored from a still-valid signed session token after
+    // Render/local JSON storage dropped the admin user record. It can continue
+    // the current session, but normal password login still requires the user to
+    // register/login against a real account.
+    sessionRecovered: true,
+    restaurantIds: activeRestaurantId
+      ? Array.from(new Set([activeRestaurantId, ...cleanRestaurantIds]))
+      : cleanRestaurantIds,
+    activeRestaurantId: activeRestaurantId || undefined,
+    branchIds: activeBranchId
+      ? Array.from(new Set([activeBranchId, ...cleanBranchIds]))
+      : cleanBranchIds,
+    activeBranchId: activeBranchId || undefined,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  db.adminUsers.push(user);
+  saveDb(db);
+  return user;
+};
+
 const getUserFromRequest = (db, req) => {
   const token = getToken(req);
   const payload = readTokenPayload(token);
   if (!payload?.userId) {
     return null;
   }
-  return db.adminUsers.find(user => user.id === payload.userId) || null;
+
+  const user = db.adminUsers.find(item => item.id === payload.userId);
+  if (user) {
+    return user;
+  }
+
+  return recoverAdminUserFromTokenPayload(db, payload);
 };
 
 const canAccessRestaurant = (user, restaurantId) => {
@@ -970,18 +1017,121 @@ const canAccessRestaurant = (user, restaurantId) => {
   return allowedRestaurantIds.includes(cleanRestaurantId);
 };
 
-const requireRestaurantAccess = (db, req, res, restaurantId) => {
-  const restaurant = db.restaurants.find(item => item.id === restaurantId);
-  if (!restaurant) {
-    fail(res, 404, 'Không tìm thấy nhà hàng.');
+const createRecoveredMenuQrToken = (db, restaurantId, restaurantName) => {
+  const restaurantKey = normalizeKey(`${restaurantId}_${restaurantName || 'menu'}`)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'restaurant';
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const token = `qr_${restaurantKey}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}_menu`;
+    if (!db.branches.some(branch => inferBranchMenuQrToken(branch) === token)) {
+      return token;
+    }
+  }
+
+  return `qr_${restaurantKey}_${Date.now()}_${crypto.randomBytes(8).toString('hex')}_menu`;
+};
+
+const repairMissingOwnerRestaurant = (db, user, restaurantId) => {
+  const cleanRestaurantId = cleanString(restaurantId);
+  if (
+    !db ||
+    !user ||
+    user.role !== 'OWNER' ||
+    !cleanRestaurantId ||
+    isProductionDemoRestaurantId(cleanRestaurantId)
+  ) {
     return null;
   }
 
+  const allowedRestaurantIds = Array.isArray(user.restaurantIds)
+    ? user.restaurantIds.map(cleanString).filter(Boolean)
+    : [];
+  const isKnownSessionRestaurant =
+    cleanString(user.activeRestaurantId) === cleanRestaurantId ||
+    allowedRestaurantIds.includes(cleanRestaurantId);
+
+  if (!isKnownSessionRestaurant) {
+    return null;
+  }
+
+  const timestamp = nowIso();
+  let restaurant = db.restaurants.find(item => item.id === cleanRestaurantId);
+  const restaurantName =
+    cleanString(restaurant?.name) || `Quán của ${cleanString(user.username) || 'Admin'}`;
+
+  if (!restaurant) {
+    restaurant = {
+      id: cleanRestaurantId,
+      name: restaurantName,
+      ownerId: user.id,
+      status: 'ACTIVE',
+      logoUrl: '',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    db.restaurants.unshift(restaurant);
+  }
+
+  let branch =
+    db.branches.find(item =>
+      item.restaurantId === cleanRestaurantId &&
+      cleanString(user.activeBranchId) &&
+      item.id === cleanString(user.activeBranchId),
+    ) || db.branches.find(item => item.restaurantId === cleanRestaurantId);
+
+  if (!branch) {
+    const requestedBranchId = cleanString(user.activeBranchId);
+    branch = {
+      id: requestedBranchId && !isProductionDemoBranchId(requestedBranchId)
+        ? requestedBranchId
+        : createId('branch'),
+      restaurantId: cleanRestaurantId,
+      name: restaurantName,
+      address: '',
+      menuQrToken: createRecoveredMenuQrToken(db, cleanRestaurantId, restaurantName),
+      status: 'ACTIVE',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    db.branches.unshift(branch);
+  } else if (!inferBranchMenuQrToken(branch)) {
+    branch.menuQrToken = createRecoveredMenuQrToken(db, cleanRestaurantId, restaurantName);
+    branch.updatedAt = timestamp;
+  }
+
+  user.restaurantIds = Array.from(new Set([
+    cleanRestaurantId,
+    ...(Array.isArray(user.restaurantIds) ? user.restaurantIds : []),
+  ].map(cleanString).filter(Boolean)));
+  user.activeRestaurantId = cleanRestaurantId;
+  user.branchIds = Array.from(new Set([
+    branch.id,
+    ...(Array.isArray(user.branchIds) ? user.branchIds : []),
+  ].map(cleanString).filter(Boolean)));
+  user.activeBranchId = branch.id;
+  user.updatedAt = timestamp;
+
+  saveDb(db);
+  return restaurant;
+};
+
+const requireRestaurantAccess = (db, req, res, restaurantId) => {
   const user = getUserFromRequest(db, req);
   if (!user) {
     fail(res, 401, 'Phiên đăng nhập chưa hợp lệ.');
     return null;
   }
+
+  let restaurant = db.restaurants.find(item => item.id === restaurantId);
+  if (!restaurant) {
+    restaurant = repairMissingOwnerRestaurant(db, user, restaurantId);
+  }
+  if (!restaurant) {
+    fail(res, 404, 'Không tìm thấy nhà hàng.');
+    return null;
+  }
+
   if (!canAccessRestaurant(user, restaurantId)) {
     fail(res, 403, 'Tài khoản không có quyền truy cập nhà hàng này.');
     return null;
@@ -2333,6 +2483,14 @@ const ensurePrivateRestaurantForOwner = (db, user) => {
     return sanitizeOwnerRestaurantRuntimeData(db, user) || scopeSanitized;
   }
 
+  const requestedRestaurantId = getAdminPrimaryRestaurantId(user);
+  if (requestedRestaurantId) {
+    const repairedRestaurant = repairMissingOwnerRestaurant(db, user, requestedRestaurantId);
+    if (repairedRestaurant) {
+      return true;
+    }
+  }
+
   const timestamp = nowIso();
   const {restaurant, branch} = createFreshRestaurantForAdmin(db, {
     userId: user.id,
@@ -3255,6 +3413,50 @@ const routeCategories = async (req, res, db, restaurantId, parts, user) => {
   return false;
 };
 
+
+const saveMenuImageMetadataAndAttachToItem = (db, restaurantId, metadata) => {
+  // Image upload requests can contain a large base64 body. While that body is
+  // being parsed, other menu mutations may already have saved a newer database
+  // snapshot. Never save the stale request-start snapshot here, otherwise a
+  // successful image upload can accidentally roll back the item that was just
+  // created. Reload the latest DB, append the upload metadata, and attach the
+  // image URL directly to the item when possible.
+  let latestDb;
+  try {
+    latestDb = loadDb();
+    ensureBatch25DatabaseShape(latestDb);
+  } catch (_error) {
+    latestDb = db;
+  }
+
+  latestDb.imageUploads = Array.isArray(latestDb.imageUploads)
+    ? latestDb.imageUploads
+    : [];
+  latestDb.items = Array.isArray(latestDb.items) ? latestDb.items : [];
+
+  latestDb.imageUploads.unshift(metadata);
+
+  const itemId = cleanString(metadata.dishId || metadata.itemId);
+  let itemUpdated = false;
+  if (itemId) {
+    const item = latestDb.items.find(
+      entry => entry.id === itemId && entry.restaurantId === restaurantId,
+    );
+    if (item) {
+      item.imageUrl = metadata.publicUrl || metadata.imageUrl || item.imageUrl;
+      item.updatedAt = nowIso();
+      itemUpdated = true;
+    }
+  }
+
+  saveDb(latestDb);
+  return {
+    db: latestDb,
+    itemUpdated,
+    items: getRestaurantItems(latestDb, restaurantId),
+  };
+};
+
 const routeMenuImages = async (req, res, db, restaurantId, parts, user) => {
   if (parts.length !== 4 || req.method !== 'POST') {
     return false;
@@ -3300,11 +3502,22 @@ const routeMenuImages = async (req, res, db, restaurantId, parts, user) => {
       updatedAt: createdAt,
     };
 
-    db.imageUploads = Array.isArray(db.imageUploads) ? db.imageUploads : [];
-    db.imageUploads.unshift(metadata);
-    saveDb(db);
-    audit('menu.image.upload', {user, restaurantId, targetId: metadata.id, dishId: metadata.dishId, size: metadata.size});
-    created(res, {ok: true, ...metadata});
+    const attachResult = saveMenuImageMetadataAndAttachToItem(db, restaurantId, metadata);
+    audit('menu.image.upload', {
+      user,
+      restaurantId,
+      targetId: metadata.id,
+      dishId: metadata.dishId,
+      size: metadata.size,
+      itemUpdated: attachResult.itemUpdated,
+    });
+    created(res, {
+      ok: true,
+      ...metadata,
+      itemId: metadata.dishId,
+      itemUpdated: attachResult.itemUpdated,
+      items: attachResult.items,
+    });
   } catch (error) {
     fail(res, 400, error.message || 'Không thể upload ảnh món.');
   }
@@ -3345,12 +3558,42 @@ const routeItems = async (req, res, db, restaurantId, parts, user) => {
     if (!requireRole(res, user, ['OWNER', 'MANAGER'], 'Tài khoản không có quyền sửa món.')) {
       return true;
     }
-    const item = db.items.find(entry => entry.id === parts[4] && entry.restaurantId === restaurantId);
-    if (!item) {
-      fail(res, 404, 'Không tìm thấy món.');
-      return true;
-    }
+    let item = db.items.find(entry => entry.id === parts[4] && entry.restaurantId === restaurantId);
     const body = await parseBody(req);
+    if (!item) {
+      try {
+        const repairedItem = normalizeItemPayload(
+          {...body, id: parts[4], restaurantId},
+          restaurantId,
+        );
+        const resolvedCategory = resolveOrCreateRestaurantCategoryId(
+          db,
+          restaurantId,
+          repairedItem.categoryId,
+          body.categoryName || body.categoryLabel || body.category,
+        );
+        if (!resolvedCategory.categoryId) {
+          fail(res, 400, 'Danh mục đã chọn không tồn tại hoặc chưa đồng bộ. Vui lòng tải lại trang quản lý món rồi chọn lại danh mục.');
+          return true;
+        }
+        repairedItem.categoryId = resolvedCategory.categoryId;
+        db.items.push(repairedItem);
+        item = repairedItem;
+        saveDb(db);
+        audit('item.repair_missing_before_update', {
+          user,
+          restaurantId,
+          targetId: repairedItem.id,
+          categoryId: repairedItem.categoryId,
+          reason: 'patch_after_image_upload',
+        });
+        ok(res, getRestaurantItems(db, restaurantId));
+        return true;
+      } catch (error) {
+        fail(res, 404, 'Không tìm thấy món.');
+        return true;
+      }
+    }
     try {
       const next = normalizeItemPayload(body, restaurantId, item);
       const resolvedCategory = resolveOrCreateRestaurantCategoryId(db, restaurantId, next.categoryId, body.categoryName || body.categoryLabel || body.category);

@@ -63,12 +63,15 @@ export type RestaurantMenuImageUploadResult = {
   ok: boolean;
   restaurantId?: string;
   dishId?: string;
+  itemId?: string;
   imageUrl: string;
   publicUrl?: string;
   storagePath?: string;
   mimeType?: string;
   size?: number;
   createdAt?: string;
+  itemUpdated?: boolean;
+  items?: RestaurantMenuItem[];
 };
 
 

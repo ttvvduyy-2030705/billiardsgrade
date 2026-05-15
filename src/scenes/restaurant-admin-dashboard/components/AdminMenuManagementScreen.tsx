@@ -32,6 +32,67 @@ import {
 const AdminFormImmersiveModule =
   Platform.OS === 'android' ? NativeModules.CartImmersiveModule : undefined;
 
+type NativeMenuImagePickerResult = {
+  cancelled?: boolean;
+  uri?: string;
+  base64?: string;
+  mimeType?: string;
+  fileName?: string;
+};
+
+type MenuImagePickerResponse = {
+  didCancel?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  assets?: Array<{
+    uri?: string;
+    base64?: string;
+    type?: string;
+    fileName?: string;
+  }>;
+};
+
+type NativeMenuImagePickerModuleType = {
+  pickMenuImage?: () => Promise<NativeMenuImagePickerResult>;
+};
+
+const NativeMenuImagePicker =
+  Platform.OS === 'android'
+    ? ((NativeModules.AplusMenuImagePickerModule ||
+        NativeModules.AplusMenuImagePicker) as
+        | NativeMenuImagePickerModuleType
+        | undefined)
+    : undefined;
+
+const pickMenuImageAsset = async (): Promise<MenuImagePickerResponse> => {
+  if (NativeMenuImagePicker?.pickMenuImage) {
+    const nativeResult = await NativeMenuImagePicker.pickMenuImage();
+    if (nativeResult?.cancelled) {
+      return {didCancel: true};
+    }
+
+    return {
+      assets: [
+        {
+          uri: nativeResult?.uri || '',
+          base64: nativeResult?.base64 || '',
+          type: nativeResult?.mimeType || 'image/jpeg',
+          fileName: nativeResult?.fileName || 'menu_image.jpg',
+        },
+      ],
+    };
+  }
+
+  return launchImageLibrary({
+    mediaType: 'photo',
+    selectionLimit: 1,
+    quality: 0.5,
+    maxWidth: 900,
+    maxHeight: 900,
+    includeBase64: true,
+  }) as Promise<MenuImagePickerResponse>;
+};
+
 type MenuItemFormInput = {
   id?: string;
   createdAt?: string;
@@ -58,6 +119,8 @@ type MenuItemImageUploadInput = {
 type MenuItemImageUploadResult = {
   imageUrl?: string;
   publicUrl?: string;
+  itemUpdated?: boolean;
+  items?: RestaurantMenuItem[];
 };
 
 type Props = {
@@ -194,7 +257,6 @@ const findSavedMenuItemForPayload = (
   );
 };
 
-
 type AdminMenuImageProps = {
   imageValue: string;
   imageKey: string;
@@ -249,9 +311,7 @@ const getInitialStatus = (
   return item?.available === false ? 'HIDDEN' : 'SELLING';
 };
 
-const createEmptyFormSession = (
-  categoryId = '',
-): AdminMenuFormSession => ({
+const createEmptyFormSession = (categoryId = ''): AdminMenuFormSession => ({
   viewMode: 'list',
   selectedItemId: null,
   name: '',
@@ -322,6 +382,7 @@ const AdminMenuManagementScreen = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [imagePicking, setImagePicking] = useState(false);
+  const [imageProcessing, setImageProcessing] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const imagePickRequestIdRef = useRef(0);
   const [listError, setListError] = useState('');
@@ -578,24 +639,19 @@ const AdminMenuManagementScreen = ({
   };
 
   const pickMenuImage = async () => {
-    if (imagePicking || imageUploading || saving) {
+    if (imagePicking || imageProcessing || imageUploading || saving) {
       return;
     }
 
+    const requestId = imagePickRequestIdRef.current + 1;
+    imagePickRequestIdRef.current = requestId;
     setImagePicking(true);
+    setImageProcessing(false);
     setError('');
+    setListError('');
 
     try {
-      const response = await launchImageLibrary({
-        mediaType: 'photo',
-        selectionLimit: 1,
-        // Ảnh món chỉ cần đủ rõ trên menu. Giảm kích thước để Android preview
-        // mượt hơn và tránh upload base64 quá lớn làm Render/ngăn mạng bị treo.
-        quality: 0.55,
-        maxWidth: 960,
-        maxHeight: 960,
-        includeBase64: true,
-      });
+      const response = await pickMenuImageAsset();
 
       if (response.didCancel) {
         return;
@@ -610,72 +666,81 @@ const AdminMenuManagementScreen = ({
 
       const pickedAsset = response.assets?.[0];
       const pickedUri = pickedAsset?.uri || '';
+      const pickedBase64 = String(pickedAsset?.base64 || '').trim();
+      const pickedMimeType = pickedAsset?.type || 'image/jpeg';
+      const inlineDataUri = pickedBase64
+        ? createRestaurantMenuImagePreviewUri({
+            uri: '',
+            base64: pickedBase64,
+            type: pickedMimeType,
+          })
+        : '';
 
-      if (!pickedUri && !pickedAsset?.base64) {
+      if (!pickedUri && !pickedBase64) {
         devWarn('[AdminMenuImage] image pick error=missing-uri-base64');
         setError('Không lấy được ảnh đã chọn. Vui lòng chọn ảnh khác.');
         return;
       }
 
-      const requestId = imagePickRequestIdRef.current + 1;
-      imagePickRequestIdRef.current = requestId;
-      const inlineDataUri = createRestaurantMenuImagePreviewUri({
-        uri: '',
-        base64: pickedAsset?.base64,
-        type: pickedAsset?.type,
-      });
-      // Preview bằng uri gốc trước vì data:image;base64 rất dài, Android release
-      // dễ render chậm nên nhìn như phải bấm chọn ảnh 2 lần mới nhận. Base64 vẫn
-      // được giữ riêng trong draft để upload lên server khi bấm Lưu món.
-      const nextPreviewUri = pickedUri || inlineDataUri;
-
-      // Chọn ảnh chỉ cập nhật preview + draft. Không upload ngay ở bước chọn ảnh.
-      // Upload ngay lúc chọn làm món mới bị gắn với id tạm "new_dish", dễ lệch
-      // state nếu Render chậm: lần đầu nhìn như chưa chọn ảnh, bấm Lưu bị kẹt,
-      // hoặc lưu món xong server không thấy đúng món/category.
-      setImagePreviewUrl(nextPreviewUri);
-      setImagePreviewRevision(revision => revision + 1);
+      // Cập nhật draft ngay lập tức để dù Android remount màn hình sau khi đóng
+      // thư viện ảnh, form vẫn biết rằng ảnh đã được chọn trong lần bấm đầu tiên.
+      const firstPreviewUri = pickedUri || inlineDataUri;
       updateDraft(
         {
-          imageUrl: nextPreviewUri,
+          imageUrl: firstPreviewUri,
           pendingImageUri: pickedUri,
-          pendingImageBase64: pickedAsset?.base64 || '',
-          pendingImageDataUri: inlineDataUri || '',
+          pendingImageBase64: pickedBase64,
+          pendingImageDataUri: inlineDataUri,
           pendingImageFileName: pickedAsset?.fileName || '',
-          pendingImageMimeType: pickedAsset?.type || 'image/jpeg',
+          pendingImageMimeType: pickedMimeType,
         },
         {syncImagePreview: false},
       );
+      setImageUrlState(firstPreviewUri);
+      setImagePreviewUrl(firstPreviewUri);
+      setImagePreviewRevision(revision => revision + 1);
 
-      if (pickedAsset?.base64) {
-        void persistRestaurantMenuImage({
+      // Android release có máy không render ổn content:// hoặc data:image quá dài.
+      // Vì vậy sau khi nhận ảnh lần 1, tạo luôn một file preview riêng trong app
+      // rồi đổi preview sang file:// ổn định. Đây vẫn là cùng một lần chọn ảnh,
+      // không yêu cầu người dùng bấm chọn lại lần 2.
+      setImageProcessing(true);
+      try {
+        const stablePreviewUri = await persistRestaurantMenuImage({
           uri: pickedUri,
-          base64: pickedAsset.base64,
+          base64: pickedBase64,
           itemId: selectedItemId || 'menu_draft_preview',
-          type: pickedAsset?.type || 'image/jpeg',
+          type: pickedMimeType,
           fileName: pickedAsset?.fileName || '',
-        })
-          .then(stablePreviewUri => {
-            if (
-              stablePreviewUri &&
-              imagePickRequestIdRef.current === requestId
-            ) {
-              setImagePreviewUrl(stablePreviewUri);
-              setImagePreviewRevision(revision => revision + 1);
-              updateDraft(
-                {imageUrl: stablePreviewUri},
-                {syncImagePreview: false},
-              );
-            }
-          })
-          .catch(error => {
-            devWarn('[AdminMenuImage] stable preview persist failed', error);
-          });
+        });
+
+        if (stablePreviewUri && imagePickRequestIdRef.current === requestId) {
+          updateDraft(
+            {
+              imageUrl: stablePreviewUri,
+              pendingImageUri: stablePreviewUri,
+              pendingImageBase64: pickedBase64,
+              pendingImageDataUri: inlineDataUri,
+              pendingImageFileName: pickedAsset?.fileName || '',
+              pendingImageMimeType: pickedMimeType,
+            },
+            {syncImagePreview: false},
+          );
+          setImageUrlState(stablePreviewUri);
+          setImagePreviewUrl(stablePreviewUri);
+          setImagePreviewRevision(revision => revision + 1);
+        }
+      } catch (persistError) {
+        devWarn('[AdminMenuImage] stable preview persist failed', persistError);
+        // Giữ firstPreviewUri đã set ở trên, không bắt người dùng chọn lại.
       }
     } catch (pickError) {
       devWarn('[AdminMenuImage] image pick error=', pickError);
       setError('Không thể mở thư viện ảnh trên thiết bị này.');
     } finally {
+      if (imagePickRequestIdRef.current === requestId) {
+        setImageProcessing(false);
+      }
       setImagePicking(false);
     }
   };
@@ -701,7 +766,8 @@ const AdminMenuManagementScreen = ({
     const draftPendingImageBase64 = draft.pendingImageBase64 || '';
     const draftPendingImageDataUri = draft.pendingImageDataUri || '';
     const draftPendingImageFileName = draft.pendingImageFileName || '';
-    const draftPendingImageMimeType = draft.pendingImageMimeType || 'image/jpeg';
+    const draftPendingImageMimeType =
+      draft.pendingImageMimeType || 'image/jpeg';
     const draftStatus = draft.status ?? status;
     const draftViewMode = draft.viewMode ?? viewMode;
     const draftSelectedItemId = draft.selectedItemId ?? selectedItemId;
@@ -716,7 +782,8 @@ const AdminMenuManagementScreen = ({
     const selectedCategoryForSubmit = categories.find(
       category => category.id === cleanCategoryId,
     );
-    const cleanCategoryName = selectedCategoryForSubmit?.name || cleanCategoryId;
+    const cleanCategoryName =
+      selectedCategoryForSubmit?.name || cleanCategoryId;
 
     if (!cleanName) {
       setError('Vui lòng nhập tên món');
@@ -739,9 +806,13 @@ const AdminMenuManagementScreen = ({
       ? menuItems.find(item => item.id === itemId) || selectedItem
       : null;
     const hasPendingImage = Boolean(
-      draftPendingImageBase64 || draftPendingImageDataUri || draftPendingImageUri,
+      draftPendingImageBase64 ||
+      draftPendingImageDataUri ||
+      draftPendingImageUri,
     );
-    const existingServerImageUrl = getMenuItemImageValue(editingItem || undefined);
+    const existingServerImageUrl = getMenuItemImageValue(
+      editingItem || undefined,
+    );
     const cleanDraftImageUrl = getMenuItemImageValue({imageUrl: draftImageUrl});
 
     setSaving(true);
@@ -792,7 +863,10 @@ const AdminMenuManagementScreen = ({
             setImageUploading(true);
             let serverImageUrl = '';
 
-            if (onUploadImage && (draftPendingImageBase64 || draftPendingImageDataUri)) {
+            if (
+              onUploadImage &&
+              (draftPendingImageBase64 || draftPendingImageDataUri)
+            ) {
               const uploadResult = await onUploadImage({
                 uri: draftPendingImageUri,
                 base64: draftPendingImageBase64,
@@ -803,8 +877,25 @@ const AdminMenuManagementScreen = ({
                 fileName: draftPendingImageFileName,
               });
               serverImageUrl = getMenuItemImageValue({
-                imageUrl: uploadResult?.imageUrl || uploadResult?.publicUrl || '',
+                imageUrl:
+                  uploadResult?.imageUrl || uploadResult?.publicUrl || '',
               });
+              if (Array.isArray(uploadResult?.items)) {
+                savedItems = uploadResult.items;
+                savedItem =
+                  savedItems.find(item => item.id === savedItemId) ||
+                  findSavedMenuItemForPayload(
+                    savedItems,
+                    {
+                      id: savedItemId,
+                      name: cleanName,
+                      price: priceValue,
+                      categoryId: cleanCategoryId,
+                      categoryName: cleanCategoryName,
+                    },
+                    categories,
+                  );
+              }
             }
 
             if (!serverImageUrl && !onUploadImage) {
@@ -818,30 +909,45 @@ const AdminMenuManagementScreen = ({
             }
 
             if (serverImageUrl) {
-              const imagePayload: MenuItemFormInput = {
-                ...basePayload,
-                id: savedItemId,
-                createdAt: savedItem?.createdAt || editingItem?.createdAt,
-                imageUrl: serverImageUrl,
-              };
-              savedItems = await onSaveItem(imagePayload);
-              savedItem = findSavedMenuItemForPayload(
-                savedItems,
-                {
-                  id: savedItemId,
-                  name: cleanName,
-                  price: priceValue,
-                  categoryId: cleanCategoryId,
-                  categoryName: cleanCategoryName,
-                },
-                categories,
+              const imageAlreadyAttached = Boolean(
+                getMenuItemImageValue(savedItem || undefined) === serverImageUrl ||
+                  (Array.isArray(savedItems) &&
+                    savedItems.some(
+                      item =>
+                        item.id === savedItemId &&
+                        getMenuItemImageValue(item) === serverImageUrl,
+                    )),
               );
+
+              if (!imageAlreadyAttached) {
+                const imagePayload: MenuItemFormInput = {
+                  ...basePayload,
+                  id: savedItemId,
+                  createdAt: savedItem?.createdAt || editingItem?.createdAt,
+                  imageUrl: serverImageUrl,
+                };
+                savedItems = await onSaveItem(imagePayload);
+                savedItem = findSavedMenuItemForPayload(
+                  savedItems,
+                  {
+                    id: savedItemId,
+                    name: cleanName,
+                    price: priceValue,
+                    categoryId: cleanCategoryId,
+                    categoryName: cleanCategoryName,
+                  },
+                  categories,
+                );
+              }
             } else {
               imageWarning =
                 'Món đã lưu, nhưng ảnh chưa upload được. Ảnh có thể quá lớn hoặc máy chưa cấp dữ liệu ảnh; hãy sửa món và chọn lại ảnh nhỏ hơn.';
             }
           } catch (uploadError) {
-            devWarn('[AdminMenu] image upload failed after item save', uploadError);
+            devWarn(
+              '[AdminMenu] image upload failed after item save',
+              uploadError,
+            );
             imageWarning =
               'Món đã lưu, nhưng ảnh chưa upload được. Hãy vào Sửa món và chọn lại ảnh nhỏ hơn nếu cần.';
           }
@@ -1124,9 +1230,12 @@ const AdminMenuManagementScreen = ({
       }
 
       const savedCategory = result.categories.find(
-        category => category.id === categoryDraftId || normaliseSearchTerm(category.name) === normaliseSearchTerm(cleanName),
+        category =>
+          category.id === categoryDraftId ||
+          normaliseSearchTerm(category.name) === normaliseSearchTerm(cleanName),
       );
-      const nextCategoryId = savedCategory?.id || result.categories[0]?.id || defaultCategoryId;
+      const nextCategoryId =
+        savedCategory?.id || result.categories[0]?.id || defaultCategoryId;
       if (nextCategoryId) {
         updateDraft({categoryId: nextCategoryId});
         setCategoryFilter(current =>
@@ -1373,8 +1482,8 @@ const AdminMenuManagementScreen = ({
             <RNView>
               <RNText style={styles.editModalTitle}>{formTitle}</RNText>
               <RNText style={styles.editModalHint}>
-                Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng
-                hệ thống.
+                Dữ liệu lưu local qua restaurantAdminStore, sau này thay bằng hệ
+                thống.
               </RNText>
             </RNView>
           </RNView>
@@ -1456,21 +1565,26 @@ const AdminMenuManagementScreen = ({
                   : 'Chọn ảnh trực tiếp từ máy'}
               </RNText>
               <RNText style={styles.imagePickerHint} numberOfLines={2}>
-                Chọn ảnh xong bấm Lưu món, ảnh sẽ được tải lên server nếu có mạng.
+                Chọn ảnh xong bấm Lưu món, ảnh sẽ được tải lên server nếu có
+                mạng.
               </RNText>
               <RNView style={styles.imagePickerButtonRow}>
                 <Pressable
                   onPress={pickMenuImage}
                   style={styles.imagePickerButton}
-                  disabled={saving || imagePicking || imageUploading}>
+                  disabled={
+                    saving || imagePicking || imageProcessing || imageUploading
+                  }>
                   <RNText style={styles.imagePickerButtonText}>
                     {imageUploading
                       ? 'Đang tải ảnh...'
-                      : imagePicking
-                        ? 'Đang mở...'
-                        : formPreviewImageUrl
-                          ? 'Đổi ảnh'
-                          : 'Chọn ảnh từ máy'}
+                      : imageProcessing
+                        ? 'Đang nhận ảnh...'
+                        : imagePicking
+                          ? 'Đang mở...'
+                          : formPreviewImageUrl
+                            ? 'Đổi ảnh'
+                            : 'Chọn ảnh từ máy'}
                   </RNText>
                 </Pressable>
                 {formPreviewImageUrl ? (
@@ -1487,7 +1601,12 @@ const AdminMenuManagementScreen = ({
                       });
                     }}
                     style={styles.imageRemoveButton}
-                    disabled={saving || imagePicking || imageUploading}>
+                    disabled={
+                      saving ||
+                      imagePicking ||
+                      imageProcessing ||
+                      imageUploading
+                    }>
                     <RNText style={styles.imageRemoveButtonText}>
                       Xoá ảnh
                     </RNText>
@@ -1533,9 +1652,15 @@ const AdminMenuManagementScreen = ({
             <Pressable
               onPress={submitForm}
               style={styles.saveButton}
-              disabled={saving || categories.length === 0}>
+              disabled={saving || imageProcessing || categories.length === 0}>
               <RNText style={styles.saveButtonText}>
-                {imageUploading ? 'Đang tải ảnh...' : saving ? 'Đang lưu...' : 'Lưu'}
+                {imageUploading
+                  ? 'Đang tải ảnh...'
+                  : imageProcessing
+                    ? 'Đang nhận ảnh...'
+                    : saving
+                      ? 'Đang lưu...'
+                      : 'Lưu'}
               </RNText>
             </Pressable>
           </RNView>
@@ -1550,8 +1675,8 @@ const AdminMenuManagementScreen = ({
         <RNView>
           <RNText style={styles.sectionTitle}>Quản lý món / sản phẩm</RNText>
           <RNText style={styles.sectionHint}>
-            {menuItems.length} món · {categories.length} danh mục · Dữ liệu đồng bộ
-            theo tài khoản/quán hiện tại.
+            {menuItems.length} món · {categories.length} danh mục · Dữ liệu đồng
+            bộ theo tài khoản/quán hiện tại.
           </RNText>
         </RNView>
         <RNView style={styles.sectionHeaderActions}>

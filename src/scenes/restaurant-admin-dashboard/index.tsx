@@ -1440,7 +1440,17 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           restaurantId: context.restaurantId,
         });
         setRestaurantNameMessage('Đã lưu tên quán.');
-        await hydrateRestaurantContext({source: 'admin'});
+        hydrateRestaurantContext({source: 'admin'}).catch(error => {
+          logScoreMenuError(
+            {
+              module: 'ADMIN',
+              action: 'soft refresh context after restaurant name save failed',
+              restaurantId: context.restaurantId,
+              branchId: context.branchId,
+            },
+            error,
+          );
+        });
       } catch (error) {
         logScoreMenuError(
           {
@@ -1511,7 +1521,17 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
         setRestaurantNameMessage(
           `Đã tạo lựa chọn Bàn 1 đến Bàn ${tableCount} cho khách.`,
         );
-        await hydrateRestaurantContext({source: 'admin'});
+        hydrateRestaurantContext({source: 'admin'}).catch(error => {
+          logScoreMenuError(
+            {
+              module: 'ADMIN',
+              action: 'soft refresh context after table count save failed',
+              restaurantId: context.restaurantId,
+              branchId: context.branchId,
+            },
+            error,
+          );
+        });
       } catch (error) {
         logScoreMenuError(
           {
@@ -1673,7 +1693,17 @@ const RestaurantAdminDashboardScreen = (props: Props) => {
           ? `Đã lưu tên quán và tạo lựa chọn Bàn 1 đến Bàn ${tableCount}.`
           : 'Đã lưu tên quán.',
       );
-      await hydrateRestaurantContext({source: 'admin'});
+      hydrateRestaurantContext({source: 'admin'}).catch(error => {
+        logScoreMenuError(
+          {
+            module: 'ADMIN',
+            action: 'soft refresh context after settings save failed',
+            restaurantId: context.restaurantId,
+            branchId: context.branchId,
+          },
+          error,
+        );
+      });
     } catch (error) {
       logScoreMenuError(
         {
